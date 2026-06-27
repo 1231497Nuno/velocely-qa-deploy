@@ -13,7 +13,30 @@ const TIMER_INFO = {
   concluido: { color: "bg-gray-300", label: "Concluída" },
 };
 
-const TimerDot = ({ estado }) => {
+const fmtDur = (sec) => {
+  const s = Math.max(0, Math.floor(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${pad(m)}:${pad(ss)}`;
+};
+
+const elapsedSec = (o, nowMs) => {
+  let total = 0;
+  for (const it of o.itens || []) {
+    for (const op of it.operacoes || []) {
+      total += Number(op.tempo_real_seg) || 0;
+      if (op.timer_inicio) {
+        const start = new Date(op.timer_inicio).getTime();
+        if (!isNaN(start)) total += Math.max(0, (nowMs - start) / 1000);
+      }
+    }
+  }
+  return total;
+};
+
+const TimerDot = ({ estado, liveSec }) => {
   const info = TIMER_INFO[estado] || TIMER_INFO.por_iniciar;
   return (
     <span data-testid={`timer-dot-${estado}`} className="inline-flex items-center gap-2" title={info.label}>
@@ -22,6 +45,9 @@ const TimerDot = ({ estado }) => {
         <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${info.color}`} />
       </span>
       <span className="text-xs text-gray-600">{info.label}</span>
+      {estado === "em_curso" && liveSec != null && (
+        <span data-testid="timer-live" className="text-xs font-medium tabular-nums text-emerald-700">· {fmtDur(liveSec)}</span>
+      )}
     </span>
   );
 };
@@ -29,12 +55,20 @@ const TimerDot = ({ estado }) => {
 export default function OrdensFabrico() {
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ativas");
+  const [now, setNow] = useState(Date.now());
   const nav = useNavigate();
 
   const load = async () => setItems(await api.get("/ordens-fabrico"));
   useEffect(() => {
     load();
   }, []);
+
+  const hasRunning = items.some((o) => o.timer_estado === "em_curso");
+  useEffect(() => {
+    if (!hasRunning) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [hasRunning]);
 
   const create = async () => {
     const of = await api.post("/ordens-fabrico", { cliente: "Novo Cliente", status: "pendente", itens: [] });
@@ -98,7 +132,7 @@ export default function OrdensFabrico() {
           <tbody data-testid="ofs-table">
             {rows.map((o) => (
               <tr key={o.id} data-testid={`of-row-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
-                {tab === "ativas" && <td className="px-4 py-3"><TimerDot estado={o.timer_estado} /></td>}
+                {tab === "ativas" && <td className="px-4 py-3"><TimerDot estado={o.timer_estado} liveSec={o.timer_estado === "em_curso" ? elapsedSec(o, now) : null} /></td>}
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
                 <td className="px-4 py-3 text-gray-500 mono text-xs">{o.numero_encomenda || "—"}</td>
