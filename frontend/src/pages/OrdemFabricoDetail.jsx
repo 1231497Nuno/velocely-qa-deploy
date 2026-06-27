@@ -94,7 +94,18 @@ export default function OrdemFabricoDetail() {
     return `${m}m ${String(ss).padStart(2, "0")}s`;
   };
 
+  const fmtClock = (s) => {
+    s = Math.floor(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(h)}:${pad(m)}:${pad(ss)}`;
+  };
+
   const totalTempo = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + (o.tempo_min || 0), 0), 0);
+  const totalRealSeg = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + elapsedSeg(o), 0), 0);
+  const algumEmCurso = of.itens.some((it) => (it.operacoes || []).some((o) => o.timer_inicio));
 
   return (
     <div>
@@ -122,6 +133,22 @@ export default function OrdemFabricoDetail() {
           <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Save size={16} /> Guardar
           </button>
+        </div>
+      </div>
+
+      <div className="mb-4 bg-gray-900 text-white rounded-sm px-6 py-5 flex items-center justify-between gap-4" data-testid="of-total-timer">
+        <div className="flex items-center gap-3">
+          <span className={`relative flex h-3 w-3 ${algumEmCurso ? "" : "opacity-60"}`}>
+            {algumEmCurso && <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 animate-ping" />}
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${algumEmCurso ? "bg-emerald-400" : "bg-gray-500"}`} />
+          </span>
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.15em] text-gray-400">Tempo total gasto</div>
+            <div className="text-xs text-gray-500 mt-0.5">{algumEmCurso ? "Cronómetro a contar…" : "Cronómetro parado"} · Estimado {totalTempo} min</div>
+          </div>
+        </div>
+        <div data-testid="of-total-timer-value" className={`font-display font-bold tabular-nums text-4xl sm:text-5xl tracking-tight ${algumEmCurso ? "text-emerald-400" : "text-white"}`}>
+          {fmtClock(totalRealSeg)}
         </div>
       </div>
 

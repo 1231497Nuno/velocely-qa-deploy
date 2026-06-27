@@ -781,20 +781,20 @@ async def delete_orcamento(oid: str):
 def recompute_of_status(of: dict) -> dict:
     all_ops = [op for it in of.get("itens", []) for op in it.get("operacoes", [])]
     of = {**of}
+    running = any(op.get("timer_inicio") for op in all_ops)
+    has_progress = any((op.get("tempo_real_seg") or 0) > 0 or op.get("concluida") for op in all_ops)
     if all_ops:
         done = sum(1 for op in all_ops if op.get("concluida"))
-        if done == 0:
-            of["status"] = "pendente"
-        elif done == len(all_ops):
+        if done == len(all_ops):
             of["status"] = "concluido"
-        else:
+        elif done > 0 or running or has_progress:
             of["status"] = "em_producao"
+        else:
+            of["status"] = "pendente"
         of["progresso"] = round2(done / len(all_ops) * 100)
     else:
         of["progresso"] = 0
     # Estado do cronómetro: por_iniciar (cinza), em_curso (verde), em_pausa (amarelo), concluido
-    running = any(op.get("timer_inicio") for op in all_ops)
-    has_progress = any((op.get("tempo_real_seg") or 0) > 0 or op.get("concluida") for op in all_ops)
     if of.get("status") == "concluido":
         of["timer_estado"] = "concluido"
     elif running:
