@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, API } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "../components/ui/progress";
 
@@ -80,9 +80,14 @@ export default function OrdemFabricoDetail() {
           </div>
           <p className="text-sm text-gray-500 mt-1">Ordem de Fabrico · {of.cliente}</p>
         </div>
-        <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors shrink-0">
-          <Save size={16} /> Guardar
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <a href={`${API}/ordens-fabrico/${id}/pdf`} target="_blank" rel="noopener noreferrer" data-testid="of-pdf-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+            <FileDown size={16} /> PDF
+          </a>
+          <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+            <Save size={16} /> Guardar
+          </button>
+        </div>
       </div>
 
       <div className="mb-4">

@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api, eur } from "../lib/api";
+import { api, eur, API } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
-import { ArrowLeft, Plus, Trash2, Save, FileText, Factory } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTS = [
@@ -99,6 +99,9 @@ export default function OrcamentoDetail() {
           <p className="text-sm text-gray-500 mt-1">Orçamento · {orc.cliente}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <a href={`${API}/orcamentos/${id}/pdf`} target="_blank" rel="noopener noreferrer" data-testid="orcamento-pdf-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+            <FileDown size={16} /> PDF
+          </a>
           {orc.of_id && (
             <Link to={`/ordens-fabrico/${orc.of_id}`} data-testid="goto-of-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
               <Factory size={16} /> {orc.of_numero}
