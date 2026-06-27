@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -317,6 +318,201 @@ def compute_orcamento_totais(orc: dict) -> dict:
     return orc
 
 
+# ----------------------- PDF generation -----------------------
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable,
+)
+
+DARK = colors.HexColor("#0A0A0A")
+GREY = colors.HexColor("#6B7280")
+LIGHT = colors.HexColor("#F3F4F6")
+LINE = colors.HexColor("#E5E7EB")
+
+
+def fmt_eur(v) -> str:
+    s = f"{(v or 0):,.2f}".replace(",", " ").replace(".", ",")
+    return f"{s} €"
+
+
+def _pdf_styles():
+    ss = getSampleStyleSheet()
+    return {
+        "h1": ParagraphStyle("h1", parent=ss["Title"], fontName="Helvetica-Bold", fontSize=22, textColor=DARK, spaceAfter=2),
+        "brand": ParagraphStyle("brand", fontName="Helvetica-Bold", fontSize=16, textColor=DARK),
+        "small": ParagraphStyle("small", fontName="Helvetica", fontSize=8, textColor=GREY),
+        "label": ParagraphStyle("label", fontName="Helvetica-Bold", fontSize=8, textColor=GREY),
+        "val": ParagraphStyle("val", fontName="Helvetica", fontSize=10, textColor=DARK),
+        "cell": ParagraphStyle("cell", fontName="Helvetica", fontSize=9, textColor=DARK),
+        "cellb": ParagraphStyle("cellb", fontName="Helvetica-Bold", fontSize=9, textColor=DARK),
+        "th": ParagraphStyle("th", fontName="Helvetica-Bold", fontSize=8, textColor=colors.white),
+    }
+
+
+STATUS_PT = {
+    "rascunho": "Rascunho", "enviado": "Enviado", "aceite": "Aceite", "rejeitado": "Rejeitado",
+    "pendente": "Pendente", "em_producao": "Em Produção", "concluido": "Concluído",
+}
+
+
+def _header(elems, st, doc_title, numero, meta_pairs):
+    head = Table(
+        [[Paragraph("Prod<font color='#9CA3AF'>Cost</font>", st["brand"]),
+          Paragraph(doc_title, st["h1"])]],
+        colWidths=[95 * mm, 75 * mm],
+    )
+    head.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+    ]))
+    elems.append(head)
+    elems.append(Paragraph(f"<b>{numero}</b>", ParagraphStyle("num", fontName="Helvetica-Bold", fontSize=11, textColor=GREY, alignment=2)))
+    elems.append(Spacer(1, 6))
+    elems.append(HRFlowable(width="100%", thickness=1, color=DARK))
+    elems.append(Spacer(1, 10))
+    rows = []
+    for label, value in meta_pairs:
+        rows.append([Paragraph(label.upper(), st["label"]), Paragraph(str(value or "—"), st["val"])])
+    meta = Table(rows, colWidths=[40 * mm, 130 * mm])
+    meta.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    elems.append(meta)
+    elems.append(Spacer(1, 12))
+
+
+def build_orcamento_pdf(orc: dict) -> bytes:
+    st = _pdf_styles()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    elems = []
+    _header(elems, st, "ORÇAMENTO", orc.get("numero", ""), [
+        ("Cliente", orc.get("cliente")),
+        ("Descrição", orc.get("descricao")),
+        ("Nº Encomenda", orc.get("numero_encomenda")),
+        ("Data", orc.get("data")),
+        ("Validade", orc.get("validade")),
+        ("Estado", STATUS_PT.get(orc.get("status"), orc.get("status"))),
+    ])
+
+    header = [Paragraph(t, st["th"]) for t in ["Artigo", "Personalização", "Qtd", "Preço Unit.", "Pers. €/un", "Subtotal"]]
+    data = [header]
+    for l in orc.get("linhas", []):
+        qtd = l.get("quantidade") or 0
+        preco = l.get("preco_unit") or 0
+        pers = l.get("valor_personalizacao") or 0
+        sub = (preco + pers) * qtd
+        data.append([
+            Paragraph(l.get("artigo_nome") or "—", st["cell"]),
+            Paragraph(l.get("tipo_personalizacao_nome") or "—", st["cell"]),
+            Paragraph(f"{qtd:g}", st["cell"]),
+            Paragraph(fmt_eur(preco), st["cell"]),
+            Paragraph(fmt_eur(pers), st["cell"]),
+            Paragraph(fmt_eur(sub), st["cellb"]),
+        ])
+    tbl = Table(data, colWidths=[55 * mm, 35 * mm, 15 * mm, 25 * mm, 22 * mm, 18 * mm])
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elems.append(tbl)
+    elems.append(Spacer(1, 14))
+
+    tot_rows = [
+        ["Preço dos artigos", fmt_eur(orc.get("subtotal_venda"))],
+        ["Personalização", fmt_eur(orc.get("total_personalizacao"))],
+        ["PREÇO FINAL", fmt_eur(orc.get("total"))],
+    ]
+    tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
+    tot.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTNAME", (0, 0), (-1, 1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, 1), 9),
+        ("TEXTCOLOR", (0, 0), (-1, 1), GREY),
+        ("LINEABOVE", (0, 2), (-1, 2), 1, DARK),
+        ("FONTNAME", (0, 2), (-1, 2), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 2), (-1, 2), 13),
+        ("TEXTCOLOR", (0, 2), (-1, 2), DARK),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    elems.append(tot)
+    doc.build(elems)
+    return buf.getvalue()
+
+
+def build_of_pdf(of: dict) -> bytes:
+    st = _pdf_styles()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    elems = []
+    _header(elems, st, "ORDEM DE FABRICO", of.get("numero", ""), [
+        ("Cliente", of.get("cliente")),
+        ("Descrição", of.get("descricao")),
+        ("Nº Encomenda", of.get("numero_encomenda")),
+        ("Data", of.get("data")),
+        ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))),
+        ("Progresso", f"{round(of.get('progresso') or 0)}%"),
+        ("Origem", of.get("orcamento_numero")),
+    ])
+
+    for it in of.get("itens", []):
+        title = f"{it.get('artigo_nome') or 'Artigo'}  ×{it.get('quantidade') or 0:g}"
+        if it.get("tipo_personalizacao_nome"):
+            title += f"   ·   {it.get('tipo_personalizacao_nome')}"
+        elems.append(Paragraph(title, st["cellb"]))
+        elems.append(Spacer(1, 4))
+        header = [Paragraph(t, st["th"]) for t in ["Operação", "Máquina", "Mão de Obra", "Tempo (min)", "Concluída"]]
+        data = [header]
+        for op in it.get("operacoes", []):
+            data.append([
+                Paragraph(op.get("nome") or "—", st["cell"]),
+                Paragraph(op.get("maquina_nome") or "—", st["cell"]),
+                Paragraph(op.get("mao_obra_nome") or "—", st["cell"]),
+                Paragraph(f"{op.get('tempo_min') or 0:g}", st["cell"]),
+                Paragraph("Sim" if op.get("concluida") else "—", st["cellb"] if op.get("concluida") else st["cell"]),
+            ])
+        if len(data) == 1:
+            data.append([Paragraph("Sem operações", st["cell"]), "", "", "", ""])
+        tbl = Table(data, colWidths=[42 * mm, 40 * mm, 40 * mm, 24 * mm, 24 * mm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+            ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        elems.append(tbl)
+        elems.append(Spacer(1, 14))
+
+    if not of.get("itens"):
+        elems.append(Paragraph("Sem artigos nesta ordem de fabrico.", st["cell"]))
+    if of.get("notas"):
+        elems.append(Spacer(1, 6))
+        elems.append(Paragraph(f"<b>Notas:</b> {of.get('notas')}", st["small"]))
+    doc.build(elems)
+    return buf.getvalue()
+
+
 # ----------------------- Routes: Maquinas -----------------------
 @api_router.get("/maquinas", response_model=List[Maquina])
 async def list_maquinas():
@@ -505,6 +701,21 @@ async def get_orcamento(oid: str):
     return compute_orcamento_totais(o)
 
 
+@api_router.get("/orcamentos/{oid}/pdf")
+async def orcamento_pdf(oid: str):
+    o = await db.orcamentos.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Orçamento não encontrado")
+    o = compute_orcamento_totais(o)
+    pdf = build_orcamento_pdf(o)
+    filename = f"{o.get('numero', 'orcamento')}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 @api_router.post("/orcamentos")
 async def create_orcamento(data: OrcamentoInput):
     o = Orcamento(**data.model_dump())
@@ -592,6 +803,21 @@ async def get_of(ofid: str):
     if not o:
         raise HTTPException(404, "OF não encontrada")
     return recompute_of_status(o)
+
+
+@api_router.get("/ordens-fabrico/{ofid}/pdf")
+async def of_pdf(ofid: str):
+    o = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "OF não encontrada")
+    o = recompute_of_status(o)
+    pdf = build_of_pdf(o)
+    filename = f"{o.get('numero', 'ordem-fabrico')}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @api_router.post("/ordens-fabrico")
