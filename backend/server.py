@@ -155,6 +155,9 @@ class OrcamentoLinha(BaseModel):
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
     valor_personalizacao: float = 0.0
+    custo_base_unit: Optional[float] = None
+    margem: Optional[float] = None
+    roteiro: List[Operacao] = Field(default_factory=list)
     custo_producao_unit: float = 0.0
     preco_unit: float = 0.0
 
@@ -187,6 +190,7 @@ class OFOperacao(BaseModel):
     tempo_maquina: float = 0.0
     tempo_mao_obra: float = 0.0
     tempo_min: float = 0.0
+    custo_estimado: float = 0.0
     timer_inicio: Optional[str] = None
     tempo_real_seg: float = 0.0
     concluida: bool = False
@@ -692,8 +696,21 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
     for l in linhas:
         a = await db.artigos.find_one({"id": l.get("artigo_id")}, {"_id": 0})
         if a:
-            bd = await artigo_breakdown(a)
             l["artigo_nome"] = a.get("nome", l.get("artigo_nome", ""))
+            if l.get("custo_base_unit") is None:
+                bd_a = await artigo_breakdown(a)
+                l["custo_base_unit"] = round2(bd_a["custo_artigo"] + bd_a["custo_materiais"])
+                if l.get("margem") is None:
+                    l["margem"] = a.get("margem", 30)
+                if not l.get("roteiro"):
+                    l["roteiro"] = a.get("roteiro", [])
+            pseudo = {
+                "custo_artigo": l.get("custo_base_unit") or 0,
+                "materiais": [],
+                "roteiro": l.get("roteiro", []),
+                "margem": l.get("margem") if l.get("margem") is not None else 30,
+            }
+            bd = await artigo_breakdown(pseudo)
             l["custo_producao_unit"] = bd["custo_producao_total"]
             l["preco_unit"] = bd["preco_venda"]
         out.append(l)
@@ -793,6 +810,9 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                 for op in a.get("roteiro", []):
                     t_maq = op_minutos_maquina(op)
                     t_mo = op_minutos_mao_obra(op)
+                    maq = await db.maquinas.find_one({"id": op.get("maquina_id")}, {"_id": 0}) if op.get("maquina_id") else None
+                    mo = await db.mao_obra.find_one({"id": op.get("mao_obra_id")}, {"_id": 0}) if op.get("mao_obra_id") else None
+                    custo_est = round2((t_maq / 60.0) * maquina_custo_hora(maq) + (t_mo / 60.0) * ((mo or {}).get("custo_hora") or 0))
                     operacoes.append(
                         OFOperacao(
                             nome=op.get("nome", ""),
@@ -801,6 +821,7 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                             tempo_maquina=t_maq,
                             tempo_mao_obra=t_mo,
                             tempo_min=t_maq + t_mo,
+                            custo_estimado=custo_est,
                         ).model_dump()
                     )
         it["operacoes"] = operacoes or []
@@ -1006,6 +1027,7 @@ async def producao_tempos():
     for o in ofs:
         o = recompute_of_status(o)
         est_maq = est_mo = est_tot = real_seg = 0.0
+        custo_est_total = custo_real_total = 0.0
         ops = []
         for it in o.get("itens", []):
             for op in it.get("operacoes", []):
@@ -1014,10 +1036,14 @@ async def producao_tempos():
                 ttot = op.get("tempo_min") or (tmaq + tmo)
                 rseg = op.get("tempo_real_seg") or 0
                 rmin = rseg / 60.0
+                est_c = op.get("custo_estimado") or 0
+                real_c = round2((rmin / ttot) * est_c) if ttot > 0 else 0.0
                 est_maq += tmaq
                 est_mo += tmo
                 est_tot += ttot
                 real_seg += rseg
+                custo_est_total += est_c
+                custo_real_total += real_c
                 ops.append({
                     "artigo": it.get("artigo_nome"),
                     "nome": op.get("nome"),
@@ -1028,10 +1054,15 @@ async def producao_tempos():
                     "tempo_estimado": round2(ttot),
                     "tempo_real_min": round2(rmin),
                     "desvio_min": round2(rmin - ttot),
+                    "custo_estimado": round2(est_c),
+                    "custo_real": real_c,
+                    "desvio_custo": round2(real_c - est_c),
                     "em_curso": bool(op.get("timer_inicio")),
                     "concluida": bool(op.get("concluida")),
                 })
         real_min = round2(real_seg / 60.0)
+        custo_est_total = round2(custo_est_total)
+        custo_real_total = round2(custo_real_total)
         result.append({
             "id": o["id"],
             "numero": o.get("numero"),
@@ -1043,7 +1074,55 @@ async def producao_tempos():
             "tempo_estimado_total": round2(est_tot),
             "tempo_real_min": real_min,
             "desvio_min": round2(real_min - est_tot),
+            "custo_estimado": custo_est_total,
+            "custo_real": custo_real_total,
+            "desvio_custo": round2(custo_real_total - custo_est_total),
             "operacoes": ops,
+        })
+    return result
+
+
+@api_router.get("/producao/analise")
+async def producao_analise():
+    from collections import defaultdict
+    ofs = await db.ordens_fabrico.find({}, {"_id": 0}).to_list(2000)
+    by_month = defaultdict(lambda: {"criadas": 0, "concluidas": 0, "tempo_est": 0.0, "tempo_real": 0.0, "custo_est": 0.0, "custo_real": 0.0})
+    for o in ofs:
+        o = recompute_of_status(o)
+        mes = (o.get("created_at") or "")[:7]
+        if not mes:
+            continue
+        m = by_month[mes]
+        m["criadas"] += 1
+        if o.get("status") == "concluido":
+            m["concluidas"] += 1
+        for it in o.get("itens", []):
+            for op in it.get("operacoes", []):
+                t = op.get("tempo_min") or 0
+                rmin = (op.get("tempo_real_seg") or 0) / 60.0
+                ec = op.get("custo_estimado") or 0
+                rc = (rmin / t) * ec if t > 0 else 0.0
+                m["tempo_est"] += t
+                m["tempo_real"] += rmin
+                m["custo_est"] += ec
+                m["custo_real"] += rc
+    result = []
+    for mes in sorted(by_month.keys()):
+        m = by_month[mes]
+        criadas = m["criadas"] or 1
+        result.append({
+            "mes": mes,
+            "ofs_criadas": m["criadas"],
+            "ofs_concluidas": m["concluidas"],
+            "taxa_conclusao": round2(m["concluidas"] / criadas * 100),
+            "tempo_estimado": round2(m["tempo_est"]),
+            "tempo_real": round2(m["tempo_real"]),
+            "desvio_tempo": round2(m["tempo_real"] - m["tempo_est"]),
+            "custo_estimado": round2(m["custo_est"]),
+            "custo_real": round2(m["custo_real"]),
+            "desvio_custo": round2(m["custo_real"] - m["custo_est"]),
+            "custo_estimado_medio": round2(m["custo_est"] / criadas),
+            "custo_real_medio": round2(m["custo_real"] / criadas),
         })
     return result
 
@@ -1056,17 +1135,75 @@ async def dashboard():
     orcs_t = [compute_orcamento_totais(o) for o in orcs]
     ofs = await db.ordens_fabrico.find({}, {"_id": 0}).to_list(1000)
     ofs_t = [recompute_of_status(o) for o in ofs]
+
+    orc_estados = ["rascunho", "enviado", "aceite", "rejeitado"]
+    orcamentos_por_estado = [
+        {
+            "estado": e,
+            "label": STATUS_PT.get(e, e),
+            "count": sum(1 for o in orcs_t if o.get("status") == e),
+            "valor": round2(sum(o["total"] for o in orcs_t if o.get("status") == e)),
+        }
+        for e in orc_estados
+    ]
+    of_estados = ["pendente", "em_producao", "concluido"]
+    ofs_por_estado = [
+        {
+            "estado": e,
+            "label": STATUS_PT.get(e, e),
+            "count": sum(1 for o in ofs_t if o.get("status") == e),
+        }
+        for e in of_estados
+    ]
+
+    # valor mensal de orçamentos (últimos 6 meses pelo created_at)
+    from collections import defaultdict
+    mensal = defaultdict(float)
+    for o in orcs_t:
+        mes = (o.get("created_at") or "")[:7]
+        if mes:
+            mensal[mes] += o.get("total") or 0
+    valor_mensal = [{"mes": k, "valor": round2(v)} for k, v in sorted(mensal.items())][-6:]
+
+    # tempo estimado vs real por OF (todas)
+    tempo_por_of = []
+    for o in ofs_t:
+        est = real = 0.0
+        for it in o.get("itens", []):
+            for op in it.get("operacoes", []):
+                est += op.get("tempo_min") or 0
+                real += (op.get("tempo_real_seg") or 0) / 60.0
+        if est > 0 or real > 0:
+            tempo_por_of.append({"numero": o.get("numero"), "estimado": round2(est), "real": round2(real)})
+    tempo_por_of = tempo_por_of[-8:]
+
+    # top artigos por preço de venda
+    arts_bd = []
+    for a in artigos:
+        bd = await artigo_breakdown(a)
+        arts_bd.append({"nome": a.get("nome"), "custo": bd["custo_producao_total"], "preco": bd["preco_venda"]})
+    arts_bd.sort(key=lambda x: x["preco"], reverse=True)
+    top_artigos = arts_bd[:6]
+
     return {
         "total_artigos": len(artigos),
         "total_maquinas": await db.maquinas.count_documents({}),
         "total_tipos": await db.tipos_personalizacao.count_documents({}),
+        "total_materiais": await db.consumiveis.count_documents({}),
         "custo_medio": round2(sum(custos) / len(custos)) if custos else 0,
         "total_orcamentos": len(orcs_t),
         "valor_orcamentos": round2(sum(o["total"] for o in orcs_t)),
+        "valor_aceites": round2(sum(o["total"] for o in orcs_t if o.get("status") == "aceite")),
         "orcamentos_aceites": sum(1 for o in orcs_t if o.get("status") == "aceite"),
         "total_ofs": len(ofs_t),
+        "ofs_pendentes": sum(1 for o in ofs_t if o.get("status") == "pendente"),
         "ofs_em_producao": sum(1 for o in ofs_t if o.get("status") == "em_producao"),
         "ofs_concluidas": sum(1 for o in ofs_t if o.get("status") == "concluido"),
+        "orcamentos_por_estado": orcamentos_por_estado,
+        "ofs_por_estado": ofs_por_estado,
+        "valor_mensal": valor_mensal,
+        "tempo_por_of": tempo_por_of,
+        "top_artigos": top_artigos,
     }
 
 

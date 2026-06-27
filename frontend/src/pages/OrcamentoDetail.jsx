@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
-import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTS = [
@@ -13,17 +13,25 @@ const STATUS_OPTS = [
   { v: "rejeitado", l: "Rejeitado" },
 ];
 
+const toHours = (v, u) => (Number(v) || 0) / (u === "h" ? 1 : 60);
+const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
+
 export default function OrcamentoDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const [orc, setOrc] = useState(null);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
+  const [maquinas, setMaquinas] = useState([]);
+  const [maoObra, setMaoObra] = useState([]);
+  const [openOps, setOpenOps] = useState({});
 
   const load = useCallback(async () => {
     setOrc(await api.get(`/orcamentos/${id}`));
     setArtigos(await api.get("/artigos"));
     setTipos(await api.get("/tipos-personalizacao"));
+    setMaquinas(await api.get("/maquinas"));
+    setMaoObra(await api.get("/mao-obra"));
   }, [id]);
   useEffect(() => {
     load();
@@ -33,11 +41,23 @@ export default function OrcamentoDetail() {
 
   const upd = (patch) => setOrc({ ...orc, ...patch });
 
+  const lineCusto = (l) => {
+    let c = Number(l.custo_base_unit) || 0;
+    for (const op of l.roteiro || []) {
+      const mq = maquinas.find((x) => x.id === op.maquina_id);
+      const mo = maoObra.find((x) => x.id === op.mao_obra_id);
+      c += toHours(op.tempo_maquina, op.tempo_maquina_unidade) * maqHora(mq);
+      c += toHours(op.tempo_mao_obra, op.tempo_mao_obra_unidade) * (mo ? Number(mo.custo_hora) || 0 : 0);
+    }
+    return c;
+  };
+  const linePreco = (l) => lineCusto(l) * (1 + (Number(l.margem) || 0) / 100);
+
   const addLinha = () =>
     upd({
       linhas: [
         ...orc.linhas,
-        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", valor_personalizacao: 0, custo_producao_unit: 0, preco_unit: 0 },
+        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", valor_personalizacao: 0, custo_base_unit: 0, margem: 0, roteiro: [], custo_producao_unit: 0, preco_unit: 0 },
       ],
     });
 
@@ -48,8 +68,19 @@ export default function OrcamentoDetail() {
   };
   const delLinha = (i) => upd({ linhas: orc.linhas.filter((_, idx) => idx !== i) });
 
-  const subtotalVenda = orc.linhas.reduce((s, l) => s + (l.preco_unit || 0) * (l.quantidade || 0), 0);
-  const subtotalCusto = orc.linhas.reduce((s, l) => s + (l.custo_producao_unit || 0) * (l.quantidade || 0), 0);
+  const updOp = (li, oi, patch) => {
+    const r = [...(orc.linhas[li].roteiro || [])];
+    r[oi] = { ...r[oi], ...patch };
+    updLinha(li, { roteiro: r });
+  };
+  const addOp = (li) => {
+    const r = [...(orc.linhas[li].roteiro || []), { nome: "", maquina_id: "", maquina_nome: "", tempo_maquina: 0, tempo_maquina_unidade: "min", mao_obra_id: "", mao_obra_nome: "", tempo_mao_obra: 0, tempo_mao_obra_unidade: "min" }];
+    updLinha(li, { roteiro: r });
+  };
+  const delOp = (li, oi) => updLinha(li, { roteiro: (orc.linhas[li].roteiro || []).filter((_, idx) => idx !== oi) });
+
+  const subtotalVenda = orc.linhas.reduce((s, l) => s + linePreco(l) * (l.quantidade || 0), 0);
+  const subtotalCusto = orc.linhas.reduce((s, l) => s + lineCusto(l) * (l.quantidade || 0), 0);
   const totalPers = orc.linhas.reduce((s, l) => s + (Number(l.valor_personalizacao) || 0) * (l.quantidade || 0), 0);
   const total = subtotalVenda + totalPers;
   const lucro = total - subtotalCusto;
@@ -172,14 +203,21 @@ export default function OrcamentoDetail() {
           </thead>
           <tbody data-testid="orc-linhas">
             {orc.linhas.map((l, i) => (
-              <tr key={i} className="border-b border-gray-100">
+              <Fragment key={i}>
+              <tr className="border-b border-gray-100">
                 <td className="px-4 py-2.5">
                   <ArtigoCombobox
                     artigos={artigos}
                     value={l.artigo_id}
                     testid={`line-artigo-${i}`}
-                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, custo_producao_unit: a.custo_producao_total, preco_unit: a.preco_venda })}
+                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, custo_base_unit: Math.round(((a.custo_artigo || 0) + (a.custo_materiais || 0)) * 100) / 100, margem: a.margem ?? 30, roteiro: JSON.parse(JSON.stringify(a.roteiro || [])) })}
                   />
+                  {l.artigo_id && (
+                    <button data-testid={`line-ops-toggle-${i}`} onClick={() => setOpenOps((o) => ({ ...o, [i]: !o[i] }))} className="mt-1.5 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1">
+                      {openOps[i] ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      <Cog size={12} /> Operações ({(l.roteiro || []).length})
+                    </button>
+                  )}
                 </td>
                 <td className="px-4 py-2.5">
                   <select data-testid={`line-tipo-${i}`} value={l.tipo_personalizacao_id || ""} onChange={(e) => { const t = tipos.find((x) => x.id === e.target.value); updLinha(i, { tipo_personalizacao_id: e.target.value, tipo_personalizacao_nome: t ? t.nome : "", valor_personalizacao: t ? t.valor : 0 }); }} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
@@ -193,12 +231,45 @@ export default function OrcamentoDetail() {
                 <td className="px-4 py-2.5">
                   <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{eur(l.preco_unit)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(((l.preco_unit || 0) + (Number(l.valor_personalizacao) || 0)) * (l.quantidade || 0))}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600" data-testid={`line-preco-${i}`}>{eur(linePreco(l))}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur((linePreco(l) + (Number(l.valor_personalizacao) || 0)) * (l.quantidade || 0))}</td>
                 <td className="px-4 py-2.5">
                   <button data-testid={`delete-line-${i}`} onClick={() => delLinha(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
                 </td>
               </tr>
+              {openOps[i] && l.artigo_id && (
+                <tr className="bg-gray-50/70 border-b border-gray-100">
+                  <td colSpan={7} className="px-4 py-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 flex items-center gap-2"><Cog size={13} /> Operações e tempos desta linha</span>
+                      <button data-testid={`line-add-op-${i}`} onClick={() => addOp(i)} className="text-xs text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={13} /> Operação</button>
+                    </div>
+                    <div className="space-y-2" data-testid={`line-ops-${i}`}>
+                      {(l.roteiro || []).map((op, oi) => (
+                        <div key={oi} className="grid grid-cols-[1fr_1fr_60px_50px_1fr_60px_50px_28px] gap-1.5 items-center bg-white border border-gray-200 rounded-sm p-1.5">
+                          <input placeholder="Operação" value={op.nome || ""} onChange={(e) => updOp(i, oi, { nome: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-black/20" />
+                          <select value={op.maquina_id || ""} onChange={(e) => { const mq = maquinas.find((x) => x.id === e.target.value); updOp(i, oi, { maquina_id: e.target.value, maquina_nome: mq ? mq.nome : "" }); }} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                            <option value="">Máquina…</option>
+                            {maquinas.map((mq) => <option key={mq.id} value={mq.id}>{mq.nome}</option>)}
+                          </select>
+                          <input type="number" placeholder="t" value={op.tempo_maquina ?? 0} onChange={(e) => updOp(i, oi, { tempo_maquina: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                          <select value={op.tempo_maquina_unidade || "min"} onChange={(e) => updOp(i, oi, { tempo_maquina_unidade: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20"><option value="min">min</option><option value="h">h</option></select>
+                          <select value={op.mao_obra_id || ""} onChange={(e) => { const mo = maoObra.find((x) => x.id === e.target.value); updOp(i, oi, { mao_obra_id: e.target.value, mao_obra_nome: mo ? mo.nome : "" }); }} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                            <option value="">M. Obra…</option>
+                            {maoObra.map((mo) => <option key={mo.id} value={mo.id}>{mo.nome}</option>)}
+                          </select>
+                          <input type="number" placeholder="t" value={op.tempo_mao_obra ?? 0} onChange={(e) => updOp(i, oi, { tempo_mao_obra: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                          <select value={op.tempo_mao_obra_unidade || "min"} onChange={(e) => updOp(i, oi, { tempo_mao_obra_unidade: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20"><option value="min">min</option><option value="h">h</option></select>
+                          <button onClick={() => delOp(i, oi)} className="p-1 rounded-sm hover:bg-red-100 text-red-600 flex justify-center"><X size={14} /></button>
+                        </div>
+                      ))}
+                      {(l.roteiro || []).length === 0 && <p className="text-xs text-gray-400">Sem operações. O custo da linha usa apenas o valor base + materiais.</p>}
+                      <p className="text-[11px] text-gray-400">Custo de produção da linha: <span className="font-medium text-gray-600 tabular-nums">{eur(lineCusto(l))}</span> · Margem {l.margem ?? 0}% → Preço unit. <span className="font-medium text-gray-600 tabular-nums">{eur(linePreco(l))}</span></p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
             {orc.linhas.length === 0 && (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">Sem linhas. Adicione um artigo.</td></tr>
