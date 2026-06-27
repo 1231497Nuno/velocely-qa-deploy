@@ -37,7 +37,7 @@ export default function OrcamentoDetail() {
     upd({
       linhas: [
         ...orc.linhas,
-        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", valor_personalizacao: 0, custo_producao_unit: 0 },
+        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", valor_personalizacao: 0, custo_producao_unit: 0, preco_unit: 0 },
       ],
     });
 
@@ -48,10 +48,11 @@ export default function OrcamentoDetail() {
   };
   const delLinha = (i) => upd({ linhas: orc.linhas.filter((_, idx) => idx !== i) });
 
-  const subtotal = orc.linhas.reduce((s, l) => s + (l.custo_producao_unit || 0) * (l.quantidade || 0), 0);
+  const subtotalVenda = orc.linhas.reduce((s, l) => s + (l.preco_unit || 0) * (l.quantidade || 0), 0);
+  const subtotalCusto = orc.linhas.reduce((s, l) => s + (l.custo_producao_unit || 0) * (l.quantidade || 0), 0);
   const totalPers = orc.linhas.reduce((s, l) => s + (Number(l.valor_personalizacao) || 0) * (l.quantidade || 0), 0);
-  const base = subtotal + totalPers;
-  const total = base * (1 + (Number(orc.margem) || 0) / 100);
+  const total = subtotalVenda + totalPers;
+  const lucro = total - subtotalCusto;
 
   const save = async () => {
     const body = {
@@ -61,7 +62,6 @@ export default function OrcamentoDetail() {
       data: orc.data,
       validade: orc.validade,
       status: orc.status,
-      margem: Number(orc.margem) || 0,
       notas: orc.notas || "",
       linhas: orc.linhas.filter((l) => l.artigo_id).map((l) => ({
         ...l,
@@ -162,7 +162,7 @@ export default function OrcamentoDetail() {
               <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[18%]">Personalização</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pers. €/un</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Qtd</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Unit.</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Unit.</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subtotal</th>
               <th className="px-4 py-2.5 w-12"></th>
             </tr>
@@ -175,7 +175,7 @@ export default function OrcamentoDetail() {
                     artigos={artigos}
                     value={l.artigo_id}
                     testid={`line-artigo-${i}`}
-                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, custo_producao_unit: a.custo_producao_total })}
+                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, custo_producao_unit: a.custo_producao_total, preco_unit: a.preco_venda })}
                   />
                 </td>
                 <td className="px-4 py-2.5">
@@ -190,8 +190,8 @@ export default function OrcamentoDetail() {
                 <td className="px-4 py-2.5">
                   <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{eur(l.custo_producao_unit)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(((l.custo_producao_unit || 0) + (Number(l.valor_personalizacao) || 0)) * (l.quantidade || 0))}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{eur(l.preco_unit)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(((l.preco_unit || 0) + (Number(l.valor_personalizacao) || 0)) * (l.quantidade || 0))}</td>
                 <td className="px-4 py-2.5">
                   <button data-testid={`delete-line-${i}`} onClick={() => delLinha(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
                 </td>
@@ -208,20 +208,20 @@ export default function OrcamentoDetail() {
       <div className="flex justify-end">
         <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Custo de produção</span>
-            <span className="tabular-nums font-medium" data-testid="orc-subtotal">{eur(subtotal)}</span>
+            <span className="text-gray-500">Preço dos artigos</span>
+            <span className="tabular-nums font-medium" data-testid="orc-subtotal-venda">{eur(subtotalVenda)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Personalização</span>
             <span className="tabular-nums font-medium" data-testid="orc-personalizacao">{eur(totalPers)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <label className="text-gray-500">Margem global (%)</label>
-            <input data-testid="orc-margem-input" type="number" value={orc.margem} onChange={(e) => upd({ margem: e.target.value })} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-          </div>
           <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
+            <span className="text-gray-400">Custo de produção</span>
+            <span className="tabular-nums text-gray-400" data-testid="orc-subtotal">{eur(subtotalCusto)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Lucro estimado</span>
-            <span className="tabular-nums text-emerald-600">{eur(total - base)}</span>
+            <span className="tabular-nums text-emerald-600" data-testid="orc-lucro">{eur(lucro)}</span>
           </div>
           <div className="flex items-center justify-between border-t border-gray-200 pt-3">
             <span className="font-semibold text-gray-900">Preço Final</span>

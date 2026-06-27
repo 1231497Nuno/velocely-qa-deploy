@@ -153,6 +153,7 @@ class OrcamentoLinha(BaseModel):
     tipo_personalizacao_nome: Optional[str] = None
     valor_personalizacao: float = 0.0
     custo_producao_unit: float = 0.0
+    preco_unit: float = 0.0
 
 
 class OrcamentoInput(BaseModel):
@@ -295,22 +296,24 @@ def enrich_artigo(artigo: dict, breakdown: dict) -> dict:
 
 
 def compute_orcamento_totais(orc: dict) -> dict:
-    subtotal = 0.0
+    subtotal_custo = 0.0
+    subtotal_venda = 0.0
     total_pers = 0.0
     for l in orc.get("linhas", []):
         qtd = l.get("quantidade") or 0
-        subtotal += (l.get("custo_producao_unit") or 0) * qtd
+        subtotal_custo += (l.get("custo_producao_unit") or 0) * qtd
+        subtotal_venda += (l.get("preco_unit") or 0) * qtd
         total_pers += (l.get("valor_personalizacao") or 0) * qtd
-    subtotal = round2(subtotal)
+    subtotal_custo = round2(subtotal_custo)
+    subtotal_venda = round2(subtotal_venda)
     total_pers = round2(total_pers)
-    base = subtotal + total_pers
-    margem = orc.get("margem") or 0
-    total = round2(base * (1 + margem / 100.0))
+    total = round2(subtotal_venda + total_pers)
     orc = {**orc}
-    orc["subtotal_custo"] = subtotal
+    orc["subtotal_custo"] = subtotal_custo
+    orc["subtotal_venda"] = subtotal_venda
     orc["total_personalizacao"] = total_pers
     orc["total"] = total
-    orc["lucro"] = round2(total - base)
+    orc["lucro"] = round2(total - subtotal_custo)
     return orc
 
 
@@ -480,8 +483,10 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
     for l in linhas:
         a = await db.artigos.find_one({"id": l.get("artigo_id")}, {"_id": 0})
         if a:
+            bd = await artigo_breakdown(a)
             l["artigo_nome"] = a.get("nome", l.get("artigo_nome", ""))
-            l["custo_producao_unit"] = await artigo_custo_total(a)
+            l["custo_producao_unit"] = bd["custo_producao_total"]
+            l["preco_unit"] = bd["preco_venda"]
         out.append(l)
     return out
 

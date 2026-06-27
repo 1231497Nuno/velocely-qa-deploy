@@ -19,7 +19,6 @@ export default function Orcamentos() {
     const o = await api.post("/orcamentos", {
       cliente: "Novo Cliente",
       status: "rascunho",
-      margem: 30,
       linhas: [],
     });
     nav(`/orcamentos/${o.id}`);

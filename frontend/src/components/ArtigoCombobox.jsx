@@ -54,7 +54,7 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid }) {
                     {a.nome}
                   </span>
                   <span className="text-xs text-gray-500 tabular-nums">
-                    {eur(a.custo_producao_total)}
+                    {eur(a.preco_venda)}
                   </span>
                 </CommandItem>
               ))}
