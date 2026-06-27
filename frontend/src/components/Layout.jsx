@@ -8,7 +8,7 @@ import {
   Factory,
   Package,
   Users,
-  Timer,
+  LineChart,
 } from "lucide-react";
 
 const NAV = [
@@ -20,7 +20,7 @@ const NAV = [
   { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao" },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos" },
   { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs" },
-  { to: "/tempos", label: "Tempos de Produção", icon: Timer, tid: "nav-tempos" },
+  { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao" },
 ];
 
 export default function Layout({ children }) {

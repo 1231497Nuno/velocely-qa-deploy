@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 5 tested Análise da Produção page (PorOF + Análise Mensal) and Orçamento per-line operations editor + conversion to OF. Backend: /api/producao/tempos and /api/producao/analise return well-formed data with all expected fields (taxa_conclusao, tempo_estimado/real, desvio_tempo, custo_estimado/real, desvio_custo). Frontend: nav-analise-producao routes to /analise-producao, header reads 'Análise da Produção', mode toggle works (analise-mode-of + analise-mode-mensal). PorOF view renders the OF table with Tempos/Custos sub-tabs (tempos-tab-tempo/custo), expanding an OF row shows its operations. Análise Mensal view fetches /producao/analise, renders a recharts bar chart (svg=3) and mensal-table with mensal-row-<mes>; toggling mensal-tab-tempo/custo correctly swaps the chart Bars (tempo_estimado/real <-> custo_estimado/real) and table columns (Tempo Estimado <-> Custo Estimado). Orçamento detail line operations editor works end-to-end: line-ops-toggle-0 opens line-ops-0, line-add-op-0 adds an operation row, save-orcamento-btn persists, and after page reload the custom op 'TEST_UI_OP' is still present alongside the existing Impressão op. HIGH PRIORITY BUG: the Convert-Quote-to-OF backend endpoint IGNORES the per-line roteiro customizations the user has just made — pytest test_orcamento_line_roteiro_persists_and_converts_to_of confirms that after PUT-ing roteiro=[TEST_IT5_OP, 7min/11min] and converting, the resulting OF.itens[0].operacoes contains the artigo's DEFAULT roteiro ('Impressão' 10/15 min) instead of the customized one. This breaks the very feature the user requested (edit operations/times per article line inside the Orçamento and have them carry into the OF).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/orcamentos/{id}/converter", "issue": "Does NOT propagate orcamento.linhas[*].roteiro into the new OF.itens[*].operacoes. converter_orcamento() only copies artigo_id/artigo_nome/quantidade/tipo_personalizacao_* (server.py lines 989–999) and then build_of_itens() auto-loads the artigo's default roteiro because operacoes is empty (server.py lines 808–826). User-edited operations/times on a quote line are silently discarded on conversion.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5.py",
+    "/app/test_reports/pytest/iteration5_results.xml"
+  ],
+  "action_items": [
+    "Fix POST /api/orcamentos/{id}/converter in /app/backend/server.py: when building items from orc.linhas, translate l.get('roteiro', []) into the OF operacoes shape (OFOperacao with tempo_maquina/tempo_mao_obra in minutes, tempo_min sum, and custo_estimado computed via maquina_custo_hora + mao_obra.custo_hora) and pass it as it['operacoes'] so that build_of_itens does not overwrite it with the artigo's default roteiro. Reuse op_minutos_maquina/op_minutos_mao_obra helpers already present in server.py.",
+    "Add an integration test (already in /app/backend/tests/test_iteration5.py::test_orcamento_line_roteiro_persists_and_converts_to_of) to your CI to prevent regression."
+  ],
+  "critical_code_review_comments": [
+    "Backend converter_orcamento (server.py 979-1018) loses line roteiro customizations — the new editor in OrcamentoDetail.jsx is effectively a no-op for the final OF. Frontend save() correctly PUTs roteiro and it is correctly persisted on the orçamento document (verified via GET reload), but conversion ignores it.",
+    "AnaliseProducao.jsx is well structured (PorOF + Mensal sub-components, clear data-testid coverage). Minor: PorOF uses isCusto?7:9 colspan for empty state but the table has 8 columns when isCusto and 9 when not — colspan is fine for 'no data' rendering but if you ever switch sub-tab while empty, the colspan in row 162 should match (currently 7/9 vs the actual 8/9). Cosmetic only.",
+    "Mensal chart uses Recharts <Bar dataKey={isCusto ? 'custo_estimado' : 'tempo_estimado'}> — clean. Empty state (mensal-empty data-testid) is handled.",
+    "Layout.jsx nav-analise-producao route correct; Tempos.jsx removed (confirmed not imported anywhere)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5.py (new)"
+  ],
+  "success_rate": {"backend": "67% (2/3 iteration-5 tests pass; 1 fails by design exposing the converter bug)", "frontend": "100% (all targeted UI flows verified: nav, header, PorOF + sub-tabs, Mensal chart+table+sub-tabs, line ops editor add/save/reload persistence)"},
+  "test_credentials": "No auth.",
+  "seed_data_creation": "test_iteration5 may create a TEST_IT5_Cliente quote and a converted OF; both are deleted at teardown if delete endpoints exist (best-effort).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes converter_orcamento to pass line roteiro into OF operacoes, re-run: `export $(grep REACT_APP_BACKEND_URL /app/frontend/.env) && pytest /app/backend/tests/test_iteration5.py -v`. The third test test_orcamento_line_roteiro_persists_and_converts_to_of should pass once the converter copies tempo_maquina (7) and TEST_IT5_OP into the resulting OF.itens[0].operacoes[0]. Note: the GET /api/ordens-fabrico response uses 'itens' (not 'linhas') with each item having an 'operacoes' array — keep that shape. Frontend already works correctly and needs no changes.",
+  "rca of the issue": "ROOT CAUSE: In /app/backend/server.py the converter_orcamento endpoint (line 979) constructs items only from {artigo_id, artigo_nome, quantidade, tipo_personalizacao_*}. It then calls build_of_itens (line 798) which, finding no 'operacoes' on the item, falls back to fetching the artigo's default roteiro from db.artigos (line 808-826). The line-level roteiro that the user customized on the orçamento line is in orc.linhas[i].roteiro and is correctly persisted there, but is never read inside converter_orcamento. REPRODUCTION: (1) POST /api/orcamentos with a line; (2) PUT it with linhas[0].roteiro=[{nome:'X', maquina_id:..., tempo_maquina:7, ...}]; (3) GET /api/orcamentos/{id} → shows correct roteiro; (4) POST /api/orcamentos/{id}/converter → returned OF.itens[0].operacoes contains the artigo's default roteiro instead. MITIGATION: In converter_orcamento, when assembling each item, also build an 'operacoes' list from l.get('roteiro', []) (mapping op.tempo_maquina/op.tempo_maquina_unidade → minutes via op_minutos_maquina, same for mao_obra) with custo_estimado computed from maquina + mao_obra hourly costs, and pass it via the item dict so that build_of_itens preserves it (its line 808 branch only auto-loads when operacoes is falsy)."
+}
