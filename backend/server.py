@@ -202,8 +202,17 @@ class OrdemFabrico(OrdemFabricoInput):
 # ----------------------- Cost computation -----------------------
 async def artigo_breakdown(artigo: dict) -> dict:
     custo_materiais = 0.0
+    cons_cache = {}
     for mat in artigo.get("materiais", []):
-        custo_materiais += (mat.get("quantidade") or 0) * (mat.get("custo_unitario") or 0)
+        cid = mat.get("material_id")
+        custo_unit = mat.get("custo_unitario") or 0
+        if cid:
+            if cid not in cons_cache:
+                c = await db.consumiveis.find_one({"id": cid}, {"_id": 0})
+                cons_cache[cid] = c.get("custo_unitario") if c else None
+            if cons_cache[cid] is not None:
+                custo_unit = cons_cache[cid]
+        custo_materiais += (mat.get("quantidade") or 0) * custo_unit
 
     custo_maquinas = 0.0
     custo_mao_obra = 0.0
