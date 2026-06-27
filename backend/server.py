@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 ROOT_DIR = Path(__file__).parent
@@ -48,6 +48,107 @@ async def next_sequence(prefix: str) -> str:
 
 def round2(v: float) -> float:
     return round(v + 1e-9, 2)
+
+
+# ----------------------- Auth: JWT + RBAC -----------------------
+import bcrypt
+import jwt
+from fastapi import Depends, Header
+
+JWT_ALGORITHM = "HS256"
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        "type": "access",
+    }
+    return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
+
+
+def user_public(u: dict) -> dict:
+    return {
+        "id": u.get("id"),
+        "email": u.get("email"),
+        "name": u.get("name", ""),
+        "role": u.get("role", "colaborador"),
+        "created_at": u.get("created_at"),
+    }
+
+
+async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    try:
+        payload = jwt.decode(token, os.environ["JWT_SECRET"], algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Sessão expirada")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    user = await db.users.find_one({"id": payload.get("sub")}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Utilizador não encontrado")
+    return user
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Apenas administradores")
+    return user
+
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+
+class UserCreate(BaseModel):
+    email: str
+    name: str = ""
+    password: str
+    role: str = "colaborador"
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+
+
+auth_router = APIRouter(prefix="/api/auth")
+
+
+@auth_router.post("/login")
+async def login(data: LoginInput):
+    email = (data.email or "").strip().lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not verify_password(data.password, user.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Email ou password incorretos")
+    token = create_access_token(user["id"], user["email"], user.get("role", "colaborador"))
+    return {"token": token, "user": user_public(user)}
+
+
+@auth_router.get("/me")
+async def auth_me(user: dict = Depends(get_current_user)):
+    return user_public(user)
+
 
 
 # ----------------------- Models -----------------------
@@ -169,6 +270,19 @@ class OrcamentoLinha(BaseModel):
     preco_unit: float = 0.0
 
 
+class MaterialLinha(BaseModel):
+    id: str = Field(default_factory=new_id)
+    consumivel_id: Optional[str] = None
+    nome: str = ""
+    unidade: str = "un"
+    custo_unitario: float = 0.0
+    quantidade: float = 1
+    comprimento_mm: float = 0.0
+    largura_mm: float = 0.0
+    custo: float = 0.0
+    valor: float = 0.0
+
+
 class OrcamentoInput(BaseModel):
     cliente: str
     descricao: str = ""
@@ -179,6 +293,7 @@ class OrcamentoInput(BaseModel):
     margem: float = 0.0
     notas: str = ""
     linhas: List[OrcamentoLinha] = Field(default_factory=list)
+    materiais: List[MaterialLinha] = Field(default_factory=list)
 
 
 class Orcamento(OrcamentoInput):
@@ -332,6 +447,28 @@ def pers_nomes(l: dict) -> str:
     return l.get("tipo_personalizacao_nome") or ""
 
 
+MATERIAL_MARKUP = 1.5  # adiciona 50% ao custo do material
+
+
+def material_custo(m: dict) -> float:
+    unidade = (m.get("unidade") or "").lower()
+    if unidade in ("m²", "m2"):
+        c = (float(m.get("comprimento_mm") or 0) / 1000.0) * (float(m.get("largura_mm") or 0) / 1000.0)
+        return round2(c * (float(m.get("custo_unitario") or 0)) * (float(m.get("quantidade") or 1)))
+    return round2(float(m.get("quantidade") or 0) * float(m.get("custo_unitario") or 0))
+
+
+def fill_materiais(materiais: List[dict]) -> List[dict]:
+    out = []
+    for m in materiais or []:
+        m = {**m}
+        custo = material_custo(m)
+        m["custo"] = custo
+        m["valor"] = round2(custo * MATERIAL_MARKUP)
+        out.append(m)
+    return out
+
+
 def compute_orcamento_totais(orc: dict) -> dict:
     subtotal_custo = 0.0
     subtotal_venda = 0.0
@@ -341,14 +478,25 @@ def compute_orcamento_totais(orc: dict) -> dict:
         subtotal_custo += (l.get("custo_producao_unit") or 0) * qtd
         subtotal_venda += (l.get("preco_unit") or 0) * qtd
         total_pers += pers_valor_unit(l) * qtd
+    custo_materiais = 0.0
+    venda_materiais = 0.0
+    for m in orc.get("materiais", []):
+        c = material_custo(m)
+        custo_materiais += c
+        venda_materiais += round2(c * MATERIAL_MARKUP)
     subtotal_custo = round2(subtotal_custo)
     subtotal_venda = round2(subtotal_venda)
     total_pers = round2(total_pers)
-    total = round2(subtotal_venda + total_pers)
+    custo_materiais = round2(custo_materiais)
+    venda_materiais = round2(venda_materiais)
+    subtotal_custo = round2(subtotal_custo + custo_materiais)
+    total = round2(subtotal_venda + total_pers + venda_materiais)
     orc = {**orc}
     orc["subtotal_custo"] = subtotal_custo
     orc["subtotal_venda"] = subtotal_venda
     orc["total_personalizacao"] = total_pers
+    orc["custo_materiais"] = custo_materiais
+    orc["total_materiais"] = venda_materiais
     orc["total"] = total
     orc["lucro"] = round2(total - subtotal_custo)
     return orc
@@ -468,22 +616,57 @@ def build_orcamento_pdf(orc: dict) -> bytes:
     elems.append(tbl)
     elems.append(Spacer(1, 14))
 
-    tot_rows = [
-        ["Preço dos artigos", fmt_eur(orc.get("subtotal_venda"))],
-        ["Personalização", fmt_eur(orc.get("total_personalizacao"))],
-        ["PREÇO FINAL", fmt_eur(orc.get("total"))],
-    ]
+    materiais = orc.get("materiais") or []
+    if materiais:
+        elems.append(Paragraph("Materiais / Consumíveis", st["cellb"]))
+        elems.append(Spacer(1, 4))
+        mhead = [Paragraph(t, st["th"]) for t in ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Valor (+50%)"]]
+        mdata = [mhead]
+        for m in materiais:
+            unidade = (m.get("unidade") or "").lower()
+            dims = f"{m.get('comprimento_mm') or 0:g}×{m.get('largura_mm') or 0:g} mm" if unidade in ("m²", "m2") else "—"
+            mdata.append([
+                Paragraph(m.get("nome") or "—", st["cell"]),
+                Paragraph(m.get("unidade") or "—", st["cell"]),
+                Paragraph(dims, st["cell"]),
+                Paragraph(f"{m.get('quantidade') or 0:g}", st["cell"]),
+                Paragraph(fmt_eur(material_custo(m)), st["cell"]),
+                Paragraph(fmt_eur(round2(material_custo(m) * MATERIAL_MARKUP)), st["cellb"]),
+            ])
+        mtbl = Table(mdata, colWidths=[48 * mm, 22 * mm, 34 * mm, 15 * mm, 23 * mm, 28 * mm])
+        mtbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+            ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+            ("ALIGN", (0, 0), (2, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        elems.append(mtbl)
+        elems.append(Spacer(1, 14))
+
+    tot_rows = [["Preço dos artigos", fmt_eur(orc.get("subtotal_venda"))]]
+    if (orc.get("total_personalizacao") or 0) > 0:
+        tot_rows.append(["Personalização", fmt_eur(orc.get("total_personalizacao"))])
+    if (orc.get("total_materiais") or 0) > 0:
+        tot_rows.append(["Materiais (+50%)", fmt_eur(orc.get("total_materiais"))])
+    tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
+    last = len(tot_rows) - 1
     tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
     tot.setStyle(TableStyle([
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("FONTNAME", (0, 0), (-1, 1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, 1), 9),
-        ("TEXTCOLOR", (0, 0), (-1, 1), GREY),
-        ("LINEABOVE", (0, 2), (-1, 2), 1, DARK),
-        ("FONTNAME", (0, 2), (-1, 2), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 2), (-1, 2), 13),
-        ("TEXTCOLOR", (0, 2), (-1, 2), DARK),
+        ("FONTNAME", (0, 0), (-1, last - 1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, last - 1), 9),
+        ("TEXTCOLOR", (0, 0), (-1, last - 1), GREY),
+        ("LINEABOVE", (0, last), (-1, last), 1, DARK),
+        ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+        ("FONTSIZE", (0, last), (-1, last), 13),
+        ("TEXTCOLOR", (0, last), (-1, last), DARK),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
@@ -779,6 +962,7 @@ async def create_orcamento(data: OrcamentoInput):
         o.data = now_iso()[:10]
     doc = o.model_dump()
     doc["linhas"] = await fill_linha_custos(doc.get("linhas", []))
+    doc["materiais"] = fill_materiais(doc.get("materiais", []))
     await db.orcamentos.insert_one(doc)
     doc.pop("_id", None)
     return compute_orcamento_totais(doc)
@@ -791,6 +975,7 @@ async def update_orcamento(oid: str, data: OrcamentoInput):
         raise HTTPException(404, "Orçamento não encontrado")
     update = data.model_dump()
     update["linhas"] = await fill_linha_custos(update.get("linhas", []))
+    update["materiais"] = fill_materiais(update.get("materiais", []))
     await db.orcamentos.update_one({"id": oid}, {"$set": update})
     existing.update(update)
     return compute_orcamento_totais(existing)
@@ -1328,7 +1513,87 @@ async def root():
     return {"message": "Production Costing API"}
 
 
+@api_router.get("/users")
+async def list_users(admin: dict = Depends(require_admin)):
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(1000)
+    return users
+
+
+@api_router.post("/users")
+async def create_user(data: UserCreate, admin: dict = Depends(require_admin)):
+    email = (data.email or "").strip().lower()
+    if not email or not data.password:
+        raise HTTPException(400, "Email e password obrigatórios")
+    if data.role not in ("admin", "colaborador"):
+        raise HTTPException(400, "Perfil inválido")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(400, "Já existe um utilizador com este email")
+    doc = {
+        "id": new_id(),
+        "email": email,
+        "name": data.name or "",
+        "role": data.role,
+        "password_hash": hash_password(data.password),
+        "created_at": now_iso(),
+    }
+    await db.users.insert_one(doc)
+    return user_public(doc)
+
+
+@api_router.put("/users/{uid}")
+async def update_user(uid: str, data: UserUpdate, admin: dict = Depends(require_admin)):
+    user = await db.users.find_one({"id": uid}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "Utilizador não encontrado")
+    patch = {}
+    if data.name is not None:
+        patch["name"] = data.name
+    if data.role is not None:
+        if data.role not in ("admin", "colaborador"):
+            raise HTTPException(400, "Perfil inválido")
+        patch["role"] = data.role
+    if data.password:
+        patch["password_hash"] = hash_password(data.password)
+    if patch:
+        await db.users.update_one({"id": uid}, {"$set": patch})
+        user.update(patch)
+    return user_public(user)
+
+
+@api_router.delete("/users/{uid}")
+async def delete_user(uid: str, admin: dict = Depends(require_admin)):
+    if uid == admin.get("id"):
+        raise HTTPException(400, "Não pode eliminar a própria conta")
+    await db.users.delete_one({"id": uid})
+    return {"ok": True}
+
+
+async def seed_admin():
+    email = os.environ.get("ADMIN_EMAIL", "admin@prodcost.pt").strip().lower()
+    password = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+    existing = await db.users.find_one({"email": email})
+    if not existing:
+        await db.users.insert_one({
+            "id": new_id(),
+            "email": email,
+            "name": "Administrador",
+            "role": "admin",
+            "password_hash": hash_password(password),
+            "created_at": now_iso(),
+        })
+    elif not verify_password(password, existing.get("password_hash", "")):
+        await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(password)}})
+
+
+@app.on_event("startup")
+async def _startup_seed_admin():
+    await db.users.create_index("email", unique=True)
+    await seed_admin()
+
+
+app.include_router(auth_router)
 app.include_router(api_router)
+
 
 app.add_middleware(
     CORSMiddleware,

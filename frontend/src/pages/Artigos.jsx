@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
+import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2, X, Package, Cog, Calculator, Tag } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -19,6 +20,7 @@ const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.
 
 export default function Artigos() {
   const [items, setItems] = useState([]);
+  const [q, setQ] = useState("");
   const [maquinas, setMaquinas] = useState([]);
   const [consumiveis, setConsumiveis] = useState([]);
   const [maoObra, setMaoObra] = useState([]);
@@ -114,6 +116,9 @@ export default function Artigos() {
     load();
   };
 
+  const ql = q.trim().toLowerCase();
+  const items_f = ql ? items.filter((a) => [a.nome, a.descricao].some((v) => (v || "").toLowerCase().includes(ql))) : items;
+
   return (
     <div>
       <PageHeader
@@ -125,6 +130,8 @@ export default function Artigos() {
           </button>
         }
       />
+
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome do artigo..." testid="artigos-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
@@ -141,7 +148,7 @@ export default function Artigos() {
             </tr>
           </thead>
           <tbody data-testid="artigos-table">
-            {items.map((a) => (
+            {items_f.map((a) => (
               <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   <div className="font-medium text-gray-900">{a.nome}</div>
@@ -162,7 +169,7 @@ export default function Artigos() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {items_f.length === 0 && (
               <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
             )}
           </tbody>

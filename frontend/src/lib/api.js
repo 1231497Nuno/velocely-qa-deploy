@@ -5,6 +5,27 @@ export const API = `${BACKEND_URL}/api`;
 
 const client = axios.create({ baseURL: API });
 
+const TOKEN_KEY = "prodcost_token";
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
+
+client.interceptors.request.use((config) => {
+  const t = getToken();
+  if (t) config.headers.Authorization = `Bearer ${t}`;
+  return config;
+});
+
+client.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401 && !err.config?.url?.includes("/auth/login")) {
+      setToken(null);
+      if (window.location.pathname !== "/login") window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
+
 export const api = {
   get: (p) => client.get(p).then((r) => r.data),
   post: (p, b) => client.post(p, b).then((r) => r.data),

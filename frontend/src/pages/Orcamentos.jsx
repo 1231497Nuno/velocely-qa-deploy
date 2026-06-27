@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "../lib/api";
 import { PageHeader } from "../components/Layout";
+import SearchBar from "../components/SearchBar";
 import StatusBadge from "../components/StatusBadge";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Orcamentos() {
   const [items, setItems] = useState([]);
+  const [q, setQ] = useState("");
   const nav = useNavigate();
 
   const load = async () => setItems(await api.get("/orcamentos"));
@@ -31,6 +33,13 @@ export default function Orcamentos() {
     load();
   };
 
+  const ql = q.trim().toLowerCase();
+  const items_f = ql
+    ? items.filter((o) =>
+        [o.numero, o.cliente, o.numero_encomenda].some((v) => (v || "").toLowerCase().includes(ql))
+      )
+    : items;
+
   return (
     <div>
       <PageHeader
@@ -42,6 +51,8 @@ export default function Orcamentos() {
           </button>
         }
       />
+
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou nº encomenda..." testid="orcamentos-search" />
 
       {/* Desktop: tabela */}
       <div className="hidden md:block bg-white border border-gray-200 rounded-sm overflow-x-auto">
@@ -59,7 +70,7 @@ export default function Orcamentos() {
             </tr>
           </thead>
           <tbody data-testid="orcamentos-table">
-            {items.map((o) => (
+            {items_f.map((o) => (
               <tr key={o.id} data-testid={`orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
@@ -73,7 +84,7 @@ export default function Orcamentos() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {items_f.length === 0 && (
               <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem orçamentos. Crie o primeiro.</td></tr>
             )}
           </tbody>
@@ -82,7 +93,7 @@ export default function Orcamentos() {
 
       {/* Mobile: cartões */}
       <div className="md:hidden space-y-3" data-testid="orcamentos-cards">
-        {items.map((o) => (
+        {items_f.map((o) => (
           <div key={o.id} data-testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -103,7 +114,7 @@ export default function Orcamentos() {
             </div>
           </div>
         ))}
-        {items.length === 0 && (
+        {items_f.length === 0 && (
           <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">Sem orçamentos. Crie o primeiro.</div>
         )}
       </div>

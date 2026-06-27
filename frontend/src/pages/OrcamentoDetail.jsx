@@ -24,6 +24,7 @@ export default function OrcamentoDetail() {
   const [tipos, setTipos] = useState([]);
   const [maquinas, setMaquinas] = useState([]);
   const [maoObra, setMaoObra] = useState([]);
+  const [consumiveis, setConsumiveis] = useState([]);
   const [openOps, setOpenOps] = useState({});
 
   const load = useCallback(async () => {
@@ -37,11 +38,13 @@ export default function OrcamentoDetail() {
       }
       return l;
     });
+    o.materiais = o.materiais || [];
     setOrc(o);
     setArtigos(await api.get("/artigos"));
     setTipos(await api.get("/tipos-personalizacao"));
     setMaquinas(await api.get("/maquinas"));
     setMaoObra(await api.get("/mao-obra"));
+    setConsumiveis(await api.get("/consumiveis"));
   }, [id]);
   useEffect(() => {
     load();
@@ -103,11 +106,33 @@ export default function OrcamentoDetail() {
   };
   const delPers = (i, pi) => updLinha(i, { personalizacoes: (orc.linhas[i].personalizacoes || []).filter((_, idx) => idx !== pi) });
 
+  // --- materiais soltos ---
+  const isM2 = (u) => ["m²", "m2"].includes((u || "").toLowerCase());
+  const matCusto = (m) => {
+    if (isM2(m.unidade))
+      return ((Number(m.comprimento_mm) || 0) / 1000) * ((Number(m.largura_mm) || 0) / 1000) * (Number(m.custo_unitario) || 0) * (Number(m.quantidade) || 1);
+    return (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0);
+  };
+  const matValor = (m) => matCusto(m) * 1.5;
+  const updMaterial = (i, patch) => {
+    const list = [...(orc.materiais || [])];
+    list[i] = { ...list[i], ...patch };
+    upd({ materiais: list });
+  };
+  const addMaterial = (cid) => {
+    const c = consumiveis.find((x) => x.id === cid);
+    if (!c) return;
+    upd({ materiais: [...(orc.materiais || []), { consumivel_id: c.id, nome: c.nome, unidade: c.unidade, custo_unitario: Number(c.custo_unitario) || 0, quantidade: 1, comprimento_mm: 0, largura_mm: 0 }] });
+  };
+  const delMaterial = (i) => upd({ materiais: (orc.materiais || []).filter((_, idx) => idx !== i) });
+
   const subtotalVenda = orc.linhas.reduce((s, l) => s + linePreco(l) * (l.quantidade || 0), 0);
   const subtotalCusto = orc.linhas.reduce((s, l) => s + lineCusto(l) * (l.quantidade || 0), 0);
   const totalPers = orc.linhas.reduce((s, l) => s + persUnit(l) * (l.quantidade || 0), 0);
-  const total = subtotalVenda + totalPers;
-  const lucro = total - subtotalCusto;
+  const custoMateriais = (orc.materiais || []).reduce((s, m) => s + matCusto(m), 0);
+  const totalMateriais = (orc.materiais || []).reduce((s, m) => s + matValor(m), 0);
+  const total = subtotalVenda + totalPers + totalMateriais;
+  const lucro = total - subtotalCusto - custoMateriais;
 
   const save = async () => {
     const body = {
@@ -123,6 +148,13 @@ export default function OrcamentoDetail() {
         quantidade: Number(l.quantidade) || 0,
         personalizacoes: (l.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0 })),
         valor_personalizacao: persUnit(l),
+      })),
+      materiais: (orc.materiais || []).map((m) => ({
+        ...m,
+        custo_unitario: Number(m.custo_unitario) || 0,
+        quantidade: Number(m.quantidade) || 0,
+        comprimento_mm: Number(m.comprimento_mm) || 0,
+        largura_mm: Number(m.largura_mm) || 0,
       })),
     };
     await api.put(`/orcamentos/${id}`, body);
@@ -315,6 +347,62 @@ export default function OrcamentoDetail() {
         </div>
       </div>
 
+      {/* Materiais / Consumíveis soltos */}
+      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 font-display">Materiais / Consumíveis</h2>
+            <p className="text-xs text-gray-500">Materiais soltos adicionados ao orçamento (acréscimo de 50% sobre o custo).</p>
+          </div>
+          <select
+            data-testid="add-material-select"
+            value=""
+            onChange={(e) => { if (e.target.value) addMaterial(e.target.value); e.target.value = ""; }}
+            className="border border-dashed border-gray-300 rounded-sm px-3 py-2 text-sm bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-black/20 sm:w-64"
+          >
+            <option value="">+ Adicionar material…</option>
+            {consumiveis.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.unidade} · {eur(c.custo_unitario)})</option>)}
+          </select>
+        </div>
+
+        {(orc.materiais || []).length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">Sem materiais adicionados.</p>
+        ) : (
+          <div className="space-y-3" data-testid="materiais-list">
+            {(orc.materiais || []).map((m, i) => (
+              <div key={m.id || i} data-testid={`material-row-${i}`} className="border border-gray-200 rounded-sm p-3">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="font-medium text-gray-900 text-sm">{m.nome} <span className="text-gray-400 font-normal">· {m.unidade} · {eur(m.custo_unitario)}/{m.unidade}</span></div>
+                  <button data-testid={`del-material-${i}`} onClick={() => delMaterial(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
+                    <input data-testid={`material-qtd-${i}`} type="number" min="0" value={m.quantidade} onChange={(e) => updMaterial(i, { quantidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
+                  </div>
+                  {isM2(m.unidade) && (
+                    <>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Comprimento (mm)</label>
+                        <input data-testid={`material-comp-${i}`} type="number" min="0" value={m.comprimento_mm} onChange={(e) => updMaterial(i, { comprimento_mm: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Largura (mm)</label>
+                        <input data-testid={`material-larg-${i}`} type="number" min="0" value={m.largura_mm} onChange={(e) => updMaterial(i, { largura_mm: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
+                      </div>
+                    </>
+                  )}
+                  <div className="text-right">
+                    <label className="text-xs text-gray-500 mb-1 block">Valor (+50%)</label>
+                    <div className="tabular-nums font-semibold text-gray-900 py-2" data-testid={`material-valor-${i}`}>{eur(matValor(m))}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Totais */}
       <div className="flex justify-end">
         <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3">
@@ -326,9 +414,13 @@ export default function OrcamentoDetail() {
             <span className="text-gray-500">Personalização</span>
             <span className="tabular-nums font-medium" data-testid="orc-personalizacao">{eur(totalPers)}</span>
           </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Materiais (+50%)</span>
+            <span className="tabular-nums font-medium" data-testid="orc-materiais">{eur(totalMateriais)}</span>
+          </div>
           <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
             <span className="text-gray-400">Custo de produção</span>
-            <span className="tabular-nums text-gray-400" data-testid="orc-subtotal">{eur(subtotalCusto)}</span>
+            <span className="tabular-nums text-gray-400" data-testid="orc-subtotal">{eur(subtotalCusto + custoMateriais)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Lucro estimado</span>

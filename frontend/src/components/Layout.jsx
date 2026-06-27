@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import {
   LayoutDashboard,
   Boxes,
@@ -12,6 +13,8 @@ import {
   LineChart,
   Menu,
   X,
+  Shield,
+  LogOut,
 } from "lucide-react";
 
 const NAV = [
@@ -28,6 +31,10 @@ const NAV = [
 
 export default function Layout({ children }) {
   const [open, setOpen] = useState(false);
+  const { user, isAdmin, logout } = useAuth();
+  const nav = isAdmin
+    ? [...NAV, { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores" }]
+    : NAV;
 
   return (
     <div className="min-h-screen flex bg-[#F8F9FA]">
@@ -78,7 +85,7 @@ export default function Layout({ children }) {
           </button>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
@@ -98,8 +105,23 @@ export default function Layout({ children }) {
             </NavLink>
           ))}
         </nav>
-        <div className="px-6 py-4 border-t border-gray-200 text-xs text-gray-400">
-          v2.0 · Fase 2/3
+        <div className="border-t border-gray-200 p-3">
+          {user && (
+            <div className="px-2 py-1.5 mb-1" data-testid="current-user">
+              <div className="text-sm font-medium text-gray-900 truncate">{user.name || user.email}</div>
+              <div className="text-xs text-gray-500 flex items-center gap-1">
+                {isAdmin ? <Shield size={11} /> : <Users size={11} />}
+                {isAdmin ? "Administrador" : "Colaborador"}
+              </div>
+            </div>
+          )}
+          <button
+            data-testid="logout-btn"
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          >
+            <LogOut size={18} strokeWidth={1.8} /> Terminar sessão
+          </button>
         </div>
       </aside>
 
@@ -124,3 +146,4 @@ export function PageHeader({ title, subtitle, actions }) {
     </div>
   );
 }
+

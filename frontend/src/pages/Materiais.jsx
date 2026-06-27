@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
+import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -17,6 +18,7 @@ const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", 
 
 export default function Materiais() {
   const [items, setItems] = useState([]);
+  const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -53,6 +55,9 @@ export default function Materiais() {
     load();
   };
 
+  const ql = q.trim().toLowerCase();
+  const items_f = ql ? items.filter((c) => (c.nome || "").toLowerCase().includes(ql)) : items;
+
   return (
     <div>
       <PageHeader
@@ -65,6 +70,8 @@ export default function Materiais() {
         }
       />
 
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome do material..." testid="materiais-search" />
+
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
@@ -76,7 +83,7 @@ export default function Materiais() {
             </tr>
           </thead>
           <tbody data-testid="materiais-table">
-            {items.map((c) => (
+            {items_f.map((c) => (
               <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
                 <td className="px-4 py-3 text-gray-600">{c.unidade}</td>
@@ -89,7 +96,7 @@ export default function Materiais() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {items_f.length === 0 && (
               <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem materiais. Crie o primeiro.</td></tr>
             )}
           </tbody>

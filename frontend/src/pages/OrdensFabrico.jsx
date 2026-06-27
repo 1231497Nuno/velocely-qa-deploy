@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "../lib/api";
 import { PageHeader } from "../components/Layout";
+import SearchBar from "../components/SearchBar";
 import StatusBadge from "../components/StatusBadge";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -56,6 +57,7 @@ export default function OrdensFabrico() {
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ativas");
   const [now, setNow] = useState(Date.now());
+  const [q, setQ] = useState("");
   const nav = useNavigate();
 
   const load = async () => setItems(await api.get("/ordens-fabrico"));
@@ -82,8 +84,10 @@ export default function OrdensFabrico() {
     load();
   };
 
-  const ativas = items.filter((o) => o.status !== "concluido");
-  const concluidas = items.filter((o) => o.status === "concluido");
+  const ql = q.trim().toLowerCase();
+  const matchQ = (o) => !ql || [o.numero, o.cliente, o.numero_encomenda, o.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql));
+  const ativas = items.filter((o) => o.status !== "concluido" && matchQ(o));
+  const concluidas = items.filter((o) => o.status === "concluido" && matchQ(o));
   const rows = tab === "ativas" ? ativas : concluidas;
 
   const Tab = ({ id, label, count }) => (
@@ -108,6 +112,8 @@ export default function OrdensFabrico() {
           </button>
         }
       />
+
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código, cliente ou nº encomenda..." testid="ofs-search" />
 
       <div className="flex items-center gap-2 mb-4">
         <Tab id="ativas" label="Ativas" count={ativas.length} />

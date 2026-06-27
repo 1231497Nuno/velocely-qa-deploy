@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
+import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -16,6 +17,7 @@ const empty = { nome: "", custo_amortizacao_hora: 0, custo_energia_hora: 0 };
 
 export default function Maquinas() {
   const [items, setItems] = useState([]);
+  const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -62,6 +64,9 @@ export default function Maquinas() {
 
   const totalHora = (Number(form.custo_amortizacao_hora) || 0) + (Number(form.custo_energia_hora) || 0);
 
+  const ql = q.trim().toLowerCase();
+  const items_f = ql ? items.filter((m) => (m.nome || "").toLowerCase().includes(ql)) : items;
+
   return (
     <div>
       <PageHeader
@@ -73,6 +78,8 @@ export default function Maquinas() {
           </button>
         }
       />
+
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome da máquina..." testid="maquinas-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
@@ -86,7 +93,7 @@ export default function Maquinas() {
             </tr>
           </thead>
           <tbody data-testid="maquinas-table">
-            {items.map((m) => (
+            {items_f.map((m) => (
               <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900">{m.nome}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(m.custo_amortizacao_hora)}</td>
@@ -100,7 +107,7 @@ export default function Maquinas() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {items_f.length === 0 && (
               <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem máquinas. Crie a primeira.</td></tr>
             )}
           </tbody>
