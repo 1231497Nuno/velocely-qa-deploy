@@ -50,6 +50,7 @@ export default function Orcamentos() {
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Número</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº Enc.</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Validade</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Total</th>
@@ -62,6 +63,7 @@ export default function Orcamentos() {
               <tr key={o.id} data-testid={`orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
+                <td className="px-4 py-3 text-gray-500 mono text-xs">{o.numero_encomenda || "—"}</td>
                 <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(o.data)}</td>
                 <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(o.validade)}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(o.total)}</td>
@@ -72,7 +74,7 @@ export default function Orcamentos() {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">Sem orçamentos. Crie o primeiro.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem orçamentos. Crie o primeiro.</td></tr>
             )}
           </tbody>
         </table>

@@ -134,12 +134,14 @@ class TipoPersonalizacao(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     descricao: str = ""
+    valor: float = 0.0
     created_at: str = Field(default_factory=now_iso)
 
 
 class TipoPersonalizacaoInput(BaseModel):
     nome: str
     descricao: str = ""
+    valor: float = 0.0
 
 
 class OrcamentoLinha(BaseModel):
@@ -149,11 +151,14 @@ class OrcamentoLinha(BaseModel):
     quantidade: float = 1
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
+    valor_personalizacao: float = 0.0
     custo_producao_unit: float = 0.0
 
 
 class OrcamentoInput(BaseModel):
     cliente: str
+    descricao: str = ""
+    numero_encomenda: str = ""
     data: Optional[str] = None
     validade: Optional[str] = None
     status: str = "rascunho"
@@ -191,6 +196,8 @@ class OFItem(BaseModel):
 
 class OrdemFabricoInput(BaseModel):
     cliente: str
+    descricao: str = ""
+    numero_encomenda: str = ""
     data: Optional[str] = None
     status: str = "pendente"
     notas: str = ""
@@ -289,15 +296,21 @@ def enrich_artigo(artigo: dict, breakdown: dict) -> dict:
 
 def compute_orcamento_totais(orc: dict) -> dict:
     subtotal = 0.0
+    total_pers = 0.0
     for l in orc.get("linhas", []):
-        subtotal += (l.get("custo_producao_unit") or 0) * (l.get("quantidade") or 0)
+        qtd = l.get("quantidade") or 0
+        subtotal += (l.get("custo_producao_unit") or 0) * qtd
+        total_pers += (l.get("valor_personalizacao") or 0) * qtd
     subtotal = round2(subtotal)
+    total_pers = round2(total_pers)
+    base = subtotal + total_pers
     margem = orc.get("margem") or 0
-    total = round2(subtotal * (1 + margem / 100.0))
+    total = round2(base * (1 + margem / 100.0))
     orc = {**orc}
     orc["subtotal_custo"] = subtotal
+    orc["total_personalizacao"] = total_pers
     orc["total"] = total
-    orc["lucro"] = round2(total - subtotal)
+    orc["lucro"] = round2(total - base)
     return orc
 
 
@@ -656,6 +669,8 @@ async def converter_orcamento(oid: str):
         )
     of = OrdemFabrico(
         cliente=orc.get("cliente", ""),
+        descricao=orc.get("descricao", ""),
+        numero_encomenda=orc.get("numero_encomenda", ""),
         data=now_iso()[:10],
         status="pendente",
         notas=f"Gerada a partir do orçamento {orc.get('numero')}",

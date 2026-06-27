@@ -40,6 +40,8 @@ export default function OrdemFabricoDetail() {
   const save = async () => {
     const body = {
       cliente: of.cliente,
+      descricao: of.descricao || "",
+      numero_encomenda: of.numero_encomenda || "",
       data: of.data,
       status: of.status,
       notas: of.notas || "",
@@ -98,6 +100,14 @@ export default function OrdemFabricoDetail() {
             <div>
               <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
               <input data-testid="of-cliente-input" value={of.cliente} onChange={(e) => upd({ cliente: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Descrição</label>
+              <input data-testid="of-descricao-input" value={of.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} placeholder="Descrição da OF" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Nº da Encomenda</label>
+              <input data-testid="of-encomenda-input" value={of.numero_encomenda || ""} onChange={(e) => upd({ numero_encomenda: e.target.value })} placeholder="Nº de encomenda no software" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>

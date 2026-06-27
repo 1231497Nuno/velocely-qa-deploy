@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 4 fully verified end-to-end. Backend: all 6 new tests pass (TipoPersonalizacao.valor CRUD; Orçamento descricao + numero_encomenda + line valor_personalizacao persist; concrete totals example 2.5*10=25 added to base then margem applied with lucro=total-base; PUT updates and reload re-computes; OrdemFabrico descricao + numero_encomenda persist; Converter copies descricao + numero_encomenda from orçamento → OF). Plus 9 of 12 regression tests pass; the 3 that fail are stale assertions in iteration_3 tests against seed data (e.g. 'Impressora DTF UV', 'DTF UV' artigo prices) because the real user has edited the seeded names/prices live in the shared preview DB — explicitly warned about in the brief. Frontend: /personalizacao shows Valor column, dialog has tipo-valor-input, create/edit persists valor (3,75 → 5,50). /orcamentos and /ordens-fabrico lists each show a Nº Enc. column. Orçamento detail: orc-descricao-input + orc-encomenda-input render and persist after save+reload. Adding a line, picking artigo, then picking the tipo on line-tipo-0 pre-fills line-valor-pers-0 from tipo.valor (5.5 confirmed); editing it after is allowed. Totals panel updates live: with custo unit 5,21 € × 10 + pers 5,50 € × 10 + margem 0 % the panel shows orc-subtotal 52,10 €, orc-personalizacao 55,00 €, lucro 0,00 €, orc-total 107,10 € — matching the brief formula exactly. Setting status Aceite + Guardar then Converter → OF navigates to a new OF whose of-descricao-input and of-encomenda-input contain the same Descricao_UI_E2E / ENC-UI-E2E (carry-over confirmed). The new OF auto-loaded the roteiro (Impressão 25 min) and shows the TEST_UI_Tipo personalization badge — regression OK.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All dialogs (Tipos, etc)", "issues": ["Console warning: 'Missing Description or aria-describedby for DialogContent' — Radix accessibility advisory; not user-visible. Consider adding <DialogDescription> for a11y."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "compute_orcamento_totais correctly implements the brief: subtotal_custo = Σ(custo_producao_unit * qtd); total_personalizacao = Σ(valor_personalizacao * qtd); total = (subtotal_custo + total_personalizacao) * (1 + margem/100); lucro = total - base. Verified with margem=0 → lucro=0 and margem=50 → lucro = 0.5 * base. ",
+    "converter_orcamento now explicitly passes orc.descricao and orc.numero_encomenda into the new OrdemFabrico — verified end-to-end via UI.",
+    "TipoPersonalizacao.valor is wired into OrcamentoDetail line-tipo onChange to set valor_personalizacao = t.valor (line 182 of OrcamentoDetail.jsx). It remains editable via line-valor-pers-{i}. Good.",
+    "Frontend save() in OrcamentoDetail/OrdemFabricoDetail sends both new fields. PUT response is re-rendered immediately and reload from GET keeps them. Good.",
+    "Minor: <Dialog> across the app lacks <DialogDescription>, triggering a Radix a11y warning in the console (non-blocking). Adding a small description per dialog would silence it and improve screen-reader UX."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration4.py"],
+  "success_rate": {"backend": "100% on Iteration-4 surface (6/6 new tests); 9/12 overall — 3 stale fixture assertions about live-edited seed data are not bugs", "frontend": "100% on tested flows (Tipos with valor CRUD, Orçamento detail descricao+encomenda+valor_personalizacao live + persistence + Converter→OF carry-over + OF detail fields)"},
+  "test_credentials": "No auth required.",
+  "seed_data_creation": "Used existing real-user-modified seed. Created TEST_UI_Tipo (valor 5,50), TEST_UI_Cliente orcamento ORC-2026-0010, OF-2026-0008. All cleaned up at end.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests now in TWO files: /app/backend/tests/backend_test.py (iteration-3 regression — note three of its assertions hard-code original seed names/prices and will fail whenever the live user edits máquinas or DTF artigos; this is expected, not a bug) and /app/backend/tests/test_iteration4.py (iteration-4 features). Run: `export $(grep REACT_APP_BACKEND_URL /app/frontend/.env) && pytest backend/tests/ -v`. For the orcamento detail page, use page.type() instead of page.fill() when filling descricao/encomenda because Playwright's .fill() sometimes does not trigger React's controlled-input onChange in fast scripts (purely a test-side quirk; the inputs work normally in the browser). line-tipo-{i} is a native <select>: use page.select_option(label='...') or value=id. The convert-quote-btn only appears when status='aceite' AND orcamento has not been converted yet (after conversion the page shows goto-of-link instead).",
+  "rca of the issue": "No app bugs found. The earlier Playwright run that showed empty descricao/encomenda after reload was reproduced with the alternative `page.type` API and confirmed to be a Playwright-vs-React-controlled-input race in the test harness only; the PUT request body in the second run shows descricao and numero_encomenda being correctly sent and the GET-after-reload + DB-backed pytest confirm persistence."
+}

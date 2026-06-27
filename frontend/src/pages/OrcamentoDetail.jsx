@@ -37,7 +37,7 @@ export default function OrcamentoDetail() {
     upd({
       linhas: [
         ...orc.linhas,
-        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", custo_producao_unit: 0 },
+        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", valor_personalizacao: 0, custo_producao_unit: 0 },
       ],
     });
 
@@ -49,11 +49,15 @@ export default function OrcamentoDetail() {
   const delLinha = (i) => upd({ linhas: orc.linhas.filter((_, idx) => idx !== i) });
 
   const subtotal = orc.linhas.reduce((s, l) => s + (l.custo_producao_unit || 0) * (l.quantidade || 0), 0);
-  const total = subtotal * (1 + (Number(orc.margem) || 0) / 100);
+  const totalPers = orc.linhas.reduce((s, l) => s + (Number(l.valor_personalizacao) || 0) * (l.quantidade || 0), 0);
+  const base = subtotal + totalPers;
+  const total = base * (1 + (Number(orc.margem) || 0) / 100);
 
   const save = async () => {
     const body = {
       cliente: orc.cliente,
+      descricao: orc.descricao || "",
+      numero_encomenda: orc.numero_encomenda || "",
       data: orc.data,
       validade: orc.validade,
       status: orc.status,
@@ -62,6 +66,7 @@ export default function OrcamentoDetail() {
       linhas: orc.linhas.filter((l) => l.artigo_id).map((l) => ({
         ...l,
         quantidade: Number(l.quantidade) || 0,
+        valor_personalizacao: Number(l.valor_personalizacao) || 0,
       })),
     };
     const updated = await api.put(`/orcamentos/${id}`, body);
@@ -111,6 +116,18 @@ export default function OrcamentoDetail() {
       </div>
 
       {/* Meta */}
+      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Descrição</label>
+          <input data-testid="orc-descricao-input" value={orc.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} placeholder="Descrição do orçamento" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Nº da Encomenda</label>
+          <input data-testid="orc-encomenda-input" value={orc.numero_encomenda || ""} onChange={(e) => upd({ numero_encomenda: e.target.value })} placeholder="Nº de encomenda no software" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+        </div>
+      </div>
+
+      {/* Meta */}
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
@@ -141,8 +158,9 @@ export default function OrcamentoDetail() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200">
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[26%]">Artigo</th>
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[22%]">Personalização</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[24%]">Artigo</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[18%]">Personalização</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pers. €/un</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Qtd</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Unit.</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subtotal</th>
@@ -161,23 +179,26 @@ export default function OrcamentoDetail() {
                   />
                 </td>
                 <td className="px-4 py-2.5">
-                  <select data-testid={`line-tipo-${i}`} value={l.tipo_personalizacao_id || ""} onChange={(e) => { const t = tipos.find((x) => x.id === e.target.value); updLinha(i, { tipo_personalizacao_id: e.target.value, tipo_personalizacao_nome: t ? t.nome : "" }); }} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                  <select data-testid={`line-tipo-${i}`} value={l.tipo_personalizacao_id || ""} onChange={(e) => { const t = tipos.find((x) => x.id === e.target.value); updLinha(i, { tipo_personalizacao_id: e.target.value, tipo_personalizacao_nome: t ? t.nome : "", valor_personalizacao: t ? t.valor : 0 }); }} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
                     <option value="">—</option>
                     {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
                   </select>
                 </td>
                 <td className="px-4 py-2.5">
+                  <input data-testid={`line-valor-pers-${i}`} type="number" step="0.01" value={l.valor_personalizacao ?? 0} onChange={(e) => updLinha(i, { valor_personalizacao: e.target.value })} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                </td>
+                <td className="px-4 py-2.5">
                   <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{eur(l.custo_producao_unit)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur((l.custo_producao_unit || 0) * (l.quantidade || 0))}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(((l.custo_producao_unit || 0) + (Number(l.valor_personalizacao) || 0)) * (l.quantidade || 0))}</td>
                 <td className="px-4 py-2.5">
                   <button data-testid={`delete-line-${i}`} onClick={() => delLinha(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
                 </td>
               </tr>
             ))}
             {orc.linhas.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Sem linhas. Adicione um artigo.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">Sem linhas. Adicione um artigo.</td></tr>
             )}
           </tbody>
         </table>
@@ -187,8 +208,12 @@ export default function OrcamentoDetail() {
       <div className="flex justify-end">
         <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Custo de produção total</span>
+            <span className="text-gray-500">Custo de produção</span>
             <span className="tabular-nums font-medium" data-testid="orc-subtotal">{eur(subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Personalização</span>
+            <span className="tabular-nums font-medium" data-testid="orc-personalizacao">{eur(totalPers)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <label className="text-gray-500">Margem global (%)</label>
@@ -196,7 +221,7 @@ export default function OrcamentoDetail() {
           </div>
           <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
             <span className="text-gray-500">Lucro estimado</span>
-            <span className="tabular-nums text-emerald-600">{eur(total - subtotal)}</span>
+            <span className="tabular-nums text-emerald-600">{eur(total - base)}</span>
           </div>
           <div className="flex items-center justify-between border-t border-gray-200 pt-3">
             <span className="font-semibold text-gray-900">Preço Final</span>
