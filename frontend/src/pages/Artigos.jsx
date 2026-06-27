@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2, X, Package, Cog, Calculator, Tag } from "lucide-react";
@@ -19,6 +20,7 @@ const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
 
 export default function Artigos() {
+  const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [maquinas, setMaquinas] = useState([]);
@@ -125,9 +127,9 @@ export default function Artigos() {
         title="Artigos"
         subtitle="Receita de materiais, roteiro de operações, custo e preço de venda"
         actions={
-          <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+          can("artigos","create") && (<button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Novo Artigo
-          </button>
+          </button>)
         }
       />
 
@@ -163,8 +165,8 @@ export default function Artigos() {
                 <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
-                    <button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                    {can("artigos","edit") && (<button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
+                    {can("artigos","delete") && (<button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
                 </td>
               </tr>

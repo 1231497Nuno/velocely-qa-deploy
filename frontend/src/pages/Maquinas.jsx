@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -16,6 +17,7 @@ import {
 const empty = { nome: "", custo_amortizacao_hora: 0, custo_energia_hora: 0 };
 
 export default function Maquinas() {
+  const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -73,9 +75,9 @@ export default function Maquinas() {
         title="Máquinas"
         subtitle="Custo de amortização/desgaste e energia por hora"
         actions={
-          <button data-testid="new-maquina-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+          can("maquinas","create") && (<button data-testid="new-maquina-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Nova Máquina
-          </button>
+          </button>)
         }
       />
 
@@ -101,8 +103,8 @@ export default function Maquinas() {
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur((m.custo_amortizacao_hora || 0) + (m.custo_energia_hora || 0))}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button data-testid={`edit-maquina-${m.id}`} onClick={() => openEdit(m)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
-                    <button data-testid={`delete-maquina-${m.id}`} onClick={() => remove(m.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                    {can("maquinas","edit") && (<button data-testid={`edit-maquina-${m.id}`} onClick={() => openEdit(m)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
+                    {can("maquinas","delete") && (<button data-testid={`delete-maquina-${m.id}`} onClick={() => remove(m.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
                 </td>
               </tr>

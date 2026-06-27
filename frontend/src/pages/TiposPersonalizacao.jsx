@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
+import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -15,7 +17,9 @@ import {
 const empty = { nome: "", descricao: "", valor: 0 };
 
 export default function TiposPersonalizacao() {
+  const { can } = useAuth();
   const [items, setItems] = useState([]);
+  const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -52,17 +56,22 @@ export default function TiposPersonalizacao() {
     load();
   };
 
+  const ql = q.trim().toLowerCase();
+  const items_f = ql ? items.filter((t) => (t.nome || "").toLowerCase().includes(ql)) : items;
+
   return (
     <div>
       <PageHeader
         title="Tipos de Personalização"
         subtitle="Catálogo de técnicas de personalização disponíveis"
         actions={
-          <button data-testid="new-tipo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+          can("personalizacao","create") && (<button data-testid="new-tipo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Novo Tipo
-          </button>
+          </button>)
         }
       />
+
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome..." testid="personalizacao-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
@@ -75,20 +84,20 @@ export default function TiposPersonalizacao() {
             </tr>
           </thead>
           <tbody data-testid="tipos-table">
-            {items.map((t) => (
+            {items_f.map((t) => (
               <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900">{t.nome}</td>
                 <td className="px-4 py-3 text-gray-600">{t.descricao || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(t.valor)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button data-testid={`edit-tipo-${t.id}`} onClick={() => openEdit(t)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
-                    <button data-testid={`delete-tipo-${t.id}`} onClick={() => remove(t.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                    {can("personalizacao","edit") && (<button data-testid={`edit-tipo-${t.id}`} onClick={() => openEdit(t)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
+                    {can("personalizacao","delete") && (<button data-testid={`delete-tipo-${t.id}`} onClick={() => remove(t.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {items_f.length === 0 && (
               <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
             )}
           </tbody>

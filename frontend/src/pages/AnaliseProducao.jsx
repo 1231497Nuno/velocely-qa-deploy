@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment } from "react";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
 import StatusBadge from "../components/StatusBadge";
+import SearchBar from "../components/SearchBar";
 import {
   ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from "recharts";
@@ -37,6 +38,7 @@ function PorOF() {
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState({});
   const [view, setView] = useState("tempo");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     api.get("/producao/tempos").then(setRows);
@@ -44,6 +46,8 @@ function PorOF() {
 
   const toggle = (id) => setOpen((o) => ({ ...o, [id]: !o[id] }));
   const isCusto = view === "custo";
+  const ql = q.trim().toLowerCase();
+  const rows_f = ql ? rows.filter((r) => [r.numero, r.cliente].some((v) => (v || "").toLowerCase().includes(ql))) : rows;
 
   const Tab = ({ id, icon: Icon, label }) => (
     <button
@@ -61,6 +65,8 @@ function PorOF() {
         <Tab id="tempo" icon={Timer} label="Tempos" />
         <Tab id="custo" icon={Coins} label="Custos" />
       </div>
+
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por OF ou cliente..." testid="analise-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[680px]">
@@ -88,7 +94,7 @@ function PorOF() {
             </tr>
           </thead>
           <tbody data-testid="tempos-table">
-            {rows.map((r) => (
+            {rows_f.map((r) => (
               <Fragment key={r.id}>
                 <tr data-testid={`tempo-row-${r.id}`} onClick={() => toggle(r.id)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-3 py-3 text-gray-400">{open[r.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
@@ -158,7 +164,7 @@ function PorOF() {
                 )}
               </Fragment>
             ))}
-            {rows.length === 0 && (
+            {rows_f.length === 0 && (
               <tr><td colSpan={isCusto ? 7 : 9} className="px-4 py-10 text-center text-gray-400 text-sm">Sem ordens de fabrico para analisar.</td></tr>
             )}
           </tbody>

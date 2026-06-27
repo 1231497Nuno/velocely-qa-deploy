@@ -17,11 +17,12 @@ import OrdemFabricoDetail from "@/pages/OrdemFabricoDetail";
 import AnaliseProducao from "@/pages/AnaliseProducao";
 import GestaoUtilizadores from "@/pages/GestaoUtilizadores";
 
-function Protected({ children, adminOnly }) {
-  const { user, ready, isAdmin } = useAuth();
+function Protected({ children, adminOnly, modulo }) {
+  const { user, ready, isAdmin, can } = useAuth();
   if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">A carregar...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
+  if (modulo && !can(modulo, "view")) return <Navigate to="/" replace />;
   return <Layout>{children}</Layout>;
 }
 
@@ -30,16 +31,16 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/artigos" element={<Protected><Artigos /></Protected>} />
-      <Route path="/maquinas" element={<Protected><Maquinas /></Protected>} />
-      <Route path="/materiais" element={<Protected><Materiais /></Protected>} />
-      <Route path="/mao-obra" element={<Protected><MaoObra /></Protected>} />
-      <Route path="/personalizacao" element={<Protected><TiposPersonalizacao /></Protected>} />
-      <Route path="/orcamentos" element={<Protected><Orcamentos /></Protected>} />
-      <Route path="/orcamentos/:id" element={<Protected><OrcamentoDetail /></Protected>} />
-      <Route path="/ordens-fabrico" element={<Protected><OrdensFabrico /></Protected>} />
-      <Route path="/ordens-fabrico/:id" element={<Protected><OrdemFabricoDetail /></Protected>} />
-      <Route path="/analise-producao" element={<Protected><AnaliseProducao /></Protected>} />
+      <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
+      <Route path="/maquinas" element={<Protected modulo="maquinas"><Maquinas /></Protected>} />
+      <Route path="/materiais" element={<Protected modulo="materiais"><Materiais /></Protected>} />
+      <Route path="/mao-obra" element={<Protected modulo="mao_obra"><MaoObra /></Protected>} />
+      <Route path="/personalizacao" element={<Protected modulo="personalizacao"><TiposPersonalizacao /></Protected>} />
+      <Route path="/orcamentos" element={<Protected modulo="orcamentos"><Orcamentos /></Protected>} />
+      <Route path="/orcamentos/:id" element={<Protected modulo="orcamentos"><OrcamentoDetail /></Protected>} />
+      <Route path="/ordens-fabrico" element={<Protected modulo="ordens_fabrico"><OrdensFabrico /></Protected>} />
+      <Route path="/ordens-fabrico/:id" element={<Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected>} />
+      <Route path="/analise-producao" element={<Protected modulo="analise_producao"><AnaliseProducao /></Protected>} />
       <Route path="/utilizadores" element={<Protected adminOnly><GestaoUtilizadores /></Protected>} />
     </Routes>
   );

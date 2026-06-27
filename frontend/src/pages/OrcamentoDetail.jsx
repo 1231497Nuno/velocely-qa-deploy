@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
 import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight } from "lucide-react";
@@ -17,6 +18,7 @@ const toHours = (v, u) => (Number(v) || 0) / (u === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
 
 export default function OrcamentoDetail() {
+  const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
   const [orc, setOrc] = useState(null);
@@ -113,7 +115,7 @@ export default function OrcamentoDetail() {
       return ((Number(m.comprimento_mm) || 0) / 1000) * ((Number(m.largura_mm) || 0) / 1000) * (Number(m.custo_unitario) || 0) * (Number(m.quantidade) || 1);
     return (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0);
   };
-  const matValor = (m) => matCusto(m) * 1.5;
+  const matValor = (m) => matCusto(m) * (1 + (Number(m.margem) ?? 50) / 100);
   const updMaterial = (i, patch) => {
     const list = [...(orc.materiais || [])];
     list[i] = { ...list[i], ...patch };
@@ -122,7 +124,7 @@ export default function OrcamentoDetail() {
   const addMaterial = (cid) => {
     const c = consumiveis.find((x) => x.id === cid);
     if (!c) return;
-    upd({ materiais: [...(orc.materiais || []), { consumivel_id: c.id, nome: c.nome, unidade: c.unidade, custo_unitario: Number(c.custo_unitario) || 0, quantidade: 1, comprimento_mm: 0, largura_mm: 0 }] });
+    upd({ materiais: [...(orc.materiais || []), { consumivel_id: c.id, nome: c.nome, unidade: c.unidade, custo_unitario: Number(c.custo_unitario) || 0, quantidade: 1, comprimento_mm: 0, largura_mm: 0, margem: 50 }] });
   };
   const delMaterial = (i) => upd({ materiais: (orc.materiais || []).filter((_, idx) => idx !== i) });
 
@@ -155,6 +157,7 @@ export default function OrcamentoDetail() {
         quantidade: Number(m.quantidade) || 0,
         comprimento_mm: Number(m.comprimento_mm) || 0,
         largura_mm: Number(m.largura_mm) || 0,
+        margem: Number(m.margem) || 0,
       })),
     };
     await api.put(`/orcamentos/${id}`, body);
@@ -195,14 +198,16 @@ export default function OrcamentoDetail() {
               <Factory size={16} /> {orc.of_numero}
             </Link>
           )}
-          {!orc.of_id && (
+          {!orc.of_id && can("ordens_fabrico", "create") && (
             <button data-testid="convert-quote-btn" onClick={converter} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
               <Factory size={16} /> Criar Ordem de Fabrico
             </button>
           )}
-          <button data-testid="save-orcamento-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Save size={16} /> Guardar
-          </button>
+          {can("orcamentos", "edit") && (
+            <button data-testid="save-orcamento-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+              <Save size={16} /> Guardar
+            </button>
+          )}
         </div>
       </div>
 
@@ -352,7 +357,7 @@ export default function OrcamentoDetail() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900 font-display">Materiais / Consumíveis</h2>
-            <p className="text-xs text-gray-500">Materiais soltos adicionados ao orçamento (acréscimo de 50% sobre o custo).</p>
+            <p className="text-xs text-gray-500">Materiais soltos adicionados ao orçamento, com margem editável por linha.</p>
           </div>
           <select
             data-testid="add-material-select"
@@ -392,8 +397,12 @@ export default function OrcamentoDetail() {
                       </div>
                     </>
                   )}
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Margem (%)</label>
+                    <input data-testid={`material-margem-${i}`} type="number" min="0" value={m.margem ?? 50} onChange={(e) => updMaterial(i, { margem: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
+                  </div>
                   <div className="text-right">
-                    <label className="text-xs text-gray-500 mb-1 block">Valor (+50%)</label>
+                    <label className="text-xs text-gray-500 mb-1 block">Valor</label>
                     <div className="tabular-nums font-semibold text-gray-900 py-2" data-testid={`material-valor-${i}`}>{eur(matValor(m))}</div>
                   </div>
                 </div>
@@ -415,7 +424,7 @@ export default function OrcamentoDetail() {
             <span className="tabular-nums font-medium" data-testid="orc-personalizacao">{eur(totalPers)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Materiais (+50%)</span>
+            <span className="text-gray-500">Materiais</span>
             <span className="tabular-nums font-medium" data-testid="orc-materiais">{eur(totalMateriais)}</span>
           </div>
           <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">

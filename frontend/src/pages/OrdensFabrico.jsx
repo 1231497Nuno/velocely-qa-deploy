@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
 import StatusBadge from "../components/StatusBadge";
@@ -54,6 +55,7 @@ const TimerDot = ({ estado, liveSec }) => {
 };
 
 export default function OrdensFabrico() {
+  const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ativas");
   const [now, setNow] = useState(Date.now());
@@ -107,9 +109,9 @@ export default function OrdensFabrico() {
         title="Ordens de Fabrico"
         subtitle="Produção com roteiro de operações para o operador"
         actions={
-          <button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+          can("ordens_fabrico","create") && (<button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Nova OF
-          </button>
+          </button>)
         }
       />
 
@@ -147,7 +149,7 @@ export default function OrdensFabrico() {
                 <td className="px-4 py-3 text-right tabular-nums text-gray-600">{Math.round(o.progresso || 0)}%</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
                 <td className="px-4 py-3">
-                  <button data-testid={`delete-of-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                  {can("ordens_fabrico","delete") && (<button data-testid={`delete-of-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                 </td>
               </tr>
             ))}
@@ -175,7 +177,7 @@ export default function OrdensFabrico() {
                 <div>{fmtDate(o.data)} · {Math.round(o.progresso || 0)}%</div>
                 {o.orcamento_numero && <div className="mono mt-0.5">Origem {o.orcamento_numero}</div>}
               </div>
-              <button data-testid={`delete-of-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+              {can("ordens_fabrico","delete") && (<button data-testid={`delete-of-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>)}
             </div>
           </div>
         ))}

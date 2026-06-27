@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2, FileDown, Play, Square, Flag } from "lucide-react";
@@ -8,6 +9,7 @@ import { toast } from "sonner";
 import { Progress } from "../components/ui/progress";
 
 export default function OrdemFabricoDetail() {
+  const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
   const [of, setOf] = useState(null);
@@ -130,9 +132,11 @@ export default function OrdemFabricoDetail() {
               <Flag size={16} /> Declarar Finalizada
             </button>
           )}
-          <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Save size={16} /> Guardar
-          </button>
+          {can("ordens_fabrico", "edit") && (
+            <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+              <Save size={16} /> Guardar
+            </button>
+          )}
         </div>
       </div>
 

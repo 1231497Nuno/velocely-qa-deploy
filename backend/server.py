@@ -80,12 +80,55 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
     return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
 
 
-def user_public(u: dict) -> dict:
+# Módulos e ações para RBAC
+RBAC_MODULES = [
+    "dashboard", "artigos", "materiais", "maquinas", "mao_obra",
+    "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "utilizadores",
+]
+RBAC_ACTIONS = ["view", "create", "edit", "delete"]
+
+
+def perms_all(value: bool) -> dict:
+    return {m: {a: value for a in RBAC_ACTIONS} for m in RBAC_MODULES}
+
+
+def perms_colaborador() -> dict:
+    p = perms_all(False)
+    for m in RBAC_MODULES:
+        if m != "utilizadores":
+            p[m]["view"] = True
+    for m in ("orcamentos", "ordens_fabrico"):
+        p[m]["create"] = True
+        p[m]["edit"] = True
+    return p
+
+
+async def resolve_perfil(user: dict) -> dict:
+    perfil = None
+    if user.get("perfil_id"):
+        perfil = await db.perfis.find_one({"id": user["perfil_id"]}, {"_id": 0})
+    if not perfil:
+        if user.get("role") == "admin":
+            perfil = await db.perfis.find_one({"sistema": True, "admin": True}, {"_id": 0})
+        else:
+            perfil = await db.perfis.find_one({"nome": "Colaborador", "sistema": True}, {"_id": 0})
+    return perfil or {"nome": "Colaborador", "admin": False, "permissoes": perms_colaborador()}
+
+
+async def user_public(u: dict) -> dict:
+    perfil = await resolve_perfil(u)
     return {
         "id": u.get("id"),
         "email": u.get("email"),
         "name": u.get("name", ""),
-        "role": u.get("role", "colaborador"),
+        "role": "admin" if perfil.get("admin") else "colaborador",
+        "perfil_id": u.get("perfil_id"),
+        "perfil": {
+            "id": perfil.get("id"),
+            "nome": perfil.get("nome"),
+            "admin": bool(perfil.get("admin")),
+            "permissoes": perfil.get("permissoes") or perms_all(False),
+        },
         "created_at": u.get("created_at"),
     }
 
@@ -109,8 +152,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
 
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Apenas administradores")
+    perfil = await resolve_perfil(user)
+    can = perfil.get("admin") or (perfil.get("permissoes") or {}).get("utilizadores", {}).get("edit")
+    if not can:
+        raise HTTPException(status_code=403, detail="Sem permissão de gestão de utilizadores")
     return user
 
 
@@ -123,13 +168,21 @@ class UserCreate(BaseModel):
     email: str
     name: str = ""
     password: str
+    perfil_id: Optional[str] = None
     role: str = "colaborador"
 
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     password: Optional[str] = None
+    perfil_id: Optional[str] = None
     role: Optional[str] = None
+
+
+class PerfilInput(BaseModel):
+    nome: str
+    admin: bool = False
+    permissoes: dict = Field(default_factory=lambda: perms_all(False))
 
 
 auth_router = APIRouter(prefix="/api/auth")
@@ -141,13 +194,15 @@ async def login(data: LoginInput):
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not verify_password(data.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Email ou password incorretos")
-    token = create_access_token(user["id"], user["email"], user.get("role", "colaborador"))
-    return {"token": token, "user": user_public(user)}
+    perfil = await resolve_perfil(user)
+    role = "admin" if perfil.get("admin") else "colaborador"
+    token = create_access_token(user["id"], user["email"], role)
+    return {"token": token, "user": await user_public(user)}
 
 
 @auth_router.get("/me")
 async def auth_me(user: dict = Depends(get_current_user)):
-    return user_public(user)
+    return await user_public(user)
 
 
 
@@ -279,6 +334,7 @@ class MaterialLinha(BaseModel):
     quantidade: float = 1
     comprimento_mm: float = 0.0
     largura_mm: float = 0.0
+    margem: float = 50.0
     custo: float = 0.0
     valor: float = 0.0
 
@@ -447,7 +503,14 @@ def pers_nomes(l: dict) -> str:
     return l.get("tipo_personalizacao_nome") or ""
 
 
-MATERIAL_MARKUP = 1.5  # adiciona 50% ao custo do material
+MATERIAL_MARKUP = 1.5  # margem default de 50% (usada quando a linha não define margem)
+
+
+def material_margem_factor(m: dict) -> float:
+    margem = m.get("margem")
+    if margem is None:
+        return MATERIAL_MARKUP
+    return 1.0 + (float(margem) / 100.0)
 
 
 def material_custo(m: dict) -> float:
@@ -462,9 +525,11 @@ def fill_materiais(materiais: List[dict]) -> List[dict]:
     out = []
     for m in materiais or []:
         m = {**m}
+        if m.get("margem") is None:
+            m["margem"] = 50.0
         custo = material_custo(m)
         m["custo"] = custo
-        m["valor"] = round2(custo * MATERIAL_MARKUP)
+        m["valor"] = round2(custo * material_margem_factor(m))
         out.append(m)
     return out
 
@@ -483,7 +548,7 @@ def compute_orcamento_totais(orc: dict) -> dict:
     for m in orc.get("materiais", []):
         c = material_custo(m)
         custo_materiais += c
-        venda_materiais += round2(c * MATERIAL_MARKUP)
+        venda_materiais += round2(c * material_margem_factor(m))
     subtotal_custo = round2(subtotal_custo)
     subtotal_venda = round2(subtotal_venda)
     total_pers = round2(total_pers)
@@ -620,20 +685,23 @@ def build_orcamento_pdf(orc: dict) -> bytes:
     if materiais:
         elems.append(Paragraph("Materiais / Consumíveis", st["cellb"]))
         elems.append(Spacer(1, 4))
-        mhead = [Paragraph(t, st["th"]) for t in ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Valor (+50%)"]]
+        mhead = [Paragraph(t, st["th"]) for t in ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Margem", "Valor"]]
         mdata = [mhead]
         for m in materiais:
             unidade = (m.get("unidade") or "").lower()
             dims = f"{m.get('comprimento_mm') or 0:g}×{m.get('largura_mm') or 0:g} mm" if unidade in ("m²", "m2") else "—"
+            margem = m.get("margem")
+            margem = 50.0 if margem is None else margem
             mdata.append([
                 Paragraph(m.get("nome") or "—", st["cell"]),
                 Paragraph(m.get("unidade") or "—", st["cell"]),
                 Paragraph(dims, st["cell"]),
                 Paragraph(f"{m.get('quantidade') or 0:g}", st["cell"]),
                 Paragraph(fmt_eur(material_custo(m)), st["cell"]),
-                Paragraph(fmt_eur(round2(material_custo(m) * MATERIAL_MARKUP)), st["cellb"]),
+                Paragraph(f"{margem:g}%", st["cell"]),
+                Paragraph(fmt_eur(round2(material_custo(m) * material_margem_factor(m))), st["cellb"]),
             ])
-        mtbl = Table(mdata, colWidths=[48 * mm, 22 * mm, 34 * mm, 15 * mm, 23 * mm, 28 * mm])
+        mtbl = Table(mdata, colWidths=[44 * mm, 20 * mm, 30 * mm, 14 * mm, 22 * mm, 18 * mm, 22 * mm])
         mtbl.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), DARK),
             ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
@@ -653,7 +721,7 @@ def build_orcamento_pdf(orc: dict) -> bytes:
     if (orc.get("total_personalizacao") or 0) > 0:
         tot_rows.append(["Personalização", fmt_eur(orc.get("total_personalizacao"))])
     if (orc.get("total_materiais") or 0) > 0:
-        tot_rows.append(["Materiais (+50%)", fmt_eur(orc.get("total_materiais"))])
+        tot_rows.append(["Materiais", fmt_eur(orc.get("total_materiais"))])
     tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
     last = len(tot_rows) - 1
     tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
@@ -1516,7 +1584,33 @@ async def root():
 @api_router.get("/users")
 async def list_users(admin: dict = Depends(require_admin)):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(1000)
-    return users
+    out = []
+    for u in users:
+        perfil = await resolve_perfil(u)
+        out.append({
+            "id": u.get("id"),
+            "email": u.get("email"),
+            "name": u.get("name", ""),
+            "perfil_id": u.get("perfil_id") or perfil.get("id"),
+            "perfil_nome": perfil.get("nome"),
+            "role": "admin" if perfil.get("admin") else "colaborador",
+            "created_at": u.get("created_at"),
+        })
+    return out
+
+
+async def _resolve_perfil_id(perfil_id: Optional[str], role: Optional[str]) -> str:
+    if perfil_id:
+        p = await db.perfis.find_one({"id": perfil_id}, {"_id": 0})
+        if not p:
+            raise HTTPException(400, "Perfil inválido")
+        return perfil_id
+    # compat: derivar do role
+    if role == "admin":
+        p = await db.perfis.find_one({"sistema": True, "admin": True}, {"_id": 0})
+    else:
+        p = await db.perfis.find_one({"nome": "Colaborador", "sistema": True}, {"_id": 0})
+    return p["id"] if p else None
 
 
 @api_router.post("/users")
@@ -1524,20 +1618,19 @@ async def create_user(data: UserCreate, admin: dict = Depends(require_admin)):
     email = (data.email or "").strip().lower()
     if not email or not data.password:
         raise HTTPException(400, "Email e password obrigatórios")
-    if data.role not in ("admin", "colaborador"):
-        raise HTTPException(400, "Perfil inválido")
     if await db.users.find_one({"email": email}):
         raise HTTPException(400, "Já existe um utilizador com este email")
+    perfil_id = await _resolve_perfil_id(data.perfil_id, data.role)
     doc = {
         "id": new_id(),
         "email": email,
         "name": data.name or "",
-        "role": data.role,
+        "perfil_id": perfil_id,
         "password_hash": hash_password(data.password),
         "created_at": now_iso(),
     }
     await db.users.insert_one(doc)
-    return user_public(doc)
+    return await user_public(doc)
 
 
 @api_router.put("/users/{uid}")
@@ -1548,16 +1641,14 @@ async def update_user(uid: str, data: UserUpdate, admin: dict = Depends(require_
     patch = {}
     if data.name is not None:
         patch["name"] = data.name
-    if data.role is not None:
-        if data.role not in ("admin", "colaborador"):
-            raise HTTPException(400, "Perfil inválido")
-        patch["role"] = data.role
+    if data.perfil_id is not None or data.role is not None:
+        patch["perfil_id"] = await _resolve_perfil_id(data.perfil_id, data.role)
     if data.password:
         patch["password_hash"] = hash_password(data.password)
     if patch:
         await db.users.update_one({"id": uid}, {"$set": patch})
         user.update(patch)
-    return user_public(user)
+    return await user_public(user)
 
 
 @api_router.delete("/users/{uid}")
@@ -1568,16 +1659,113 @@ async def delete_user(uid: str, admin: dict = Depends(require_admin)):
     return {"ok": True}
 
 
+# ----------------------- Perfis (RBAC) -----------------------
+@api_router.get("/perfis")
+async def list_perfis(admin: dict = Depends(require_admin)):
+    perfis = await db.perfis.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    return perfis
+
+
+@api_router.get("/rbac/modulos")
+async def rbac_modulos(admin: dict = Depends(require_admin)):
+    labels = {
+        "dashboard": "Dashboard", "artigos": "Artigos", "materiais": "Materiais",
+        "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
+        "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",
+        "analise_producao": "Análise da Produção", "utilizadores": "Gestão de Utilizadores",
+    }
+    return {"modulos": [{"key": m, "label": labels.get(m, m)} for m in RBAC_MODULES], "acoes": RBAC_ACTIONS}
+
+
+def _normalize_perms(permissoes: dict, admin_flag: bool) -> dict:
+    base = perms_all(True) if admin_flag else perms_all(False)
+    for m in RBAC_MODULES:
+        for a in RBAC_ACTIONS:
+            v = (permissoes or {}).get(m, {}).get(a)
+            if v is not None:
+                base[m][a] = bool(v)
+            elif admin_flag:
+                base[m][a] = True
+    return base
+
+
+@api_router.post("/perfis")
+async def create_perfil(data: PerfilInput, admin: dict = Depends(require_admin)):
+    nome = (data.nome or "").strip()
+    if not nome:
+        raise HTTPException(400, "Nome obrigatório")
+    if await db.perfis.find_one({"nome": nome}):
+        raise HTTPException(400, "Já existe um perfil com este nome")
+    doc = {
+        "id": new_id(),
+        "nome": nome,
+        "sistema": False,
+        "admin": bool(data.admin),
+        "permissoes": _normalize_perms(data.permissoes, data.admin),
+        "created_at": now_iso(),
+    }
+    await db.perfis.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api_router.put("/perfis/{pid}")
+async def update_perfil(pid: str, data: PerfilInput, admin: dict = Depends(require_admin)):
+    perfil = await db.perfis.find_one({"id": pid}, {"_id": 0})
+    if not perfil:
+        raise HTTPException(404, "Perfil não encontrado")
+    if perfil.get("sistema") and perfil.get("admin"):
+        raise HTTPException(400, "O perfil de Administrador não pode ser alterado")
+    patch = {
+        "nome": (data.nome or perfil["nome"]).strip(),
+        "admin": bool(data.admin),
+        "permissoes": _normalize_perms(data.permissoes, data.admin),
+    }
+    await db.perfis.update_one({"id": pid}, {"$set": patch})
+    perfil.update(patch)
+    return perfil
+
+
+@api_router.delete("/perfis/{pid}")
+async def delete_perfil(pid: str, admin: dict = Depends(require_admin)):
+    perfil = await db.perfis.find_one({"id": pid}, {"_id": 0})
+    if not perfil:
+        raise HTTPException(404, "Perfil não encontrado")
+    if perfil.get("sistema"):
+        raise HTTPException(400, "Perfis de sistema não podem ser eliminados")
+    in_use = await db.users.find_one({"perfil_id": pid})
+    if in_use:
+        raise HTTPException(400, "Perfil em uso por utilizadores")
+    await db.perfis.delete_one({"id": pid})
+    return {"ok": True}
+
+
+async def seed_perfis():
+    admin_p = await db.perfis.find_one({"sistema": True, "admin": True})
+    if not admin_p:
+        await db.perfis.insert_one({
+            "id": new_id(), "nome": "Administrador", "sistema": True, "admin": True,
+            "permissoes": perms_all(True), "created_at": now_iso(),
+        })
+    colab_p = await db.perfis.find_one({"nome": "Colaborador", "sistema": True})
+    if not colab_p:
+        await db.perfis.insert_one({
+            "id": new_id(), "nome": "Colaborador", "sistema": True, "admin": False,
+            "permissoes": perms_colaborador(), "created_at": now_iso(),
+        })
+
+
 async def seed_admin():
     email = os.environ.get("ADMIN_EMAIL", "admin@prodcost.pt").strip().lower()
     password = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+    admin_p = await db.perfis.find_one({"sistema": True, "admin": True}, {"_id": 0})
+    colab_p = await db.perfis.find_one({"nome": "Colaborador", "sistema": True}, {"_id": 0})
     existing = await db.users.find_one({"email": email})
     if not existing:
         await db.users.insert_one({
             "id": new_id(),
             "email": email,
             "name": "Admin Geral",
-            "role": "admin",
+            "perfil_id": admin_p["id"] if admin_p else None,
             "password_hash": hash_password(password),
             "created_at": now_iso(),
         })
@@ -1587,13 +1775,22 @@ async def seed_admin():
             patch["password_hash"] = hash_password(password)
         if existing.get("name") == "Administrador":
             patch["name"] = "Admin Geral"
+        if not existing.get("perfil_id") and admin_p:
+            patch["perfil_id"] = admin_p["id"]
         if patch:
             await db.users.update_one({"email": email}, {"$set": patch})
+    # migrar utilizadores sem perfil_id
+    if colab_p:
+        await db.users.update_many(
+            {"perfil_id": {"$in": [None, ""]}, "role": {"$ne": "admin"}},
+            {"$set": {"perfil_id": colab_p["id"]}},
+        )
 
 
 @app.on_event("startup")
 async def _startup_seed_admin():
     await db.users.create_index("email", unique=True)
+    await seed_perfis()
     await seed_admin()
 
 

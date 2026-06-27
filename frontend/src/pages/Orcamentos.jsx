@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
 import StatusBadge from "../components/StatusBadge";
@@ -8,6 +9,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Orcamentos() {
+  const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const nav = useNavigate();
@@ -46,9 +48,9 @@ export default function Orcamentos() {
         title="Orçamentos"
         subtitle="Propostas de preço com numeração sequencial automática"
         actions={
-          <button data-testid="new-orcamento-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+          can("orcamentos","create") && (<button data-testid="new-orcamento-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Novo Orçamento
-          </button>
+          </button>)
         }
       />
 
@@ -80,7 +82,7 @@ export default function Orcamentos() {
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(o.total)}</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
                 <td className="px-4 py-3">
-                  <button data-testid={`delete-orcamento-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                  {can("orcamentos","delete") && (<button data-testid={`delete-orcamento-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                 </td>
               </tr>
             ))}
@@ -109,7 +111,7 @@ export default function Orcamentos() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="tabular-nums font-semibold text-gray-900">{eur(o.total)}</span>
-                <button data-testid={`delete-orcamento-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+                {can("orcamentos","delete") && (<button data-testid={`delete-orcamento-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>)}
               </div>
             </div>
           </div>

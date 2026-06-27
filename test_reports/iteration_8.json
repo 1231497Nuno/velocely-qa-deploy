@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 8 valida RBAC perfis+enforcement, margem editável por linha em materiais e novas search bars. Backend pytest /app/backend/tests/test_iteration8.py: 8/8 PASS — (1) lists para pesquisa vivos (/mao-obra, /tipos-personalizacao, /producao/tempos), (2) /api/rbac/modulos devolve 10 módulos e 4 ações, (3) criação de perfil 'teste-Vendas' com permissoes mínimas (dashboard.view, orcamentos.view+create) — restantes a False; persiste e perfil sistema 'Administrador' presente, (4) criação de utilizador com perfil_id retorna perfil aninhado correto e role='colaborador', (5) login do user restrito → GET /api/users e /api/perfis devolvem 403, /api/auth/me 200 com permissoes.orcamentos.create=true e .delete=false, (6) admin acede a /api/users e /api/perfis (200), (7) margem por linha: m² Comp=500 Larg=1000 custo=20 → custo=10 e valor=15 com margem 50; update para margem 100 → valor=20; GET confirma persistência (margem=100, valor=20); custo_materiais e total_materiais coerentes, (8) default de margem é 50 quando não enviada na linha, (9) cleanup: utilizadores e perfis 'teste-' apagados. Frontend (Playwright): search bars presentes em /mao-obra (mao-obra-search), /personalizacao (personalizacao-search), /analise-producao (analise-search). Em /utilizadores ambos os tabs (gu-tab-users, gu-tab-perfis) estão visíveis; new-perfil-btn abre modal, perm-orcamentos-view/create, perm-dashboard-view são marcáveis e perm-maquinas-view fica desmarcado; save-perfil-btn guarda (toast 'Perfil guardado'); perfis-list contém 'teste-Vendas' e o sistema 'Administrador'. Criação de utilizador via new-user-btn → user-email-input/user-name-input/user-password-input/user-perfil-select (select nativo) → save-user-btn persiste e aparece na tabela. Logout e login com teste-vend@prodcost.pt/teste123: a sidebar mostra APENAS Dashboard e Orçamentos — nav-artigos, nav-materiais, nav-maquinas, nav-mao-obra, nav-personalizacao, nav-ordens-fabrico, nav-analise-producao e nav-utilizadores estão ocultos. /maquinas e /artigos redirecionam para /. Em /orcamentos new-orcamento-btn aparece (create) e existem 0 botões delete-orcamento-*. Backend chamado a partir do browser pelo user restrito devolve 403 em /api/users e /api/perfis. Cleanup final via UI/admin removeu 1 utilizador e 1 perfil de teste. Contas reais (geral@famarte.pt, m-p@live.com.pt) intactas. NÃO executado em UI: input directo de material-margem-0 em OrcamentoDetail (validado integralmente no backend, ver test_orcamento_material_margem_por_linha).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Layout sidebar footer (current-user)", "issues": ["Persiste do iter7: nome+role pode aparecer sem separador (ver iteration_7.json action items, não bloqueante)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8.py",
+    "/app/test_reports/pytest/iteration8_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py material_margem_factor + fill_materiais aplicam margem por linha com fallback 50% (MATERIAL_MARKUP=1.5); compute_orcamento_totais recalcula custo_materiais e venda_materiais (=total_materiais) usando a margem por linha — coerente com PDF (build_orcamento_pdf usa o mesmo factor). Boa encapsulação.",
+    "RBAC: resolve_perfil cai para perfil de sistema 'Colaborador' se o user não tiver perfil_id válido — seguro. require_admin aceita admin OU permissoes.utilizadores.edit=true. /api/perfis e /api/users protegidos; restantes endpoints de dados não estão (gate é só no frontend), conforme âmbito declarado. Considerar reforço futuro nas mutações de dados se necessário.",
+    "_normalize_perms ignora ações fora de RBAC_ACTIONS e garante shape completo — bom para evitar undefined no FE.",
+    "Frontend can(modulo, acao) está bem feito (admin bypass). Sidebar e Protected aplicam corretamente; botão delete em /orcamentos respeita can('orcamentos','delete'). Confirmado em runtime.",
+    "Persiste o warning de hidratação React '<span> cannot be a child of <option>' do iter7 em OrcamentoDetail — não bloqueante.",
+    "GestaoUtilizadores: tabs e matriz funcionam; perfil sistema 'Administrador' aparece bloqueado (não testei tentativa de edição via UI, mas o backend marca sistema=true e o frontend deve gating)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration8.py (novo)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% dos pontos do review_request testados"},
+  "test_credentials": "admin@prodcost.pt / Admin123! (recuperação). Conta de teste criada e ELIMINADA: teste-vend@prodcost.pt/teste123 com perfil teste-Vendas.",
+  "seed_data_creation": "Backend cria/elimina: consumiveis teste-MDF-it8 e teste-MDF-default, orçamentos de teste (eliminados), perfil teste-Vendas e user teste-vend@prodcost.pt (eliminados). Cleanup verificado no test_zzz_cleanup. UI cleanup confirmado: {dU:1, dP:1}.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para futuros testes RBAC: use admin@prodcost.pt/Admin123!. user-perfil-select é <select> nativo — use page.select_option(label='...'). delete-orcamento-* prefix identifica botões de delete (count=0 quando sem permissão delete). /api/perfis e /api/users são os ÚNICOS endpoints que retornam 403 sem permissão admin/utilizadores.edit. Para confirmar margem por linha em material via UI use OrcamentoDetail data-testid material-margem-{i} (não testado em UI, só backend nesta iteração).",
+  "rca of the issue": "n/a — todas as funcionalidades pedidas funcionam: pesquisa em mão de obra/personalização/análise, margem materiais editável por linha com persistência, criação de perfis personalizados com matriz de permissões, enforcement em frontend (nav/rota/botões) e backend (/api/users e /api/perfis 403)."
+}

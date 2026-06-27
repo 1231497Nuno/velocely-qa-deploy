@@ -43,10 +43,19 @@ export function AuthProvider({ children }) {
     window.location.href = "/login";
   };
 
-  const isAdmin = user && user.role === "admin";
+  const isAdmin = user && user.perfil && user.perfil.admin;
+
+  const can = useCallback(
+    (modulo, acao = "view") => {
+      if (!user || !user.perfil) return false;
+      if (user.perfil.admin) return true;
+      return !!(user.perfil.permissoes?.[modulo]?.[acao]);
+    },
+    [user]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, ready, login, logout, isAdmin, refresh }}>
+    <AuthContext.Provider value={{ user, ready, login, logout, isAdmin, can, refresh }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -17,6 +18,7 @@ const empty = { nome: "", unidade: "un", custo_unitario: 0 };
 const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", "h"];
 
 export default function Materiais() {
+  const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -64,9 +66,9 @@ export default function Materiais() {
         title="Materiais"
         subtitle="Consumíveis e respetivo custo unitário usados nas receitas dos artigos"
         actions={
-          <button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+          can("materiais","create") && (<button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Novo Material
-          </button>
+          </button>)
         }
       />
 
@@ -90,8 +92,8 @@ export default function Materiais() {
                 <td className="px-4 py-3 text-right tabular-nums">{eur(c.custo_unitario)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button data-testid={`edit-material-${c.id}`} onClick={() => openEdit(c)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
-                    <button data-testid={`delete-material-${c.id}`} onClick={() => remove(c.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                    {can("materiais","edit") && (<button data-testid={`edit-material-${c.id}`} onClick={() => openEdit(c)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
+                    {can("materiais","delete") && (<button data-testid={`delete-material-${c.id}`} onClick={() => remove(c.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
                 </td>
               </tr>
