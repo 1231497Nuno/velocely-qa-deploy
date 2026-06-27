@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 3 fully verified. Backend: 12/12 pytest tests pass — new máquina fields (custo_amortizacao_hora + custo_energia_hora) persisted; effective machine cost = amort + energia; operation time honors unidade so 1h on a 20€/h machine = 20€ exactly; DTF UV breakdown 1,60 / 1,73 / 1,20 / 4,53 € with margem 40% gives preco_venda 6,34 €; DTF Têxtil 2,80 € × 1.35 = 3,78 €; orçamento line still auto-fills custo_producao_unit from artigo; OF roteiro auto-load + toggle ops still work. Frontend: Materiais unidade is now a native <select> with un/kg/g/m/cm/m²/L/ml/folha/par/h options, create/edit/delete work. Máquinas table shows Amortização/h + Energia/h + Total/h columns; dialog has both inputs and maquina-total-hora updates live (10+5=15,00 €). Artigos table shows Margem and Preço Venda columns with the seeded 40%→6,34 € and 35%→3,78 €. In Artigos dialog: real-time recompute verified — same 1-minute machine time on 20€/h shows 0,33 €, switching the unit selector from min to h instantly recomputes to 20,00 €; mão-de-obra 30 min @ 12€/h = 6,00 €; margem 50 % updates preco_venda live; save persists margem and the row shows 50% / 40,35 €. No console errors observed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py maquina_custo_hora() correctly sums custo_amortizacao_hora + custo_energia_hora and also keeps backward-compat with legacy custo_hora. Good.",
+    "to_minutes() + op_minutos_maquina/op_minutos_mao_obra honor the per-field unidade independently so a single operation can mix 'h' (máquina) with 'min' (mão de obra). Good.",
+    "artigo_breakdown() returns preco_venda = custo_total * (1 + margem/100). Margem defaults to 30 if missing on legacy docs. Good.",
+    "Frontend Artigos.jsx toHours() / maqHora() helpers mirror the backend exactly so the in-dialog Custo Total Calculado equals the post-save server response (verified: 26,90 € both sides). Good.",
+    "Minor: native <select> options inside Artigos dialog render only text now (no <span> child) — previous iteration's React DOM warning appears resolved (no console warnings observed during this run)."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% on tested flows (Materiais select unit CRUD, Máquinas split-cost CRUD with live total, Artigos dialog with unit-aware machine/labor recompute + margem live preco_venda + save persistence)"},
+  "test_credentials": "No auth required.",
+  "seed_data_creation": "POST /api/seed is idempotent and now seeds 3 máquinas with amort+energia (20/12/15 €/h), 2 mão-obra, 4 consumíveis, 3 tipos, 2 artigos (DTF UV margem 40 → 6,34 € PVP; DTF Têxtil margem 35 → 3,78 € PVP). TEST_ data created during this run was cleaned up.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/backend_test.py (pytest, parallel). Must export REACT_APP_BACKEND_URL before running pytest (it's only in /app/frontend/.env, not exported in the shell by default — use `export $(grep REACT_APP_BACKEND_URL /app/frontend/.env)`). For frontend Playwright tests use page.select_option(value=...) on the native <select> elements (op-unidade-maquina-{i}, op-unidade-maoobra-{i}, material-unidade-input). The artigo dialog is tall (max-h-[92vh] overflow-y-auto) and renders all sections at once at 1920x1080 without scrolling.",
+  "rca of the issue": "No bugs. Old fields (Máquina.custo_hora, Operacao.min_maquina/min_mao_obra) were cleanly replaced; previous iteration_2 backend tests that referenced those fields have been rewritten to use the new schema (custo_amortizacao_hora/custo_energia_hora and tempo_maquina+unidade/tempo_mao_obra+unidade)."
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
-import { Plus, Pencil, Trash2, X, Package, Cog, Calculator } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Package, Cog, Calculator, Tag } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -12,7 +12,10 @@ import {
   DialogFooter,
 } from "../components/ui/dialog";
 
-const empty = { nome: "", descricao: "", materiais: [], roteiro: [] };
+const empty = { nome: "", descricao: "", margem: 30, materiais: [], roteiro: [] };
+
+const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
+const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
 
 export default function Artigos() {
   const [items, setItems] = useState([]);
@@ -42,6 +45,7 @@ export default function Artigos() {
     setForm({
       nome: a.nome,
       descricao: a.descricao || "",
+      margem: a.margem ?? 30,
       materiais: a.materiais || [],
       roteiro: a.roteiro || [],
     });
@@ -49,7 +53,6 @@ export default function Artigos() {
     setOpen(true);
   };
 
-  // ---- materiais ----
   const addMat = () => setForm({ ...form, materiais: [...form.materiais, { material_id: "", material_nome: "", unidade: "", quantidade: 1, custo_unitario: 0 }] });
   const updMat = (i, patch) => {
     const m = [...form.materiais];
@@ -58,8 +61,7 @@ export default function Artigos() {
   };
   const delMat = (i) => setForm({ ...form, materiais: form.materiais.filter((_, idx) => idx !== i) });
 
-  // ---- operacoes ----
-  const addOp = () => setForm({ ...form, roteiro: [...form.roteiro, { nome: "", maquina_id: "", maquina_nome: "", min_maquina: 0, mao_obra_id: "", mao_obra_nome: "", min_mao_obra: 0 }] });
+  const addOp = () => setForm({ ...form, roteiro: [...form.roteiro, { nome: "", maquina_id: "", maquina_nome: "", tempo_maquina: 0, tempo_maquina_unidade: "min", mao_obra_id: "", mao_obra_nome: "", tempo_mao_obra: 0, tempo_mao_obra_unidade: "min" }] });
   const updOp = (i, patch) => {
     const r = [...form.roteiro];
     r[i] = { ...r[i], ...patch };
@@ -71,19 +73,21 @@ export default function Artigos() {
   const custoMateriais = form.materiais.reduce((s, m) => s + (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0), 0);
   const custoMaquinas = form.roteiro.reduce((s, op) => {
     const maq = maquinas.find((x) => x.id === op.maquina_id);
-    return s + ((Number(op.min_maquina) || 0) / 60) * (maq ? maq.custo_hora : 0);
+    return s + toHours(op.tempo_maquina, op.tempo_maquina_unidade) * maqHora(maq);
   }, 0);
   const custoMaoObra = form.roteiro.reduce((s, op) => {
     const mo = maoObra.find((x) => x.id === op.mao_obra_id);
-    return s + ((Number(op.min_mao_obra) || 0) / 60) * (mo ? mo.custo_hora : 0);
+    return s + toHours(op.tempo_mao_obra, op.tempo_mao_obra_unidade) * (mo ? Number(mo.custo_hora) || 0 : 0);
   }, 0);
   const custoTotal = custoMateriais + custoMaquinas + custoMaoObra;
+  const precoVenda = custoTotal * (1 + (Number(form.margem) || 0) / 100);
 
   const save = async () => {
     if (!form.nome.trim()) return toast.error("Indique o nome do artigo");
     const body = {
       nome: form.nome,
       descricao: form.descricao,
+      margem: Number(form.margem) || 0,
       materiais: form.materiais.filter((m) => m.material_id).map((m) => ({
         ...m,
         quantidade: Number(m.quantidade) || 0,
@@ -91,8 +95,8 @@ export default function Artigos() {
       })),
       roteiro: form.roteiro.map((op) => ({
         ...op,
-        min_maquina: Number(op.min_maquina) || 0,
-        min_mao_obra: Number(op.min_mao_obra) || 0,
+        tempo_maquina: Number(op.tempo_maquina) || 0,
+        tempo_mao_obra: Number(op.tempo_mao_obra) || 0,
       })),
     };
     if (editId) await api.put(`/artigos/${editId}`, body);
@@ -112,7 +116,7 @@ export default function Artigos() {
     <div>
       <PageHeader
         title="Artigos"
-        subtitle="Receita de materiais, roteiro de operações e custo de produção calculado"
+        subtitle="Receita de materiais, roteiro de operações, custo e preço de venda"
         actions={
           <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Novo Artigo
@@ -129,6 +133,8 @@ export default function Artigos() {
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Máquinas</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Mão de Obra</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Total</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Margem</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Venda</th>
               <th className="px-4 py-3 w-24"></th>
             </tr>
           </thead>
@@ -144,6 +150,8 @@ export default function Artigos() {
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_maquinas)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_mao_obra)}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(a.custo_producao_total)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-500">{a.margem ?? 0}%</td>
+                <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
@@ -153,7 +161,7 @@ export default function Artigos() {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
             )}
           </tbody>
         </table>
@@ -163,7 +171,7 @@ export default function Artigos() {
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">{editId ? "Editar Artigo" : "Novo Artigo"}</DialogTitle>
-            <DialogDescription>Defina a receita de materiais e o roteiro de operações. O custo é calculado automaticamente.</DialogDescription>
+            <DialogDescription>Defina a receita de materiais e o roteiro de operações. O custo e o preço de venda são calculados automaticamente.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-2">
@@ -200,7 +208,7 @@ export default function Artigos() {
                     <div key={i} className="grid grid-cols-[1fr_80px_90px_90px_32px] gap-2 items-center">
                       <select data-testid={`material-select-${i}`} value={m.material_id || ""} onChange={(e) => { const c = consumiveis.find((x) => x.id === e.target.value); updMat(i, { material_id: e.target.value, material_nome: c ? c.nome : "", unidade: c ? c.unidade : "", custo_unitario: c ? c.custo_unitario : 0 }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
                         <option value="">Selecionar...</option>
-                        {consumiveis.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.unidade})</option>)}
+                        {consumiveis.map((c) => <option key={c.id} value={c.id}>{`${c.nome} (${c.unidade})`}</option>)}
                       </select>
                       <input data-testid={`material-qtd-${i}`} type="number" step="0.01" value={m.quantidade} onChange={(e) => updMat(i, { quantidade: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                       <div className="text-right text-sm text-gray-500 tabular-nums">{eur(m.custo_unitario)}</div>
@@ -227,19 +235,33 @@ export default function Artigos() {
                       <button onClick={() => delOp(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><X size={15} /></button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="grid grid-cols-[1fr_70px] gap-1.5">
-                        <select data-testid={`op-maquina-${i}`} value={op.maquina_id || ""} onChange={(e) => { const mq = maquinas.find((x) => x.id === e.target.value); updOp(i, { maquina_id: e.target.value, maquina_nome: mq ? mq.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-                          <option value="">Máquina...</option>
-                          {maquinas.map((mq) => <option key={mq.id} value={mq.id}>{mq.nome}</option>)}
-                        </select>
-                        <input data-testid={`op-min-maquina-${i}`} type="number" placeholder="min" value={op.min_maquina} onChange={(e) => updOp(i, { min_maquina: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Máquina · tempo</div>
+                        <div className="grid grid-cols-[1fr_56px_56px] gap-1.5">
+                          <select data-testid={`op-maquina-${i}`} value={op.maquina_id || ""} onChange={(e) => { const mq = maquinas.find((x) => x.id === e.target.value); updOp(i, { maquina_id: e.target.value, maquina_nome: mq ? mq.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                            <option value="">Máquina...</option>
+                            {maquinas.map((mq) => <option key={mq.id} value={mq.id}>{mq.nome}</option>)}
+                          </select>
+                          <input data-testid={`op-tempo-maquina-${i}`} type="number" placeholder="0" value={op.tempo_maquina} onChange={(e) => updOp(i, { tempo_maquina: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                          <select data-testid={`op-unidade-maquina-${i}`} value={op.tempo_maquina_unidade || "min"} onChange={(e) => updOp(i, { tempo_maquina_unidade: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                            <option value="min">min</option>
+                            <option value="h">h</option>
+                          </select>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-[1fr_70px] gap-1.5">
-                        <select data-testid={`op-maoobra-${i}`} value={op.mao_obra_id || ""} onChange={(e) => { const mo = maoObra.find((x) => x.id === e.target.value); updOp(i, { mao_obra_id: e.target.value, mao_obra_nome: mo ? mo.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-                          <option value="">Mão de obra...</option>
-                          {maoObra.map((mo) => <option key={mo.id} value={mo.id}>{mo.nome}</option>)}
-                        </select>
-                        <input data-testid={`op-min-maoobra-${i}`} type="number" placeholder="min" value={op.min_mao_obra} onChange={(e) => updOp(i, { min_mao_obra: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Mão de obra · tempo</div>
+                        <div className="grid grid-cols-[1fr_56px_56px] gap-1.5">
+                          <select data-testid={`op-maoobra-${i}`} value={op.mao_obra_id || ""} onChange={(e) => { const mo = maoObra.find((x) => x.id === e.target.value); updOp(i, { mao_obra_id: e.target.value, mao_obra_nome: mo ? mo.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                            <option value="">Mão de obra...</option>
+                            {maoObra.map((mo) => <option key={mo.id} value={mo.id}>{mo.nome}</option>)}
+                          </select>
+                          <input data-testid={`op-tempo-maoobra-${i}`} type="number" placeholder="0" value={op.tempo_mao_obra} onChange={(e) => updOp(i, { tempo_mao_obra: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                          <select data-testid={`op-unidade-maoobra-${i}`} value={op.tempo_mao_obra_unidade || "min"} onChange={(e) => updOp(i, { tempo_mao_obra_unidade: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                            <option value="min">min</option>
+                            <option value="h">h</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -248,7 +270,7 @@ export default function Artigos() {
               </div>
             </section>
 
-            {/* Custo Total Calculado */}
+            {/* Margem + Custo Total Calculado */}
             <section className="border border-gray-900 rounded-sm bg-gray-900 text-white p-5">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
                 <Calculator size={14} /> Custo Total Calculado
@@ -269,7 +291,15 @@ export default function Artigos() {
               </div>
               <div className="flex items-end justify-between border-t border-gray-700 pt-4">
                 <span className="text-sm text-gray-300">Custo de Produção por unidade</span>
-                <span className="tabular-nums font-bold text-3xl font-display" data-testid="calc-total">{eur(custoTotal)}</span>
+                <span className="tabular-nums font-bold text-2xl font-display" data-testid="calc-total">{eur(custoTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
+                <label className="text-sm text-gray-300 flex items-center gap-2"><Tag size={14} /> Margem de Lucro (%)</label>
+                <input data-testid="artigo-margem-input" type="number" value={form.margem} onChange={(e) => setForm({ ...form, margem: e.target.value })} className="w-24 text-right border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30" />
+              </div>
+              <div className="flex items-end justify-between pt-3">
+                <span className="text-sm font-semibold text-emerald-300">Preço de Venda</span>
+                <span className="tabular-nums font-bold text-3xl font-display text-emerald-300" data-testid="calc-preco-venda">{eur(precoVenda)}</span>
               </div>
             </section>
           </div>

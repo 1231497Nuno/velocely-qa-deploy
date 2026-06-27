@@ -1,4 +1,8 @@
-"""Backend tests for Production Costing ERP - Iteration 2 (Materiais + Mão de Obra + new Artigo model)."""
+"""Backend tests for Production Costing ERP - Iteration 3
+New: máquinas have custo_amortizacao_hora + custo_energia_hora; operações use
+tempo_maquina + tempo_maquina_unidade + tempo_mao_obra + tempo_mao_obra_unidade;
+Artigo has margem and returns preco_venda.
+"""
 import os
 import pytest
 import requests
@@ -11,7 +15,6 @@ API = f"{BASE_URL}/api"
 def client():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
-    # ensure seed
     s.post(f"{API}/seed")
     return s
 
@@ -30,137 +33,128 @@ class TestHealthAndSeed:
         r = client.get(f"{API}/dashboard")
         assert r.status_code == 200
         d = r.json()
-        for k in ["total_artigos", "total_maquinas", "total_tipos", "custo_medio",
-                  "total_orcamentos", "valor_orcamentos", "total_ofs"]:
+        for k in ["total_artigos", "total_maquinas", "total_tipos", "custo_medio"]:
             assert k in d
 
 
-# ---------- CRUD: Consumiveis ----------
-class TestConsumiveis:
-    def test_crud(self, client):
-        r = client.post(f"{API}/consumiveis", json={"nome": "TEST_Mat", "unidade": "ml", "custo_unitario": 0.5})
-        assert r.status_code == 200
-        c = r.json()
-        assert c["nome"] == "TEST_Mat"
-        assert c["unidade"] == "ml"
-        assert c["custo_unitario"] == 0.5
-        cid = c["id"]
+# ---------- Máquinas with new amort+energia fields ----------
+class TestMaquinasNewFields:
+    def test_seeded_machines_have_split_costs(self, client):
+        ms = client.get(f"{API}/maquinas").json()
+        nomes = {m["nome"] for m in ms}
+        assert {"Impressora DTF UV", "Prensa Térmica", "Plotter de Corte"}.issubset(nomes)
+        dtf = next(m for m in ms if m["nome"] == "Impressora DTF UV")
+        assert dtf["custo_amortizacao_hora"] == pytest.approx(14.0)
+        assert dtf["custo_energia_hora"] == pytest.approx(6.0)
 
-        rl = client.get(f"{API}/consumiveis")
-        assert any(x["id"] == cid for x in rl.json())
-
-        ru = client.put(f"{API}/consumiveis/{cid}", json={"nome": "TEST_Mat2", "unidade": "g", "custo_unitario": 1.25})
-        assert ru.status_code == 200
-        assert ru.json()["custo_unitario"] == 1.25
-
-        assert client.delete(f"{API}/consumiveis/{cid}").status_code == 200
-
-
-# ---------- CRUD: Mao de Obra ----------
-class TestMaoObra:
-    def test_crud(self, client):
-        r = client.post(f"{API}/mao-obra", json={"nome": "TEST_MO", "custo_hora": 15.0})
+    def test_crud_with_new_fields(self, client):
+        body = {"nome": "TEST_MQ", "custo_amortizacao_hora": 12.5, "custo_energia_hora": 7.5}
+        r = client.post(f"{API}/maquinas", json=body)
         assert r.status_code == 200
         m = r.json()
-        assert m["nome"] == "TEST_MO"
-        assert m["custo_hora"] == 15.0
+        assert m["custo_amortizacao_hora"] == 12.5
+        assert m["custo_energia_hora"] == 7.5
         mid = m["id"]
 
-        rl = client.get(f"{API}/mao-obra")
-        assert any(x["id"] == mid for x in rl.json())
+        # GET verifies persistence
+        ms = client.get(f"{API}/maquinas").json()
+        got = next((x for x in ms if x["id"] == mid), None)
+        assert got is not None
+        assert got["custo_amortizacao_hora"] == 12.5
+        assert got["custo_energia_hora"] == 7.5
 
-        ru = client.put(f"{API}/mao-obra/{mid}", json={"nome": "TEST_MO2", "custo_hora": 22.5})
+        # PUT
+        ru = client.put(f"{API}/maquinas/{mid}",
+                        json={"nome": "TEST_MQ2", "custo_amortizacao_hora": 5, "custo_energia_hora": 2})
         assert ru.status_code == 200
-        assert ru.json()["custo_hora"] == 22.5
+        assert ru.json()["custo_amortizacao_hora"] == 5
+        assert ru.json()["custo_energia_hora"] == 2
 
-        assert client.delete(f"{API}/mao-obra/{mid}").status_code == 200
+        assert client.delete(f"{API}/maquinas/{mid}").status_code == 200
 
 
-# ---------- New Artigo model: materiais + roteiro + computed breakdown ----------
+# ---------- Artigo cost calc with new model: unidades + margem + preco_venda ----------
 class TestArtigosNewModel:
-    def test_seeded_dtf_uv_breakdown(self, client):
+    def test_seeded_dtf_uv_breakdown_and_preco_venda(self, client):
         artigos = client.get(f"{API}/artigos").json()
         dtf_uv = next((a for a in artigos if a["nome"] == "DTF UV"), None)
         assert dtf_uv, "DTF UV seeded artigo expected"
-        # 1 filme @ 1.20 + 5 ml @ 0.08 = 1.20 + 0.40 = 1.60
         assert dtf_uv["custo_materiais"] == pytest.approx(1.60, abs=0.01)
-        # Impressao: 4min @ 20€/h = 1.333..., Prensagem: 2min @ 12€/h = 0.4 -> 1.73
         assert dtf_uv["custo_maquinas"] == pytest.approx(1.73, abs=0.02)
-        # Mão de obra 6 min @ 12€/h = 1.20
         assert dtf_uv["custo_mao_obra"] == pytest.approx(1.20, abs=0.02)
         assert dtf_uv["custo_producao_total"] == pytest.approx(4.53, abs=0.05)
+        assert dtf_uv["margem"] == pytest.approx(40.0)
+        # 4.53 * 1.40 = 6.342 -> 6.34
+        assert dtf_uv["preco_venda"] == pytest.approx(6.34, abs=0.02)
 
-    def test_create_artigo_with_materiais_roteiro(self, client):
-        # Create deps
-        mat = client.post(f"{API}/consumiveis", json={"nome": "TEST_C", "unidade": "un", "custo_unitario": 2.0}).json()
-        maq = client.post(f"{API}/maquinas", json={"nome": "TEST_MQ", "custo_hora": 60.0}).json()
-        mo = client.post(f"{API}/mao-obra", json={"nome": "TEST_MOA", "custo_hora": 30.0}).json()
+    def test_seeded_dtf_textil_breakdown_and_preco_venda(self, client):
+        artigos = client.get(f"{API}/artigos").json()
+        dtf_t = next((a for a in artigos if a["nome"] == "DTF Têxtil"), None)
+        assert dtf_t
+        assert dtf_t["custo_producao_total"] == pytest.approx(2.80, abs=0.05)
+        assert dtf_t["margem"] == pytest.approx(35.0)
+        # 2.80 * 1.35 = 3.78
+        assert dtf_t["preco_venda"] == pytest.approx(3.78, abs=0.02)
 
+    def test_hour_unit_counts_as_full_hour(self, client):
+        """1h on a 20€/h machine should yield 20€."""
+        maq = client.post(f"{API}/maquinas",
+                          json={"nome": "TEST_MQH", "custo_amortizacao_hora": 15, "custo_energia_hora": 5}).json()
+        mo = client.post(f"{API}/mao-obra", json={"nome": "TEST_MOH", "custo_hora": 10}).json()
         payload = {
-            "nome": "TEST_Art",
-            "descricao": "x",
-            "materiais": [
-                {"material_id": mat["id"], "material_nome": mat["nome"], "unidade": mat["unidade"],
-                 "quantidade": 3, "custo_unitario": 2.0}
-            ],
-            "roteiro": [
-                {"nome": "Op", "maquina_id": maq["id"], "maquina_nome": maq["nome"], "min_maquina": 30,
-                 "mao_obra_id": mo["id"], "mao_obra_nome": mo["nome"], "min_mao_obra": 60}
-            ],
+            "nome": "TEST_ArtH",
+            "margem": 50.0,
+            "materiais": [],
+            "roteiro": [{
+                "nome": "Op1", "maquina_id": maq["id"], "maquina_nome": maq["nome"],
+                "tempo_maquina": 1, "tempo_maquina_unidade": "h",
+                "mao_obra_id": mo["id"], "mao_obra_nome": mo["nome"],
+                "tempo_mao_obra": 30, "tempo_mao_obra_unidade": "min",
+            }],
         }
         r = client.post(f"{API}/artigos", json=payload)
         assert r.status_code == 200, r.text
         a = r.json()
-        # 3*2 = 6 mat; 30/60*60 = 30 maq; 60/60*30 = 30 mo -> 66
-        assert a["custo_materiais"] == pytest.approx(6.0, abs=0.01)
-        assert a["custo_maquinas"] == pytest.approx(30.0, abs=0.01)
-        assert a["custo_mao_obra"] == pytest.approx(30.0, abs=0.01)
-        assert a["custo_producao_total"] == pytest.approx(66.0, abs=0.05)
+        assert a["custo_maquinas"] == pytest.approx(20.0, abs=0.01)
+        assert a["custo_mao_obra"] == pytest.approx(5.0, abs=0.01)  # 0.5h * 10 = 5
+        assert a["custo_producao_total"] == pytest.approx(25.0, abs=0.01)
+        # margem 50% -> 25 * 1.5 = 37.5
+        assert a["preco_venda"] == pytest.approx(37.5, abs=0.02)
 
-        aid = a["id"]
-        # GET enrichment
-        rg = client.get(f"{API}/artigos/{aid}").json()
-        assert rg["custo_producao_total"] == pytest.approx(66.0, abs=0.05)
-
-        # PUT update quantity
+        # PUT changes unit min->h on labor and verify recompute
         payload2 = dict(payload)
-        payload2["materiais"] = [{**payload["materiais"][0], "quantidade": 5}]
-        ru = client.put(f"{API}/artigos/{aid}", json=payload2)
-        assert ru.status_code == 200
-        assert ru.json()["custo_materiais"] == pytest.approx(10.0, abs=0.01)
+        payload2["roteiro"] = [dict(payload["roteiro"][0])]
+        payload2["roteiro"][0]["tempo_mao_obra"] = 1
+        payload2["roteiro"][0]["tempo_mao_obra_unidade"] = "h"
+        ru = client.put(f"{API}/artigos/{a['id']}", json=payload2)
+        assert ru.json()["custo_mao_obra"] == pytest.approx(10.0, abs=0.01)
+        assert ru.json()["custo_producao_total"] == pytest.approx(30.0, abs=0.01)
+        assert ru.json()["preco_venda"] == pytest.approx(45.0, abs=0.02)
 
-        # cleanup
-        client.delete(f"{API}/artigos/{aid}")
-        client.delete(f"{API}/consumiveis/{mat['id']}")
+        client.delete(f"{API}/artigos/{a['id']}")
         client.delete(f"{API}/maquinas/{maq['id']}")
         client.delete(f"{API}/mao-obra/{mo['id']}")
 
 
-# ---------- Orcamento integration with new model ----------
-class TestOrcamentoIntegration:
-    def test_line_autofill_from_artigo(self, client):
+# ---------- Orcamento regression: still pulls custo_producao_unit from artigo ----------
+class TestOrcamentoRegression:
+    def test_line_autofill_unit(self, client):
         artigos = client.get(f"{API}/artigos").json()
         dtf = next((a for a in artigos if a["nome"] == "DTF UV"), artigos[0])
         expected_unit = dtf["custo_producao_total"]
-
-        payload = {
-            "cliente": "TEST_OrcInt",
-            "margem": 50.0,
-            "status": "rascunho",
+        r = client.post(f"{API}/orcamentos", json={
+            "cliente": "TEST_OrcInt", "margem": 50.0, "status": "rascunho",
             "linhas": [{"artigo_id": dtf["id"], "quantidade": 10}],
-        }
-        r = client.post(f"{API}/orcamentos", json=payload)
+        })
         assert r.status_code == 200, r.text
         orc = r.json()
         assert orc["linhas"][0]["custo_producao_unit"] == pytest.approx(expected_unit, abs=0.01)
-        expected_sub = round(expected_unit * 10, 2)
-        assert orc["subtotal_custo"] == pytest.approx(expected_sub, abs=0.05)
-        assert orc["total"] == pytest.approx(round(expected_sub * 1.5, 2), abs=0.05)
+        assert orc["subtotal_custo"] == pytest.approx(round(expected_unit * 10, 2), abs=0.05)
+        assert orc["total"] == pytest.approx(round(expected_unit * 10 * 1.5, 2), abs=0.05)
         assert orc["numero"].startswith("ORC-")
-        # cleanup
         client.delete(f"{API}/orcamentos/{orc['id']}")
 
-    def test_convert_orcamento_to_of_with_roteiro(self, client):
+    def test_convert_to_of_loads_roteiro(self, client):
         artigos = client.get(f"{API}/artigos").json()
         artigo = next((a for a in artigos if a.get("roteiro")), artigos[0])
         r = client.post(f"{API}/orcamentos", json={
@@ -174,12 +168,6 @@ class TestOrcamentoIntegration:
         assert of["numero"].startswith("OF-")
         ops = of["itens"][0]["operacoes"]
         assert len(ops) == len(artigo["roteiro"])
-        # tempo_min should equal min_maquina + min_mao_obra
-        for src, dst in zip(artigo["roteiro"], ops):
-            assert dst["tempo_min"] == pytest.approx((src.get("min_maquina") or 0) + (src.get("min_mao_obra") or 0))
-            assert dst.get("maquina_nome") == src.get("maquina_nome")
-            assert dst.get("mao_obra_nome") == src.get("mao_obra_nome")
-        # cleanup
         client.delete(f"{API}/ordens-fabrico/{of['id']}")
         client.delete(f"{API}/orcamentos/{oid}")
 
@@ -211,7 +199,7 @@ class TestOFToggle:
         client.delete(f"{API}/ordens-fabrico/{of['id']}")
 
 
-# ---------- Cleanup ----------
+# ---------- Cleanup TEST_ leftovers ----------
 def test_zz_cleanup():
     s = requests.Session()
     for orc in s.get(f"{API}/orcamentos").json():

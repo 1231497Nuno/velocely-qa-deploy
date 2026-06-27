@@ -53,13 +53,15 @@ def round2(v: float) -> float:
 class Maquina(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
-    custo_hora: float = 0.0
+    custo_amortizacao_hora: float = 0.0
+    custo_energia_hora: float = 0.0
     created_at: str = Field(default_factory=now_iso)
 
 
 class MaquinaInput(BaseModel):
     nome: str
-    custo_hora: float = 0.0
+    custo_amortizacao_hora: float = 0.0
+    custo_energia_hora: float = 0.0
 
 
 class Consumivel(BaseModel):
@@ -102,16 +104,19 @@ class Operacao(BaseModel):
     nome: str = ""
     maquina_id: Optional[str] = None
     maquina_nome: Optional[str] = None
-    min_maquina: float = 0.0
+    tempo_maquina: float = 0.0
+    tempo_maquina_unidade: str = "min"
     mao_obra_id: Optional[str] = None
     mao_obra_nome: Optional[str] = None
-    min_mao_obra: float = 0.0
+    tempo_mao_obra: float = 0.0
+    tempo_mao_obra_unidade: str = "min"
 
 
 class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     descricao: str = ""
+    margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
@@ -120,6 +125,7 @@ class Artigo(BaseModel):
 class ArtigoInput(BaseModel):
     nome: str
     descricao: str = ""
+    margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
 
@@ -200,6 +206,31 @@ class OrdemFabrico(OrdemFabricoInput):
 
 
 # ----------------------- Cost computation -----------------------
+def to_minutes(val, unidade) -> float:
+    val = val or 0
+    return val * 60.0 if unidade == "h" else val
+
+
+def maquina_custo_hora(m: Optional[dict]) -> float:
+    if not m:
+        return 0.0
+    if "custo_amortizacao_hora" in m or "custo_energia_hora" in m:
+        return (m.get("custo_amortizacao_hora") or 0) + (m.get("custo_energia_hora") or 0)
+    return m.get("custo_hora") or 0
+
+
+def op_minutos_maquina(op: dict) -> float:
+    if "tempo_maquina" in op:
+        return to_minutes(op.get("tempo_maquina"), op.get("tempo_maquina_unidade", "min"))
+    return op.get("min_maquina") or 0
+
+
+def op_minutos_mao_obra(op: dict) -> float:
+    if "tempo_mao_obra" in op:
+        return to_minutes(op.get("tempo_mao_obra"), op.get("tempo_mao_obra_unidade", "min"))
+    return op.get("min_mao_obra") or 0
+
+
 async def artigo_breakdown(artigo: dict) -> dict:
     custo_materiais = 0.0
     cons_cache = {}
@@ -223,23 +254,28 @@ async def artigo_breakdown(artigo: dict) -> dict:
         if mid:
             if mid not in maq_cache:
                 m = await db.maquinas.find_one({"id": mid}, {"_id": 0})
-                maq_cache[mid] = (m or {}).get("custo_hora", 0.0)
-            custo_maquinas += ((op.get("min_maquina") or 0) / 60.0) * maq_cache[mid]
+                maq_cache[mid] = maquina_custo_hora(m)
+            custo_maquinas += (op_minutos_maquina(op) / 60.0) * maq_cache[mid]
         moid = op.get("mao_obra_id")
         if moid:
             if moid not in mo_cache:
                 mo = await db.mao_obra.find_one({"id": moid}, {"_id": 0})
                 mo_cache[moid] = (mo or {}).get("custo_hora", 0.0)
-            custo_mao_obra += ((op.get("min_mao_obra") or 0) / 60.0) * mo_cache[moid]
+            custo_mao_obra += (op_minutos_mao_obra(op) / 60.0) * mo_cache[moid]
 
     custo_materiais = round2(custo_materiais)
     custo_maquinas = round2(custo_maquinas)
     custo_mao_obra = round2(custo_mao_obra)
+    custo_total = round2(custo_materiais + custo_maquinas + custo_mao_obra)
+    margem = artigo.get("margem")
+    if margem is None:
+        margem = 30.0
     return {
         "custo_materiais": custo_materiais,
         "custo_maquinas": custo_maquinas,
         "custo_mao_obra": custo_mao_obra,
-        "custo_producao_total": round2(custo_materiais + custo_maquinas + custo_mao_obra),
+        "custo_producao_total": custo_total,
+        "preco_venda": round2(custo_total * (1 + margem / 100.0)),
     }
 
 
@@ -518,7 +554,7 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                             nome=op.get("nome", ""),
                             maquina_nome=op.get("maquina_nome"),
                             mao_obra_nome=op.get("mao_obra_nome"),
-                            tempo_min=(op.get("min_maquina") or 0) + (op.get("min_mao_obra") or 0),
+                            tempo_min=op_minutos_maquina(op) + op_minutos_mao_obra(op),
                         ).model_dump()
                     )
         it["operacoes"] = operacoes or []
@@ -666,9 +702,9 @@ async def seed():
     if await db.artigos.count_documents({}) > 0:
         return {"ok": True, "message": "Dados já existem"}
 
-    m1 = Maquina(nome="Impressora DTF UV", custo_hora=20.0)
-    m2 = Maquina(nome="Prensa Térmica", custo_hora=12.0)
-    m3 = Maquina(nome="Plotter de Corte", custo_hora=15.0)
+    m1 = Maquina(nome="Impressora DTF UV", custo_amortizacao_hora=14.0, custo_energia_hora=6.0)
+    m2 = Maquina(nome="Prensa Térmica", custo_amortizacao_hora=8.0, custo_energia_hora=4.0)
+    m3 = Maquina(nome="Plotter de Corte", custo_amortizacao_hora=12.0, custo_energia_hora=3.0)
     await db.maquinas.insert_many([m1.model_dump(), m2.model_dump(), m3.model_dump()])
 
     mo1 = MaoObra(nome="Operador de Produção", custo_hora=12.0)
@@ -693,25 +729,27 @@ async def seed():
     a1 = Artigo(
         nome="DTF UV",
         descricao="Etiqueta DTF UV premium",
+        margem=40.0,
         materiais=[
             ArtigoMaterial(material_id=c1.id, material_nome=c1.nome, unidade=c1.unidade, quantidade=1, custo_unitario=c1.custo_unitario),
             ArtigoMaterial(material_id=c2.id, material_nome=c2.nome, unidade=c2.unidade, quantidade=5, custo_unitario=c2.custo_unitario),
         ],
         roteiro=[
-            Operacao(nome="Impressão", maquina_id=m1.id, maquina_nome=m1.nome, min_maquina=4, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=4),
-            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, min_maquina=2, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=2),
+            Operacao(nome="Impressão", maquina_id=m1.id, maquina_nome=m1.nome, tempo_maquina=4, tempo_maquina_unidade="min", mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, tempo_mao_obra=4, tempo_mao_obra_unidade="min"),
+            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, tempo_maquina=2, tempo_maquina_unidade="min", mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, tempo_mao_obra=2, tempo_mao_obra_unidade="min"),
         ],
     )
     a2 = Artigo(
         nome="DTF Têxtil",
         descricao="Transfer têxtil para t-shirts",
+        margem=35.0,
         materiais=[
             ArtigoMaterial(material_id=c3.id, material_nome=c3.nome, unidade=c3.unidade, quantidade=1, custo_unitario=c3.custo_unitario),
             ArtigoMaterial(material_id=c4.id, material_nome=c4.nome, unidade=c4.unidade, quantidade=10, custo_unitario=c4.custo_unitario),
         ],
         roteiro=[
-            Operacao(nome="Corte", maquina_id=m3.id, maquina_nome=m3.nome, min_maquina=3, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=3),
-            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, min_maquina=2, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=2),
+            Operacao(nome="Corte", maquina_id=m3.id, maquina_nome=m3.nome, tempo_maquina=3, tempo_maquina_unidade="min", mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, tempo_mao_obra=3, tempo_mao_obra_unidade="min"),
+            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, tempo_maquina=2, tempo_maquina_unidade="min", mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, tempo_mao_obra=2, tempo_mao_obra_unidade="min"),
         ],
     )
     await db.artigos.insert_many([a1.model_dump(), a2.model_dump()])

@@ -13,6 +13,7 @@ import {
 } from "../components/ui/dialog";
 
 const empty = { nome: "", unidade: "un", custo_unitario: 0 };
+const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", "h"];
 
 export default function Materiais() {
   const [items, setItems] = useState([]);
@@ -108,8 +109,10 @@ export default function Materiais() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Unidade</label>
-                <input data-testid="material-unidade-input" value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="un, folha, ml, g..." className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Unidade de medida</label>
+                <select data-testid="material-unidade-input" value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                  {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1.5 block">Custo Unitário (€)</label>
