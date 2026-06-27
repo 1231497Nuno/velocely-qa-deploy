@@ -32,3 +32,10 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - **Bug fix**: `converter_orcamento` (server.py) agora propaga o `roteiro` personalizado de cada linha para `OF.itens[*].operacoes` (antes carregava sempre o roteiro default do artigo).
 - **Bug fix**: import `Fragment` em falta em `OrcamentoDetail.jsx` (quebrava a página).
 - Tested: iteration_5.json — frontend 100%; conversão com roteiro personalizado verificada via curl (CUSTOM_OP 7/11min herdada na OF).
+
+## Iteração (2026-06-27) — Múltiplas personalizações por linha
+- Cada linha do orçamento permite **várias personalizações** (não só uma). Modelo `PersonalizacaoSel{id,nome,valor}` em `OrcamentoLinha.personalizacoes` e `OFItem.personalizacoes` (campos legados mantidos p/ retrocompat + migração no load do frontend).
+- Decisão do utilizador: cada personalização é **acréscimo ao PREÇO final** (não custo, sem margem) e **por unidade** (× quantidade).
+- Helpers `pers_valor_unit`/`pers_nomes`; `compute_orcamento_totais`, PDFs (orçamento + OF) e conversão Orçamento→OF atualizados para somar/propagar as personalizações.
+- UI: célula "Personalização" com chips editáveis (€/un + remover) e dropdown "+ Adicionar"; coluna "Pers. €/un" mostra a soma. OF mostra todas as personalizações no roteiro.
+- Validado via curl (total = (6+3.5)×2 = 19,00€; ['P1','P2'] propagadas para OF) e screenshot.

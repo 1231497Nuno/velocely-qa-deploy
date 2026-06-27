@@ -27,7 +27,17 @@ export default function OrcamentoDetail() {
   const [openOps, setOpenOps] = useState({});
 
   const load = useCallback(async () => {
-    setOrc(await api.get(`/orcamentos/${id}`));
+    const o = await api.get(`/orcamentos/${id}`);
+    // migrar personalização única (legado) para lista
+    o.linhas = (o.linhas || []).map((l) => {
+      if ((!l.personalizacoes || l.personalizacoes.length === 0) && l.tipo_personalizacao_id) {
+        l.personalizacoes = [{ id: l.tipo_personalizacao_id, nome: l.tipo_personalizacao_nome || "", valor: Number(l.valor_personalizacao) || 0 }];
+      } else if (!l.personalizacoes) {
+        l.personalizacoes = [];
+      }
+      return l;
+    });
+    setOrc(o);
     setArtigos(await api.get("/artigos"));
     setTipos(await api.get("/tipos-personalizacao"));
     setMaquinas(await api.get("/maquinas"));
@@ -79,9 +89,23 @@ export default function OrcamentoDetail() {
   };
   const delOp = (li, oi) => updLinha(li, { roteiro: (orc.linhas[li].roteiro || []).filter((_, idx) => idx !== oi) });
 
+  const persUnit = (l) => (l.personalizacoes || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const addPers = (i, tipoId) => {
+    const t = tipos.find((x) => x.id === tipoId);
+    if (!t) return;
+    const list = [...(orc.linhas[i].personalizacoes || []), { id: t.id, nome: t.nome, valor: Number(t.valor) || 0 }];
+    updLinha(i, { personalizacoes: list });
+  };
+  const updPers = (i, pi, patch) => {
+    const list = [...(orc.linhas[i].personalizacoes || [])];
+    list[pi] = { ...list[pi], ...patch };
+    updLinha(i, { personalizacoes: list });
+  };
+  const delPers = (i, pi) => updLinha(i, { personalizacoes: (orc.linhas[i].personalizacoes || []).filter((_, idx) => idx !== pi) });
+
   const subtotalVenda = orc.linhas.reduce((s, l) => s + linePreco(l) * (l.quantidade || 0), 0);
   const subtotalCusto = orc.linhas.reduce((s, l) => s + lineCusto(l) * (l.quantidade || 0), 0);
-  const totalPers = orc.linhas.reduce((s, l) => s + (Number(l.valor_personalizacao) || 0) * (l.quantidade || 0), 0);
+  const totalPers = orc.linhas.reduce((s, l) => s + persUnit(l) * (l.quantidade || 0), 0);
   const total = subtotalVenda + totalPers;
   const lucro = total - subtotalCusto;
 
@@ -97,11 +121,12 @@ export default function OrcamentoDetail() {
       linhas: orc.linhas.filter((l) => l.artigo_id).map((l) => ({
         ...l,
         quantidade: Number(l.quantidade) || 0,
-        valor_personalizacao: Number(l.valor_personalizacao) || 0,
+        personalizacoes: (l.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0 })),
+        valor_personalizacao: persUnit(l),
       })),
     };
-    const updated = await api.put(`/orcamentos/${id}`, body);
-    setOrc(updated);
+    await api.put(`/orcamentos/${id}`, body);
+    await load();
     toast.success("Orçamento guardado");
   };
 
@@ -219,21 +244,31 @@ export default function OrcamentoDetail() {
                     </button>
                   )}
                 </td>
-                <td className="px-4 py-2.5">
-                  <select data-testid={`line-tipo-${i}`} value={l.tipo_personalizacao_id || ""} onChange={(e) => { const t = tipos.find((x) => x.id === e.target.value); updLinha(i, { tipo_personalizacao_id: e.target.value, tipo_personalizacao_nome: t ? t.nome : "", valor_personalizacao: t ? t.valor : 0 }); }} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-                    <option value="">—</option>
-                    {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                  </select>
+                <td className="px-4 py-2.5 align-top">
+                  <div className="space-y-1.5" data-testid={`line-pers-list-${i}`}>
+                    {(l.personalizacoes || []).map((p, pi) => (
+                      <div key={pi} data-testid={`line-pers-${i}-${pi}`} className="flex items-center gap-1.5 bg-gray-100 rounded-sm pl-2 pr-1 py-1">
+                        <span className="flex-1 text-xs text-gray-700 truncate" title={p.nome}>{p.nome}</span>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input data-testid={`line-pers-valor-${i}-${pi}`} type="number" step="0.01" value={p.valor ?? 0} onChange={(e) => updPers(i, pi, { valor: e.target.value })} className="w-16 text-right border border-gray-300 rounded-sm px-1 py-0.5 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20" />
+                          <span className="text-[10px] text-gray-400">€</span>
+                          <button data-testid={`line-pers-del-${i}-${pi}`} onClick={() => delPers(i, pi)} className="p-0.5 rounded-sm hover:bg-red-100 text-red-600"><X size={12} /></button>
+                        </div>
+                      </div>
+                    ))}
+                    <select data-testid={`line-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
+                      <option value="">+ Adicionar personalização…</option>
+                      {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome} ({eur(t.valor)})</option>)}
+                    </select>
+                  </div>
                 </td>
-                <td className="px-4 py-2.5">
-                  <input data-testid={`line-valor-pers-${i}`} type="number" step="0.01" value={l.valor_personalizacao ?? 0} onChange={(e) => updLinha(i, { valor_personalizacao: e.target.value })} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-                </td>
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-pers-total-${i}`}>{eur(persUnit(l))}</td>
+                <td className="px-4 py-2.5 align-top">
                   <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600" data-testid={`line-preco-${i}`}>{eur(linePreco(l))}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur((linePreco(l) + (Number(l.valor_personalizacao) || 0)) * (l.quantidade || 0))}</td>
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-preco-${i}`}>{eur(linePreco(l))}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium align-top">{eur((linePreco(l) + persUnit(l)) * (l.quantidade || 0))}</td>
+                <td className="px-4 py-2.5 align-top">
                   <button data-testid={`delete-line-${i}`} onClick={() => delLinha(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
                 </td>
               </tr>

@@ -229,7 +229,13 @@ export default function OrdemFabricoDetail() {
                   <div key={idx}>
                     <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
                       <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade}</span></div>
-                      {it.tipo_personalizacao_nome && <span className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5">{it.tipo_personalizacao_nome}</span>}
+                      {(it.personalizacoes && it.personalizacoes.length > 0) ? (
+                        <div className="flex flex-wrap gap-1 justify-end" data-testid={`of-item-pers-${idx}`}>
+                          {it.personalizacoes.map((p, pi) => (
+                            <span key={pi} className="text-xs text-gray-600 border border-gray-200 rounded-full px-2 py-0.5">{p.nome}</span>
+                          ))}
+                        </div>
+                      ) : (it.tipo_personalizacao_nome && <span className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5">{it.tipo_personalizacao_nome}</span>)}
                     </div>
                     <div className="space-y-2">
                       {it.operacoes.map((op) => {

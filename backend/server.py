@@ -147,6 +147,12 @@ class TipoPersonalizacaoInput(BaseModel):
     valor: float = 0.0
 
 
+class PersonalizacaoSel(BaseModel):
+    id: Optional[str] = None
+    nome: str = ""
+    valor: float = 0.0
+
+
 class OrcamentoLinha(BaseModel):
     id: str = Field(default_factory=new_id)
     artigo_id: str
@@ -155,6 +161,7 @@ class OrcamentoLinha(BaseModel):
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
     valor_personalizacao: float = 0.0
+    personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
     custo_base_unit: Optional[float] = None
     margem: Optional[float] = None
     roteiro: List[Operacao] = Field(default_factory=list)
@@ -203,6 +210,7 @@ class OFItem(BaseModel):
     quantidade: float = 1
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
+    personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
     operacoes: List[OFOperacao] = Field(default_factory=list)
 
 
@@ -308,6 +316,22 @@ def enrich_artigo(artigo: dict, breakdown: dict) -> dict:
     return {**artigo, **breakdown}
 
 
+def pers_valor_unit(l: dict) -> float:
+    ps = l.get("personalizacoes")
+    if ps:
+        return sum((p.get("valor") or 0) for p in ps)
+    return l.get("valor_personalizacao") or 0
+
+
+def pers_nomes(l: dict) -> str:
+    ps = l.get("personalizacoes")
+    if ps:
+        nomes = [p.get("nome", "") for p in ps if p.get("nome")]
+        if nomes:
+            return ", ".join(nomes)
+    return l.get("tipo_personalizacao_nome") or ""
+
+
 def compute_orcamento_totais(orc: dict) -> dict:
     subtotal_custo = 0.0
     subtotal_venda = 0.0
@@ -316,7 +340,7 @@ def compute_orcamento_totais(orc: dict) -> dict:
         qtd = l.get("quantidade") or 0
         subtotal_custo += (l.get("custo_producao_unit") or 0) * qtd
         subtotal_venda += (l.get("preco_unit") or 0) * qtd
-        total_pers += (l.get("valor_personalizacao") or 0) * qtd
+        total_pers += pers_valor_unit(l) * qtd
     subtotal_custo = round2(subtotal_custo)
     subtotal_venda = round2(subtotal_venda)
     total_pers = round2(total_pers)
@@ -418,11 +442,11 @@ def build_orcamento_pdf(orc: dict) -> bytes:
     for l in orc.get("linhas", []):
         qtd = l.get("quantidade") or 0
         preco = l.get("preco_unit") or 0
-        pers = l.get("valor_personalizacao") or 0
+        pers = pers_valor_unit(l)
         sub = (preco + pers) * qtd
         data.append([
             Paragraph(l.get("artigo_nome") or "—", st["cell"]),
-            Paragraph(l.get("tipo_personalizacao_nome") or "—", st["cell"]),
+            Paragraph(pers_nomes(l) or "—", st["cell"]),
             Paragraph(f"{qtd:g}", st["cell"]),
             Paragraph(fmt_eur(preco), st["cell"]),
             Paragraph(fmt_eur(pers), st["cell"]),
@@ -485,8 +509,9 @@ def build_of_pdf(of: dict) -> bytes:
 
     for it in of.get("itens", []):
         title = f"{it.get('artigo_nome') or 'Artigo'}  ×{it.get('quantidade') or 0:g}"
-        if it.get("tipo_personalizacao_nome"):
-            title += f"   ·   {it.get('tipo_personalizacao_nome')}"
+        _pn = pers_nomes(it)
+        if _pn:
+            title += f"   ·   {_pn}"
         elems.append(Paragraph(title, st["cellb"]))
         elems.append(Spacer(1, 4))
         header = [Paragraph(t, st["th"]) for t in ["Operação", "Máquina", "T. Máq", "Mão de Obra", "T. M.O", "T. Real", "Concl."]]
@@ -1023,7 +1048,8 @@ async def converter_orcamento(oid: str):
                 "artigo_nome": l.get("artigo_nome"),
                 "quantidade": l.get("quantidade", 1),
                 "tipo_personalizacao_id": l.get("tipo_personalizacao_id"),
-                "tipo_personalizacao_nome": l.get("tipo_personalizacao_nome"),
+                "tipo_personalizacao_nome": pers_nomes(l) or l.get("tipo_personalizacao_nome"),
+                "personalizacoes": l.get("personalizacoes") or [],
                 "operacoes": operacoes,
             }
         )
