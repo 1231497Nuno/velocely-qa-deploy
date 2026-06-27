@@ -39,3 +39,12 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - Helpers `pers_valor_unit`/`pers_nomes`; `compute_orcamento_totais`, PDFs (orçamento + OF) e conversão Orçamento→OF atualizados para somar/propagar as personalizações.
 - UI: célula "Personalização" com chips editáveis (€/un + remover) e dropdown "+ Adicionar"; coluna "Pers. €/un" mostra a soma. OF mostra todas as personalizações no roteiro.
 - Validado via curl (total = (6+3.5)×2 = 19,00€; ['P1','P2'] propagadas para OF) e screenshot.
+
+## Iteração (2026-06-27) — Design responsivo (Mobile-First)
+- **Menu**: barra de topo com hambúrguer no mobile + drawer lateral retrátil (overlay + X), sidebar fixa no desktop (`Layout.jsx`).
+- **Listas Orçamentos e OFs**: tabela no desktop (`hidden md:block`) + cartões empilhados no mobile (`md:hidden`), incluindo bola de cronómetro nos cartões de OF.
+- **Tabelas CRUD** (Artigos, Materiais, Máquinas, Mão de Obra, Tipos): `overflow-x-auto` + `min-w` para scroll horizontal sem partir a página.
+- **Detalhes**: cabeçalhos e botões com `flex-col sm:flex-row`/`flex-wrap`; grelhas de meta `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`; tabela de linhas do orçamento em `overflow-x-auto`; banner do cronómetro da OF empilha no mobile.
+- **Formulários** (diálogos Artigos/Materiais/Máquinas): grelhas passam a coluna única no mobile.
+- **Dashboard**: gráficos recharts `ResponsiveContainer` à largura total; link obsoleto `/tempos`→`/analise-producao` corrigido.
+- Tested: iteration_6.json — frontend 100% (8/8 requisitos, mobile 390px + desktop 1440px, body overflow=0).
