@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "../components/ui/dialog";
 
@@ -98,6 +99,7 @@ export default function TiposPersonalizacao() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-display">{editId ? "Editar Tipo" : "Novo Tipo de Personalização"}</DialogTitle>
+            <DialogDescription>Técnica de personalização com valor sugerido (€/unidade).</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
