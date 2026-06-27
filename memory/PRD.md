@@ -55,3 +55,10 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - **Materiais soltos no Orçamento**: secção em `OrcamentoDetail` com dropdown de consumíveis; se unidade `m²` mostra campos Comprimento/Largura (mm). Custo = (C/1000)·(L/1000)·custo_unit·qtd; valor adicionado = custo×1.5 (markup 50%). Backend `material_custo`/`fill_materiais`; totais incluem `custo_materiais`/`total_materiais`; incluído no PDF do orçamento.
 - **Pesquisa global** (`SearchBar`): filtragem em tempo real em Orçamentos, Ordens de Fabrico, Artigos, Materiais e Máquinas (por nome/cliente/nº encomenda/código).
 - Tested: iteration_7.json — backend 8/8, frontend 100%. test_credentials.md atualizado.
+
+## Iteração (2026-06-27) — Pesquisa extra + Margem materiais por linha + Perfis/Permissões (RBAC)
+- **Pesquisa** adicionada em Mão de Obra, Tipos de Personalização e Análise da Produção (vista Por OF).
+- **Margem dos materiais editável por linha** no orçamento (campo Margem %, default 50%): valor = custo×(1+margem/100). Backend `material_margem_factor`; PDF mostra coluna Margem.
+- **Perfis & Permissões (RBAC)**: perfis personalizáveis (`/api/perfis` CRUD) com permissões por módulo (10 módulos) e ação (view/create/edit/delete). Perfis de sistema: Administrador (acesso total, bloqueado) e Colaborador. `resolve_perfil`, `user_public` async devolve `perfil.permissoes`; `require_admin` = admin OU utilizadores.edit. Frontend: `can(modulo,acao)` no AuthContext, nav filtrada, rotas com `modulo`, gating de botões criar/editar/eliminar nas páginas; Gestão de Utilizadores com tabs Utilizadores + Perfis & Acessos (matriz de permissões).
+- ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
+- Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
