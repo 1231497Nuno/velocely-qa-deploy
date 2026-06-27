@@ -80,10 +80,6 @@ class Artigo(BaseModel):
     roteiro: List[Operacao] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
 
-    @property
-    def custo_maquinas(self) -> float:
-        return round2(sum((op.tempo_min / 60.0) * 0 for op in self.roteiro))
-
 
 class ArtigoInput(BaseModel):
     nome: str
