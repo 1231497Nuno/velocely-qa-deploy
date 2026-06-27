@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2, FileDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2, FileDown, Play, Square, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "../components/ui/progress";
 
@@ -13,6 +13,7 @@ export default function OrdemFabricoDetail() {
   const [of, setOf] = useState(null);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
+  const [, setTick] = useState(0);
 
   const load = useCallback(async () => {
     setOf(await api.get(`/ordens-fabrico/${id}`));
@@ -22,6 +23,10 @@ export default function OrdemFabricoDetail() {
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   if (!of) return <div className="text-sm text-gray-500">A carregar...</div>;
 
@@ -64,6 +69,31 @@ export default function OrdemFabricoDetail() {
     setOf(updated);
   };
 
+  const iniciarOp = async (itemId, opId) => {
+    setOf(await api.post(`/ordens-fabrico/${id}/operacao/iniciar`, { item_id: itemId, operacao_id: opId }));
+  };
+  const pararOp = async (itemId, opId) => {
+    setOf(await api.post(`/ordens-fabrico/${id}/operacao/parar`, { item_id: itemId, operacao_id: opId }));
+  };
+  const finalizar = async () => {
+    setOf(await api.post(`/ordens-fabrico/${id}/finalizar`));
+    toast.success("Ordem de fabrico finalizada");
+  };
+
+  const elapsedSeg = (op) => {
+    let s = op.tempo_real_seg || 0;
+    if (op.timer_inicio) s += (Date.now() - new Date(op.timer_inicio).getTime()) / 1000;
+    return s;
+  };
+  const fmtDur = (s) => {
+    s = Math.floor(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+    return `${m}m ${String(ss).padStart(2, "0")}s`;
+  };
+
   const totalTempo = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + (o.tempo_min || 0), 0), 0);
 
   return (
@@ -84,6 +114,11 @@ export default function OrdemFabricoDetail() {
           <a href={`${API}/ordens-fabrico/${id}/pdf`} target="_blank" rel="noopener noreferrer" data-testid="of-pdf-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <FileDown size={16} /> PDF
           </a>
+          {of.status !== "concluido" && (
+            <button data-testid="finalizar-of-btn" onClick={finalizar} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+              <Flag size={16} /> Declarar Finalizada
+            </button>
+          )}
           <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Save size={16} /> Guardar
           </button>
@@ -169,20 +204,34 @@ export default function OrdemFabricoDetail() {
                       <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade}</span></div>
                       {it.tipo_personalizacao_nome && <span className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5">{it.tipo_personalizacao_nome}</span>}
                     </div>
-                    <div className="space-y-1">
-                      {it.operacoes.map((op) => (
-                        <label key={op.id} data-testid={`op-row-${op.id}`} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm border transition-colors cursor-pointer ${op.concluida ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200 hover:bg-gray-50"}`}>
-                          <input type="checkbox" data-testid={`op-check-${op.id}`} checked={op.concluida} onChange={(e) => toggleOp(it.id, op.id, e.target.checked)} className="w-4 h-4 accent-emerald-600" />
-                          <div className="flex-1">
-                            <div className={`text-sm font-medium ${op.concluida ? "text-emerald-700 line-through" : "text-gray-900"}`}>{op.nome || "Operação"}</div>
-                            <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
-                              <Cog size={12} /> {op.maquina_nome || "Sem máquina"}
+                    <div className="space-y-2">
+                      {it.operacoes.map((op) => {
+                        const running = !!op.timer_inicio;
+                        return (
+                          <div key={op.id} data-testid={`op-row-${op.id}`} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm border transition-colors ${op.concluida ? "bg-emerald-50 border-emerald-200" : running ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}`}>
+                            <input type="checkbox" data-testid={`op-check-${op.id}`} checked={op.concluida} onChange={(e) => toggleOp(it.id, op.id, e.target.checked)} className="w-4 h-4 accent-emerald-600 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-medium ${op.concluida ? "text-emerald-700" : "text-gray-900"}`}>{op.nome || "Operação"}</div>
+                              <div className="text-xs text-gray-500 flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1">
+                                <span className="flex items-center gap-1"><Cog size={12} /> {op.maquina_nome || "—"} · <span className="tabular-nums font-medium text-gray-700">{op.tempo_maquina || 0} min</span></span>
+                                <span className="flex items-center gap-1"><Clock size={12} /> {op.mao_obra_nome || "—"} · <span className="tabular-nums font-medium text-gray-700">{op.tempo_mao_obra || 0} min</span></span>
+                              </div>
                             </div>
+                            <div className="text-right shrink-0">
+                              <div className="text-[10px] uppercase tracking-wide text-gray-400">Tempo real</div>
+                              <div data-testid={`op-real-${op.id}`} className={`text-sm font-semibold tabular-nums ${running ? "text-blue-600" : "text-gray-700"}`}>{fmtDur(elapsedSeg(op))}</div>
+                            </div>
+                            {!op.concluida && (
+                              running ? (
+                                <button data-testid={`op-stop-${op.id}`} onClick={() => pararOp(it.id, op.id)} className="shrink-0 bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors"><Square size={13} /> Parar</button>
+                              ) : (
+                                <button data-testid={`op-start-${op.id}`} onClick={() => iniciarOp(it.id, op.id)} className="shrink-0 bg-gray-900 text-white hover:bg-gray-700 rounded-sm px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors"><Play size={13} /> Iniciar</button>
+                              )
+                            )}
+                            {op.concluida && <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />}
                           </div>
-                          <div className="text-xs text-gray-500 tabular-nums flex items-center gap-1"><Clock size={12} /> {op.tempo_min} min</div>
-                          {op.concluida && <CheckCircle2 size={16} className="text-emerald-600" />}
-                        </label>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )

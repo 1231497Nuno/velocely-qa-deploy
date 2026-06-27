@@ -182,7 +182,11 @@ class OFOperacao(BaseModel):
     nome: str
     maquina_nome: Optional[str] = None
     mao_obra_nome: Optional[str] = None
+    tempo_maquina: float = 0.0
+    tempo_mao_obra: float = 0.0
     tempo_min: float = 0.0
+    timer_inicio: Optional[str] = None
+    tempo_real_seg: float = 0.0
     concluida: bool = False
 
 
@@ -361,7 +365,7 @@ STATUS_PT = {
 
 def _header(elems, st, doc_title, numero, meta_pairs):
     head = Table(
-        [[Paragraph("Prod<font color='#9CA3AF'>Cost</font>", st["brand"]),
+        [[Paragraph("Gestão <font color='#9CA3AF'>Produção</font>", st["brand"]),
           Paragraph(doc_title, st["h1"])]],
         colWidths=[95 * mm, 75 * mm],
     )
@@ -477,22 +481,27 @@ def build_of_pdf(of: dict) -> bytes:
             title += f"   ·   {it.get('tipo_personalizacao_nome')}"
         elems.append(Paragraph(title, st["cellb"]))
         elems.append(Spacer(1, 4))
-        header = [Paragraph(t, st["th"]) for t in ["Operação", "Máquina", "Mão de Obra", "Tempo (min)", "Concluída"]]
+        header = [Paragraph(t, st["th"]) for t in ["Operação", "Máquina", "T. Máq", "Mão de Obra", "T. M.O", "T. Real", "Concl."]]
         data = [header]
         for op in it.get("operacoes", []):
+            real_min = (op.get("tempo_real_seg") or 0) / 60.0
             data.append([
                 Paragraph(op.get("nome") or "—", st["cell"]),
                 Paragraph(op.get("maquina_nome") or "—", st["cell"]),
+                Paragraph(f"{op.get('tempo_maquina') or 0:g} min", st["cell"]),
                 Paragraph(op.get("mao_obra_nome") or "—", st["cell"]),
-                Paragraph(f"{op.get('tempo_min') or 0:g}", st["cell"]),
+                Paragraph(f"{op.get('tempo_mao_obra') or 0:g} min", st["cell"]),
+                Paragraph(f"{real_min:.1f} min", st["cell"]),
                 Paragraph("Sim" if op.get("concluida") else "—", st["cellb"] if op.get("concluida") else st["cell"]),
             ])
         if len(data) == 1:
-            data.append([Paragraph("Sem operações", st["cell"]), "", "", "", ""])
-        tbl = Table(data, colWidths=[42 * mm, 40 * mm, 40 * mm, 24 * mm, 24 * mm])
+            data.append([Paragraph("Sem operações", st["cell"]), "", "", "", "", "", ""])
+        tbl = Table(data, colWidths=[33 * mm, 31 * mm, 17 * mm, 31 * mm, 17 * mm, 18 * mm, 13 * mm])
         tbl.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), DARK),
-            ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+            ("ALIGN", (4, 0), (5, -1), "RIGHT"),
+            ("ALIGN", (6, 0), (6, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
@@ -778,12 +787,16 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
             if not operacoes:
                 operacoes = []
                 for op in a.get("roteiro", []):
+                    t_maq = op_minutos_maquina(op)
+                    t_mo = op_minutos_mao_obra(op)
                     operacoes.append(
                         OFOperacao(
                             nome=op.get("nome", ""),
                             maquina_nome=op.get("maquina_nome"),
                             mao_obra_nome=op.get("mao_obra_nome"),
-                            tempo_min=op_minutos_maquina(op) + op_minutos_mao_obra(op),
+                            tempo_maquina=t_maq,
+                            tempo_mao_obra=t_mo,
+                            tempo_min=t_maq + t_mo,
                         ).model_dump()
                     )
         it["operacoes"] = operacoes or []
@@ -853,20 +866,83 @@ class ToggleOp(BaseModel):
     concluida: bool
 
 
+def _find_op(of: dict, item_id: str, operacao_id: str):
+    for it in of.get("itens", []):
+        if it.get("id") == item_id:
+            for op in it.get("operacoes", []):
+                if op.get("id") == operacao_id:
+                    return op
+    return None
+
+
+async def _save_of(ofid: str, of: dict):
+    of = recompute_of_status(of)
+    to_save = {k: v for k, v in of.items() if k != "progresso"}
+    await db.ordens_fabrico.update_one({"id": ofid}, {"$set": to_save})
+    return of
+
+
+class TimerBody(BaseModel):
+    item_id: str
+    operacao_id: str
+
+
+@api_router.post("/ordens-fabrico/{ofid}/operacao/iniciar")
+async def iniciar_operacao(ofid: str, body: TimerBody):
+    of = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    op = _find_op(of, body.item_id, body.operacao_id)
+    if not op:
+        raise HTTPException(404, "Operação não encontrada")
+    if not op.get("timer_inicio"):
+        op["timer_inicio"] = now_iso()
+    return await _save_of(ofid, of)
+
+
+def _stop_op(op: dict):
+    if op.get("timer_inicio"):
+        inicio = datetime.fromisoformat(op["timer_inicio"])
+        elapsed = (datetime.now(timezone.utc) - inicio).total_seconds()
+        op["tempo_real_seg"] = (op.get("tempo_real_seg") or 0) + max(0, elapsed)
+        op["timer_inicio"] = None
+
+
+@api_router.post("/ordens-fabrico/{ofid}/operacao/parar")
+async def parar_operacao(ofid: str, body: TimerBody):
+    of = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    op = _find_op(of, body.item_id, body.operacao_id)
+    if not op:
+        raise HTTPException(404, "Operação não encontrada")
+    _stop_op(op)
+    return await _save_of(ofid, of)
+
+
+@api_router.post("/ordens-fabrico/{ofid}/finalizar")
+async def finalizar_of(ofid: str):
+    of = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    for it in of.get("itens", []):
+        for op in it.get("operacoes", []):
+            _stop_op(op)
+            op["concluida"] = True
+    return await _save_of(ofid, of)
+
+
 @api_router.post("/ordens-fabrico/{ofid}/toggle-operacao")
 async def toggle_operacao(ofid: str, body: ToggleOp):
     of = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
     if not of:
         raise HTTPException(404, "OF não encontrada")
-    for it in of.get("itens", []):
-        if it.get("id") == body.item_id:
-            for op in it.get("operacoes", []):
-                if op.get("id") == body.operacao_id:
-                    op["concluida"] = body.concluida
-    of = recompute_of_status(of)
-    to_save = {k: v for k, v in of.items() if k != "progresso"}
-    await db.ordens_fabrico.update_one({"id": ofid}, {"$set": to_save})
-    return of
+    op = _find_op(of, body.item_id, body.operacao_id)
+    if op:
+        op["concluida"] = body.concluida
+        if body.concluida:
+            _stop_op(op)
+    return await _save_of(ofid, of)
 
 
 @api_router.delete("/ordens-fabrico/{ofid}")
@@ -880,8 +956,6 @@ async def converter_orcamento(oid: str):
     orc = await db.orcamentos.find_one({"id": oid}, {"_id": 0})
     if not orc:
         raise HTTPException(404, "Orçamento não encontrado")
-    if orc.get("status") != "aceite":
-        raise HTTPException(400, "Apenas orçamentos com estado 'Aceite' podem ser convertidos")
     if orc.get("of_id"):
         existing = await db.ordens_fabrico.find_one({"id": orc["of_id"]}, {"_id": 0})
         if existing:

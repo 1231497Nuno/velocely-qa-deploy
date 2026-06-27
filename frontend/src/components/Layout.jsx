@@ -26,10 +26,10 @@ export default function Layout({ children }) {
     <div className="min-h-screen flex bg-[#F8F9FA]">
       <aside className="w-64 shrink-0 border-r border-gray-200 bg-white flex flex-col fixed h-screen">
         <div className="px-6 py-5 border-b border-gray-200">
-          <div className="font-display font-extrabold text-lg tracking-tight text-gray-900">
-            Prod<span className="text-gray-400">Cost</span>
+          <div className="font-display font-extrabold text-lg tracking-tight text-gray-900 leading-tight">
+            Gestão <span className="text-gray-400">Produção</span>
           </div>
-          <div className="text-xs text-gray-500 mt-0.5">Orçamentação & Fabrico</div>
+          <div className="text-xs text-gray-500 mt-0.5">Orçamentos & Fabrico</div>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {NAV.map((n) => (

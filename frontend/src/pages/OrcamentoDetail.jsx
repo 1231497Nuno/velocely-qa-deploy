@@ -107,9 +107,9 @@ export default function OrcamentoDetail() {
               <Factory size={16} /> {orc.of_numero}
             </Link>
           )}
-          {orc.status === "aceite" && !orc.of_id && (
+          {!orc.of_id && (
             <button data-testid="convert-quote-btn" onClick={converter} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <Factory size={16} /> Converter → OF
+              <Factory size={16} /> Criar Ordem de Fabrico
             </button>
           )}
           <button data-testid="save-orcamento-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
