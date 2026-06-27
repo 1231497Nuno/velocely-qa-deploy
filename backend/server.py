@@ -117,6 +117,7 @@ class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     descricao: str = ""
+    custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
@@ -126,6 +127,7 @@ class Artigo(BaseModel):
 class ArtigoInput(BaseModel):
     nome: str
     descricao: str = ""
+    custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
@@ -279,11 +281,13 @@ async def artigo_breakdown(artigo: dict) -> dict:
     custo_materiais = round2(custo_materiais)
     custo_maquinas = round2(custo_maquinas)
     custo_mao_obra = round2(custo_mao_obra)
-    custo_total = round2(custo_materiais + custo_maquinas + custo_mao_obra)
+    custo_artigo = round2(artigo.get("custo_artigo") or 0)
+    custo_total = round2(custo_artigo + custo_materiais + custo_maquinas + custo_mao_obra)
     margem = artigo.get("margem")
     if margem is None:
         margem = 30.0
     return {
+        "custo_artigo": custo_artigo,
         "custo_materiais": custo_materiais,
         "custo_maquinas": custo_maquinas,
         "custo_mao_obra": custo_mao_obra,
@@ -994,6 +998,56 @@ async def converter_orcamento(oid: str):
 
 
 # ----------------------- Dashboard -----------------------
+# ----------------------- Produção: tempos estimado vs real -----------------------
+@api_router.get("/producao/tempos")
+async def producao_tempos():
+    ofs = await db.ordens_fabrico.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    result = []
+    for o in ofs:
+        o = recompute_of_status(o)
+        est_maq = est_mo = est_tot = real_seg = 0.0
+        ops = []
+        for it in o.get("itens", []):
+            for op in it.get("operacoes", []):
+                tmaq = op.get("tempo_maquina") or 0
+                tmo = op.get("tempo_mao_obra") or 0
+                ttot = op.get("tempo_min") or (tmaq + tmo)
+                rseg = op.get("tempo_real_seg") or 0
+                rmin = rseg / 60.0
+                est_maq += tmaq
+                est_mo += tmo
+                est_tot += ttot
+                real_seg += rseg
+                ops.append({
+                    "artigo": it.get("artigo_nome"),
+                    "nome": op.get("nome"),
+                    "maquina_nome": op.get("maquina_nome"),
+                    "mao_obra_nome": op.get("mao_obra_nome"),
+                    "tempo_maquina": tmaq,
+                    "tempo_mao_obra": tmo,
+                    "tempo_estimado": round2(ttot),
+                    "tempo_real_min": round2(rmin),
+                    "desvio_min": round2(rmin - ttot),
+                    "em_curso": bool(op.get("timer_inicio")),
+                    "concluida": bool(op.get("concluida")),
+                })
+        real_min = round2(real_seg / 60.0)
+        result.append({
+            "id": o["id"],
+            "numero": o.get("numero"),
+            "cliente": o.get("cliente"),
+            "status": o.get("status"),
+            "progresso": o.get("progresso"),
+            "tempo_estimado_maquina": round2(est_maq),
+            "tempo_estimado_mao_obra": round2(est_mo),
+            "tempo_estimado_total": round2(est_tot),
+            "tempo_real_min": real_min,
+            "desvio_min": round2(real_min - est_tot),
+            "operacoes": ops,
+        })
+    return result
+
+
 @api_router.get("/dashboard")
 async def dashboard():
     artigos = await db.artigos.find({}, {"_id": 0}).to_list(1000)

@@ -12,6 +12,7 @@ import Orcamentos from "@/pages/Orcamentos";
 import OrcamentoDetail from "@/pages/OrcamentoDetail";
 import OrdensFabrico from "@/pages/OrdensFabrico";
 import OrdemFabricoDetail from "@/pages/OrdemFabricoDetail";
+import Tempos from "@/pages/Tempos";
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
           <Route path="/ordens-fabrico" element={<OrdensFabrico />} />
           <Route path="/ordens-fabrico/:id" element={<OrdemFabricoDetail />} />
+          <Route path="/tempos" element={<Tempos />} />
         </Routes>
       </Layout>
     </BrowserRouter>

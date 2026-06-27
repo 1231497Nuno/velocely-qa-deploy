@@ -8,6 +8,7 @@ import {
   Factory,
   Package,
   Users,
+  Timer,
 } from "lucide-react";
 
 const NAV = [
@@ -19,6 +20,7 @@ const NAV = [
   { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao" },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos" },
   { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs" },
+  { to: "/tempos", label: "Tempos de Produção", icon: Timer, tid: "nav-tempos" },
 ];
 
 export default function Layout({ children }) {

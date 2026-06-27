@@ -12,7 +12,7 @@ import {
   DialogFooter,
 } from "../components/ui/dialog";
 
-const empty = { nome: "", descricao: "", margem: 30, materiais: [], roteiro: [] };
+const empty = { nome: "", descricao: "", custo_artigo: 0, margem: 30, materiais: [], roteiro: [] };
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
@@ -45,6 +45,7 @@ export default function Artigos() {
     setForm({
       nome: a.nome,
       descricao: a.descricao || "",
+      custo_artigo: a.custo_artigo ?? 0,
       margem: a.margem ?? 30,
       materiais: a.materiais || [],
       roteiro: a.roteiro || [],
@@ -79,7 +80,7 @@ export default function Artigos() {
     const mo = maoObra.find((x) => x.id === op.mao_obra_id);
     return s + toHours(op.tempo_mao_obra, op.tempo_mao_obra_unidade) * (mo ? Number(mo.custo_hora) || 0 : 0);
   }, 0);
-  const custoTotal = custoMateriais + custoMaquinas + custoMaoObra;
+  const custoTotal = (Number(form.custo_artigo) || 0) + custoMateriais + custoMaquinas + custoMaoObra;
   const precoVenda = custoTotal * (1 + (Number(form.margem) || 0) / 100);
 
   const save = async () => {
@@ -87,6 +88,7 @@ export default function Artigos() {
     const body = {
       nome: form.nome,
       descricao: form.descricao,
+      custo_artigo: Number(form.custo_artigo) || 0,
       margem: Number(form.margem) || 0,
       materiais: form.materiais.filter((m) => m.material_id).map((m) => ({
         ...m,
@@ -178,7 +180,7 @@ export default function Artigos() {
             {/* Informação Base */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-3">Informação Base</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
                   <input data-testid="artigo-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
@@ -186,6 +188,10 @@ export default function Artigos() {
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
                   <input data-testid="artigo-desc-input" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Valor do Artigo (€)</label>
+                  <input data-testid="artigo-valor-input" type="number" step="0.01" value={form.custo_artigo} onChange={(e) => setForm({ ...form, custo_artigo: e.target.value })} placeholder="ex: produto base" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 </div>
               </div>
             </section>
@@ -275,7 +281,11 @@ export default function Artigos() {
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
                 <Calculator size={14} /> Custo Total Calculado
               </div>
-              <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+              <div className="grid grid-cols-4 gap-4 mb-4 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs">Valor do artigo</div>
+                  <div className="tabular-nums font-medium" data-testid="calc-artigo">{eur(Number(form.custo_artigo) || 0)}</div>
+                </div>
                 <div>
                   <div className="text-gray-400 text-xs">Materiais</div>
                   <div className="tabular-nums font-medium" data-testid="calc-materiais">{eur(custoMateriais)}</div>
