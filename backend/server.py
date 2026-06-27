@@ -988,6 +988,24 @@ async def converter_orcamento(oid: str):
 
     itens = []
     for l in orc.get("linhas", []):
+        operacoes = []
+        for op in l.get("roteiro", []):
+            t_maq = op_minutos_maquina(op)
+            t_mo = op_minutos_mao_obra(op)
+            maq = await db.maquinas.find_one({"id": op.get("maquina_id")}, {"_id": 0}) if op.get("maquina_id") else None
+            mo = await db.mao_obra.find_one({"id": op.get("mao_obra_id")}, {"_id": 0}) if op.get("mao_obra_id") else None
+            custo_est = round2((t_maq / 60.0) * maquina_custo_hora(maq) + (t_mo / 60.0) * ((mo or {}).get("custo_hora") or 0))
+            operacoes.append(
+                OFOperacao(
+                    nome=op.get("nome", ""),
+                    maquina_nome=op.get("maquina_nome") or ((maq or {}).get("nome")),
+                    mao_obra_nome=op.get("mao_obra_nome") or ((mo or {}).get("nome")),
+                    tempo_maquina=t_maq,
+                    tempo_mao_obra=t_mo,
+                    tempo_min=t_maq + t_mo,
+                    custo_estimado=custo_est,
+                ).model_dump()
+            )
         itens.append(
             {
                 "artigo_id": l.get("artigo_id"),
@@ -995,6 +1013,7 @@ async def converter_orcamento(oid: str):
                 "quantidade": l.get("quantidade", 1),
                 "tipo_personalizacao_id": l.get("tipo_personalizacao_id"),
                 "tipo_personalizacao_nome": l.get("tipo_personalizacao_nome"),
+                "operacoes": operacoes,
             }
         )
     of = OrdemFabrico(
