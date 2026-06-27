@@ -48,3 +48,10 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - **Formulários** (diálogos Artigos/Materiais/Máquinas): grelhas passam a coluna única no mobile.
 - **Dashboard**: gráficos recharts `ResponsiveContainer` à largura total; link obsoleto `/tempos`→`/analise-producao` corrigido.
 - Tested: iteration_6.json — frontend 100% (8/8 requisitos, mobile 390px + desktop 1440px, body overflow=0).
+
+## Iteração (2026-06-27) — Auth/RBAC + Materiais no Orçamento + Pesquisa global
+- **Autenticação JWT + RBAC**: login por email (`/api/auth/login`, `/me`), bcrypt, perfis `admin`/`colaborador`. Admin seed via `ADMIN_EMAIL`/`ADMIN_PASSWORD` (admin@prodcost.pt / Admin123!, nome "Admin Geral"). Token em localStorage (Bearer). Frontend gate (`Protected`/`adminOnly`); `/api/users*` exige admin (403 colaborador). PDFs continuam públicos (links `<a>`).
+- **Gestão de Utilizadores** (`/utilizadores`, admin-only): CRUD de utilizadores (criar/editar/eliminar, definir perfil/password).
+- **Materiais soltos no Orçamento**: secção em `OrcamentoDetail` com dropdown de consumíveis; se unidade `m²` mostra campos Comprimento/Largura (mm). Custo = (C/1000)·(L/1000)·custo_unit·qtd; valor adicionado = custo×1.5 (markup 50%). Backend `material_custo`/`fill_materiais`; totais incluem `custo_materiais`/`total_materiais`; incluído no PDF do orçamento.
+- **Pesquisa global** (`SearchBar`): filtragem em tempo real em Orçamentos, Ordens de Fabrico, Artigos, Materiais e Máquinas (por nome/cliente/nº encomenda/código).
+- Tested: iteration_7.json — backend 8/8, frontend 100%. test_credentials.md atualizado.

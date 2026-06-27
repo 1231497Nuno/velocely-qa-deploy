@@ -1576,13 +1576,19 @@ async def seed_admin():
         await db.users.insert_one({
             "id": new_id(),
             "email": email,
-            "name": "Administrador",
+            "name": "Admin Geral",
             "role": "admin",
             "password_hash": hash_password(password),
             "created_at": now_iso(),
         })
-    elif not verify_password(password, existing.get("password_hash", "")):
-        await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(password)}})
+    else:
+        patch = {}
+        if not verify_password(password, existing.get("password_hash", "")):
+            patch["password_hash"] = hash_password(password)
+        if existing.get("name") == "Administrador":
+            patch["name"] = "Admin Geral"
+        if patch:
+            await db.users.update_one({"email": email}, {"$set": patch})
 
 
 @app.on_event("startup")
