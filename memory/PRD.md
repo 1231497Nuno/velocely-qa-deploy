@@ -13,12 +13,11 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - Frontend React + react-router + shadcn/ui + Tailwind. Swiss/high-contrast design (Chivo + IBM Plex Sans/Mono).
 
 ## Implemented (2026-06)
-- Foundation: Máquinas (custo/h), Artigos (custos + roteiro de operações, custo_producao_total computado), Tipos de Personalização — full CRUD.
-- Fase 2: Orçamentos listagem + detalhe/edição, linhas com combobox pesquisável de artigos, margem global, totais ao vivo, numeração ORC-YYYY-NNNN.
-- Fase 3: Ordens de Fabrico listagem + detalhe, auto-load do roteiro ao guardar item, checkboxes de operações com transição automática de estado (pendente→em_producao→concluido) e barra de progresso, numeração OF-YYYY-NNNN.
-- Conversão Orçamento(Aceite)→OF com herança de artigos/personalização e link bidirecional.
-- Dashboard com estatísticas; endpoint /api/seed para dados demo.
-- Tested: 12/12 backend pytest pass; frontend E2E flows pass.
+- Foundation: Máquinas, Artigos, Tipos de Personalização — full CRUD.
+- Fase 2: Orçamentos + Fase 3: Ordens de Fabrico (auto-load roteiro, conversão, estados).
+- Iteração: módulo de custeio completo — **Materiais/Consumíveis** (nome, unidade por seleção, custo unitário), **Mão de Obra** (custo/hora), Artigo com receita de materiais + roteiro de operações.
+- Iteração 3: **Máquinas** com custo de amortização/hora + energia/hora (opcional); **operações** com tempo em min OU horas (máquina e mão de obra independentes); **Artigo com margem de lucro → Preço de Venda** calculado. Custo lido ao vivo das bases (alterações de preço propagam-se).
+- Tested: iteration_3.json 12/12 backend, 100% frontend.
 
 ## Backlog
 - P1: Edição manual de estado da OF; impressão/PDF do orçamento; cálculo de tempo total de máquina por OF agregado.
