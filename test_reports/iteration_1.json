@@ -1,0 +1,39 @@
+{
+  "summary": "Comprehensive backend + frontend E2E testing of the Portuguese Manufacturing/Production Costing ERP (Fase 2 Orçamentos + Fase 3 Ordens de Fabrico). 12/12 pytest tests pass. Full UI flow validated: create quote -> add line via combobox -> live totals -> accept -> convert to OF -> auto-loaded roteiro -> toggle ops -> pendente -> em_producao (50%) -> concluido (100%). Tipos/Maquinas/Artigos pages render seeded data with correctly computed custo_producao_total (6,51 € and 11,39 €).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dialog (Tipo de Personalização)", "issues": ["Console warning: Missing Description or aria-describedby for DialogContent - accessibility nit, non-blocking"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: add DialogDescription / aria-describedby to shadcn DialogContent in Tipos/Artigos/Máquinas dialogs to remove a11y warnings.",
+    "Minor inconsistency: route is registered at '/personalizacao' but original feature spec text mentioned '/tipos-personalizacao'. The sidebar correctly links to '/personalizacao', so user-facing flow works; no fix required unless aligning paths is desired."
+  ],
+  "critical_code_review_comments": [
+    "server.py Artigo.custo_maquinas property multiplies tempo_min/60 by 0 (dead code at line 85). It's unused since artigo_custo_total() recomputes correctly using maquinas_cache, but the dead property should be removed to avoid confusion.",
+    "POST /api/seed seeds artigos with custo_materiais/custo_mao_obra/custo_overhead chosen so that computed custo_producao_total matches the dashboard 'custo médio' values (6,51 € for DTF Têxtil + 11,39 € for DTF UV; mean = 8,95 €). All math verified correct.",
+    "converter_orcamento is idempotent: if of_id already set and the OF exists, returns it. Good.",
+    "next_sequence uses MongoDB find_one_and_update with $inc - atomic and safe per year.",
+    "All endpoints exclude _id correctly with projection {'_id': 0}."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new file)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% on tested flows"},
+  "test_credentials": "No auth required (public app, no credentials).",
+  "seed_data_creation": "POST /api/seed is idempotent. It pre-creates 3 máquinas (Impressora DTF UV 20€/h, Prensa Térmica 12€/h, Plotter de Corte 15€/h), 3 tipos (DTF UV, DTF Têxtil, Vinil de Corte) and 2 artigos (DTF UV / DTF Têxtil) each with a 2-step roteiro. Already present at start of testing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/backend_test.py is self-contained (each test creates its own data, then cleans up). Public app, no auth. Use REACT_APP_BACKEND_URL from frontend/.env (currently https://budgeting-orders.preview.emergentagent.com). Tipos page is on route /personalizacao. Orçamento status select is a native HTML <select> with data-testid='orc-status-select' - use select_option('aceite') not click-text. Orcamento detail testids confirmed: add-line-item, line-artigo-{i}, artigo-search-input, artigo-option-{id}, line-qtd-{i}, line-tipo-{i}, orc-margem-input, orc-subtotal, orc-total, save-orcamento-btn, convert-quote-btn. OF detail testids confirmed: op-check-{opid}, of-progress-label, of-status-badge.",
+  "rca of the issue": "No bugs found. All requested features (quote numbering ORC-YYYY-NNNN, OF numbering OF-YYYY-NNNN, global margin, status transitions, conversion gating by 'aceite', auto-loaded roteiro, status progression on op toggle) work end-to-end."
+}

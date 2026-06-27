@@ -1,0 +1,117 @@
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
+import { PageHeader } from "../components/Layout";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../components/ui/dialog";
+
+const empty = { nome: "", descricao: "" };
+
+export default function TiposPersonalizacao() {
+  const [items, setItems] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(empty);
+  const [editId, setEditId] = useState(null);
+
+  const load = async () => setItems(await api.get("/tipos-personalizacao"));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const openNew = () => {
+    setForm(empty);
+    setEditId(null);
+    setOpen(true);
+  };
+  const openEdit = (t) => {
+    setForm({ nome: t.nome, descricao: t.descricao || "" });
+    setEditId(t.id);
+    setOpen(true);
+  };
+
+  const save = async () => {
+    if (!form.nome.trim()) return toast.error("Indique o nome");
+    if (editId) await api.put(`/tipos-personalizacao/${editId}`, form);
+    else await api.post("/tipos-personalizacao", form);
+    toast.success("Tipo guardado");
+    setOpen(false);
+    load();
+  };
+
+  const remove = async (id) => {
+    await api.del(`/tipos-personalizacao/${id}`);
+    toast.success("Tipo eliminado");
+    load();
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title="Tipos de Personalização"
+        subtitle="Catálogo de técnicas de personalização disponíveis"
+        actions={
+          <button data-testid="new-tipo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+            <Plus size={16} /> Novo Tipo
+          </button>
+        }
+      />
+
+      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
+              <th className="px-4 py-3 w-24"></th>
+            </tr>
+          </thead>
+          <tbody data-testid="tipos-table">
+            {items.map((t) => (
+              <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 font-medium text-gray-900">{t.nome}</td>
+                <td className="px-4 py-3 text-gray-600">{t.descricao || "—"}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <button data-testid={`edit-tipo-${t.id}`} onClick={() => openEdit(t)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
+                    <button data-testid={`delete-tipo-${t.id}`} onClick={() => remove(t.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">{editId ? "Editar Tipo" : "Novo Tipo de Personalização"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
+              <input data-testid="tipo-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
+              <textarea data-testid="tipo-desc-input" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} rows={3} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
+            <button data-testid="save-tipo-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
