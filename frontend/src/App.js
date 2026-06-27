@@ -5,6 +5,8 @@ import Layout from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
 import Artigos from "@/pages/Artigos";
 import Maquinas from "@/pages/Maquinas";
+import Materiais from "@/pages/Materiais";
+import MaoObra from "@/pages/MaoObra";
 import TiposPersonalizacao from "@/pages/TiposPersonalizacao";
 import Orcamentos from "@/pages/Orcamentos";
 import OrcamentoDetail from "@/pages/OrcamentoDetail";
@@ -20,6 +22,8 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/artigos" element={<Artigos />} />
           <Route path="/maquinas" element={<Maquinas />} />
+          <Route path="/materiais" element={<Materiais />} />
+          <Route path="/mao-obra" element={<MaoObra />} />
           <Route path="/personalizacao" element={<TiposPersonalizacao />} />
           <Route path="/orcamentos" element={<Orcamentos />} />
           <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />

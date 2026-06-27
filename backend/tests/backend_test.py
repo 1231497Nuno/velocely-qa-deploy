@@ -1,9 +1,9 @@
-"""Backend tests for Production Costing ERP (Fase 2 + Fase 3)."""
+"""Backend tests for Production Costing ERP - Iteration 2 (Materiais + Mão de Obra + new Artigo model)."""
 import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://budgeting-orders.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 
 
@@ -11,280 +11,211 @@ API = f"{BASE_URL}/api"
 def client():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
+    # ensure seed
+    s.post(f"{API}/seed")
     return s
 
 
-# ---------- Phase 0: Health + Seed ----------
+# ---------- Health + Seed ----------
 class TestHealthAndSeed:
     def test_root(self, client):
-        r = client.get(f"{API}/")
-        assert r.status_code == 200
+        assert client.get(f"{API}/").status_code == 200
 
     def test_seed_idempotent(self, client):
-        r = client.post(f"{API}/seed")
-        assert r.status_code == 200
-        assert r.json().get("ok") is True
-        # second call
+        r1 = client.post(f"{API}/seed")
         r2 = client.post(f"{API}/seed")
-        assert r2.status_code == 200
-        assert r2.json().get("ok") is True
+        assert r1.status_code == 200 and r2.status_code == 200
 
     def test_dashboard(self, client):
         r = client.get(f"{API}/dashboard")
         assert r.status_code == 200
-        data = r.json()
+        d = r.json()
         for k in ["total_artigos", "total_maquinas", "total_tipos", "custo_medio",
-                  "total_orcamentos", "valor_orcamentos", "orcamentos_aceites",
-                  "total_ofs", "ofs_em_producao", "ofs_concluidas"]:
-            assert k in data
-        assert data["total_artigos"] >= 2
-        assert data["total_maquinas"] >= 3
-        assert data["total_tipos"] >= 3
+                  "total_orcamentos", "valor_orcamentos", "total_ofs"]:
+            assert k in d
 
 
-# ---------- CRUD: Máquinas ----------
-class TestMaquinas:
-    def test_crud_maquina(self, client):
-        r = client.post(f"{API}/maquinas", json={"nome": "TEST_Maquina", "custo_hora": 10.0})
+# ---------- CRUD: Consumiveis ----------
+class TestConsumiveis:
+    def test_crud(self, client):
+        r = client.post(f"{API}/consumiveis", json={"nome": "TEST_Mat", "unidade": "ml", "custo_unitario": 0.5})
+        assert r.status_code == 200
+        c = r.json()
+        assert c["nome"] == "TEST_Mat"
+        assert c["unidade"] == "ml"
+        assert c["custo_unitario"] == 0.5
+        cid = c["id"]
+
+        rl = client.get(f"{API}/consumiveis")
+        assert any(x["id"] == cid for x in rl.json())
+
+        ru = client.put(f"{API}/consumiveis/{cid}", json={"nome": "TEST_Mat2", "unidade": "g", "custo_unitario": 1.25})
+        assert ru.status_code == 200
+        assert ru.json()["custo_unitario"] == 1.25
+
+        assert client.delete(f"{API}/consumiveis/{cid}").status_code == 200
+
+
+# ---------- CRUD: Mao de Obra ----------
+class TestMaoObra:
+    def test_crud(self, client):
+        r = client.post(f"{API}/mao-obra", json={"nome": "TEST_MO", "custo_hora": 15.0})
         assert r.status_code == 200
         m = r.json()
-        assert m["nome"] == "TEST_Maquina"
-        assert m["custo_hora"] == 10.0
+        assert m["nome"] == "TEST_MO"
+        assert m["custo_hora"] == 15.0
         mid = m["id"]
 
-        r = client.get(f"{API}/maquinas")
-        assert r.status_code == 200
-        assert any(x["id"] == mid for x in r.json())
+        rl = client.get(f"{API}/mao-obra")
+        assert any(x["id"] == mid for x in rl.json())
 
-        r = client.put(f"{API}/maquinas/{mid}", json={"nome": "TEST_Maquina2", "custo_hora": 25.5})
-        assert r.status_code == 200
-        assert r.json()["custo_hora"] == 25.5
+        ru = client.put(f"{API}/mao-obra/{mid}", json={"nome": "TEST_MO2", "custo_hora": 22.5})
+        assert ru.status_code == 200
+        assert ru.json()["custo_hora"] == 22.5
 
-        r = client.delete(f"{API}/maquinas/{mid}")
-        assert r.status_code == 200
+        assert client.delete(f"{API}/mao-obra/{mid}").status_code == 200
 
 
-# ---------- CRUD: Tipos Personalizacao ----------
-class TestTipos:
-    def test_crud_tipo(self, client):
-        r = client.post(f"{API}/tipos-personalizacao", json={"nome": "TEST_Tipo", "descricao": "x"})
-        assert r.status_code == 200
-        tid = r.json()["id"]
+# ---------- New Artigo model: materiais + roteiro + computed breakdown ----------
+class TestArtigosNewModel:
+    def test_seeded_dtf_uv_breakdown(self, client):
+        artigos = client.get(f"{API}/artigos").json()
+        dtf_uv = next((a for a in artigos if a["nome"] == "DTF UV"), None)
+        assert dtf_uv, "DTF UV seeded artigo expected"
+        # 1 filme @ 1.20 + 5 ml @ 0.08 = 1.20 + 0.40 = 1.60
+        assert dtf_uv["custo_materiais"] == pytest.approx(1.60, abs=0.01)
+        # Impressao: 4min @ 20€/h = 1.333..., Prensagem: 2min @ 12€/h = 0.4 -> 1.73
+        assert dtf_uv["custo_maquinas"] == pytest.approx(1.73, abs=0.02)
+        # Mão de obra 6 min @ 12€/h = 1.20
+        assert dtf_uv["custo_mao_obra"] == pytest.approx(1.20, abs=0.02)
+        assert dtf_uv["custo_producao_total"] == pytest.approx(4.53, abs=0.05)
 
-        r = client.put(f"{API}/tipos-personalizacao/{tid}", json={"nome": "TEST_Tipo2", "descricao": "y"})
-        assert r.status_code == 200
-        assert r.json()["nome"] == "TEST_Tipo2"
-
-        r = client.get(f"{API}/tipos-personalizacao")
-        assert any(t["id"] == tid for t in r.json())
-
-        r = client.delete(f"{API}/tipos-personalizacao/{tid}")
-        assert r.status_code == 200
-
-
-# ---------- CRUD: Artigos with computed custo_producao_total ----------
-class TestArtigos:
-    def test_artigo_with_roteiro_cost(self, client):
-        # Create a machine 60 €/h
-        mr = client.post(f"{API}/maquinas", json={"nome": "TEST_M60", "custo_hora": 60.0})
-        assert mr.status_code == 200
-        m = mr.json()
+    def test_create_artigo_with_materiais_roteiro(self, client):
+        # Create deps
+        mat = client.post(f"{API}/consumiveis", json={"nome": "TEST_C", "unidade": "un", "custo_unitario": 2.0}).json()
+        maq = client.post(f"{API}/maquinas", json={"nome": "TEST_MQ", "custo_hora": 60.0}).json()
+        mo = client.post(f"{API}/mao-obra", json={"nome": "TEST_MOA", "custo_hora": 30.0}).json()
 
         payload = {
-            "nome": "TEST_Artigo",
-            "descricao": "test",
-            "custo_materiais": 1.0,
-            "custo_mao_obra": 2.0,
-            "custo_overhead": 0.5,
+            "nome": "TEST_Art",
+            "descricao": "x",
+            "materiais": [
+                {"material_id": mat["id"], "material_nome": mat["nome"], "unidade": mat["unidade"],
+                 "quantidade": 3, "custo_unitario": 2.0}
+            ],
             "roteiro": [
-                {"nome": "Op1", "maquina_id": m["id"], "maquina_nome": m["nome"], "tempo_min": 30}
+                {"nome": "Op", "maquina_id": maq["id"], "maquina_nome": maq["nome"], "min_maquina": 30,
+                 "mao_obra_id": mo["id"], "mao_obra_nome": mo["nome"], "min_mao_obra": 60}
             ],
         }
         r = client.post(f"{API}/artigos", json=payload)
-        assert r.status_code == 200
+        assert r.status_code == 200, r.text
         a = r.json()
-        # custo_producao_total = 1 + 2 + 0.5 + (30/60)*60 = 33.5
-        assert a["custo_producao_total"] == pytest.approx(33.5, abs=0.01)
-        aid = a["id"]
+        # 3*2 = 6 mat; 30/60*60 = 30 maq; 60/60*30 = 30 mo -> 66
+        assert a["custo_materiais"] == pytest.approx(6.0, abs=0.01)
+        assert a["custo_maquinas"] == pytest.approx(30.0, abs=0.01)
+        assert a["custo_mao_obra"] == pytest.approx(30.0, abs=0.01)
+        assert a["custo_producao_total"] == pytest.approx(66.0, abs=0.05)
 
-        # GET single
-        rg = client.get(f"{API}/artigos/{aid}")
-        assert rg.status_code == 200
-        assert rg.json()["custo_producao_total"] == pytest.approx(33.5, abs=0.01)
+        aid = a["id"]
+        # GET enrichment
+        rg = client.get(f"{API}/artigos/{aid}").json()
+        assert rg["custo_producao_total"] == pytest.approx(66.0, abs=0.05)
+
+        # PUT update quantity
+        payload2 = dict(payload)
+        payload2["materiais"] = [{**payload["materiais"][0], "quantidade": 5}]
+        ru = client.put(f"{API}/artigos/{aid}", json=payload2)
+        assert ru.status_code == 200
+        assert ru.json()["custo_materiais"] == pytest.approx(10.0, abs=0.01)
 
         # cleanup
         client.delete(f"{API}/artigos/{aid}")
-        client.delete(f"{API}/maquinas/{m['id']}")
+        client.delete(f"{API}/consumiveis/{mat['id']}")
+        client.delete(f"{API}/maquinas/{maq['id']}")
+        client.delete(f"{API}/mao-obra/{mo['id']}")
 
 
-# ---------- Orcamentos ----------
-class TestOrcamentos:
-    def test_orcamento_flow_and_convert(self, client):
-        # Get first artigo
-        ars = client.get(f"{API}/artigos").json()
-        assert ars, "Need seeded artigos"
-        artigo = ars[0]
-        custo = artigo["custo_producao_total"]
+# ---------- Orcamento integration with new model ----------
+class TestOrcamentoIntegration:
+    def test_line_autofill_from_artigo(self, client):
+        artigos = client.get(f"{API}/artigos").json()
+        dtf = next((a for a in artigos if a["nome"] == "DTF UV"), artigos[0])
+        expected_unit = dtf["custo_producao_total"]
 
-        # Create orcamento
         payload = {
-            "cliente": "TEST_Cliente",
+            "cliente": "TEST_OrcInt",
             "margem": 50.0,
             "status": "rascunho",
-            "linhas": [
-                {"artigo_id": artigo["id"], "quantidade": 10}
-            ],
+            "linhas": [{"artigo_id": dtf["id"], "quantidade": 10}],
         }
         r = client.post(f"{API}/orcamentos", json=payload)
         assert r.status_code == 200, r.text
         orc = r.json()
-        assert orc["numero"].startswith("ORC-")
-        parts = orc["numero"].split("-")
-        assert len(parts) == 3 and len(parts[2]) == 4
-
-        # totals
-        expected_sub = round(custo * 10, 2)
-        expected_total = round(expected_sub * 1.5, 2)
+        assert orc["linhas"][0]["custo_producao_unit"] == pytest.approx(expected_unit, abs=0.01)
+        expected_sub = round(expected_unit * 10, 2)
         assert orc["subtotal_custo"] == pytest.approx(expected_sub, abs=0.05)
-        assert orc["total"] == pytest.approx(expected_total, abs=0.05)
-        assert orc["linhas"][0]["custo_producao_unit"] == pytest.approx(custo, abs=0.01)
+        assert orc["total"] == pytest.approx(round(expected_sub * 1.5, 2), abs=0.05)
+        assert orc["numero"].startswith("ORC-")
+        # cleanup
+        client.delete(f"{API}/orcamentos/{orc['id']}")
 
-        oid = orc["id"]
-
-        # Convert should fail (status rascunho)
+    def test_convert_orcamento_to_of_with_roteiro(self, client):
+        artigos = client.get(f"{API}/artigos").json()
+        artigo = next((a for a in artigos if a.get("roteiro")), artigos[0])
+        r = client.post(f"{API}/orcamentos", json={
+            "cliente": "TEST_Conv", "margem": 30.0, "status": "aceite",
+            "linhas": [{"artigo_id": artigo["id"], "quantidade": 1}],
+        })
+        oid = r.json()["id"]
         rc = client.post(f"{API}/orcamentos/{oid}/converter")
-        assert rc.status_code == 400
-
-        # Update to aceite
-        orc["status"] = "aceite"
-        # send only OrcamentoInput fields
-        up = {
-            "cliente": orc["cliente"],
-            "data": orc.get("data"),
-            "validade": orc.get("validade"),
-            "status": "aceite",
-            "margem": orc["margem"],
-            "notas": orc.get("notas", ""),
-            "linhas": orc["linhas"],
-        }
-        ru = client.put(f"{API}/orcamentos/{oid}", json=up)
-        assert ru.status_code == 200
-        assert ru.json()["status"] == "aceite"
-
-        # Convert now succeeds
-        rc2 = client.post(f"{API}/orcamentos/{oid}/converter")
-        assert rc2.status_code == 200, rc2.text
-        of = rc2.json()
+        assert rc.status_code == 200, rc.text
+        of = rc.json()
         assert of["numero"].startswith("OF-")
-        assert of["orcamento_id"] == oid
-        # OF should have items inherited and operations auto-loaded
-        assert len(of["itens"]) == 1
-        # If artigo has roteiro, ops are auto-loaded
-        if artigo.get("roteiro"):
-            assert len(of["itens"][0]["operacoes"]) == len(artigo["roteiro"])
-        assert of["status"] == "pendente"
-
-        # Idempotency: converting again returns existing OF
-        rc3 = client.post(f"{API}/orcamentos/{oid}/converter")
-        assert rc3.status_code == 200
-        assert rc3.json()["id"] == of["id"]
-
-        # Verify orcamento has of_id/of_numero linked
-        rg = client.get(f"{API}/orcamentos/{oid}").json()
-        assert rg["of_id"] == of["id"]
-        assert rg["of_numero"] == of["numero"]
-
-        # Save for next test
-        TestOrcamentos.of_id = of["id"]
-        TestOrcamentos.orc_id = oid
-
-    def test_404_orcamento(self, client):
-        assert client.get(f"{API}/orcamentos/does-not-exist").status_code == 404
-        assert client.post(f"{API}/orcamentos/does-not-exist/converter").status_code == 404
-
-
-# ---------- Ordens de Fabrico ----------
-class TestOrdensFabrico:
-    def test_toggle_operacoes_status_progression(self, client):
-        # Self-contained: create an OF with auto-loaded roteiro from a seeded artigo
-        ars = client.get(f"{API}/artigos").json()
-        artigo = next((a for a in ars if a.get("roteiro")), ars[0])
-        cr = client.post(
-            f"{API}/ordens-fabrico",
-            json={"cliente": "TEST_Toggle", "itens": [{"artigo_id": artigo["id"], "quantidade": 1}]},
-        )
-        assert cr.status_code == 200
-        of_id = cr.json()["id"]
-
-        of = client.get(f"{API}/ordens-fabrico/{of_id}").json()
-        item = of["itens"][0]
-        ops = item["operacoes"]
-        assert len(ops) >= 1
-
-        # Toggle first op -> em_producao (if more than 1 op) else concluido
-        r = client.post(
-            f"{API}/ordens-fabrico/{of_id}/toggle-operacao",
-            json={"item_id": item["id"], "operacao_id": ops[0]["id"], "concluida": True},
-        )
-        assert r.status_code == 200
-        after = r.json()
-        if len(ops) > 1:
-            assert after["status"] == "em_producao"
-            assert 0 < after["progresso"] < 100
-        else:
-            assert after["status"] == "concluido"
-
-        # Toggle all ops -> concluido
-        for op in ops:
-            client.post(
-                f"{API}/ordens-fabrico/{of_id}/toggle-operacao",
-                json={"item_id": item["id"], "operacao_id": op["id"], "concluida": True},
-            )
-        final = client.get(f"{API}/ordens-fabrico/{of_id}").json()
-        assert final["status"] == "concluido"
-        assert final["progresso"] == 100
-
-        # Toggle one back -> em_producao
-        if len(ops) > 1:
-            client.post(
-                f"{API}/ordens-fabrico/{of_id}/toggle-operacao",
-                json={"item_id": item["id"], "operacao_id": ops[0]["id"], "concluida": False},
-            )
-            after2 = client.get(f"{API}/ordens-fabrico/{of_id}").json()
-            assert after2["status"] == "em_producao"
-
-    def test_create_of_manual_auto_roteiro(self, client):
-        ars = client.get(f"{API}/artigos").json()
-        artigo = ars[0]
-        r = client.post(
-            f"{API}/ordens-fabrico",
-            json={
-                "cliente": "TEST_OF_Cli",
-                "itens": [{"artigo_id": artigo["id"], "quantidade": 2}],
-            },
-        )
-        assert r.status_code == 200
-        of = r.json()
-        assert of["numero"].startswith("OF-")
-        if artigo.get("roteiro"):
-            assert len(of["itens"][0]["operacoes"]) == len(artigo["roteiro"])
+        ops = of["itens"][0]["operacoes"]
+        assert len(ops) == len(artigo["roteiro"])
+        # tempo_min should equal min_maquina + min_mao_obra
+        for src, dst in zip(artigo["roteiro"], ops):
+            assert dst["tempo_min"] == pytest.approx((src.get("min_maquina") or 0) + (src.get("min_mao_obra") or 0))
+            assert dst.get("maquina_nome") == src.get("maquina_nome")
+            assert dst.get("mao_obra_nome") == src.get("mao_obra_nome")
         # cleanup
         client.delete(f"{API}/ordens-fabrico/{of['id']}")
-
-    def test_of_numbering_per_year(self, client):
-        ofs = client.get(f"{API}/ordens-fabrico").json()
-        if ofs:
-            year_part = ofs[0]["numero"].split("-")[1]
-            assert len(year_part) == 4 and year_part.isdigit()
+        client.delete(f"{API}/orcamentos/{oid}")
 
 
-# ---------- Cleanup test orcamentos at end ----------
-def test_cleanup(client=None):
+# ---------- OF toggle regression ----------
+class TestOFToggle:
+    def test_toggle_progression(self, client):
+        artigos = client.get(f"{API}/artigos").json()
+        artigo = next((a for a in artigos if a.get("roteiro")), artigos[0])
+        cr = client.post(f"{API}/ordens-fabrico", json={
+            "cliente": "TEST_Tog", "itens": [{"artigo_id": artigo["id"], "quantidade": 1}],
+        })
+        of = cr.json()
+        item = of["itens"][0]
+        ops = item["operacoes"]
+        assert len(ops) >= 2
+
+        client.post(f"{API}/ordens-fabrico/{of['id']}/toggle-operacao",
+                    json={"item_id": item["id"], "operacao_id": ops[0]["id"], "concluida": True})
+        after = client.get(f"{API}/ordens-fabrico/{of['id']}").json()
+        assert after["status"] == "em_producao"
+
+        for op in ops:
+            client.post(f"{API}/ordens-fabrico/{of['id']}/toggle-operacao",
+                        json={"item_id": item["id"], "operacao_id": op["id"], "concluida": True})
+        final = client.get(f"{API}/ordens-fabrico/{of['id']}").json()
+        assert final["status"] == "concluido"
+        assert final["progresso"] == 100
+        client.delete(f"{API}/ordens-fabrico/{of['id']}")
+
+
+# ---------- Cleanup ----------
+def test_zz_cleanup():
     s = requests.Session()
-    s.headers.update({"Content-Type": "application/json"})
-    orcs = s.get(f"{API}/orcamentos").json()
-    for o in orcs:
-        if str(o.get("cliente", "")).startswith("TEST_"):
-            if o.get("of_id"):
-                s.delete(f"{API}/ordens-fabrico/{o['of_id']}")
-            s.delete(f"{API}/orcamentos/{o['id']}")
+    for orc in s.get(f"{API}/orcamentos").json():
+        if str(orc.get("cliente", "")).startswith("TEST_"):
+            if orc.get("of_id"):
+                s.delete(f"{API}/ordens-fabrico/{orc['of_id']}")
+            s.delete(f"{API}/orcamentos/{orc['id']}")

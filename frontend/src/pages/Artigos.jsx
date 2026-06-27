@@ -1,28 +1,24 @@
 import { useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Package, Cog, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "../components/ui/dialog";
 
-const empty = {
-  nome: "",
-  descricao: "",
-  custo_materiais: 0,
-  custo_mao_obra: 0,
-  custo_overhead: 0,
-  roteiro: [],
-};
+const empty = { nome: "", descricao: "", materiais: [], roteiro: [] };
 
 export default function Artigos() {
   const [items, setItems] = useState([]);
   const [maquinas, setMaquinas] = useState([]);
+  const [consumiveis, setConsumiveis] = useState([]);
+  const [maoObra, setMaoObra] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -30,6 +26,8 @@ export default function Artigos() {
   const load = async () => {
     setItems(await api.get("/artigos"));
     setMaquinas(await api.get("/maquinas"));
+    setConsumiveis(await api.get("/consumiveis"));
+    setMaoObra(await api.get("/mao-obra"));
   };
   useEffect(() => {
     load();
@@ -44,20 +42,24 @@ export default function Artigos() {
     setForm({
       nome: a.nome,
       descricao: a.descricao || "",
-      custo_materiais: a.custo_materiais,
-      custo_mao_obra: a.custo_mao_obra,
-      custo_overhead: a.custo_overhead,
+      materiais: a.materiais || [],
       roteiro: a.roteiro || [],
     });
     setEditId(a.id);
     setOpen(true);
   };
 
-  const addOp = () =>
-    setForm({
-      ...form,
-      roteiro: [...form.roteiro, { nome: "", maquina_id: "", maquina_nome: "", tempo_min: 0 }],
-    });
+  // ---- materiais ----
+  const addMat = () => setForm({ ...form, materiais: [...form.materiais, { material_id: "", material_nome: "", unidade: "", quantidade: 1, custo_unitario: 0 }] });
+  const updMat = (i, patch) => {
+    const m = [...form.materiais];
+    m[i] = { ...m[i], ...patch };
+    setForm({ ...form, materiais: m });
+  };
+  const delMat = (i) => setForm({ ...form, materiais: form.materiais.filter((_, idx) => idx !== i) });
+
+  // ---- operacoes ----
+  const addOp = () => setForm({ ...form, roteiro: [...form.roteiro, { nome: "", maquina_id: "", maquina_nome: "", min_maquina: 0, mao_obra_id: "", mao_obra_nome: "", min_mao_obra: 0 }] });
   const updOp = (i, patch) => {
     const r = [...form.roteiro];
     r[i] = { ...r[i], ...patch };
@@ -65,16 +67,32 @@ export default function Artigos() {
   };
   const delOp = (i) => setForm({ ...form, roteiro: form.roteiro.filter((_, idx) => idx !== i) });
 
+  // ---- live cost ----
+  const custoMateriais = form.materiais.reduce((s, m) => s + (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0), 0);
+  const custoMaquinas = form.roteiro.reduce((s, op) => {
+    const maq = maquinas.find((x) => x.id === op.maquina_id);
+    return s + ((Number(op.min_maquina) || 0) / 60) * (maq ? maq.custo_hora : 0);
+  }, 0);
+  const custoMaoObra = form.roteiro.reduce((s, op) => {
+    const mo = maoObra.find((x) => x.id === op.mao_obra_id);
+    return s + ((Number(op.min_mao_obra) || 0) / 60) * (mo ? mo.custo_hora : 0);
+  }, 0);
+  const custoTotal = custoMateriais + custoMaquinas + custoMaoObra;
+
   const save = async () => {
     if (!form.nome.trim()) return toast.error("Indique o nome do artigo");
     const body = {
-      ...form,
-      custo_materiais: Number(form.custo_materiais) || 0,
-      custo_mao_obra: Number(form.custo_mao_obra) || 0,
-      custo_overhead: Number(form.custo_overhead) || 0,
-      roteiro: form.roteiro.map((o) => ({
-        ...o,
-        tempo_min: Number(o.tempo_min) || 0,
+      nome: form.nome,
+      descricao: form.descricao,
+      materiais: form.materiais.filter((m) => m.material_id).map((m) => ({
+        ...m,
+        quantidade: Number(m.quantidade) || 0,
+        custo_unitario: Number(m.custo_unitario) || 0,
+      })),
+      roteiro: form.roteiro.map((op) => ({
+        ...op,
+        min_maquina: Number(op.min_maquina) || 0,
+        min_mao_obra: Number(op.min_mao_obra) || 0,
       })),
     };
     if (editId) await api.put(`/artigos/${editId}`, body);
@@ -94,7 +112,7 @@ export default function Artigos() {
     <div>
       <PageHeader
         title="Artigos"
-        subtitle="Base de artigos com custos de produção e roteiro de operações"
+        subtitle="Receita de materiais, roteiro de operações e custo de produção calculado"
         actions={
           <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Novo Artigo
@@ -108,9 +126,8 @@ export default function Artigos() {
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Artigo</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Materiais</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Máquinas</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Mão de Obra</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Overhead</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Operações</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Total</th>
               <th className="px-4 py-3 w-24"></th>
             </tr>
@@ -121,11 +138,11 @@ export default function Artigos() {
                 <td className="px-4 py-3">
                   <div className="font-medium text-gray-900">{a.nome}</div>
                   {a.descricao && <div className="text-xs text-gray-500">{a.descricao}</div>}
+                  <div className="text-xs text-gray-400 mt-0.5">{(a.materiais || []).length} materiais · {(a.roteiro || []).length} operações</div>
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_materiais)}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_maquinas)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_mao_obra)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_overhead)}</td>
-                <td className="px-4 py-3 text-center tabular-nums text-gray-600">{(a.roteiro || []).length}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(a.custo_producao_total)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
@@ -136,64 +153,127 @@ export default function Artigos() {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">{editId ? "Editar Artigo" : "Novo Artigo"}</DialogTitle>
+            <DialogDescription>Defina a receita de materiais e o roteiro de operações. O custo é calculado automaticamente.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
-                <input data-testid="artigo-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
-                <input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Materiais (€)</label>
-                <input data-testid="artigo-materiais-input" type="number" step="0.01" value={form.custo_materiais} onChange={(e) => setForm({ ...form, custo_materiais: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Mão de Obra (€)</label>
-                <input type="number" step="0.01" value={form.custo_mao_obra} onChange={(e) => setForm({ ...form, custo_mao_obra: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Overhead (€)</label>
-                <input type="number" step="0.01" value={form.custo_overhead} onChange={(e) => setForm({ ...form, custo_overhead: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-            </div>
 
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700">Roteiro de Operações (máquinas + tempos)</label>
-                <button data-testid="add-operacao-btn" onClick={addOp} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Operação</button>
+          <div className="space-y-6 py-2">
+            {/* Informação Base */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-3">Informação Base</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
+                  <input data-testid="artigo-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
+                  <input data-testid="artigo-desc-input" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                </div>
+              </div>
+            </section>
+
+            {/* Materiais Necessários */}
+            <section className="border-t border-gray-200 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 flex items-center gap-2"><Package size={14} /> Materiais Necessários</h3>
+                <button data-testid="add-material-row-btn" onClick={addMat} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Material</button>
               </div>
               <div className="space-y-2">
+                {form.materiais.length > 0 && (
+                  <div className="grid grid-cols-[1fr_80px_90px_90px_32px] gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-gray-400 px-1">
+                    <span>Consumível</span><span className="text-right">Qtd</span><span className="text-right">€/un</span><span className="text-right">Subtotal</span><span></span>
+                  </div>
+                )}
+                {form.materiais.map((m, i) => {
+                  const sub = (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0);
+                  return (
+                    <div key={i} className="grid grid-cols-[1fr_80px_90px_90px_32px] gap-2 items-center">
+                      <select data-testid={`material-select-${i}`} value={m.material_id || ""} onChange={(e) => { const c = consumiveis.find((x) => x.id === e.target.value); updMat(i, { material_id: e.target.value, material_nome: c ? c.nome : "", unidade: c ? c.unidade : "", custo_unitario: c ? c.custo_unitario : 0 }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                        <option value="">Selecionar...</option>
+                        {consumiveis.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.unidade})</option>)}
+                      </select>
+                      <input data-testid={`material-qtd-${i}`} type="number" step="0.01" value={m.quantidade} onChange={(e) => updMat(i, { quantidade: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                      <div className="text-right text-sm text-gray-500 tabular-nums">{eur(m.custo_unitario)}</div>
+                      <div className="text-right text-sm font-medium tabular-nums">{eur(sub)}</div>
+                      <button onClick={() => delMat(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600 flex justify-center"><X size={15} /></button>
+                    </div>
+                  );
+                })}
+                {form.materiais.length === 0 && <p className="text-xs text-gray-400">Sem materiais definidos.</p>}
+              </div>
+            </section>
+
+            {/* Operações / Tempos */}
+            <section className="border-t border-gray-200 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 flex items-center gap-2"><Cog size={14} /> Operações / Tempos</h3>
+                <button data-testid="add-operacao-btn" onClick={addOp} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Operação</button>
+              </div>
+              <div className="space-y-3">
                 {form.roteiro.map((op, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 items-center">
-                    <input placeholder="Operação" value={op.nome} onChange={(e) => updOp(i, { nome: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-                    <select value={op.maquina_id || ""} onChange={(e) => { const m = maquinas.find((x) => x.id === e.target.value); updOp(i, { maquina_id: e.target.value, maquina_nome: m ? m.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-                      <option value="">Sem máquina</option>
-                      {maquinas.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                    </select>
-                    <input type="number" placeholder="min" value={op.tempo_min} onChange={(e) => updOp(i, { tempo_min: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-                    <button onClick={() => delOp(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600 flex justify-center"><X size={15} /></button>
+                  <div key={i} className="border border-gray-200 rounded-sm p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input data-testid={`op-nome-${i}`} placeholder="Nome da operação (ex: Impressão)" value={op.nome} onChange={(e) => updOp(i, { nome: e.target.value })} className="flex-1 border border-gray-300 rounded-sm px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                      <button onClick={() => delOp(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><X size={15} /></button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-[1fr_70px] gap-1.5">
+                        <select data-testid={`op-maquina-${i}`} value={op.maquina_id || ""} onChange={(e) => { const mq = maquinas.find((x) => x.id === e.target.value); updOp(i, { maquina_id: e.target.value, maquina_nome: mq ? mq.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                          <option value="">Máquina...</option>
+                          {maquinas.map((mq) => <option key={mq.id} value={mq.id}>{mq.nome}</option>)}
+                        </select>
+                        <input data-testid={`op-min-maquina-${i}`} type="number" placeholder="min" value={op.min_maquina} onChange={(e) => updOp(i, { min_maquina: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                      </div>
+                      <div className="grid grid-cols-[1fr_70px] gap-1.5">
+                        <select data-testid={`op-maoobra-${i}`} value={op.mao_obra_id || ""} onChange={(e) => { const mo = maoObra.find((x) => x.id === e.target.value); updOp(i, { mao_obra_id: e.target.value, mao_obra_nome: mo ? mo.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                          <option value="">Mão de obra...</option>
+                          {maoObra.map((mo) => <option key={mo.id} value={mo.id}>{mo.nome}</option>)}
+                        </select>
+                        <input data-testid={`op-min-maoobra-${i}`} type="number" placeholder="min" value={op.min_mao_obra} onChange={(e) => updOp(i, { min_mao_obra: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                      </div>
+                    </div>
                   </div>
                 ))}
                 {form.roteiro.length === 0 && <p className="text-xs text-gray-400">Sem operações definidas.</p>}
               </div>
-            </div>
+            </section>
+
+            {/* Custo Total Calculado */}
+            <section className="border border-gray-900 rounded-sm bg-gray-900 text-white p-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
+                <Calculator size={14} /> Custo Total Calculado
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs">Materiais</div>
+                  <div className="tabular-nums font-medium" data-testid="calc-materiais">{eur(custoMateriais)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">Máquinas</div>
+                  <div className="tabular-nums font-medium" data-testid="calc-maquinas">{eur(custoMaquinas)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">Mão de Obra</div>
+                  <div className="tabular-nums font-medium" data-testid="calc-maoobra">{eur(custoMaoObra)}</div>
+                </div>
+              </div>
+              <div className="flex items-end justify-between border-t border-gray-700 pt-4">
+                <span className="text-sm text-gray-300">Custo de Produção por unidade</span>
+                <span className="tabular-nums font-bold text-3xl font-display" data-testid="calc-total">{eur(custoTotal)}</span>
+              </div>
+            </section>
           </div>
+
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
             <button data-testid="save-artigo-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>

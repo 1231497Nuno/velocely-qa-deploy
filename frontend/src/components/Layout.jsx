@@ -6,12 +6,16 @@ import {
   Palette,
   FileText,
   Factory,
+  Package,
+  Users,
 } from "lucide-react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, tid: "nav-dashboard" },
   { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos" },
+  { to: "/materiais", label: "Materiais", icon: Package, tid: "nav-materiais" },
   { to: "/maquinas", label: "Máquinas", icon: Cog, tid: "nav-maquinas" },
+  { to: "/mao-obra", label: "Mão de Obra", icon: Users, tid: "nav-mao-obra" },
   { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao" },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos" },
   { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs" },

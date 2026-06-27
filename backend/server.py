@@ -62,21 +62,57 @@ class MaquinaInput(BaseModel):
     custo_hora: float = 0.0
 
 
-class Operacao(BaseModel):
+class Consumivel(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
+    unidade: str = "un"
+    custo_unitario: float = 0.0
+    created_at: str = Field(default_factory=now_iso)
+
+
+class ConsumivelInput(BaseModel):
+    nome: str
+    unidade: str = "un"
+    custo_unitario: float = 0.0
+
+
+class MaoObra(BaseModel):
+    id: str = Field(default_factory=new_id)
+    nome: str
+    custo_hora: float = 0.0
+    created_at: str = Field(default_factory=now_iso)
+
+
+class MaoObraInput(BaseModel):
+    nome: str
+    custo_hora: float = 0.0
+
+
+class ArtigoMaterial(BaseModel):
+    id: str = Field(default_factory=new_id)
+    material_id: str
+    material_nome: str = ""
+    unidade: str = ""
+    quantidade: float = 0.0
+    custo_unitario: float = 0.0
+
+
+class Operacao(BaseModel):
+    id: str = Field(default_factory=new_id)
+    nome: str = ""
     maquina_id: Optional[str] = None
     maquina_nome: Optional[str] = None
-    tempo_min: float = 0.0
+    min_maquina: float = 0.0
+    mao_obra_id: Optional[str] = None
+    mao_obra_nome: Optional[str] = None
+    min_mao_obra: float = 0.0
 
 
 class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     descricao: str = ""
-    custo_materiais: float = 0.0
-    custo_mao_obra: float = 0.0
-    custo_overhead: float = 0.0
+    materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
 
@@ -84,9 +120,7 @@ class Artigo(BaseModel):
 class ArtigoInput(BaseModel):
     nome: str
     descricao: str = ""
-    custo_materiais: float = 0.0
-    custo_mao_obra: float = 0.0
-    custo_overhead: float = 0.0
+    materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
 
 
@@ -134,6 +168,7 @@ class OFOperacao(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     maquina_nome: Optional[str] = None
+    mao_obra_nome: Optional[str] = None
     tempo_min: float = 0.0
     concluida: bool = False
 
@@ -165,32 +200,46 @@ class OrdemFabrico(OrdemFabricoInput):
 
 
 # ----------------------- Cost computation -----------------------
-async def artigo_custo_total(artigo: dict) -> float:
+async def artigo_breakdown(artigo: dict) -> dict:
+    custo_materiais = 0.0
+    for mat in artigo.get("materiais", []):
+        custo_materiais += (mat.get("quantidade") or 0) * (mat.get("custo_unitario") or 0)
+
     custo_maquinas = 0.0
-    maquinas_cache = {}
+    custo_mao_obra = 0.0
+    maq_cache = {}
+    mo_cache = {}
     for op in artigo.get("roteiro", []):
         mid = op.get("maquina_id")
-        tempo = op.get("tempo_min") or 0
-        custo_hora = 0.0
         if mid:
-            if mid not in maquinas_cache:
+            if mid not in maq_cache:
                 m = await db.maquinas.find_one({"id": mid}, {"_id": 0})
-                maquinas_cache[mid] = (m or {}).get("custo_hora", 0.0)
-            custo_hora = maquinas_cache[mid]
-        custo_maquinas += (tempo / 60.0) * custo_hora
-    total = (
-        (artigo.get("custo_materiais") or 0)
-        + (artigo.get("custo_mao_obra") or 0)
-        + (artigo.get("custo_overhead") or 0)
-        + custo_maquinas
-    )
-    return round2(total)
+                maq_cache[mid] = (m or {}).get("custo_hora", 0.0)
+            custo_maquinas += ((op.get("min_maquina") or 0) / 60.0) * maq_cache[mid]
+        moid = op.get("mao_obra_id")
+        if moid:
+            if moid not in mo_cache:
+                mo = await db.mao_obra.find_one({"id": moid}, {"_id": 0})
+                mo_cache[moid] = (mo or {}).get("custo_hora", 0.0)
+            custo_mao_obra += ((op.get("min_mao_obra") or 0) / 60.0) * mo_cache[moid]
+
+    custo_materiais = round2(custo_materiais)
+    custo_maquinas = round2(custo_maquinas)
+    custo_mao_obra = round2(custo_mao_obra)
+    return {
+        "custo_materiais": custo_materiais,
+        "custo_maquinas": custo_maquinas,
+        "custo_mao_obra": custo_mao_obra,
+        "custo_producao_total": round2(custo_materiais + custo_maquinas + custo_mao_obra),
+    }
 
 
-def enrich_artigo(artigo: dict, custo_total: float) -> dict:
-    artigo = {**artigo}
-    artigo["custo_producao_total"] = custo_total
-    return artigo
+async def artigo_custo_total(artigo: dict) -> float:
+    return (await artigo_breakdown(artigo))["custo_producao_total"]
+
+
+def enrich_artigo(artigo: dict, breakdown: dict) -> dict:
+    return {**artigo, **breakdown}
 
 
 def compute_orcamento_totais(orc: dict) -> dict:
@@ -236,13 +285,71 @@ async def delete_maquina(mid: str):
     return {"ok": True}
 
 
+# ----------------------- Routes: Consumiveis (Materiais) -----------------------
+@api_router.get("/consumiveis", response_model=List[Consumivel])
+async def list_consumiveis():
+    return await db.consumiveis.find({}, {"_id": 0}).sort("nome", 1).to_list(1000)
+
+
+@api_router.post("/consumiveis", response_model=Consumivel)
+async def create_consumivel(data: ConsumivelInput):
+    c = Consumivel(**data.model_dump())
+    await db.consumiveis.insert_one(c.model_dump())
+    return c
+
+
+@api_router.put("/consumiveis/{cid}", response_model=Consumivel)
+async def update_consumivel(cid: str, data: ConsumivelInput):
+    existing = await db.consumiveis.find_one({"id": cid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Consumível não encontrado")
+    await db.consumiveis.update_one({"id": cid}, {"$set": data.model_dump()})
+    existing.update(data.model_dump())
+    return existing
+
+
+@api_router.delete("/consumiveis/{cid}")
+async def delete_consumivel(cid: str):
+    await db.consumiveis.delete_one({"id": cid})
+    return {"ok": True}
+
+
+# ----------------------- Routes: Mao de Obra -----------------------
+@api_router.get("/mao-obra", response_model=List[MaoObra])
+async def list_mao_obra():
+    return await db.mao_obra.find({}, {"_id": 0}).sort("nome", 1).to_list(1000)
+
+
+@api_router.post("/mao-obra", response_model=MaoObra)
+async def create_mao_obra(data: MaoObraInput):
+    m = MaoObra(**data.model_dump())
+    await db.mao_obra.insert_one(m.model_dump())
+    return m
+
+
+@api_router.put("/mao-obra/{mid}", response_model=MaoObra)
+async def update_mao_obra(mid: str, data: MaoObraInput):
+    existing = await db.mao_obra.find_one({"id": mid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Mão de obra não encontrada")
+    await db.mao_obra.update_one({"id": mid}, {"$set": data.model_dump()})
+    existing.update(data.model_dump())
+    return existing
+
+
+@api_router.delete("/mao-obra/{mid}")
+async def delete_mao_obra(mid: str):
+    await db.mao_obra.delete_one({"id": mid})
+    return {"ok": True}
+
+
 # ----------------------- Routes: Artigos -----------------------
 @api_router.get("/artigos")
 async def list_artigos():
     artigos = await db.artigos.find({}, {"_id": 0}).sort("nome", 1).to_list(1000)
     result = []
     for a in artigos:
-        result.append(enrich_artigo(a, await artigo_custo_total(a)))
+        result.append(enrich_artigo(a, await artigo_breakdown(a)))
     return result
 
 
@@ -251,7 +358,7 @@ async def get_artigo(aid: str):
     a = await db.artigos.find_one({"id": aid}, {"_id": 0})
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
-    return enrich_artigo(a, await artigo_custo_total(a))
+    return enrich_artigo(a, await artigo_breakdown(a))
 
 
 @api_router.post("/artigos")
@@ -260,7 +367,7 @@ async def create_artigo(data: ArtigoInput):
     doc = a.model_dump()
     await db.artigos.insert_one(doc)
     doc.pop("_id", None)
-    return enrich_artigo(doc, await artigo_custo_total(doc))
+    return enrich_artigo(doc, await artigo_breakdown(doc))
 
 
 @api_router.put("/artigos/{aid}")
@@ -271,7 +378,7 @@ async def update_artigo(aid: str, data: ArtigoInput):
     update = data.model_dump()
     await db.artigos.update_one({"id": aid}, {"$set": update})
     existing.update(update)
-    return enrich_artigo(existing, await artigo_custo_total(existing))
+    return enrich_artigo(existing, await artigo_breakdown(existing))
 
 
 @api_router.delete("/artigos/{aid}")
@@ -401,7 +508,8 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                         OFOperacao(
                             nome=op.get("nome", ""),
                             maquina_nome=op.get("maquina_nome"),
-                            tempo_min=op.get("tempo_min", 0),
+                            mao_obra_nome=op.get("mao_obra_nome"),
+                            tempo_min=(op.get("min_maquina") or 0) + (op.get("min_mao_obra") or 0),
                         ).model_dump()
                     )
         it["operacoes"] = operacoes or []
@@ -554,6 +662,18 @@ async def seed():
     m3 = Maquina(nome="Plotter de Corte", custo_hora=15.0)
     await db.maquinas.insert_many([m1.model_dump(), m2.model_dump(), m3.model_dump()])
 
+    mo1 = MaoObra(nome="Operador de Produção", custo_hora=12.0)
+    mo2 = MaoObra(nome="Designer", custo_hora=18.0)
+    await db.mao_obra.insert_many([mo1.model_dump(), mo2.model_dump()])
+
+    c1 = Consumivel(nome="Filme DTF UV (A4)", unidade="folha", custo_unitario=1.20)
+    c2 = Consumivel(nome="Tinta UV", unidade="ml", custo_unitario=0.08)
+    c3 = Consumivel(nome="Filme DTF Têxtil (A4)", unidade="folha", custo_unitario=0.45)
+    c4 = Consumivel(nome="Pó Hot-Melt", unidade="g", custo_unitario=0.02)
+    await db.consumiveis.insert_many(
+        [c1.model_dump(), c2.model_dump(), c3.model_dump(), c4.model_dump()]
+    )
+
     tipos = [
         TipoPersonalizacao(nome="DTF UV", descricao="Transfer DTF UV para superfícies rígidas"),
         TipoPersonalizacao(nome="DTF Têxtil", descricao="Transfer DTF para tecidos"),
@@ -564,23 +684,25 @@ async def seed():
     a1 = Artigo(
         nome="DTF UV",
         descricao="Etiqueta DTF UV premium",
-        custo_materiais=5.0,
-        custo_mao_obra=3.75,
-        custo_overhead=0.91,
+        materiais=[
+            ArtigoMaterial(material_id=c1.id, material_nome=c1.nome, unidade=c1.unidade, quantidade=1, custo_unitario=c1.custo_unitario),
+            ArtigoMaterial(material_id=c2.id, material_nome=c2.nome, unidade=c2.unidade, quantidade=5, custo_unitario=c2.custo_unitario),
+        ],
         roteiro=[
-            Operacao(nome="Impressão", maquina_id=m1.id, maquina_nome=m1.nome, tempo_min=4),
-            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, tempo_min=2),
+            Operacao(nome="Impressão", maquina_id=m1.id, maquina_nome=m1.nome, min_maquina=4, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=4),
+            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, min_maquina=2, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=2),
         ],
     )
     a2 = Artigo(
         nome="DTF Têxtil",
         descricao="Transfer têxtil para t-shirts",
-        custo_materiais=2.35,
-        custo_mao_obra=2.5,
-        custo_overhead=0.51,
+        materiais=[
+            ArtigoMaterial(material_id=c3.id, material_nome=c3.nome, unidade=c3.unidade, quantidade=1, custo_unitario=c3.custo_unitario),
+            ArtigoMaterial(material_id=c4.id, material_nome=c4.nome, unidade=c4.unidade, quantidade=10, custo_unitario=c4.custo_unitario),
+        ],
         roteiro=[
-            Operacao(nome="Corte", maquina_id=m3.id, maquina_nome=m3.nome, tempo_min=3),
-            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, tempo_min=2),
+            Operacao(nome="Corte", maquina_id=m3.id, maquina_nome=m3.nome, min_maquina=3, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=3),
+            Operacao(nome="Prensagem", maquina_id=m2.id, maquina_nome=m2.nome, min_maquina=2, mao_obra_id=mo1.id, mao_obra_nome=mo1.nome, min_mao_obra=2),
         ],
     )
     await db.artigos.insert_many([a1.model_dump(), a2.model_dump()])
