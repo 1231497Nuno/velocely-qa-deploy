@@ -792,6 +792,17 @@ def recompute_of_status(of: dict) -> dict:
         of["progresso"] = round2(done / len(all_ops) * 100)
     else:
         of["progresso"] = 0
+    # Estado do cronómetro: por_iniciar (cinza), em_curso (verde), em_pausa (amarelo), concluido
+    running = any(op.get("timer_inicio") for op in all_ops)
+    has_progress = any((op.get("tempo_real_seg") or 0) > 0 or op.get("concluida") for op in all_ops)
+    if of.get("status") == "concluido":
+        of["timer_estado"] = "concluido"
+    elif running:
+        of["timer_estado"] = "em_curso"
+    elif has_progress:
+        of["timer_estado"] = "em_pausa"
+    else:
+        of["timer_estado"] = "por_iniciar"
     return of
 
 
