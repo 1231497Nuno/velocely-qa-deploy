@@ -146,7 +146,7 @@ export default function OrcamentoDetail() {
         <ArrowLeft size={16} /> Voltar aos orçamentos
       </button>
 
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{orc.numero}</h1>
@@ -154,7 +154,7 @@ export default function OrcamentoDetail() {
           </div>
           <p className="text-sm text-gray-500 mt-1">Orçamento · {orc.cliente}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <a href={`${API}/orcamentos/${id}/pdf`} target="_blank" rel="noopener noreferrer" data-testid="orcamento-pdf-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <FileDown size={16} /> PDF
           </a>
@@ -187,7 +187,7 @@ export default function OrcamentoDetail() {
       </div>
 
       {/* Meta */}
-      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
           <input data-testid="orc-cliente-input" value={orc.cliente} onChange={(e) => upd({ cliente: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
@@ -214,7 +214,8 @@ export default function OrcamentoDetail() {
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-700"><FileText size={16} /> Linhas do Orçamento</div>
           <button data-testid="add-line-item" onClick={addLinha} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Adicionar linha</button>
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
           <thead>
             <tr className="border-b border-gray-200">
               <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[24%]">Artigo</th>
@@ -311,6 +312,7 @@ export default function OrcamentoDetail() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Totais */}

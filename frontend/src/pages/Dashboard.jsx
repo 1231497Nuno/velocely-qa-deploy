@@ -159,10 +159,10 @@ export default function Dashboard() {
         )}
       </Card>
 
-      <div className="flex gap-3 mt-4">
+      <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4">
         <Link to="/orcamentos" data-testid="goto-orcamentos" className="text-sm font-medium text-gray-900 underline underline-offset-4">Ver orçamentos →</Link>
         <Link to="/ordens-fabrico" data-testid="goto-ofs" className="text-sm font-medium text-gray-900 underline underline-offset-4">Ver ordens de fabrico →</Link>
-        <Link to="/tempos" className="text-sm font-medium text-gray-900 underline underline-offset-4">Ver tempos & custos →</Link>
+        <Link to="/analise-producao" className="text-sm font-medium text-gray-900 underline underline-offset-4">Ver análise da produção →</Link>
       </div>
     </div>
   );

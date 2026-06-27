@@ -113,7 +113,7 @@ export default function OrdemFabricoDetail() {
         <ArrowLeft size={16} /> Voltar às ordens de fabrico
       </button>
 
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{of.numero}</h1>
@@ -121,7 +121,7 @@ export default function OrdemFabricoDetail() {
           </div>
           <p className="text-sm text-gray-500 mt-1">Ordem de Fabrico · {of.cliente}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <a href={`${API}/ordens-fabrico/${id}/pdf`} target="_blank" rel="noopener noreferrer" data-testid="of-pdf-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
             <FileDown size={16} /> PDF
           </a>
@@ -136,7 +136,7 @@ export default function OrdemFabricoDetail() {
         </div>
       </div>
 
-      <div className="mb-4 bg-gray-900 text-white rounded-sm px-6 py-5 flex items-center justify-between gap-4" data-testid="of-total-timer">
+      <div className="mb-4 bg-gray-900 text-white rounded-sm px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="of-total-timer">
         <div className="flex items-center gap-3">
           <span className={`relative flex h-3 w-3 ${algumEmCurso ? "" : "opacity-60"}`}>
             {algumEmCurso && <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 animate-ping" />}
@@ -241,7 +241,7 @@ export default function OrdemFabricoDetail() {
                       {it.operacoes.map((op) => {
                         const running = !!op.timer_inicio;
                         return (
-                          <div key={op.id} data-testid={`op-row-${op.id}`} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm border transition-colors ${op.concluida ? "bg-emerald-50 border-emerald-200" : running ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}`}>
+                          <div key={op.id} data-testid={`op-row-${op.id}`} className={`flex flex-wrap items-center gap-3 px-3 py-2.5 rounded-sm border transition-colors ${op.concluida ? "bg-emerald-50 border-emerald-200" : running ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}`}>
                             <input type="checkbox" data-testid={`op-check-${op.id}`} checked={op.concluida} onChange={(e) => toggleOp(it.id, op.id, e.target.checked)} className="w-4 h-4 accent-emerald-600 shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-medium ${op.concluida ? "text-emerald-700" : "text-gray-900"}`}>{op.nome || "Operação"}</div>

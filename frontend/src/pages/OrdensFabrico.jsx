@@ -114,8 +114,8 @@ export default function OrdensFabrico() {
         <Tab id="concluidas" label="Concluídas" count={concluidas.length} />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="hidden md:block bg-white border border-gray-200 rounded-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[760px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               {tab === "ativas" && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cronómetro</th>}
@@ -150,6 +150,32 @@ export default function OrdensFabrico() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: cartões */}
+      <div className="md:hidden space-y-3" data-testid="ofs-cards">
+        {rows.map((o) => (
+          <div key={o.id} data-testid={`of-card-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className="bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="mono tabular-nums font-semibold text-gray-900">{o.numero}</div>
+                <div className="text-gray-700 truncate">{o.cliente}</div>
+              </div>
+              <StatusBadge status={o.status} />
+            </div>
+            {tab === "ativas" && <div className="mt-3"><TimerDot estado={o.timer_estado} liveSec={o.timer_estado === "em_curso" ? elapsedSec(o, now) : null} /></div>}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+              <div className="text-xs text-gray-500">
+                <div>{fmtDate(o.data)} · {Math.round(o.progresso || 0)}%</div>
+                {o.orcamento_numero && <div className="mono mt-0.5">Origem {o.orcamento_numero}</div>}
+              </div>
+              <button data-testid={`delete-of-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">{tab === "ativas" ? "Sem ordens de fabrico ativas." : "Sem ordens de fabrico concluídas."}</div>
+        )}
       </div>
 
       {tab === "ativas" && (

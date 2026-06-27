@@ -62,8 +62,8 @@ function PorOF() {
         <Tab id="custo" icon={Coins} label="Custos" />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[680px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="px-3 py-3 w-8"></th>
@@ -226,8 +226,8 @@ function Mensal() {
         </ResponsiveContainer>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[680px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Mês</th>

@@ -126,8 +126,8 @@ export default function Artigos() {
         }
       />
 
-      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Artigo</th>
@@ -180,7 +180,7 @@ export default function Artigos() {
             {/* Informação Base */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-3">Informação Base</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
                   <input data-testid="artigo-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
@@ -240,7 +240,7 @@ export default function Artigos() {
                       <input data-testid={`op-nome-${i}`} placeholder="Nome da operação (ex: Impressão)" value={op.nome} onChange={(e) => updOp(i, { nome: e.target.value })} className="flex-1 border border-gray-300 rounded-sm px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                       <button onClick={() => delOp(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><X size={15} /></button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <div className="text-xs text-gray-400 mb-1">Máquina · tempo</div>
                         <div className="grid grid-cols-[1fr_56px_56px] gap-1.5">
@@ -281,7 +281,7 @@ export default function Artigos() {
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
                 <Calculator size={14} /> Custo Total Calculado
               </div>
-              <div className="grid grid-cols-4 gap-4 mb-4 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4 text-sm">
                 <div>
                   <div className="text-gray-400 text-xs">Valor do artigo</div>
                   <div className="tabular-nums font-medium" data-testid="calc-artigo">{eur(Number(form.custo_artigo) || 0)}</div>
