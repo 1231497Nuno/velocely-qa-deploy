@@ -82,7 +82,7 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
 
 # Módulos e ações para RBAC
 RBAC_MODULES = [
-    "dashboard", "artigos", "materiais", "maquinas", "mao_obra",
+    "dashboard", "clientes", "encomendas", "artigos", "materiais", "maquinas", "mao_obra",
     "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "utilizadores",
 ]
 RBAC_ACTIONS = ["view", "create", "edit", "delete"]
@@ -98,6 +98,9 @@ def perms_colaborador() -> dict:
         if m != "utilizadores":
             p[m]["view"] = True
     for m in ("orcamentos", "ordens_fabrico"):
+        p[m]["create"] = True
+        p[m]["edit"] = True
+    for m in ("clientes", "encomendas"):
         p[m]["create"] = True
         p[m]["edit"] = True
     return p
@@ -339,8 +342,23 @@ class MaterialLinha(BaseModel):
     valor: float = 0.0
 
 
+class ClienteInput(BaseModel):
+    nome: str
+    morada: str = ""
+    contacto: str = ""
+    email: str = ""
+    nif: str = ""
+    notas: str = ""
+
+
+class Cliente(ClienteInput):
+    id: str = Field(default_factory=new_id)
+    created_at: str = Field(default_factory=now_iso)
+
+
 class OrcamentoInput(BaseModel):
     cliente: str
+    cliente_id: Optional[str] = None
     descricao: str = ""
     numero_encomenda: str = ""
     data: Optional[str] = None
@@ -387,6 +405,8 @@ class OFItem(BaseModel):
 
 class OrdemFabricoInput(BaseModel):
     cliente: str
+    cliente_id: Optional[str] = None
+    encomenda_id: Optional[str] = None
     descricao: str = ""
     numero_encomenda: str = ""
     data: Optional[str] = None
@@ -396,6 +416,24 @@ class OrdemFabricoInput(BaseModel):
 
 
 class OrdemFabrico(OrdemFabricoInput):
+    id: str = Field(default_factory=new_id)
+    numero: str = ""
+    orcamento_id: Optional[str] = None
+    orcamento_numero: Optional[str] = None
+    encomenda_numero: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
+class EncomendaInput(BaseModel):
+    cliente: str
+    cliente_id: Optional[str] = None
+    descricao: str = ""
+    data: Optional[str] = None
+    estado: str = "aberta"
+    notas: str = ""
+
+
+class Encomenda(EncomendaInput):
     id: str = Field(default_factory=new_id)
     numero: str = ""
     orcamento_id: Optional[str] = None
@@ -1151,6 +1189,10 @@ async def of_pdf(ofid: str):
 async def create_of(data: OrdemFabricoInput):
     of = OrdemFabrico(**data.model_dump())
     of.numero = await next_sequence("OF")
+    if of.encomenda_id:
+        enc = await db.encomendas.find_one({"id": of.encomenda_id}, {"_id": 0})
+        if enc:
+            of.encomenda_numero = enc.get("numero")
     if not of.data:
         of.data = now_iso()[:10]
     doc = of.model_dump()
@@ -1308,6 +1350,7 @@ async def converter_orcamento(oid: str):
         )
     of = OrdemFabrico(
         cliente=orc.get("cliente", ""),
+        cliente_id=orc.get("cliente_id"),
         descricao=orc.get("descricao", ""),
         numero_encomenda=orc.get("numero_encomenda", ""),
         data=now_iso()[:10],
@@ -1317,6 +1360,21 @@ async def converter_orcamento(oid: str):
     of.numero = await next_sequence("OF")
     of.orcamento_id = orc["id"]
     of.orcamento_numero = orc.get("numero")
+    # criar encomenda associada
+    enc = Encomenda(
+        cliente=orc.get("cliente", ""),
+        cliente_id=orc.get("cliente_id"),
+        descricao=orc.get("descricao", ""),
+        data=now_iso()[:10],
+        estado="aberta",
+        notas=f"Gerada a partir do orçamento {orc.get('numero')}",
+    )
+    enc.numero = await next_sequence("ENC")
+    enc.orcamento_id = orc["id"]
+    enc.orcamento_numero = orc.get("numero")
+    await db.encomendas.insert_one(enc.model_dump())
+    of.encomenda_id = enc.id
+    of.encomenda_numero = enc.numero
     doc = of.model_dump()
     doc["itens"] = await build_of_itens(itens)
     doc = recompute_of_status(doc)
@@ -1325,6 +1383,103 @@ async def converter_orcamento(oid: str):
         {"id": oid}, {"$set": {"of_id": of.id, "of_numero": of.numero}}
     )
     return doc
+
+
+# ----------------------- Clientes -----------------------
+@api_router.get("/clientes")
+async def list_clientes():
+    return await db.clientes.find({}, {"_id": 0}).sort("nome", 1).to_list(5000)
+
+
+@api_router.post("/clientes")
+async def create_cliente(data: ClienteInput):
+    c = Cliente(**data.model_dump())
+    await db.clientes.insert_one(c.model_dump())
+    return c.model_dump()
+
+
+@api_router.put("/clientes/{cid}")
+async def update_cliente(cid: str, data: ClienteInput):
+    existing = await db.clientes.find_one({"id": cid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Cliente não encontrado")
+    await db.clientes.update_one({"id": cid}, {"$set": data.model_dump()})
+    return {**existing, **data.model_dump()}
+
+
+@api_router.delete("/clientes/{cid}")
+async def delete_cliente(cid: str):
+    await db.clientes.delete_one({"id": cid})
+    return {"ok": True}
+
+
+# ----------------------- Encomendas -----------------------
+@api_router.get("/encomendas")
+async def list_encomendas():
+    encs = await db.encomendas.find({}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    for e in encs:
+        e["num_ofs"] = await db.ordens_fabrico.count_documents({"encomenda_id": e["id"]})
+    return encs
+
+
+@api_router.get("/encomendas/{eid}")
+async def get_encomenda(eid: str):
+    e = await db.encomendas.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Encomenda não encontrada")
+    ofs = await db.ordens_fabrico.find({"encomenda_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
+    return e
+
+
+@api_router.post("/encomendas")
+async def create_encomenda(data: EncomendaInput):
+    enc = Encomenda(**data.model_dump())
+    enc.numero = await next_sequence("ENC")
+    if not enc.data:
+        enc.data = now_iso()[:10]
+    await db.encomendas.insert_one(enc.model_dump())
+    return enc.model_dump()
+
+
+@api_router.put("/encomendas/{eid}")
+async def update_encomenda(eid: str, data: EncomendaInput):
+    existing = await db.encomendas.find_one({"id": eid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Encomenda não encontrada")
+    await db.encomendas.update_one({"id": eid}, {"$set": data.model_dump()})
+    return {**existing, **data.model_dump()}
+
+
+@api_router.delete("/encomendas/{eid}")
+async def delete_encomenda(eid: str):
+    await db.ordens_fabrico.update_many(
+        {"encomenda_id": eid}, {"$set": {"encomenda_id": None, "encomenda_numero": None}}
+    )
+    await db.encomendas.delete_one({"id": eid})
+    return {"ok": True}
+
+
+@api_router.post("/encomendas/{eid}/ordens-fabrico")
+async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput):
+    enc = await db.encomendas.find_one({"id": eid}, {"_id": 0})
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    payload = data.model_dump()
+    payload["encomenda_id"] = eid
+    payload["cliente"] = enc.get("cliente") or payload.get("cliente") or ""
+    payload["cliente_id"] = enc.get("cliente_id")
+    of = OrdemFabrico(**payload)
+    of.numero = await next_sequence("OF")
+    of.encomenda_numero = enc.get("numero")
+    if not of.data:
+        of.data = now_iso()[:10]
+    doc = of.model_dump()
+    doc["itens"] = await build_of_itens(doc.get("itens", []))
+    doc = recompute_of_status(doc)
+    await db.ordens_fabrico.insert_one({k: v for k, v in doc.items() if k != "progresso"})
+    return doc
+
 
 
 # ----------------------- Dashboard -----------------------
@@ -1669,7 +1824,8 @@ async def list_perfis(admin: dict = Depends(require_admin)):
 @api_router.get("/rbac/modulos")
 async def rbac_modulos(admin: dict = Depends(require_admin)):
     labels = {
-        "dashboard": "Dashboard", "artigos": "Artigos", "materiais": "Materiais",
+        "dashboard": "Dashboard", "clientes": "Clientes", "encomendas": "Encomendas",
+        "artigos": "Artigos", "materiais": "Materiais",
         "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
         "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",
         "analise_producao": "Análise da Produção", "utilizadores": "Gestão de Utilizadores",
@@ -1752,6 +1908,25 @@ async def seed_perfis():
             "id": new_id(), "nome": "Colaborador", "sistema": True, "admin": False,
             "permissoes": perms_colaborador(), "created_at": now_iso(),
         })
+    # migrar perfis existentes: garantir que todos os módulos existem nas permissões
+    async for p in db.perfis.find({}):
+        perms = p.get("permissoes") or {}
+        changed = False
+        col_defaults = perms_colaborador()
+        for m in RBAC_MODULES:
+            if m not in perms:
+                if p.get("nome") == "Colaborador" and p.get("sistema"):
+                    perms[m] = col_defaults[m]
+                else:
+                    perms[m] = {a: bool(p.get("admin")) for a in RBAC_ACTIONS}
+                changed = True
+            else:
+                for a in RBAC_ACTIONS:
+                    if a not in perms[m]:
+                        perms[m][a] = bool(p.get("admin"))
+                        changed = True
+        if changed:
+            await db.perfis.update_one({"id": p["id"]}, {"$set": {"permissoes": perms}})
 
 
 async def seed_admin():

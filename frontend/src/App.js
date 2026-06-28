@@ -16,6 +16,9 @@ import OrdensFabrico from "@/pages/OrdensFabrico";
 import OrdemFabricoDetail from "@/pages/OrdemFabricoDetail";
 import AnaliseProducao from "@/pages/AnaliseProducao";
 import GestaoUtilizadores from "@/pages/GestaoUtilizadores";
+import Clientes from "@/pages/Clientes";
+import Encomendas from "@/pages/Encomendas";
+import EncomendaDetail from "@/pages/EncomendaDetail";
 
 function Protected({ children, adminOnly, modulo }) {
   const { user, ready, isAdmin, can } = useAuth();
@@ -31,6 +34,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/clientes" element={<Protected modulo="clientes"><Clientes /></Protected>} />
+      <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
+      <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
       <Route path="/maquinas" element={<Protected modulo="maquinas"><Maquinas /></Protected>} />
       <Route path="/materiais" element={<Protected modulo="materiais"><Materiais /></Protected>} />

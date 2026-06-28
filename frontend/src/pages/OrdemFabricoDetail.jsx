@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
+import ClienteSelector from "../components/ClienteSelector";
 import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
@@ -47,6 +48,8 @@ export default function OrdemFabricoDetail() {
   const save = async () => {
     const body = {
       cliente: of.cliente,
+      cliente_id: of.cliente_id || null,
+      encomenda_id: of.encomenda_id || null,
       descricao: of.descricao || "",
       numero_encomenda: of.numero_encomenda || "",
       data: of.data,
@@ -121,7 +124,9 @@ export default function OrdemFabricoDetail() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{of.numero}</h1>
             <StatusBadge status={of.status} testid="of-status-badge" />
           </div>
-          <p className="text-sm text-gray-500 mt-1">Ordem de Fabrico · {of.cliente}</p>
+          <p className="text-sm text-gray-500 mt-1">Ordem de Fabrico · {of.cliente}{of.encomenda_numero ? (
+            <> · <Link to={`/encomendas/${of.encomenda_id}`} data-testid="of-encomenda-link" className="font-medium text-gray-900 underline underline-offset-4 mono">{of.encomenda_numero}</Link></>
+          ) : ""}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <a href={`${API}/ordens-fabrico/${id}/pdf`} target="_blank" rel="noopener noreferrer" data-testid="of-pdf-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
@@ -170,7 +175,7 @@ export default function OrdemFabricoDetail() {
           <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-4">
             <div>
               <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
-              <input data-testid="of-cliente-input" value={of.cliente} onChange={(e) => upd({ cliente: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              <ClienteSelector value={of.cliente_id} onChange={(id, nome) => upd({ cliente_id: id, cliente: nome })} testid="of-cliente-select" />
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Descrição</label>

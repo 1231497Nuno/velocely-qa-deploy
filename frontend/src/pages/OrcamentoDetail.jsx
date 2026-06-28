@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, Fragment } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import ClienteSelector from "../components/ClienteSelector";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
 import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight } from "lucide-react";
@@ -139,6 +140,7 @@ export default function OrcamentoDetail() {
   const save = async () => {
     const body = {
       cliente: orc.cliente,
+      cliente_id: orc.cliente_id || null,
       descricao: orc.descricao || "",
       numero_encomenda: orc.numero_encomenda || "",
       data: orc.data,
@@ -227,7 +229,7 @@ export default function OrcamentoDetail() {
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
-          <input data-testid="orc-cliente-input" value={orc.cliente} onChange={(e) => upd({ cliente: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+          <ClienteSelector value={orc.cliente_id} onChange={(id, nome) => upd({ cliente_id: id, cliente: nome })} testid="orc-cliente-select" />
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>
