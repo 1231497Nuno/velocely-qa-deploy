@@ -137,7 +137,7 @@ function PorOF() {
                           </thead>
                           <tbody>
                             {r.operacoes.map((op, i) => (
-                              <tr key={i} className="border-b border-gray-100 last:border-0">
+                              <tr key={`${op.artigo || ""}-${op.nome || ""}-${i}`} className="border-b border-gray-100 last:border-0">
                                 <td className="px-3 py-2 text-gray-900">{op.nome || "—"} {op.artigo && <span className="text-gray-400">· {op.artigo}</span>}</td>
                                 <td className="px-3 py-2 text-gray-600">{op.maquina_nome || "—"} <span className="text-gray-400 tabular-nums">({min(op.tempo_maquina)})</span></td>
                                 <td className="px-3 py-2 text-gray-600">{op.mao_obra_nome || "—"} <span className="text-gray-400 tabular-nums">({min(op.tempo_mao_obra)})</span></td>

@@ -286,7 +286,7 @@ export default function OrcamentoDetail() {
                 <td className="px-4 py-2.5 align-top">
                   <div className="space-y-1.5" data-testid={`line-pers-list-${i}`}>
                     {(l.personalizacoes || []).map((p, pi) => (
-                      <div key={pi} data-testid={`line-pers-${i}-${pi}`} className="flex items-center gap-1.5 bg-gray-100 rounded-sm pl-2 pr-1 py-1">
+                      <div key={`${p.id || p.nome}-${pi}`} data-testid={`line-pers-${i}-${pi}`} className="flex items-center gap-1.5 bg-gray-100 rounded-sm pl-2 pr-1 py-1">
                         <span className="flex-1 text-xs text-gray-700 truncate" title={p.nome}>{p.nome}</span>
                         <div className="flex items-center gap-0.5 shrink-0">
                           <input data-testid={`line-pers-valor-${i}-${pi}`} type="number" step="0.01" value={p.valor ?? 0} onChange={(e) => updPers(i, pi, { valor: e.target.value })} className="w-16 text-right border border-gray-300 rounded-sm px-1 py-0.5 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20" />

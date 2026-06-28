@@ -224,7 +224,7 @@ export default function OrdemFabricoDetail() {
             </div>
             <div className="space-y-3">
               {of.itens.map((it, i) => (
-                <div key={i} className="border border-gray-200 rounded-sm p-3 space-y-2">
+                <div key={it.id || i} className="border border-gray-200 rounded-sm p-3 space-y-2">
                   <ArtigoCombobox artigos={artigos} value={it.artigo_id} testid={`of-item-artigo-${i}`} onChange={(a) => updItem(i, { artigo_id: a.id, artigo_nome: a.nome, operacoes: [] })} />
                   <div className="grid grid-cols-[1fr_70px_28px] gap-2 items-center">
                     <select data-testid={`of-item-tipo-${i}`} value={it.tipo_personalizacao_id || ""} onChange={(e) => { const t = tipos.find((x) => x.id === e.target.value); updItem(i, { tipo_personalizacao_id: e.target.value, tipo_personalizacao_nome: t ? t.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
@@ -250,13 +250,13 @@ export default function OrdemFabricoDetail() {
             <div className="space-y-6" data-testid="of-roteiro">
               {of.itens.map((it, idx) => (
                 (it.operacoes || []).length > 0 && (
-                  <div key={idx}>
+                  <div key={it.id || idx}>
                     <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
                       <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade}</span></div>
                       {(it.personalizacoes && it.personalizacoes.length > 0) ? (
                         <div className="flex flex-wrap gap-1 justify-end" data-testid={`of-item-pers-${idx}`}>
                           {it.personalizacoes.map((p, pi) => (
-                            <span key={pi} className="text-xs text-gray-600 border border-gray-200 rounded-full px-2 py-0.5">{p.nome}</span>
+                            <span key={p.id || `${p.nome}-${pi}`} className="text-xs text-gray-600 border border-gray-200 rounded-full px-2 py-0.5">{p.nome}</span>
                           ))}
                         </div>
                       ) : (it.tipo_personalizacao_nome && <span className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5">{it.tipo_personalizacao_nome}</span>)}

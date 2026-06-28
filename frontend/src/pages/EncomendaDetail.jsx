@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtDate, eur } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -32,6 +32,11 @@ export default function EncomendaDetail() {
     }
   }, [id]);
   useEffect(() => { load(); }, [load]);
+
+  const moradaCompleta = useMemo(
+    () => [cliente?.morada, cliente?.codigo_postal, cliente?.cidade, cliente?.pais].filter(Boolean).join(", "),
+    [cliente]
+  );
 
   if (!enc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
@@ -149,7 +154,7 @@ export default function EncomendaDetail() {
             <div className="font-medium text-gray-900">{enc.cliente}</div>
             {cliente?.contacto && <div className="text-gray-600 flex items-center gap-2"><Phone size={13} /> {cliente.contacto}</div>}
             {cliente?.email && <div className="text-gray-600 flex items-center gap-2"><Mail size={13} /> {cliente.email}</div>}
-            {(cliente?.morada || cliente?.cidade) && <div className="text-gray-600 flex items-start gap-2"><MapPin size={13} className="mt-0.5" /> <span>{[cliente.morada, cliente.codigo_postal, cliente.cidade, cliente.pais].filter(Boolean).join(", ")}</span></div>}
+            {(cliente?.morada || cliente?.cidade) && <div className="text-gray-600 flex items-start gap-2"><MapPin size={13} className="mt-0.5" /> <span>{moradaCompleta}</span></div>}
             {cliente?.nif && <div className="text-gray-600 flex items-center gap-2"><Hash size={13} /> {cliente.nif}</div>}
             <div className="text-gray-500 text-xs pt-2 border-t border-gray-100">Data: {fmtDate(enc.data)}</div>
             {enc.descricao && <div className="text-gray-600 text-sm">{enc.descricao}</div>}
