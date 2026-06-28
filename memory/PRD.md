@@ -63,7 +63,16 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
-## Iteração (2026-06-28) — Tempo de máquina (totalizado) vs mão de obra (real cronometrada)
+## Iteração (2026-06-28) — PDFs por módulo com modelos reutilizáveis + branding da empresa
+- **Definições (admin)** — nova página `/definicoes` (`Definicoes.jsx`) com 2 tabs:
+  - **Empresa**: nome, logótipo (upload base64, máx. 600KB), morada, CP, cidade, país, NIF, telefone, email, website, rodapé. Guardado em `empresa_settings` (singleton) via `GET/PUT /api/settings/empresa` (PUT só admin). Aparece no cabeçalho de todos os PDFs.
+  - **Modelos PDF**: CRUD de modelos reutilizáveis por módulo (orçamento/of/encomenda). Cada modelo define `finalidade` (cliente/interno/ambos), `mostrar_branding` e que secções incluir (checkboxes). Endpoints `GET /api/pdf-secoes`, `GET/POST/PUT/DELETE /api/pdf-templates` (escrita só admin).
+- **Geração de PDF parametrizada**: `build_orcamento_pdf`, `build_of_pdf` e o novo `build_encomenda_pdf` recebem `(data, settings, fields, show_branding)` e respeitam `section_on()` para incluir/omitir secções. `_header` desenha branding+logótipo (`_logo_flowable`) e `_pdf_footer` o rodapé. Endpoints `/pdf` aceitam `?template_id=`.
+- **PDF de Encomenda novo** (`/api/encomendas/{id}/pdf`): cliente, artigos, valor total, pagamento (pago/pendente/estado), OFs associadas+estado, notas — secções configuráveis por modelo.
+- **PdfExportButton** (`components/PdfExportButton.jsx`): popover em Orçamento/OF/Encomenda com "Completo (todos os campos)" + lista de modelos do módulo; abre o PDF em nova aba.
+- Tested: iteration_11.json — backend 15/15 PASS (settings, secções, CRUD modelos, permissões 403 a colaborador, geração %PDF com/sem template em 3 módulos); UI Playwright OK (Definições, persistência, popovers nos 3 detalhes). Existem 3 modelos exemplo (1/módulo). Contas reais intactas.
+
+
 - **Regra de tempos/custos**: o cronómetro de cada operação regista **apenas o tempo real de mão de obra** do colaborador; o **tempo de máquina é totalizado pela estimativa** (não cronometrado). **Custo real = custo de máquina (estimado) + custo de mão de obra (tempo real × custo/hora)**.
 - `OFOperacao` ganhou `custo_maquina_estimado`, `custo_mao_obra_estimado`, `mao_obra_custo_hora` (gravados em build_of_itens e na conversão). Helpers `op_machine_cost_est`, `op_labor_rate`, `op_custo_real` com fallback para OFs antigas.
 - Atualizados `producao/tempos` (tempo_maquina_total, tempo_mao_obra_real_min, tempo_real_min = máq.totalizada + m.obra real; custo_real via op_custo_real), `producao/analise`, `compute_encomenda` (custo_producao_real) e `dashboard` (tempo_por_of real = máq + m.obra real).
