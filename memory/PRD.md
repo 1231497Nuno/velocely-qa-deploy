@@ -63,7 +63,14 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
-## Iteração (2026-06-28) — Múltiplas personalizações nas OFs + PDFs com campos do cliente e dados cruzados
+## Iteração (2026-06-28) — Prazo de entrega, prioridade de OFs e filtro de encomendas
+- **Encomendas concluídas saem dos pendentes**: filtro "Pendentes | Concluídas | Todas" em `Encomendas.jsx` (default Pendentes). Concluída/cancelada não aparecem em Pendentes.
+- **Prazo de entrega** (`EncomendaInput.prazo_entrega`): campo na criação e no detalhe (auto-guardado), coluna na lista (a vermelho se vencido e não concluído).
+- **OFs ordenadas pelo prazo da encomenda**: `list_ofs` junta a encomenda e ordena por `(prioritaria, prazo_entrega asc, created_at)`; cada OF mostra a coluna "Prazo entrega" herdada.
+- **OFs prioritárias**: `OrdemFabricoInput.prioritaria` + endpoint `POST /api/ordens-fabrico/{id}/prioridade`. Estrela na lista (salta para o topo), badge + botão "Prioridade" no detalhe; preservada no PUT.
+- Tested: iteration_14.json — backend 6/6 PASS, frontend sem issues.
+
+
 - **OFs — várias personalizações por artigo**: editor de itens passou a permitir adicionar/remover várias personalizações (chips + select "+ Adicionar personalização"), como nos Orçamentos. O modelo `OFItem.personalizacoes` já existia; UI em `OrdemFabricoDetail.jsx` (`addItemPers`/`delItemPers`). Persiste em POST/PUT; o roteiro mostra todas.
 - **PDFs — seleção campo-a-campo + dados cruzados**:
   - `PDF_SECOES`: a secção `dados_cliente` ganhou subcampos selecionáveis (`cliente_nome/nif/morada/codigo_postal/cidade/pais/telefone/email`); OF e Encomenda ganharam a secção `orcamento_origem`.
