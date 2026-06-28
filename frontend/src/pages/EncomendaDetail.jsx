@@ -42,42 +42,44 @@ export default function EncomendaDetail() {
   }, 0);
   const valorMostrado = enc.valor_total_manual ? (Number(enc.valor_total) || 0) : (enc.orcamento_id ? enc.valor_total : artigosTotal);
 
-  const buildBody = (over = {}) => ({
-    cliente: enc.cliente,
-    cliente_id: enc.cliente_id || null,
-    descricao: enc.descricao || "",
-    data: enc.data,
-    estado: enc.estado,
-    notas: enc.notas || "",
-    artigos: (enc.artigos || []).map((a) => ({
+  const bodyFrom = (e) => ({
+    cliente: e.cliente,
+    cliente_id: e.cliente_id || null,
+    descricao: e.descricao || "",
+    data: e.data,
+    estado: e.estado,
+    notas: e.notas || "",
+    artigos: (e.artigos || []).map((a) => ({
       ...a,
       quantidade: Number(a.quantidade) || 1,
       preco_unit: Number(a.preco_unit) || 0,
     })),
-    valor_total: enc.valor_total_manual ? Number(enc.valor_total) || 0 : null,
-    valor_total_manual: !!enc.valor_total_manual,
-    valor_pago: Number(enc.valor_pago) || 0,
-    autorizada_producao: !!enc.autorizada_producao,
-    ...over,
+    valor_total: e.valor_total_manual ? Number(e.valor_total) || 0 : null,
+    valor_total_manual: !!e.valor_total_manual,
+    valor_pago: Number(e.valor_pago) || 0,
+    autorizada_producao: !!e.autorizada_producao,
   });
 
-  const save = async (over) => {
-    const updated = await api.put(`/encomendas/${id}`, buildBody(over));
+  const persist = async (patch = {}, msg) => {
+    const next = { ...enc, ...patch };
+    setEnc(next);
+    const updated = await api.put(`/encomendas/${id}`, bodyFrom(next));
     setEnc(updated);
-    toast.success("Encomenda guardada");
+    if (msg) toast.success(msg);
   };
+  const save = () => persist({}, "Encomenda guardada");
 
   const addArtigo = (artigoId) => {
     const a = artigos.find((x) => x.id === artigoId);
     if (!a) return;
-    upd({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, quantidade: 1, preco_unit: Number(a.preco_venda) || 0, personalizacoes: [] }] });
+    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, quantidade: 1, preco_unit: Number(a.preco_venda) || 0, personalizacoes: [] }] }, "Artigo adicionado");
   };
   const updArtigo = (i, patch) => {
     const list = [...enc.artigos];
     list[i] = { ...list[i], ...patch };
     upd({ artigos: list });
   };
-  const delArtigo = (i) => upd({ artigos: enc.artigos.filter((_, idx) => idx !== i) });
+  const delArtigo = (i) => persist({ artigos: enc.artigos.filter((_, idx) => idx !== i) }, "Artigo removido");
 
   const criarOF = async () => {
     const itens = (enc.artigos || []).filter((a) => a.artigo_id).map((a) => ({
@@ -162,7 +164,7 @@ export default function EncomendaDetail() {
               <button data-testid="enc-valor-toggle" onClick={() => { const m = !enc.valor_total_manual; upd({ valor_total_manual: m, valor_total: m ? (enc.valor_total || valorMostrado) : enc.valor_total }); setEditValor(m); }} className="text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"><Pencil size={11} /> {enc.valor_total_manual ? "Auto" : "Manual"}</button>
             </div>
             {enc.valor_total_manual ? (
-              <input data-testid="enc-valor-input" type="number" step="0.01" value={enc.valor_total ?? 0} onChange={(e) => upd({ valor_total: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              <input data-testid="enc-valor-input" type="number" step="0.01" value={enc.valor_total ?? 0} onChange={(e) => upd({ valor_total: e.target.value })} onBlur={() => persist({}, "Valor atualizado")} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
             ) : (
               <div className="text-lg font-semibold tabular-nums">{eur(enc.valor_total)}<span className="text-xs text-gray-400 font-normal ml-2">(auto · artigos/operações/personalizações)</span></div>
             )}
@@ -171,8 +173,8 @@ export default function EncomendaDetail() {
           <div>
             <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Valor pago</label>
             <div className="flex items-center gap-2">
-              <input data-testid="enc-pago-input" type="number" step="0.01" value={enc.valor_pago ?? 0} onChange={(e) => upd({ valor_pago: e.target.value })} className="flex-1 border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              <button data-testid="enc-marcar-pago-btn" onClick={() => save({ valor_pago: enc.valor_total })} className="shrink-0 text-xs border border-gray-300 rounded-sm px-2.5 py-2 hover:bg-gray-50 text-gray-700">Pago total</button>
+              <input data-testid="enc-pago-input" type="number" step="0.01" value={enc.valor_pago ?? 0} onChange={(e) => upd({ valor_pago: e.target.value })} onBlur={() => persist({}, "Pagamento atualizado")} className="flex-1 border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              <button data-testid="enc-marcar-pago-btn" onClick={() => persist({ valor_pago: enc.valor_total }, "Marcado como pago total")} className="shrink-0 text-xs border border-gray-300 rounded-sm px-2.5 py-2 hover:bg-gray-50 text-gray-700">Pago total</button>
             </div>
           </div>
 
@@ -185,7 +187,7 @@ export default function EncomendaDetail() {
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input data-testid="enc-autorizar-check" type="checkbox" checked={!!enc.autorizada_producao} onChange={(e) => save({ autorizada_producao: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
+            <input data-testid="enc-autorizar-check" type="checkbox" checked={!!enc.autorizada_producao} onChange={(e) => persist({ autorizada_producao: e.target.checked }, e.target.checked ? "Produção autorizada" : "Autorização removida")} className="w-4 h-4 accent-emerald-600" />
             Autorizar produção manualmente (override pagamento)
           </label>
         </div>
@@ -245,10 +247,10 @@ export default function EncomendaDetail() {
                       <td className="px-4 py-2.5 font-medium text-gray-900">{a.artigo_nome}</td>
                       <td className="px-4 py-2.5 text-gray-600 text-xs">{(a.personalizacoes || []).map((p) => p.nome).join(", ") || "—"}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                        <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                        <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} onBlur={() => persist({})} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(sub)}</td>
                       <td className="px-4 py-2.5"><button data-testid={`enc-artigo-del-${i}`} onClick={() => delArtigo(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button></td>
@@ -259,7 +261,7 @@ export default function EncomendaDetail() {
             </table>
           </div>
         )}
-        <p className="text-xs text-gray-400 mt-3">As alterações aos artigos só são contabilizadas após Guardar. Encomendas com origem em orçamento usam o valor do orçamento.</p>
+        <p className="text-xs text-gray-400 mt-3">As alterações aos artigos são guardadas automaticamente e o valor é recalculado. Encomendas com origem em orçamento usam o valor do orçamento.</p>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
 import {
-  Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, ClipboardList,
+  Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, ClipboardList, Clock, Gauge,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
@@ -58,6 +58,11 @@ export default function Dashboard() {
   const ofData = d.ofs_por_estado || [];
   const mensal = (d.valor_mensal || []).map((m) => ({ ...m, label: m.mes.slice(5) + "/" + m.mes.slice(2, 4) }));
   const top = d.top_artigos || [];
+  const tempo = d.tempo_por_of || [];
+  const tEst = Math.round(tempo.reduce((s, t) => s + (t.estimado || 0), 0));
+  const tReal = Math.round(tempo.reduce((s, t) => s + (t.real || 0), 0));
+  const desvioTempo = tReal - tEst;
+  const desvioCusto = Math.round(((d.custo_real_encomendas || 0) - (d.custo_estimado_encomendas || 0)) * 100) / 100;
 
   return (
     <div>
@@ -155,6 +160,54 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           )}
+        </Card>
+      </div>
+
+      {/* Tempos & Custos de produção */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <Card title="Tempo de Produção · estimado vs real (min)" icon={Clock} className="lg:col-span-2">
+          {tempo.length === 0 ? <Empty msg="Sem dados de produção ainda." /> : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={tempo} margin={{ left: -10, right: 8, top: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                <XAxis dataKey="numero" tick={{ fontSize: 10, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} width={40} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [`${v} min`, n === "estimado" ? "Estimado" : "Real"]} cursor={{ fill: "#F9FAFB" }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => (v === "estimado" ? "Estimado" : "Real")} />
+                <Bar dataKey="estimado" fill="#9CA3AF" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="real" fill={INK} radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        <Card title="Tempos & Custos (totais)" icon={Gauge}>
+          <div className="space-y-3" data-testid="dash-tempo-custo-totais">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Tempo estimado</span>
+              <span className="tabular-nums font-medium" data-testid="dash-tempo-est">{tEst} min</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Tempo real</span>
+              <span className="tabular-nums font-medium" data-testid="dash-tempo-real">{tReal} min</span>
+            </div>
+            <div className="flex items-center justify-between text-sm border-b border-gray-100 pb-3">
+              <span className="text-gray-500">Desvio de tempo</span>
+              <span className={`tabular-nums font-semibold ${desvioTempo > 0 ? "text-red-600" : "text-emerald-600"}`}>{desvioTempo > 0 ? "+" : ""}{desvioTempo} min</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Custo estimado</span>
+              <span className="tabular-nums font-medium">{eur(d.custo_estimado_encomendas)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Custo real</span>
+              <span className="tabular-nums font-medium">{eur(d.custo_real_encomendas)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Desvio de custo</span>
+              <span className={`tabular-nums font-semibold ${desvioCusto > 0 ? "text-red-600" : "text-emerald-600"}`}>{desvioCusto > 0 ? "+" : ""}{eur(desvioCusto)}</span>
+            </div>
+          </div>
         </Card>
       </div>
 
