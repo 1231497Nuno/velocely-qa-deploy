@@ -345,6 +345,9 @@ class MaterialLinha(BaseModel):
 class ClienteInput(BaseModel):
     nome: str
     morada: str = ""
+    codigo_postal: str = ""
+    cidade: str = ""
+    pais: str = "Portugal"
     contacto: str = ""
     email: str = ""
     nif: str = ""
@@ -424,6 +427,15 @@ class OrdemFabrico(OrdemFabricoInput):
     created_at: str = Field(default_factory=now_iso)
 
 
+class EncomendaArtigo(BaseModel):
+    id: str = Field(default_factory=new_id)
+    artigo_id: Optional[str] = None
+    artigo_nome: str = ""
+    quantidade: float = 1
+    preco_unit: float = 0.0
+    personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
+
+
 class EncomendaInput(BaseModel):
     cliente: str
     cliente_id: Optional[str] = None
@@ -431,6 +443,11 @@ class EncomendaInput(BaseModel):
     data: Optional[str] = None
     estado: str = "aberta"
     notas: str = ""
+    artigos: List[EncomendaArtigo] = Field(default_factory=list)
+    valor_total: Optional[float] = None
+    valor_total_manual: bool = False
+    valor_pago: float = 0.0
+    autorizada_producao: bool = False
 
 
 class Encomenda(EncomendaInput):
@@ -1248,6 +1265,15 @@ async def iniciar_operacao(ofid: str, body: TimerBody):
     of = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
     if not of:
         raise HTTPException(404, "OF não encontrada")
+    if of.get("encomenda_id"):
+        enc = await db.encomendas.find_one({"id": of["encomenda_id"]}, {"_id": 0})
+        if enc:
+            enc_c = await compute_encomenda(enc)
+            if not enc_c["pode_produzir"]:
+                raise HTTPException(
+                    403,
+                    "Produção não autorizada: pagamento pendente. Registe o pagamento total ou autorize a produção manualmente na encomenda.",
+                )
     op = _find_op(of, body.item_id, body.operacao_id)
     if not op:
         raise HTTPException(404, "Operação não encontrada")
@@ -1361,6 +1387,18 @@ async def converter_orcamento(oid: str):
     of.orcamento_id = orc["id"]
     of.orcamento_numero = orc.get("numero")
     # criar encomenda associada
+    orc_t = compute_orcamento_totais(orc)
+    enc_artigos = [
+        {
+            "id": new_id(),
+            "artigo_id": l.get("artigo_id"),
+            "artigo_nome": l.get("artigo_nome", ""),
+            "quantidade": l.get("quantidade", 1),
+            "preco_unit": l.get("preco_unit") or 0,
+            "personalizacoes": l.get("personalizacoes") or [],
+        }
+        for l in orc.get("linhas", [])
+    ]
     enc = Encomenda(
         cliente=orc.get("cliente", ""),
         cliente_id=orc.get("cliente_id"),
@@ -1368,6 +1406,8 @@ async def converter_orcamento(oid: str):
         data=now_iso()[:10],
         estado="aberta",
         notas=f"Gerada a partir do orçamento {orc.get('numero')}",
+        artigos=enc_artigos,
+        valor_total=orc_t.get("total"),
     )
     enc.numero = await next_sequence("ENC")
     enc.orcamento_id = orc["id"]
@@ -1414,12 +1454,75 @@ async def delete_cliente(cid: str, _u: dict = Depends(get_current_user)):
 
 
 # ----------------------- Encomendas -----------------------
+PAY_PT = {"pendente": "Pendente", "parcial": "Pago parcial", "pago": "Pago total"}
+ENC_ESTADO_PT = {"aberta": "Aberta", "em_producao": "Em Produção", "concluida": "Concluída", "cancelada": "Cancelada"}
+
+
+def encomenda_artigos_total(enc: dict) -> float:
+    total = 0.0
+    for a in enc.get("artigos", []):
+        qtd = a.get("quantidade") or 0
+        total += (a.get("preco_unit") or 0) * qtd + pers_valor_unit(a) * qtd
+    return round2(total)
+
+
+async def compute_encomenda(enc: dict) -> dict:
+    enc = {**enc}
+    ofs = await db.ordens_fabrico.find({"encomenda_id": enc["id"]}, {"_id": 0}).to_list(1000)
+    ofs = [recompute_of_status(o) for o in ofs]
+    enc["num_ofs"] = len(ofs)
+
+    custo_est = custo_real = 0.0
+    for o in ofs:
+        for it in o.get("itens", []):
+            for op in it.get("operacoes", []):
+                t = op.get("tempo_min") or 0
+                rmin = (op.get("tempo_real_seg") or 0) / 60.0
+                ec = op.get("custo_estimado") or 0
+                rc = (rmin / t) * ec if t > 0 else 0.0
+                custo_est += ec
+                custo_real += rc
+    enc["custo_producao_estimado"] = round2(custo_est)
+    enc["custo_producao_real"] = round2(custo_real)
+
+    if enc.get("valor_total_manual") and enc.get("valor_total") is not None:
+        valor = enc.get("valor_total") or 0
+    elif enc.get("orcamento_id"):
+        orc = await db.orcamentos.find_one({"id": enc["orcamento_id"]}, {"_id": 0})
+        valor = compute_orcamento_totais(orc)["total"] if orc else encomenda_artigos_total(enc)
+    else:
+        valor = encomenda_artigos_total(enc)
+    enc["valor_total"] = round2(valor)
+
+    pago = enc.get("valor_pago") or 0
+    if pago <= 0:
+        enc["status_pagamento"] = "pendente"
+    elif pago < enc["valor_total"]:
+        enc["status_pagamento"] = "parcial"
+    else:
+        enc["status_pagamento"] = "pago"
+    enc["valor_pendente"] = round2(max(0.0, enc["valor_total"] - pago))
+    enc["pode_produzir"] = bool(enc.get("autorizada_producao") or enc["status_pagamento"] == "pago")
+
+    if enc.get("estado") != "cancelada":
+        if ofs and all(o.get("status") == "concluido" for o in ofs):
+            enc["estado"] = "concluida"
+        elif any(o.get("status") in ("em_producao", "concluido") for o in ofs):
+            enc["estado"] = "em_producao"
+        else:
+            enc["estado"] = "aberta"
+    enc["margem_producao"] = round2(enc["valor_total"] - enc["custo_producao_real"])
+    enc["ordens_resumo"] = [
+        {"id": o["id"], "numero": o.get("numero"), "status": o.get("status"), "progresso": o.get("progresso")}
+        for o in ofs
+    ]
+    return enc
+
+
 @api_router.get("/encomendas")
 async def list_encomendas(_u: dict = Depends(get_current_user)):
     encs = await db.encomendas.find({}, {"_id": 0}).sort("created_at", -1).to_list(5000)
-    for e in encs:
-        e["num_ofs"] = await db.ordens_fabrico.count_documents({"encomenda_id": e["id"]})
-    return encs
+    return [await compute_encomenda(e) for e in encs]
 
 
 @api_router.get("/encomendas/{eid}")
@@ -1427,6 +1530,7 @@ async def get_encomenda(eid: str, _u: dict = Depends(get_current_user)):
     e = await db.encomendas.find_one({"id": eid}, {"_id": 0})
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
+    e = await compute_encomenda(e)
     ofs = await db.ordens_fabrico.find({"encomenda_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
     return e
@@ -1439,7 +1543,7 @@ async def create_encomenda(data: EncomendaInput, _u: dict = Depends(get_current_
     if not enc.data:
         enc.data = now_iso()[:10]
     await db.encomendas.insert_one(enc.model_dump())
-    return enc.model_dump()
+    return await compute_encomenda(enc.model_dump())
 
 
 @api_router.put("/encomendas/{eid}")
@@ -1448,7 +1552,8 @@ async def update_encomenda(eid: str, data: EncomendaInput, _u: dict = Depends(ge
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
     await db.encomendas.update_one({"id": eid}, {"$set": data.model_dump()})
-    return {**existing, **data.model_dump()}
+    merged = {**existing, **data.model_dump()}
+    return await compute_encomenda(merged)
 
 
 @api_router.delete("/encomendas/{eid}")
@@ -1649,6 +1754,51 @@ async def dashboard():
     arts_bd.sort(key=lambda x: x["preco"], reverse=True)
     top_artigos = arts_bd[:6]
 
+    # ---- Encomendas ----
+    encs = await db.encomendas.find({}, {"_id": 0}).to_list(2000)
+    encs_c = [await compute_encomenda(e) for e in encs]
+    valor_encomendas = round2(sum(e["valor_total"] for e in encs_c))
+    valor_pago_total = round2(sum((e.get("valor_pago") or 0) for e in encs_c))
+    valor_pendente_total = round2(sum(e["valor_pendente"] for e in encs_c))
+    custo_real_encomendas = round2(sum(e["custo_producao_real"] for e in encs_c))
+    custo_estimado_encomendas = round2(sum(e["custo_producao_estimado"] for e in encs_c))
+
+    pay_states = ["pendente", "parcial", "pago"]
+    encomendas_por_pagamento = [
+        {
+            "estado": s,
+            "label": PAY_PT[s],
+            "count": sum(1 for e in encs_c if e["status_pagamento"] == s),
+            "valor": round2(sum(e["valor_total"] for e in encs_c if e["status_pagamento"] == s)),
+        }
+        for s in pay_states
+    ]
+    enc_estados = ["aberta", "em_producao", "concluida", "cancelada"]
+    encomendas_por_estado = [
+        {
+            "estado": s,
+            "label": ENC_ESTADO_PT[s],
+            "count": sum(1 for e in encs_c if e["estado"] == s),
+            "valor": round2(sum(e["valor_total"] for e in encs_c if e["estado"] == s)),
+        }
+        for s in enc_estados
+    ]
+    # valor encomenda vs custo de produção real (top por valor)
+    enc_valor_vs_custo = sorted(encs_c, key=lambda e: e["valor_total"], reverse=True)[:8]
+    enc_valor_vs_custo = [
+        {
+            "numero": e.get("numero"),
+            "valor": e["valor_total"],
+            "custo_estimado": e["custo_producao_estimado"],
+            "custo_real": e["custo_producao_real"],
+            "margem": e["margem_producao"],
+        }
+        for e in enc_valor_vs_custo
+    ]
+    encomendas_por_autorizar = sum(
+        1 for e in encs_c if e["estado"] not in ("concluida", "cancelada") and not e["pode_produzir"]
+    )
+
     return {
         "total_artigos": len(artigos),
         "total_maquinas": await db.maquinas.count_documents({}),
@@ -1668,6 +1818,17 @@ async def dashboard():
         "valor_mensal": valor_mensal,
         "tempo_por_of": tempo_por_of,
         "top_artigos": top_artigos,
+        "total_encomendas": len(encs_c),
+        "valor_encomendas": valor_encomendas,
+        "valor_pago_total": valor_pago_total,
+        "valor_pendente_total": valor_pendente_total,
+        "custo_real_encomendas": custo_real_encomendas,
+        "custo_estimado_encomendas": custo_estimado_encomendas,
+        "margem_encomendas": round2(valor_encomendas - custo_real_encomendas),
+        "encomendas_por_pagamento": encomendas_por_pagamento,
+        "encomendas_por_estado": encomendas_por_estado,
+        "enc_valor_vs_custo": enc_valor_vs_custo,
+        "encomendas_por_autorizar": encomendas_por_autorizar,
     }
 
 

@@ -75,7 +75,11 @@ export default function OrdemFabricoDetail() {
   };
 
   const iniciarOp = async (itemId, opId) => {
-    setOf(await api.post(`/ordens-fabrico/${id}/operacao/iniciar`, { item_id: itemId, operacao_id: opId }));
+    try {
+      setOf(await api.post(`/ordens-fabrico/${id}/operacao/iniciar`, { item_id: itemId, operacao_id: opId }));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível iniciar a operação");
+    }
   };
   const pararOp = async (itemId, opId) => {
     setOf(await api.post(`/ordens-fabrico/${id}/operacao/parar`, { item_id: itemId, operacao_id: opId }));

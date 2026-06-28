@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "../components/ui/dialog";
 
-const empty = { nome: "", morada: "", contacto: "", email: "", nif: "", notas: "" };
+const empty = { nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", contacto: "", email: "", nif: "", notas: "" };
 
 export default function Clientes() {
   const { can } = useAuth();
@@ -23,7 +23,7 @@ export default function Clientes() {
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setForm(empty); setEditId(null); setOpen(true); };
-  const openEdit = (c) => { setForm({ nome: c.nome, morada: c.morada || "", contacto: c.contacto || "", email: c.email || "", nif: c.nif || "", notas: c.notas || "" }); setEditId(c.id); setOpen(true); };
+  const openEdit = (c) => { setForm({ nome: c.nome, morada: c.morada || "", codigo_postal: c.codigo_postal || "", cidade: c.cidade || "", pais: c.pais || "Portugal", contacto: c.contacto || "", email: c.email || "", nif: c.nif || "", notas: c.notas || "" }); setEditId(c.id); setOpen(true); };
   const save = async () => {
     if (!form.nome.trim()) return toast.error("Nome obrigatório");
     if (editId) await api.put(`/clientes/${editId}`, form);
@@ -35,7 +35,7 @@ export default function Clientes() {
   const remove = async (id) => { await api.del(`/clientes/${id}`); toast.success("Cliente eliminado"); load(); };
 
   const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((c) => [c.nome, c.email, c.contacto, c.nif].some((v) => (v || "").toLowerCase().includes(ql))) : items;
+  const items_f = ql ? items.filter((c) => [c.nome, c.email, c.contacto, c.nif, c.cidade].some((v) => (v || "").toLowerCase().includes(ql))) : items;
 
   return (
     <div>
@@ -54,6 +54,7 @@ export default function Clientes() {
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cidade</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Contacto</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Email</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">NIF</th>
@@ -64,6 +65,7 @@ export default function Clientes() {
             {items_f.map((c) => (
               <tr key={c.id} data-testid={`cliente-row-${c.id}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
+                <td className="px-4 py-3 text-gray-600">{c.cidade || "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{c.contacto || "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{c.email || "—"}</td>
                 <td className="px-4 py-3 text-gray-500 mono">{c.nif || "—"}</td>
@@ -75,7 +77,7 @@ export default function Clientes() {
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem clientes.</td></tr>}
+            {items_f.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem clientes.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -109,6 +111,20 @@ export default function Clientes() {
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1.5 block">NIF</label>
                 <input data-testid="cliente-nif-input" value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Código Postal</label>
+                <input data-testid="cliente-cp-input" value={form.codigo_postal} onChange={(e) => setForm({ ...form, codigo_postal: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Cidade</label>
+                <input data-testid="cliente-cidade-input" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">País</label>
+                <input data-testid="cliente-pais-input" value={form.pais} onChange={(e) => setForm({ ...form, pais: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
               </div>
             </div>
             <div>

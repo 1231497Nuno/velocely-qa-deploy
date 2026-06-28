@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, fmtDate } from "../lib/api";
+import { api, fmtDate, eur } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
@@ -39,6 +39,7 @@ export default function Encomendas() {
 
   const ql = q.trim().toLowerCase();
   const items_f = ql ? items.filter((e) => [e.numero, e.cliente, e.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql))) : items;
+  const payBadge = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 
   return (
     <div>
@@ -59,7 +60,8 @@ export default function Encomendas() {
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Origem</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
+              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pagamento</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">OFs</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
               <th className="px-4 py-3 w-12"></th>
@@ -71,7 +73,8 @@ export default function Encomendas() {
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{e.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{e.cliente}</td>
                 <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(e.data)}</td>
-                <td className="px-4 py-3 mono text-gray-500 text-xs">{e.orcamento_numero || "Manual"}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{eur(e.valor_total)}</td>
+                <td className="px-4 py-3 text-center"><StatusBadge status={payBadge[e.status_pagamento]} /></td>
                 <td className="px-4 py-3 text-center tabular-nums text-gray-700">{e.num_ofs}</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={e.estado} /></td>
                 <td className="px-4 py-3">
@@ -79,7 +82,7 @@ export default function Encomendas() {
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
+            {items_f.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
           </tbody>
         </table>
       </div>

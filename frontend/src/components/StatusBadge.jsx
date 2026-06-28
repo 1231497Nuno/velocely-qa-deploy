@@ -6,6 +6,13 @@ export const STATUS_META = {
   pendente: { label: "Pendente", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   em_producao: { label: "Em Produção", cls: "bg-blue-50 text-blue-700 border-blue-200" },
   concluido: { label: "Concluído", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  // Encomenda estados
+  aberta: { label: "Aberta", cls: "bg-gray-100 text-gray-700 border-gray-300" },
+  concluida: { label: "Concluída", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  cancelada: { label: "Cancelada", cls: "bg-red-50 text-red-700 border-red-200" },
+  // Pagamento
+  parcial: { label: "Pago parcial", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  pago: { label: "Pago total", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
 export default function StatusBadge({ status, testid }) {
