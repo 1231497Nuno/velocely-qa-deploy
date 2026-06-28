@@ -53,6 +53,7 @@ export default function EncomendaDetail() {
     cliente_id: e.cliente_id || null,
     descricao: e.descricao || "",
     data: e.data,
+    prazo_entrega: e.prazo_entrega || null,
     estado: e.estado,
     notas: e.notas || "",
     artigos: (e.artigos || []).map((a) => ({
@@ -157,6 +158,10 @@ export default function EncomendaDetail() {
             {(cliente?.morada || cliente?.cidade) && <div className="text-gray-600 flex items-start gap-2"><MapPin size={13} className="mt-0.5" /> <span>{moradaCompleta}</span></div>}
             {cliente?.nif && <div className="text-gray-600 flex items-center gap-2"><Hash size={13} /> {cliente.nif}</div>}
             <div className="text-gray-500 text-xs pt-2 border-t border-gray-100">Data: {fmtDate(enc.data)}</div>
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-xs text-gray-500 shrink-0">Prazo de entrega</span>
+              <input data-testid="enc-prazo-input" type="date" value={enc.prazo_entrega || ""} onChange={(e) => upd({ prazo_entrega: e.target.value })} onBlur={() => persist({}, "Prazo atualizado")} className="border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+            </div>
             {enc.descricao && <div className="text-gray-600 text-sm">{enc.descricao}</div>}
           </div>
         </div>

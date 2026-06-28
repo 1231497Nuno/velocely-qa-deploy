@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
 import SearchBar from "../components/SearchBar";
 import StatusBadge from "../components/StatusBadge";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Star } from "lucide-react";
 import { toast } from "sonner";
 
 const TIMER_INFO = {
@@ -86,11 +86,18 @@ export default function OrdensFabrico() {
     load();
   };
 
+  const togglePrioridade = async (e, o) => {
+    e.stopPropagation();
+    await api.post(`/ordens-fabrico/${o.id}/prioridade`, { prioritaria: !o.prioritaria });
+    load();
+  };
+
   const ql = q.trim().toLowerCase();
   const matchQ = (o) => !ql || [o.numero, o.cliente, o.numero_encomenda, o.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql));
   const ativas = items.filter((o) => o.status !== "concluido" && matchQ(o));
   const concluidas = items.filter((o) => o.status === "concluido" && matchQ(o));
   const rows = tab === "ativas" ? ativas : concluidas;
+  const hoje = new Date().toISOString().slice(0, 10);
 
   const Tab = ({ id, label, count }) => (
     <button
@@ -126,11 +133,13 @@ export default function OrdensFabrico() {
         <table className="w-full text-sm min-w-[760px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-2 py-3 w-10"></th>
               {tab === "ativas" && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cronómetro</th>}
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº Enc.</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Prazo entrega</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Origem</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Progresso</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
@@ -139,12 +148,20 @@ export default function OrdensFabrico() {
           </thead>
           <tbody data-testid="ofs-table">
             {rows.map((o) => (
-              <tr key={o.id} data-testid={`of-row-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
+              <tr key={o.id} data-testid={`of-row-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${o.prioritaria ? "bg-amber-50/60" : ""}`}>
+                <td className="px-2 py-3 text-center">
+                  <button data-testid={`of-prioridade-${o.id}`} onClick={(e) => togglePrioridade(e, o)} title={o.prioritaria ? "Prioritária" : "Marcar como prioritária"} className="p-1 rounded-sm hover:bg-amber-100">
+                    <Star size={16} className={o.prioritaria ? "text-amber-500 fill-amber-400" : "text-gray-300"} />
+                  </button>
+                </td>
                 {tab === "ativas" && <td className="px-4 py-3"><TimerDot estado={o.timer_estado} liveSec={o.timer_estado === "em_curso" ? elapsedSec(o, now) : null} /></td>}
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
                 <td className="px-4 py-3 text-gray-500 mono text-xs">{o.numero_encomenda || "—"}</td>
                 <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(o.data)}</td>
+                <td className="px-4 py-3 tabular-nums" data-testid={`of-prazo-${o.id}`}>
+                  {o.prazo_entrega ? <span className={o.prazo_entrega < hoje && o.status !== "concluido" ? "text-red-600 font-medium" : "text-gray-600"}>{fmtDate(o.prazo_entrega)}</span> : <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3 mono text-gray-500 text-xs">{o.orcamento_numero || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-600">{Math.round(o.progresso || 0)}%</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
@@ -154,7 +171,7 @@ export default function OrdensFabrico() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={tab === "ativas" ? 9 : 8} className="px-4 py-10 text-center text-gray-400 text-sm">{tab === "ativas" ? "Sem ordens de fabrico ativas." : "Sem ordens de fabrico concluídas."}</td></tr>
+              <tr><td colSpan={tab === "ativas" ? 11 : 10} className="px-4 py-10 text-center text-gray-400 text-sm">{tab === "ativas" ? "Sem ordens de fabrico ativas." : "Sem ordens de fabrico concluídas."}</td></tr>
             )}
           </tbody>
         </table>
@@ -163,11 +180,14 @@ export default function OrdensFabrico() {
       {/* Mobile: cartões */}
       <div className="md:hidden space-y-3" data-testid="ofs-cards">
         {rows.map((o) => (
-          <div key={o.id} data-testid={`of-card-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className="bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50">
+          <div key={o.id} data-testid={`of-card-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className={`bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50 ${o.prioritaria ? "border-amber-300 bg-amber-50/40" : ""}`}>
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="mono tabular-nums font-semibold text-gray-900">{o.numero}</div>
-                <div className="text-gray-700 truncate">{o.cliente}</div>
+              <div className="min-w-0 flex items-center gap-2">
+                <button data-testid={`of-prioridade-mobile-${o.id}`} onClick={(e) => togglePrioridade(e, o)} className="p-1 -ml-1"><Star size={16} className={o.prioritaria ? "text-amber-500 fill-amber-400" : "text-gray-300"} /></button>
+                <div className="min-w-0">
+                  <div className="mono tabular-nums font-semibold text-gray-900">{o.numero}</div>
+                  <div className="text-gray-700 truncate">{o.cliente}</div>
+                </div>
               </div>
               <StatusBadge status={o.status} />
             </div>
@@ -175,6 +195,7 @@ export default function OrdensFabrico() {
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
               <div className="text-xs text-gray-500">
                 <div>{fmtDate(o.data)} · {Math.round(o.progresso || 0)}%</div>
+                {o.prazo_entrega && <div className={`mt-0.5 ${o.prazo_entrega < hoje && o.status !== "concluido" ? "text-red-600 font-medium" : ""}`}>Entrega: {fmtDate(o.prazo_entrega)}</div>}
                 {o.orcamento_numero && <div className="mono mt-0.5">Origem {o.orcamento_numero}</div>}
               </div>
               {can("ordens_fabrico","delete") && (<button data-testid={`delete-of-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>)}

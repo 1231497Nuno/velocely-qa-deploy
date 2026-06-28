@@ -418,6 +418,7 @@ class OrdemFabricoInput(BaseModel):
     data: Optional[str] = None
     status: str = "pendente"
     notas: str = ""
+    prioritaria: bool = False
     itens: List[OFItem] = Field(default_factory=list)
 
 
@@ -444,6 +445,7 @@ class EncomendaInput(BaseModel):
     cliente_id: Optional[str] = None
     descricao: str = ""
     data: Optional[str] = None
+    prazo_entrega: Optional[str] = None
     estado: str = "aberta"
     notas: str = ""
     artigos: List[EncomendaArtigo] = Field(default_factory=list)
@@ -1532,8 +1534,23 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
 
 @api_router.get("/ordens-fabrico")
 async def list_ofs():
-    ofs = await db.ordens_fabrico.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return [recompute_of_status(o) for o in ofs]
+    ofs = await db.ordens_fabrico.find({}, {"_id": 0}).to_list(1000)
+    ofs = [recompute_of_status(o) for o in ofs]
+    enc_ids = list({o.get("encomenda_id") for o in ofs if o.get("encomenda_id")})
+    enc_map = {}
+    if enc_ids:
+        encs = await db.encomendas.find({"id": {"$in": enc_ids}}, {"_id": 0}).to_list(2000)
+        enc_map = {e["id"]: e for e in encs}
+    for o in ofs:
+        e = enc_map.get(o.get("encomenda_id")) or {}
+        o["prazo_entrega"] = e.get("prazo_entrega")
+        o["encomenda_numero"] = e.get("numero") or o.get("encomenda_numero")
+    ofs.sort(key=lambda o: (
+        0 if o.get("prioritaria") else 1,
+        o.get("prazo_entrega") or "9999-12-31",
+        o.get("created_at") or "",
+    ))
+    return ofs
 
 
 @api_router.get("/ordens-fabrico/{ofid}")
@@ -1541,6 +1558,23 @@ async def get_of(ofid: str):
     o = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
     if not o:
         raise HTTPException(404, "OF não encontrada")
+    o = recompute_of_status(o)
+    if o.get("encomenda_id"):
+        e = await db.encomendas.find_one({"id": o["encomenda_id"]}, {"_id": 0})
+        o["prazo_entrega"] = (e or {}).get("prazo_entrega")
+    return o
+
+
+class PrioridadeBody(BaseModel):
+    prioritaria: bool
+
+
+@api_router.post("/ordens-fabrico/{ofid}/prioridade")
+async def set_of_prioridade(ofid: str, body: PrioridadeBody, _u: dict = Depends(get_current_user)):
+    r = await db.ordens_fabrico.update_one({"id": ofid}, {"$set": {"prioritaria": body.prioritaria}})
+    if r.matched_count == 0:
+        raise HTTPException(404, "OF não encontrada")
+    o = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
     return recompute_of_status(o)
 
 

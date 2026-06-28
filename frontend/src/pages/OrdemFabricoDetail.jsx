@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api, API } from "../lib/api";
+import { api, API, fmtDate } from "../lib/api";
 import ClienteSelector from "../components/ClienteSelector";
 import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
 import PdfExportButton from "../components/PdfExportButton";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2, FileDown, Play, Square, Flag } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, CheckCircle2, FileDown, Play, Square, Flag, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "../components/ui/progress";
 
@@ -66,6 +66,7 @@ export default function OrdemFabricoDetail() {
       data: of.data,
       status: of.status,
       notas: of.notas || "",
+      prioritaria: !!of.prioritaria,
       itens: of.itens.filter((it) => it.artigo_id).map((it) => ({
         ...it,
         quantidade: Number(it.quantidade) || 1,
@@ -128,6 +129,9 @@ export default function OrdemFabricoDetail() {
   const totalMaoObraEst = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + (o.tempo_mao_obra || 0), 0), 0);
   const totalRealSeg = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + elapsedSeg(o), 0), 0);
   const algumEmCurso = of.itens.some((it) => (it.operacoes || []).some((o) => o.timer_inicio));
+  const togglePrioridade = async () => {
+    setOf(await api.post(`/ordens-fabrico/${id}/prioridade`, { prioritaria: !of.prioritaria }));
+  };
 
   return (
     <div>
@@ -140,12 +144,16 @@ export default function OrdemFabricoDetail() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{of.numero}</h1>
             <StatusBadge status={of.status} testid="of-status-badge" />
+            {of.prioritaria && <span data-testid="of-prioritaria-badge" className="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5"><Star size={12} className="fill-amber-400 text-amber-500" /> Prioritária</span>}
           </div>
           <p className="text-sm text-gray-500 mt-1">Ordem de Fabrico · {of.cliente}{of.encomenda_numero ? (
             <> · <Link to={`/encomendas/${of.encomenda_id}`} data-testid="of-encomenda-link" className="font-medium text-gray-900 underline underline-offset-4 mono">{of.encomenda_numero}</Link></>
-          ) : ""}</p>
+          ) : ""}{of.prazo_entrega ? <> · <span className="font-medium text-gray-700">Entrega {fmtDate(of.prazo_entrega)}</span></> : ""}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <button data-testid="of-toggle-prioridade-btn" onClick={togglePrioridade} title="Marcar prioridade" className={`rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 border transition-colors ${of.prioritaria ? "bg-amber-50 border-amber-300 text-amber-700" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
+            <Star size={16} className={of.prioritaria ? "fill-amber-400 text-amber-500" : ""} /> {of.prioritaria ? "Prioritária" : "Prioridade"}
+          </button>
           <PdfExportButton modulo="of" recordId={id} />
           {of.status !== "concluido" && (
             <button data-testid="finalizar-of-btn" onClick={finalizar} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
