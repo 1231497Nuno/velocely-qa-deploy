@@ -100,7 +100,7 @@ export default function OrcamentoDetail() {
   const addPers = (i, tipoId) => {
     const t = tipos.find((x) => x.id === tipoId);
     if (!t) return;
-    const list = [...(orc.linhas[i].personalizacoes || []), { id: t.id, nome: t.nome, valor: Number(t.valor) || 0 }];
+    const list = [...(orc.linhas[i].personalizacoes || []), { id: t.id, nome: t.nome, valor: Number(t.valor) || 0, tempo: Number(t.tempo) || 0 }];
     updLinha(i, { personalizacoes: list });
   };
   const updPers = (i, pi, patch) => {

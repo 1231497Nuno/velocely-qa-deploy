@@ -18,10 +18,12 @@ import {
   Contact,
   ClipboardList,
   Settings,
+  CalendarClock,
 } from "lucide-react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, tid: "nav-dashboard", modulo: "dashboard" },
+  { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "dashboard" },
   { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
   { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
   { to: "/materiais", label: "Materiais", icon: Package, tid: "nav-materiais", modulo: "materiais" },

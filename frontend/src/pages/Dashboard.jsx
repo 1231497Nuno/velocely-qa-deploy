@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
 import {
-  Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, ClipboardList, Clock, Gauge,
+  Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, ClipboardList, Clock, Gauge, CalendarClock,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
@@ -89,6 +89,25 @@ export default function Dashboard() {
         <Stat icon={FileText} label="Orçamentos" value={d.total_orcamentos} sub={`${d.orcamentos_aceites} aceites · ${eur(d.valor_aceites)}`} tid="stat-orcamentos" />
         <Stat icon={Boxes} label="Artigos" value={d.total_artigos} sub={`Custo médio ${eur(d.custo_medio)}`} tid="stat-artigos" />
       </div>
+
+      {/* Prazos de entrega */}
+      <Link to="/calendario" data-testid="dash-prazos-banner" className="block mb-4">
+        <div className={`border rounded-sm p-4 flex flex-wrap items-center gap-x-6 gap-y-2 transition-colors hover:bg-gray-50 ${(d.prazos_atrasadas || 0) > 0 ? "border-red-300 bg-red-50/40" : "border-gray-200 bg-white"}`}>
+          <div className="flex items-center gap-2">
+            <CalendarClock size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700 uppercase tracking-[0.08em]">Prazos de Entrega</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className={`text-2xl font-bold tabular-nums font-display ${(d.prazos_atrasadas || 0) > 0 ? "text-red-600" : "text-gray-400"}`}>{d.prazos_atrasadas || 0}</span>
+            <span className="text-gray-500">atrasados</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className={`text-2xl font-bold tabular-nums font-display ${(d.prazos_proximos_7 || 0) > 0 ? "text-amber-600" : "text-gray-400"}`}>{d.prazos_proximos_7 || 0}</span>
+            <span className="text-gray-500">nos próximos 7 dias</span>
+          </div>
+          <span className="ml-auto text-xs text-gray-400">Ver calendário →</span>
+        </div>
+      </Link>
 
       {/* Valor encomenda vs custo de produção */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">

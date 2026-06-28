@@ -1,0 +1,37 @@
+{
+  "summary": "Iteração 15 valida as 2 novas funcionalidades: (A) TEMPO NAS PERSONALIZAÇÕES (tempo em TipoPersonalizacao + flag responsavel_personalizacoes em MaoObra que soma o tempo da personalização × qtd à operação responsável; idempotente via tempo_mao_obra_base) e (B) CALENDÁRIO DE PRAZOS (GET /api/prazos protegido + contadores prazos_atrasadas/prazos_proximos_7 no dashboard + página /calendario + banner no Dashboard). BACKEND pytest /app/backend/tests/test_iteration15.py → 6 passed / 0 failed em 3.05s: (1) /api/prazos sem auth = 401; (2) /api/prazos com auth devolve lista de items com tipo/numero/cliente/prazo_entrega/dias_restantes/estado_prazo válidos; (3) dashboard inclui prazos_atrasadas e prazos_proximos_7 como int>=0; (4) Mão de Obra CRUD persiste responsavel_personalizacoes em POST/GET/PUT; (5) TipoPersonalizacao CRUD persiste tempo em POST/GET/PUT; (6) TESTE CRÍTICO: criada MO responsável (12€/h) + TP com tempo=5 + artigo com roteiro com 1 op (base 2min) + OF com item Q=2 e a personalização → operação fica com tempo_mao_obra=12 (2 + 5×2), tempo_mao_obra_base=2, custo_mao_obra_estimado=2.40€; PUT da mesma OF 2 vezes mantém tempo_mao_obra=12 (IDEMPOTENTE — não duplica). FRONTEND Playwright (admin login OK, 0 console errors): (a) Dashboard tem dash-prazos-banner (href=/calendario) que navega para a página; (b) /calendario renderiza prazos-calendar + group-atrasadas + group-proximas + group-futuras; (c) Layout nav tem item nav-calendario; (d) MaoObra mostra coluna 'Personalizações', diálogo tem maoobra-resp-pers-input — criar registro com a flag ligada mostra badge 'Responsável' na tabela; (e) /personalizacao mostra coluna 'Tempo M.O.', diálogo tem tipo-tempo-input — criar TP com tempo=3.5 mostra '3.5m' na coluna. CLEANUP: todos os dados teste-it15-* criados em backend e frontend foram eliminados via DELETE (MO + TP + Artigo + OF + MO de frontend + TP de frontend). Contas reais geral@famarte.pt e m-p@live.com.pt intactas.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration15.py",
+    "/app/test_reports/pytest/iteration15_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:_apply_pers_tempo (linha ~1545) — idempotência implementada CORRETAMENTE via tempo_mao_obra_base: para cada op, repõe tempo_mao_obra=base antes de somar pers_min; assim PUT consecutivos não duplicam. Estratégia robusta.",
+    "server.py:_apply_pers_tempo (linha ~1582) — fallback: se não houver MO responsável OU a op responsável não estiver no roteiro, usa ops[0] como target. Sensato — evita perder o tempo da personalização. Documentar este comportamento para o user.",
+    "server.py:_apply_pers_tempo (linha ~1588) — guard rate=0 + auto-preencher mao_obra_id/nome quando a op não tinha MO atribuída mas tem responsável: bom UX. Atenção: pers_min = sum(p.tempo) * qtd, mas p.tempo (do PersonalizacaoSel) é prioritário sobre tempo_map; alterações futuras ao tempo do TP NÃO são refletidas em OFs já criadas (cliente teria de fazer PUT). Documentar.",
+    "server.py:/prazos (linha ~2249) — filtra encomendas concluida/cancelada e OFs concluido. Sort por (prazo_entrega, encomenda antes de of). Bom. Sugestão menor: secondary sort por prioritaria DESC para OFs prioritárias subirem dentro do mesmo dia.",
+    "server.py:_prazo_meta (linha ~2236) — calcula diff de dias entre prazo e hoje em UTC. Edge: se utilizador está em fuso muito diferente de UTC, 'hoje' pode divergir 1 dia. Aceitável para o caso de uso (datas de prazo são granularidade-dia).",
+    "Calendario.jsx — Group renderiza só items.length > 0? Ver código: parece sempre renderizar (vazio mostraria header com count=0). UX OK.",
+    "MaoObra.jsx + TiposPersonalizacao.jsx — implementam corretamente o novo campo: estado controlado, persistência via PUT/POST, render de coluna na lista. Sem regressões.",
+    "Dashboard.jsx — dash-prazos-banner é um <Link to=/calendario> a envolver um cartão; bom para SEO/acessibilidade e suporta clique completo."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration15.py (novo — 6 testes pytest cobrindo /api/prazos auth+payload, dashboard counters, MaoObra+TipoPersonalizacao CRUD, e a regra crítica de tempo de personalização + idempotência)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6) — test_iteration15.py",
+    "frontend": "100% — banner Dashboard→/calendario, página Calendario com 3 grupos, nav-calendario, coluna+checkbox em MaoObra, coluna+input em TiposPersonalizacao, persistência verificada via UI"
+  },
+  "test_credentials": "admin@prodcost.pt / Admin123!",
+  "seed_data_creation": "Criados e eliminados: 1 MO responsável + 1 MO normal + 1 TP tempo=5 + 1 Artigo com roteiro + 1 OF cliente='teste-it15-cliente' (todos via backend pytest, todos cleanup OK). Adicionalmente no Playwright: 1 MO + 1 TP no frontend, ambos eliminados por DELETE no final. Nenhum dado real foi modificado.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteração 15 (Tempo nas Personalizações + Calendário de Prazos) totalmente funcional. O cálculo crítico está confirmado em pytest: base_mo + (tempo_pers * qtd) na op responsável, com idempotência em PUT. Nota: /personalizacao (não /tipos-personalizacao) é a rota da página TiposPersonalizacao. Se necessário re-testar, dados teste-it15-* já foram removidos.",
+  "rca of the issue": "Nenhum bug encontrado. Backend e frontend implementam corretamente as 2 features da iteração 15."
+}

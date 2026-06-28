@@ -242,12 +242,14 @@ class MaoObra(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     custo_hora: float = 0.0
+    responsavel_personalizacoes: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 
 class MaoObraInput(BaseModel):
     nome: str
     custo_hora: float = 0.0
+    responsavel_personalizacoes: bool = False
 
 
 class ArtigoMaterial(BaseModel):
@@ -297,6 +299,7 @@ class TipoPersonalizacao(BaseModel):
     nome: str
     descricao: str = ""
     valor: float = 0.0
+    tempo: float = 0.0
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -304,12 +307,14 @@ class TipoPersonalizacaoInput(BaseModel):
     nome: str
     descricao: str = ""
     valor: float = 0.0
+    tempo: float = 0.0
 
 
 class PersonalizacaoSel(BaseModel):
     id: Optional[str] = None
     nome: str = ""
     valor: float = 0.0
+    tempo: float = 0.0
 
 
 class OrcamentoLinha(BaseModel):
@@ -385,9 +390,11 @@ class OFOperacao(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     maquina_nome: Optional[str] = None
+    mao_obra_id: Optional[str] = None
     mao_obra_nome: Optional[str] = None
     tempo_maquina: float = 0.0
     tempo_mao_obra: float = 0.0
+    tempo_mao_obra_base: Optional[float] = None  # mão de obra do roteiro, sem personalizações
     tempo_min: float = 0.0
     custo_estimado: float = 0.0
     custo_maquina_estimado: float = 0.0
@@ -1517,9 +1524,11 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                         OFOperacao(
                             nome=op.get("nome", ""),
                             maquina_nome=op.get("maquina_nome"),
+                            mao_obra_id=op.get("mao_obra_id"),
                             mao_obra_nome=op.get("mao_obra_nome"),
                             tempo_maquina=t_maq,
                             tempo_mao_obra=t_mo,
+                            tempo_mao_obra_base=t_mo,
                             tempo_min=t_maq + t_mo,
                             custo_estimado=round2(custo_maq + custo_mo),
                             custo_maquina_estimado=custo_maq,
@@ -1529,7 +1538,63 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                     )
         it["operacoes"] = operacoes or []
         out.append(it)
+    await _apply_pers_tempo(out)
     return out
+
+
+async def _apply_pers_tempo(itens: List[dict]) -> None:
+    """Soma o tempo das personalizações (× quantidade) à mão de obra da operação
+    cuja mão de obra está marcada como responsável pelas personalizações.
+    Idempotente: repõe sempre a partir de tempo_mao_obra_base antes de somar."""
+    resp_mo = await db.mao_obra.find_one({"responsavel_personalizacoes": True}, {"_id": 0})
+    resp_id = resp_mo.get("id") if resp_mo else None
+    resp_rate = (resp_mo or {}).get("custo_hora") or 0
+    tipos = await db.tipos_personalizacao.find({}, {"_id": 0}).to_list(1000)
+    tempo_map = {t["id"]: (t.get("tempo") or 0) for t in tipos}
+
+    for it in itens:
+        ops = it.get("operacoes") or []
+        if not ops:
+            continue
+        qtd = it.get("quantidade") or 1
+        pers_min = 0.0
+        for p in (it.get("personalizacoes") or []):
+            t = p.get("tempo")
+            if not t:
+                t = tempo_map.get(p.get("id"), 0)
+            pers_min += (t or 0)
+        pers_min = round2(pers_min * qtd)
+
+        # garantir base e repor todas as operações ao valor base
+        for op in ops:
+            if op.get("tempo_mao_obra_base") is None:
+                op["tempo_mao_obra_base"] = op.get("tempo_mao_obra") or 0
+            base = op.get("tempo_mao_obra_base") or 0
+            rate = op.get("mao_obra_custo_hora") or 0
+            op["tempo_mao_obra"] = base
+            op["custo_mao_obra_estimado"] = round2((base / 60.0) * rate)
+            op["tempo_min"] = round2((op.get("tempo_maquina") or 0) + base)
+            op["custo_estimado"] = round2((op.get("custo_maquina_estimado") or 0) + op["custo_mao_obra_estimado"])
+
+        if pers_min <= 0:
+            continue
+        target = None
+        if resp_id:
+            target = next((op for op in ops if op.get("mao_obra_id") == resp_id), None)
+        if target is None:
+            target = ops[0]
+        base = target.get("tempo_mao_obra_base") or 0
+        rate = target.get("mao_obra_custo_hora") or 0
+        if rate == 0 and (resp_id is None or target.get("mao_obra_id") == resp_id):
+            rate = resp_rate
+            target["mao_obra_custo_hora"] = rate
+            if not target.get("mao_obra_nome") and resp_mo:
+                target["mao_obra_nome"] = resp_mo.get("nome")
+                target["mao_obra_id"] = resp_id
+        target["tempo_mao_obra"] = round2(base + pers_min)
+        target["custo_mao_obra_estimado"] = round2((target["tempo_mao_obra"] / 60.0) * rate)
+        target["tempo_min"] = round2((target.get("tempo_maquina") or 0) + target["tempo_mao_obra"])
+        target["custo_estimado"] = round2((target.get("custo_maquina_estimado") or 0) + target["custo_mao_obra_estimado"])
 
 
 @api_router.get("/ordens-fabrico")
@@ -1752,9 +1817,11 @@ async def converter_orcamento(oid: str):
                 OFOperacao(
                     nome=op.get("nome", ""),
                     maquina_nome=op.get("maquina_nome") or ((maq or {}).get("nome")),
+                    mao_obra_id=op.get("mao_obra_id"),
                     mao_obra_nome=op.get("mao_obra_nome") or ((mo or {}).get("nome")),
                     tempo_maquina=t_maq,
                     tempo_mao_obra=t_mo,
+                    tempo_mao_obra_base=t_mo,
                     tempo_min=t_maq + t_mo,
                     custo_estimado=round2(custo_maq + custo_mo),
                     custo_maquina_estimado=custo_maq,
@@ -2166,6 +2233,60 @@ async def producao_analise():
     return result
 
 
+def _prazo_meta(prazo: str):
+    """Devolve (dias_restantes, estado_prazo) para um prazo ISO YYYY-MM-DD."""
+    try:
+        d = (datetime.fromisoformat(prazo[:10]).date() - datetime.now(timezone.utc).date()).days
+    except Exception:
+        return None, "futura"
+    if d < 0:
+        return d, "atrasada"
+    if d <= 7:
+        return d, "proxima"
+    return d, "futura"
+
+
+@api_router.get("/prazos")
+async def prazos(_u: dict = Depends(get_current_user)):
+    items = []
+    encs = await db.encomendas.find({}, {"_id": 0}).to_list(2000)
+    enc_map = {e["id"]: e for e in encs}
+    for e in encs:
+        prazo = e.get("prazo_entrega")
+        if not prazo:
+            continue
+        ec = await compute_encomenda(e)
+        if ec["estado"] in ("concluida", "cancelada"):
+            continue
+        dias, est = _prazo_meta(prazo)
+        items.append({
+            "tipo": "encomenda", "id": e["id"], "numero": e.get("numero"),
+            "cliente": e.get("cliente"), "prazo_entrega": prazo[:10],
+            "estado": ENC_ESTADO_PT.get(ec["estado"], ec["estado"]),
+            "dias_restantes": dias, "estado_prazo": est, "prioritaria": False,
+        })
+    ofs = await db.ordens_fabrico.find({}, {"_id": 0}).to_list(2000)
+    for o in ofs:
+        oc = recompute_of_status(o)
+        if oc.get("status") == "concluido":
+            continue
+        e = enc_map.get(o.get("encomenda_id")) or {}
+        prazo = e.get("prazo_entrega")
+        if not prazo:
+            continue
+        dias, est = _prazo_meta(prazo)
+        items.append({
+            "tipo": "of", "id": o["id"], "numero": o.get("numero"),
+            "cliente": o.get("cliente"), "prazo_entrega": prazo[:10],
+            "estado": STATUS_PT.get(oc.get("status"), oc.get("status")),
+            "dias_restantes": dias, "estado_prazo": est,
+            "prioritaria": bool(o.get("prioritaria")),
+        })
+    items.sort(key=lambda x: (x["prazo_entrega"], 0 if x["tipo"] == "encomenda" else 1))
+    return items
+
+
+
 @api_router.get("/dashboard")
 async def dashboard():
     artigos = await db.artigos.find({}, {"_id": 0}).to_list(1000)
@@ -2271,6 +2392,18 @@ async def dashboard():
         1 for e in encs_c if e["estado"] not in ("concluida", "cancelada") and not e["pode_produzir"]
     )
 
+    # ---- Prazos de entrega ----
+    prazos_atrasadas = prazos_proximos_7 = 0
+    for e in encs_c:
+        prazo = e.get("prazo_entrega")
+        if not prazo or e["estado"] in ("concluida", "cancelada"):
+            continue
+        dias, est = _prazo_meta(prazo)
+        if est == "atrasada":
+            prazos_atrasadas += 1
+        elif est == "proxima":
+            prazos_proximos_7 += 1
+
     return {
         "total_artigos": len(artigos),
         "total_maquinas": await db.maquinas.count_documents({}),
@@ -2301,6 +2434,8 @@ async def dashboard():
         "encomendas_por_estado": encomendas_por_estado,
         "enc_valor_vs_custo": enc_valor_vs_custo,
         "encomendas_por_autorizar": encomendas_por_autorizar,
+        "prazos_atrasadas": prazos_atrasadas,
+        "prazos_proximos_7": prazos_proximos_7,
     }
 
 

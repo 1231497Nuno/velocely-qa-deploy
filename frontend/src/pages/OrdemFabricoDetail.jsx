@@ -52,7 +52,7 @@ export default function OrdemFabricoDetail() {
     if (!t) return;
     const cur = of.itens[i].personalizacoes || [];
     if (cur.some((p) => p.id === t.id)) return;
-    updItem(i, { personalizacoes: [...cur, { id: t.id, nome: t.nome, valor: Number(t.valor) || 0 }] });
+    updItem(i, { personalizacoes: [...cur, { id: t.id, nome: t.nome, valor: Number(t.valor) || 0, tempo: Number(t.tempo) || 0 }] });
   };
   const delItemPers = (i, pi) => updItem(i, { personalizacoes: (of.itens[i].personalizacoes || []).filter((_, idx) => idx !== pi) });
 

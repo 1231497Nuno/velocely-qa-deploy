@@ -14,7 +14,7 @@ import {
   DialogFooter,
 } from "../components/ui/dialog";
 
-const empty = { nome: "", descricao: "", valor: 0 };
+const empty = { nome: "", descricao: "", valor: 0, tempo: 0 };
 
 export default function TiposPersonalizacao() {
   const { can } = useAuth();
@@ -35,14 +35,14 @@ export default function TiposPersonalizacao() {
     setOpen(true);
   };
   const openEdit = (t) => {
-    setForm({ nome: t.nome, descricao: t.descricao || "", valor: t.valor || 0 });
+    setForm({ nome: t.nome, descricao: t.descricao || "", valor: t.valor || 0, tempo: t.tempo || 0 });
     setEditId(t.id);
     setOpen(true);
   };
 
   const save = async () => {
     if (!form.nome.trim()) return toast.error("Indique o nome");
-    const body = { nome: form.nome, descricao: form.descricao, valor: Number(form.valor) || 0 };
+    const body = { nome: form.nome, descricao: form.descricao, valor: Number(form.valor) || 0, tempo: Number(form.tempo) || 0 };
     if (editId) await api.put(`/tipos-personalizacao/${editId}`, body);
     else await api.post("/tipos-personalizacao", body);
     toast.success("Tipo guardado");
@@ -80,6 +80,7 @@ export default function TiposPersonalizacao() {
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tempo M.O.</th>
               <th className="px-4 py-3 w-24"></th>
             </tr>
           </thead>
@@ -89,6 +90,7 @@ export default function TiposPersonalizacao() {
                 <td className="px-4 py-3 font-medium text-gray-900">{t.nome}</td>
                 <td className="px-4 py-3 text-gray-600">{t.descricao || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(t.valor)}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{(t.tempo || 0) > 0 ? `${t.tempo}m` : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
                     {can("personalizacao","edit") && (<button data-testid={`edit-tipo-${t.id}`} onClick={() => openEdit(t)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
@@ -98,7 +100,7 @@ export default function TiposPersonalizacao() {
               </tr>
             ))}
             {items_f.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
             )}
           </tbody>
         </table>
@@ -123,6 +125,11 @@ export default function TiposPersonalizacao() {
               <label className="text-sm font-medium text-gray-700 mb-1.5 block">Valor por unidade (€)</label>
               <input data-testid="tipo-valor-input" type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
               <p className="text-xs text-gray-400 mt-1">Valor sugerido, editável depois em cada linha do orçamento.</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Tempo de mão de obra por unidade (min)</label>
+              <input data-testid="tipo-tempo-input" type="number" step="0.1" value={form.tempo} onChange={(e) => setForm({ ...form, tempo: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              <p className="text-xs text-gray-400 mt-1">Somado (× quantidade) à mão de obra da operação responsável pelas personalizações na Ordem de Fabrico.</p>
             </div>
           </div>
           <DialogFooter>
