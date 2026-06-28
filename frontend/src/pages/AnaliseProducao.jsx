@@ -171,7 +171,7 @@ function PorOF() {
         </table>
       </div>
       <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
-        <Timer size={13} /> Desvio positivo (vermelho) = acima do estimado; negativo (verde) = abaixo. O custo real é estimado a partir do tempo efetivamente cronometrado.
+        <Timer size={13} /> O tempo de máquina é totalizado pela estimativa; o tempo cronometrado regista a mão de obra real do colaborador. O custo real = custo de máquina (estimado) + mão de obra (tempo real). Desvio +/vermelho = acima do estimado.
       </p>
     </div>
   );

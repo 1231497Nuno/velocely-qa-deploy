@@ -113,6 +113,8 @@ export default function OrdemFabricoDetail() {
   };
 
   const totalTempo = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + (o.tempo_min || 0), 0), 0);
+  const totalMaquina = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + (o.tempo_maquina || 0), 0), 0);
+  const totalMaoObraEst = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + (o.tempo_mao_obra || 0), 0), 0);
   const totalRealSeg = of.itens.reduce((s, it) => s + (it.operacoes || []).reduce((a, o) => a + elapsedSeg(o), 0), 0);
   const algumEmCurso = of.itens.some((it) => (it.operacoes || []).some((o) => o.timer_inicio));
 
@@ -156,8 +158,8 @@ export default function OrdemFabricoDetail() {
             <span className={`relative inline-flex rounded-full h-3 w-3 ${algumEmCurso ? "bg-emerald-400" : "bg-gray-500"}`} />
           </span>
           <div>
-            <div className="text-[11px] uppercase tracking-[0.15em] text-gray-400">Tempo total gasto</div>
-            <div className="text-xs text-gray-500 mt-0.5">{algumEmCurso ? "Cronómetro a contar…" : "Cronómetro parado"} · Estimado {totalTempo} min</div>
+            <div className="text-[11px] uppercase tracking-[0.15em] text-gray-400">Tempo de mão de obra (real)</div>
+            <div className="text-xs text-gray-500 mt-0.5">{algumEmCurso ? "Cronómetro a contar…" : "Cronómetro parado"} · Estimado {totalMaoObraEst} min</div>
           </div>
         </div>
         <div data-testid="of-total-timer-value" className={`font-display font-bold tabular-nums text-4xl sm:text-5xl tracking-tight ${algumEmCurso ? "text-emerald-400" : "text-white"}`}>
@@ -199,9 +201,19 @@ export default function OrdemFabricoDetail() {
                 <Link to={`/orcamentos/${of.orcamento_id}`} className="text-sm font-medium text-gray-900 underline underline-offset-4 mono">{of.orcamento_numero}</Link>
               </div>
             )}
-            <div className="flex items-center gap-2 text-sm text-gray-600 border-t border-gray-200 pt-3">
-              <Clock size={15} className="text-gray-400" />
-              Tempo total estimado: <span className="tabular-nums font-medium text-gray-900">{totalTempo} min</span>
+            <div className="border-t border-gray-200 pt-3 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between text-gray-600">
+                <span className="flex items-center gap-2"><Cog size={14} className="text-gray-400" /> Tempo de máquina (totalizado)</span>
+                <span className="tabular-nums font-medium text-gray-900" data-testid="of-tempo-maquina-total">{totalMaquina} min</span>
+              </div>
+              <div className="flex items-center justify-between text-gray-600">
+                <span className="flex items-center gap-2"><Clock size={14} className="text-gray-400" /> Mão de obra estimada</span>
+                <span className="tabular-nums font-medium text-gray-900">{totalMaoObraEst} min</span>
+              </div>
+              <div className="flex items-center justify-between text-gray-400 text-xs pt-1">
+                <span>Estimativa total (máq.+m.obra)</span>
+                <span className="tabular-nums">{totalTempo} min</span>
+              </div>
             </div>
           </div>
 

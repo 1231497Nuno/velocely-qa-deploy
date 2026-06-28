@@ -63,7 +63,18 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
-## Iteração (2026-06-28) — Dropdowns pesquisáveis + Clientes expandidos + Workflow de Encomendas + Dashboard
+## Iteração (2026-06-28) — Tempo de máquina (totalizado) vs mão de obra (real cronometrada)
+- **Regra de tempos/custos**: o cronómetro de cada operação regista **apenas o tempo real de mão de obra** do colaborador; o **tempo de máquina é totalizado pela estimativa** (não cronometrado). **Custo real = custo de máquina (estimado) + custo de mão de obra (tempo real × custo/hora)**.
+- `OFOperacao` ganhou `custo_maquina_estimado`, `custo_mao_obra_estimado`, `mao_obra_custo_hora` (gravados em build_of_itens e na conversão). Helpers `op_machine_cost_est`, `op_labor_rate`, `op_custo_real` com fallback para OFs antigas.
+- Atualizados `producao/tempos` (tempo_maquina_total, tempo_mao_obra_real_min, tempo_real_min = máq.totalizada + m.obra real; custo_real via op_custo_real), `producao/analise`, `compute_encomenda` (custo_producao_real) e `dashboard` (tempo_por_of real = máq + m.obra real).
+- Frontend OF: cronómetro rotulado "Tempo de mão de obra (real)"; bloco com "Tempo de máquina (totalizado)", "Mão de obra estimada" e estimativa total. Nota na Análise da Produção atualizada.
+- Validado via script: op custo_real = custo_maq_est + (real_seg/3600)×custo/hora (ex.: 0,40 + 0,01 = 0,41€); OF tempo_real = máq totalizada + m.obra real.
+
+## Iteração (2026-06-28) — Auto-guardar Encomenda + KPIs de tempos/custos no Dashboard
+- **Auto-guardar** no detalhe da Encomenda: adicionar/remover artigos e alterar quantidade/preço/valor pago/autorização persistem automaticamente (PUT) e os KPIs recalculam de imediato (toasts discretos; botão Guardar mantido).
+- **Dashboard**: reposto gráfico "Tempo de Produção · estimado vs real (min)" + cartão "Tempos & Custos (totais)" (tempo estimado/real + desvio, custo estimado/real + desvio).
+
+
 - **Combobox genérico** (`components/Combobox.jsx`): dropdown pesquisável reutilizável. `ClienteSelector` passou a usá-lo (pesquisa por nome/cidade/NIF) em Orçamentos, OFs e Encomendas; selecção de artigos na Encomenda também é Combobox.
 - **Clientes expandidos**: novos campos `codigo_postal`, `cidade`, `pais` (default "Portugal") no modelo + formulários (Clientes e criação inline). Lista mostra coluna Cidade.
 - **Workflow avançado de Encomendas**:

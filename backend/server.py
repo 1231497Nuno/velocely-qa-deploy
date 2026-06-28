@@ -390,6 +390,9 @@ class OFOperacao(BaseModel):
     tempo_mao_obra: float = 0.0
     tempo_min: float = 0.0
     custo_estimado: float = 0.0
+    custo_maquina_estimado: float = 0.0
+    custo_mao_obra_estimado: float = 0.0
+    mao_obra_custo_hora: float = 0.0
     timer_inicio: Optional[str] = None
     tempo_real_seg: float = 0.0
     concluida: bool = False
@@ -1111,6 +1114,36 @@ async def delete_orcamento(oid: str):
 
 
 # ----------------------- Routes: Ordens de Fabrico -----------------------
+def op_machine_cost_est(op: dict) -> float:
+    """Custo de máquina estimado (totalizado na OF, não cronometrado)."""
+    cm = op.get("custo_maquina_estimado")
+    if cm is not None:
+        return cm
+    t_maq = op.get("tempo_maquina") or 0
+    t_mo = op.get("tempo_mao_obra") or 0
+    ttot = t_maq + t_mo
+    ce = op.get("custo_estimado") or 0
+    return round2(ce * (t_maq / ttot)) if ttot > 0 else 0.0
+
+
+def op_labor_rate(op: dict) -> float:
+    """Custo/hora da mão de obra (para valorizar o tempo real cronometrado)."""
+    r = op.get("mao_obra_custo_hora")
+    if r is not None:
+        return r
+    t_mo = op.get("tempo_mao_obra") or 0
+    if t_mo <= 0:
+        return 0.0
+    cmo_est = (op.get("custo_estimado") or 0) - op_machine_cost_est(op)
+    return round2(cmo_est / (t_mo / 60.0))
+
+
+def op_custo_real(op: dict) -> float:
+    """Custo real = custo de máquina estimado + custo da mão de obra real cronometrada."""
+    horas_real = (op.get("tempo_real_seg") or 0) / 3600.0
+    return round2(op_machine_cost_est(op) + horas_real * op_labor_rate(op))
+
+
 def recompute_of_status(of: dict) -> dict:
     all_ops = [op for it in of.get("itens", []) for op in it.get("operacoes", [])]
     of = {**of}
@@ -1156,7 +1189,9 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                     t_mo = op_minutos_mao_obra(op)
                     maq = await db.maquinas.find_one({"id": op.get("maquina_id")}, {"_id": 0}) if op.get("maquina_id") else None
                     mo = await db.mao_obra.find_one({"id": op.get("mao_obra_id")}, {"_id": 0}) if op.get("mao_obra_id") else None
-                    custo_est = round2((t_maq / 60.0) * maquina_custo_hora(maq) + (t_mo / 60.0) * ((mo or {}).get("custo_hora") or 0))
+                    mo_hora = (mo or {}).get("custo_hora") or 0
+                    custo_maq = round2((t_maq / 60.0) * maquina_custo_hora(maq))
+                    custo_mo = round2((t_mo / 60.0) * mo_hora)
                     operacoes.append(
                         OFOperacao(
                             nome=op.get("nome", ""),
@@ -1165,7 +1200,10 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                             tempo_maquina=t_maq,
                             tempo_mao_obra=t_mo,
                             tempo_min=t_maq + t_mo,
-                            custo_estimado=custo_est,
+                            custo_estimado=round2(custo_maq + custo_mo),
+                            custo_maquina_estimado=custo_maq,
+                            custo_mao_obra_estimado=custo_mo,
+                            mao_obra_custo_hora=mo_hora,
                         ).model_dump()
                     )
         it["operacoes"] = operacoes or []
@@ -1351,7 +1389,9 @@ async def converter_orcamento(oid: str):
             t_mo = op_minutos_mao_obra(op)
             maq = await db.maquinas.find_one({"id": op.get("maquina_id")}, {"_id": 0}) if op.get("maquina_id") else None
             mo = await db.mao_obra.find_one({"id": op.get("mao_obra_id")}, {"_id": 0}) if op.get("mao_obra_id") else None
-            custo_est = round2((t_maq / 60.0) * maquina_custo_hora(maq) + (t_mo / 60.0) * ((mo or {}).get("custo_hora") or 0))
+            mo_hora = (mo or {}).get("custo_hora") or 0
+            custo_maq = round2((t_maq / 60.0) * maquina_custo_hora(maq))
+            custo_mo = round2((t_mo / 60.0) * mo_hora)
             operacoes.append(
                 OFOperacao(
                     nome=op.get("nome", ""),
@@ -1360,7 +1400,10 @@ async def converter_orcamento(oid: str):
                     tempo_maquina=t_maq,
                     tempo_mao_obra=t_mo,
                     tempo_min=t_maq + t_mo,
-                    custo_estimado=custo_est,
+                    custo_estimado=round2(custo_maq + custo_mo),
+                    custo_maquina_estimado=custo_maq,
+                    custo_mao_obra_estimado=custo_mo,
+                    mao_obra_custo_hora=mo_hora,
                 ).model_dump()
             )
         itens.append(
@@ -1476,12 +1519,8 @@ async def compute_encomenda(enc: dict) -> dict:
     for o in ofs:
         for it in o.get("itens", []):
             for op in it.get("operacoes", []):
-                t = op.get("tempo_min") or 0
-                rmin = (op.get("tempo_real_seg") or 0) / 60.0
-                ec = op.get("custo_estimado") or 0
-                rc = (rmin / t) * ec if t > 0 else 0.0
-                custo_est += ec
-                custo_real += rc
+                custo_est += op.get("custo_estimado") or 0
+                custo_real += op_custo_real(op)
     enc["custo_producao_estimado"] = round2(custo_est)
     enc["custo_producao_real"] = round2(custo_real)
 
@@ -1606,7 +1645,7 @@ async def producao_tempos():
                 rseg = op.get("tempo_real_seg") or 0
                 rmin = rseg / 60.0
                 est_c = op.get("custo_estimado") or 0
-                real_c = round2((rmin / ttot) * est_c) if ttot > 0 else 0.0
+                real_c = op_custo_real(op)
                 est_maq += tmaq
                 est_mo += tmo
                 est_tot += ttot
@@ -1621,15 +1660,17 @@ async def producao_tempos():
                     "tempo_maquina": tmaq,
                     "tempo_mao_obra": tmo,
                     "tempo_estimado": round2(ttot),
+                    "tempo_mao_obra_real_min": round2(rmin),
                     "tempo_real_min": round2(rmin),
-                    "desvio_min": round2(rmin - ttot),
+                    "desvio_min": round2(rmin - tmo),
                     "custo_estimado": round2(est_c),
                     "custo_real": real_c,
                     "desvio_custo": round2(real_c - est_c),
                     "em_curso": bool(op.get("timer_inicio")),
                     "concluida": bool(op.get("concluida")),
                 })
-        real_min = round2(real_seg / 60.0)
+        mao_obra_real_min = round2(real_seg / 60.0)
+        tempo_real_total = round2(est_maq + mao_obra_real_min)
         custo_est_total = round2(custo_est_total)
         custo_real_total = round2(custo_real_total)
         result.append({
@@ -1641,8 +1682,10 @@ async def producao_tempos():
             "tempo_estimado_maquina": round2(est_maq),
             "tempo_estimado_mao_obra": round2(est_mo),
             "tempo_estimado_total": round2(est_tot),
-            "tempo_real_min": real_min,
-            "desvio_min": round2(real_min - est_tot),
+            "tempo_maquina_total": round2(est_maq),
+            "tempo_mao_obra_real_min": mao_obra_real_min,
+            "tempo_real_min": tempo_real_total,
+            "desvio_min": round2(tempo_real_total - est_tot),
             "custo_estimado": custo_est_total,
             "custo_real": custo_real_total,
             "desvio_custo": round2(custo_real_total - custo_est_total),
@@ -1655,7 +1698,7 @@ async def producao_tempos():
 async def producao_analise():
     from collections import defaultdict
     ofs = await db.ordens_fabrico.find({}, {"_id": 0}).to_list(2000)
-    by_month = defaultdict(lambda: {"criadas": 0, "concluidas": 0, "tempo_est": 0.0, "tempo_real": 0.0, "custo_est": 0.0, "custo_real": 0.0})
+    by_month = defaultdict(lambda: {"criadas": 0, "concluidas": 0, "tempo_est": 0.0, "tempo_maq": 0.0, "tempo_mo_real": 0.0, "custo_est": 0.0, "custo_real": 0.0})
     for o in ofs:
         o = recompute_of_status(o)
         mes = (o.get("created_at") or "")[:7]
@@ -1668,25 +1711,27 @@ async def producao_analise():
         for it in o.get("itens", []):
             for op in it.get("operacoes", []):
                 t = op.get("tempo_min") or 0
+                tmaq = op.get("tempo_maquina") or 0
                 rmin = (op.get("tempo_real_seg") or 0) / 60.0
                 ec = op.get("custo_estimado") or 0
-                rc = (rmin / t) * ec if t > 0 else 0.0
                 m["tempo_est"] += t
-                m["tempo_real"] += rmin
+                m["tempo_maq"] += tmaq
+                m["tempo_mo_real"] += rmin
                 m["custo_est"] += ec
-                m["custo_real"] += rc
+                m["custo_real"] += op_custo_real(op)
     result = []
     for mes in sorted(by_month.keys()):
         m = by_month[mes]
         criadas = m["criadas"] or 1
+        tempo_real = m["tempo_maq"] + m["tempo_mo_real"]
         result.append({
             "mes": mes,
             "ofs_criadas": m["criadas"],
             "ofs_concluidas": m["concluidas"],
             "taxa_conclusao": round2(m["concluidas"] / criadas * 100),
             "tempo_estimado": round2(m["tempo_est"]),
-            "tempo_real": round2(m["tempo_real"]),
-            "desvio_tempo": round2(m["tempo_real"] - m["tempo_est"]),
+            "tempo_real": round2(tempo_real),
+            "desvio_tempo": round2(tempo_real - m["tempo_est"]),
             "custo_estimado": round2(m["custo_est"]),
             "custo_real": round2(m["custo_real"]),
             "desvio_custo": round2(m["custo_real"] - m["custo_est"]),
@@ -1737,11 +1782,13 @@ async def dashboard():
     # tempo estimado vs real por OF (todas)
     tempo_por_of = []
     for o in ofs_t:
-        est = real = 0.0
+        est = maq = labor_real = 0.0
         for it in o.get("itens", []):
             for op in it.get("operacoes", []):
                 est += op.get("tempo_min") or 0
-                real += (op.get("tempo_real_seg") or 0) / 60.0
+                maq += op.get("tempo_maquina") or 0
+                labor_real += (op.get("tempo_real_seg") or 0) / 60.0
+        real = maq + labor_real
         if est > 0 or real > 0:
             tempo_por_of.append({"numero": o.get("numero"), "estimado": round2(est), "real": round2(real)})
     tempo_por_of = tempo_por_of[-8:]
