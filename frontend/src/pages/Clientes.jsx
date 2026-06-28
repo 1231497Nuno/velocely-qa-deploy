@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
@@ -19,8 +19,8 @@ export default function Clientes() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
 
-  const load = async () => setItems(await api.get("/clientes"));
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => setItems(await api.get("/clientes")), []);
+  useEffect(() => { load(); }, [load]);
 
   const openNew = () => { setForm(empty); setEditId(null); setOpen(true); };
   const openEdit = (c) => { setForm({ nome: c.nome, morada: c.morada || "", codigo_postal: c.codigo_postal || "", cidade: c.cidade || "", pais: c.pais || "Portugal", contacto: c.contacto || "", email: c.email || "", nif: c.nif || "", notas: c.notas || "" }); setEditId(c.id); setOpen(true); };

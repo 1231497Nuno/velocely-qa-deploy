@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -14,10 +14,10 @@ export default function Orcamentos() {
   const [q, setQ] = useState("");
   const nav = useNavigate();
 
-  const load = async () => setItems(await api.get("/orcamentos"));
+  const load = useCallback(async () => setItems(await api.get("/orcamentos")), []);
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const create = async () => {
     const o = await api.post("/orcamentos", {

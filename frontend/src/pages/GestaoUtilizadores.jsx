@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { PageHeader } from "../components/Layout";
 import { Plus, Pencil, Trash2, Shield, User, Users as UsersIcon, Lock } from "lucide-react";
@@ -25,12 +25,12 @@ export default function GestaoUtilizadores() {
   const [pForm, setPForm] = useState(null);
   const [pEditId, setPEditId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setUsers(await api.get("/users"));
     setPerfis(await api.get("/perfis"));
     setMeta(await api.get("/rbac/modulos"));
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
   // ---- users ----
   const openNewUser = () => { setUForm({ ...emptyUser, perfil_id: perfis.find((p) => !p.admin)?.id || perfis[0]?.id || "" }); setUEditId(null); setUOpen(true); };

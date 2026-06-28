@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, eur } from "../lib/api";
 import { PageHeader } from "../components/Layout";
@@ -47,8 +47,8 @@ const Empty = ({ msg = "Sem dados para mostrar." }) => (
 
 export default function Dashboard() {
   const [d, setD] = useState(null);
-  const load = async () => setD(await api.get("/dashboard"));
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => setD(await api.get("/dashboard")), []);
+  useEffect(() => { load(); }, [load]);
   const seed = async () => { await api.post("/seed"); load(); };
 
   if (!d) return <div className="text-sm text-gray-500">A carregar...</div>;

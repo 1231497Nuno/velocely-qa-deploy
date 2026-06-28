@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, fmtDate } from "../lib/api";
 import { PageHeader } from "../components/Layout";
@@ -70,9 +70,10 @@ export default function Calendario() {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
 
+  const load = useCallback(async () => setItems(await api.get("/prazos")), []);
   useEffect(() => {
-    api.get("/prazos").then(setItems);
-  }, []);
+    load();
+  }, [load]);
 
   const atrasadas = items.filter((i) => i.estado_prazo === "atrasada");
   const proximas = items.filter((i) => i.estado_prazo === "proxima");

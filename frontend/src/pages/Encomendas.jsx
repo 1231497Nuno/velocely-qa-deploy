@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate, eur } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -21,8 +21,8 @@ export default function Encomendas() {
   const [form, setForm] = useState({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" });
   const nav = useNavigate();
 
-  const load = async () => setItems(await api.get("/encomendas"));
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => setItems(await api.get("/encomendas")), []);
+  useEffect(() => { load(); }, [load]);
 
   const create = async () => {
     if (!form.cliente_id) return toast.error("Selecione um cliente");

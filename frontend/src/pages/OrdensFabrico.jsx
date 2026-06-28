@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -62,10 +62,10 @@ export default function OrdensFabrico() {
   const [q, setQ] = useState("");
   const nav = useNavigate();
 
-  const load = async () => setItems(await api.get("/ordens-fabrico"));
+  const load = useCallback(async () => setItems(await api.get("/ordens-fabrico")), []);
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const hasRunning = items.some((o) => o.timer_estado === "em_curso");
   useEffect(() => {

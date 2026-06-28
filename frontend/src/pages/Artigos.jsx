@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, eur } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/Layout";
@@ -30,15 +30,15 @@ export default function Artigos() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setItems(await api.get("/artigos"));
     setMaquinas(await api.get("/maquinas"));
     setConsumiveis(await api.get("/consumiveis"));
     setMaoObra(await api.get("/mao-obra"));
-  };
+  }, []);
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const openNew = () => {
     setForm(empty);
