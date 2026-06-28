@@ -69,6 +69,14 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - Frontend config: `MaoObra.jsx` (checkbox + coluna Personalizações), `TiposPersonalizacao.jsx` (campo + coluna Tempo M.O.).
 - Tested: iteration_15.json — backend 6/6 PASS, frontend 100%, sem issues. Contas reais intactas.
 
+## Iteração 16 (2026-06-28) — Refactor de qualidade (PDF builders + split de componentes)
+- **Backend PDF**: extraídos helpers partilhados `_th_row`, `_data_table` (com `_TABLE_BASE_STYLE`) e `_totais_table`; usados por `build_orcamento_pdf`/`build_of_pdf`/`build_encomenda_pdf` — complexidade reduzida, output PDF idêntico.
+- **Frontend split**: Dashboard→`components/dashboard/widgets.jsx` (Stat/PrazosBanner/charts), Artigos→`components/artigos/ArtigoForm.jsx`, OrdemFabricoDetail→`components/of/OFRoteiroPanel.jsx`, OrcamentoDetail→`components/orcamento/OrcamentoPanels.jsx` (OrcamentoMateriais+OrcamentoTotais). Reduções: Dashboard 258→~100, Artigos 335→168, OF detail 333→281, Orçamento detail 448→363.
+- **Hooks**: `load` envolvido em `useCallback` + adicionado às deps do `useEffect` em 12 páginas de listagem (corrige avisos exhaustive-deps reais).
+- **Code Quality Report — falsos positivos** (não alterados): `is True/False/None` (idiomático), "secret" em test_iteration11.py:71 (= `secrets.token_urlsafe`), index-keys em linhas de formulário totalmente editáveis (decisão), token em localStorage (padrão JWT SPA aceitável).
+- Tested: iteration_16.json — backend 15/15, frontend 0 console errors em todas as páginas. ZERO regressões.
+
+
 
 ## Iteração (2026-06-28) — Prazo de entrega, prioridade de OFs e filtro de encomendas
 - **Encomendas concluídas saem dos pendentes**: filtro "Pendentes | Concluídas | Todas" em `Encomendas.jsx` (default Pendentes). Concluída/cancelada não aparecem em Pendentes.
