@@ -865,6 +865,54 @@ def _pdf_footer(elems, st, settings):
         elems.append(Paragraph(rodape, st["small"]))
 
 
+_TABLE_BASE_STYLE = [
+    ("BACKGROUND", (0, 0), (-1, 0), DARK),
+    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+    ("TOPPADDING", (0, 0), (-1, -1), 6),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+]
+
+
+def _th_row(st, cols):
+    return [Paragraph(t, st["th"]) for t in cols]
+
+
+def _data_table(data, col_widths, align=None, hAlign=None):
+    """Tabela padrão (cabeçalho escuro + linhas zebra). `align` acrescenta regras ALIGN."""
+    kwargs = {"hAlign": hAlign} if hAlign else {}
+    tbl = Table(data, colWidths=col_widths, **kwargs)
+    tbl.setStyle(TableStyle(_TABLE_BASE_STYLE + (align or [])))
+    return tbl
+
+
+def _totais_table(rows, has_total_line):
+    """Tabela de totais alinhada à direita; última linha em destaque se has_total_line."""
+    last = len(rows) - 1
+    tot = Table(rows, colWidths=[50 * mm, 35 * mm], hAlign="RIGHT")
+    styles = [
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TEXTCOLOR", (0, 0), (-1, -1), GREY),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]
+    if has_total_line:
+        styles += [
+            ("LINEABOVE", (0, last), (-1, last), 1, DARK),
+            ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+            ("FONTSIZE", (0, last), (-1, last), 13),
+            ("TEXTCOLOR", (0, last), (-1, last), DARK),
+        ]
+    tot.setStyle(TableStyle(styles))
+    return tot
+
+
 def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
@@ -881,8 +929,7 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
     show_pers = section_on(fields, "personalizacoes")
     if section_on(fields, "linhas_artigos"):
         cols = ["Artigo"] + (["Personalização", "Pers. €/un"] if show_pers else []) + ["Qtd", "Preço Unit.", "Subtotal"]
-        header = [Paragraph(t, st["th"]) for t in cols]
-        data = [header]
+        data = [_th_row(st, cols)]
         for l in orc.get("linhas", []):
             qtd = l.get("quantidade") or 0
             preco = l.get("preco_unit") or 0
@@ -894,19 +941,10 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
             row += [Paragraph(f"{qtd:g}", st["cell"]), Paragraph(fmt_eur(preco), st["cell"]), Paragraph(fmt_eur(sub), st["cellb"])]
             data.append(row)
         col_widths = [55 * mm] + ([35 * mm, 22 * mm] if show_pers else []) + ([20 * mm, 30 * mm, 23 * mm] if not show_pers else [15 * mm, 25 * mm, 18 * mm])
-        tbl = Table(data, colWidths=col_widths)
-        tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        tbl = _data_table(data, col_widths, align=[
             ("ALIGN", (-3, 0), (-1, -1), "RIGHT"),
             ("ALIGN", (0, 0), (0, -1), "LEFT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
+        ])
         elems.append(tbl)
         elems.append(Spacer(1, 14))
 
@@ -914,7 +952,7 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
     if materiais and section_on(fields, "materiais"):
         elems.append(Paragraph("Materiais / Consumíveis", st["cellb"]))
         elems.append(Spacer(1, 4))
-        mhead = [Paragraph(t, st["th"]) for t in ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Margem", "Valor"]]
+        mhead = _th_row(st, ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Margem", "Valor"])
         mdata = [mhead]
         for m in materiais:
             unidade = (m.get("unidade") or "").lower()
@@ -930,19 +968,10 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
                 Paragraph(f"{margem:g}%", st["cell"]),
                 Paragraph(fmt_eur(round2(material_custo(m) * material_margem_factor(m))), st["cellb"]),
             ])
-        mtbl = Table(mdata, colWidths=[44 * mm, 20 * mm, 30 * mm, 14 * mm, 22 * mm, 18 * mm, 22 * mm])
-        mtbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        mtbl = _data_table(mdata, [44 * mm, 20 * mm, 30 * mm, 14 * mm, 22 * mm, 18 * mm, 22 * mm], align=[
             ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
             ("ALIGN", (0, 0), (2, -1), "LEFT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
+        ])
         elems.append(mtbl)
         elems.append(Spacer(1, 14))
 
@@ -1008,7 +1037,7 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
             else:
                 cols = ["Operação", "Máquina", "Mão de Obra", "Concl."]
                 col_widths = [55 * mm, 45 * mm, 45 * mm, 15 * mm]
-            data = [[Paragraph(t, st["th"]) for t in cols]]
+            data = [_th_row(st, cols)]
             for op in it.get("operacoes", []):
                 concl = Paragraph("Sim" if op.get("concluida") else "—", st["cellb"] if op.get("concluida") else st["cell"])
                 if show_tempos:
@@ -1031,19 +1060,10 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
                     ])
             if len(data) == 1:
                 data.append([Paragraph("Sem operações", st["cell"])] + [""] * (len(cols) - 1))
-            tbl = Table(data, colWidths=col_widths)
-            tbl.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), DARK),
+            tbl = _data_table(data, col_widths, align=[
                 ("ALIGN", (-2, 0), (-1, -1), "RIGHT" if show_tempos else "CENTER"),
                 ("ALIGN", (0, 0), (0, -1), "LEFT"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]))
+            ])
             elems.append(tbl)
             elems.append(Spacer(1, 14))
         if not of.get("itens"):
@@ -1072,7 +1092,7 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
 
     artigos = enc.get("artigos") or []
     if section_on(fields, "artigos") and artigos:
-        header = [Paragraph(t, st["th"]) for t in ["Artigo", "Personalização", "Qtd", "Preço Unit.", "Subtotal"]]
+        header = _th_row(st, ["Artigo", "Personalização", "Qtd", "Preço Unit.", "Subtotal"])
         data = [header]
         for a in artigos:
             qtd = a.get("quantidade") or 0
@@ -1086,19 +1106,10 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
                 Paragraph(fmt_eur(pu + pers), st["cell"]),
                 Paragraph(fmt_eur(sub), st["cellb"]),
             ])
-        tbl = Table(data, colWidths=[58 * mm, 42 * mm, 16 * mm, 26 * mm, 28 * mm])
-        tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        tbl = _data_table(data, [58 * mm, 42 * mm, 16 * mm, 26 * mm, 28 * mm], align=[
             ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
             ("ALIGN", (0, 0), (1, -1), "LEFT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
+        ])
         elems.append(tbl)
         elems.append(Spacer(1, 14))
 
@@ -1106,7 +1117,7 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
         ofs = enc.get("ordens_fabrico") or enc.get("ordens_resumo") or []
         elems.append(Paragraph("Ordens de Fabrico", st["cellb"]))
         elems.append(Spacer(1, 4))
-        ohead = [Paragraph(t, st["th"]) for t in ["Nº OF", "Estado", "Progresso"]]
+        ohead = _th_row(st, ["Nº OF", "Estado", "Progresso"])
         odata = [ohead]
         for o in ofs:
             odata.append([
@@ -1114,18 +1125,9 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
                 Paragraph(STATUS_PT.get(o.get("status"), o.get("status")) or "—", st["cell"]),
                 Paragraph(f"{round(o.get('progresso') or 0)}%", st["cell"]),
             ])
-        otbl = Table(odata, colWidths=[40 * mm, 50 * mm, 30 * mm], hAlign="LEFT")
-        otbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        otbl = _data_table(odata, [40 * mm, 50 * mm, 30 * mm], align=[
             ("ALIGN", (2, 0), (2, -1), "RIGHT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
+        ], hAlign="LEFT")
         elems.append(otbl)
         elems.append(Spacer(1, 14))
 
@@ -1139,27 +1141,8 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
     if section_on(fields, "valor_total"):
         tot_rows.append(["VALOR TOTAL", fmt_eur(enc.get("valor_total"))])
     if tot_rows:
-        last = len(tot_rows) - 1
         has_total = section_on(fields, "valor_total")
-        tot = Table(tot_rows, colWidths=[50 * mm, 35 * mm], hAlign="RIGHT")
-        styles = [
-            ("ALIGN", (0, 0), (0, -1), "LEFT"),
-            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("TEXTCOLOR", (0, 0), (-1, -1), GREY),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]
-        if has_total:
-            styles += [
-                ("LINEABOVE", (0, last), (-1, last), 1, DARK),
-                ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
-                ("FONTSIZE", (0, last), (-1, last), 13),
-                ("TEXTCOLOR", (0, last), (-1, last), DARK),
-            ]
-        tot.setStyle(TableStyle(styles))
-        elems.append(tot)
+        elems.append(_totais_table(tot_rows, has_total))
 
     if section_on(fields, "notas") and (enc.get("notas") or enc.get("descricao")):
         elems.append(Spacer(1, 10))
