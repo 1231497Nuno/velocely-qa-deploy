@@ -63,7 +63,15 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
-## Iteração (2026-06-28) — Correções de qualidade de código (code review)
+## Iteração (2026-06-28) — Múltiplas personalizações nas OFs + PDFs com campos do cliente e dados cruzados
+- **OFs — várias personalizações por artigo**: editor de itens passou a permitir adicionar/remover várias personalizações (chips + select "+ Adicionar personalização"), como nos Orçamentos. O modelo `OFItem.personalizacoes` já existia; UI em `OrdemFabricoDetail.jsx` (`addItemPers`/`delItemPers`). Persiste em POST/PUT; o roteiro mostra todas.
+- **PDFs — seleção campo-a-campo + dados cruzados**:
+  - `PDF_SECOES`: a secção `dados_cliente` ganhou subcampos selecionáveis (`cliente_nome/nif/morada/codigo_postal/cidade/pais/telefone/email`); OF e Encomenda ganharam a secção `orcamento_origem`.
+  - Helpers `cliente_meta_pairs()` (puxa dados do registo Cliente — cross-data) e `orcamento_origem_pairs()`. Builders recebem `cliente`/`orcamento`; endpoints `/pdf` fazem `_fetch_cliente`/`_fetch_orcamento`.
+  - `Definicoes.jsx` Modelos: subcheckboxes indentados por campo; desligar a secção esmaece os subcampos; `allOn()` inclui subcampos.
+- Tested: iteration_13.json — backend 11 PASS/1 skip, frontend sem issues. Contas reais intactas.
+
+
 - **Segurança (crítico)**: removidos secrets hardcoded de `tests/test_iteration9.py` e `test_iteration11.py` — credenciais admin lidas de `TEST_ADMIN_EMAIL`/`TEST_ADMIN_PASSWORD` ou parse de `/app/memory/test_credentials.md` (`_load_admin_creds`). 29/29 testes a passar.
 - **React**: `useMemo` para a morada completa do cliente em `EncomendaDetail.jsx`; keys de array estáveis em `OrdemFabricoDetail.jsx` (it.id, op.id, p.id), `AnaliseProducao.jsx` e chips de personalização em `OrcamentoDetail.jsx`. Corrigido bug de conflito de edição paralela (`moradaCompleta` em falta) — validado.
 - **Decisão**: mantidas as index-keys em linhas de formulário totalmente editáveis (OrcamentoDetail linhas/roteiro, Artigos materiais/roteiro) porque todos os inputs são controlados por dados e os handlers são por índice — converter a IDs seria refactor de risco sem benefício funcional. NÃO se migrou o token de localStorage para cookies httpOnly (exigiria reescrita do fluxo de auth com integration_expert; padrão JWT em SPA é aceitável). Refactors de complexidade (PDF builders, componentes grandes) ficam como backlog P2.
