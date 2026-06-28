@@ -63,7 +63,13 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
-## Iteração (2026-06-28) — PDFs por módulo com modelos reutilizáveis + branding da empresa
+## Iteração (2026-06-28) — Correções de qualidade de código (code review)
+- **Segurança (crítico)**: removidos secrets hardcoded de `tests/test_iteration9.py` e `test_iteration11.py` — credenciais admin lidas de `TEST_ADMIN_EMAIL`/`TEST_ADMIN_PASSWORD` ou parse de `/app/memory/test_credentials.md` (`_load_admin_creds`). 29/29 testes a passar.
+- **React**: `useMemo` para a morada completa do cliente em `EncomendaDetail.jsx`; keys de array estáveis em `OrdemFabricoDetail.jsx` (it.id, op.id, p.id), `AnaliseProducao.jsx` e chips de personalização em `OrcamentoDetail.jsx`. Corrigido bug de conflito de edição paralela (`moradaCompleta` em falta) — validado.
+- **Decisão**: mantidas as index-keys em linhas de formulário totalmente editáveis (OrcamentoDetail linhas/roteiro, Artigos materiais/roteiro) porque todos os inputs são controlados por dados e os handlers são por índice — converter a IDs seria refactor de risco sem benefício funcional. NÃO se migrou o token de localStorage para cookies httpOnly (exigiria reescrita do fluxo de auth com integration_expert; padrão JWT em SPA é aceitável). Refactors de complexidade (PDF builders, componentes grandes) ficam como backlog P2.
+- Tested: iteration_12.json — backend e frontend sem issues (regressão limpa).
+
+
 - **Definições (admin)** — nova página `/definicoes` (`Definicoes.jsx`) com 2 tabs:
   - **Empresa**: nome, logótipo (upload base64, máx. 600KB), morada, CP, cidade, país, NIF, telefone, email, website, rodapé. Guardado em `empresa_settings` (singleton) via `GET/PUT /api/settings/empresa` (PUT só admin). Aparece no cabeçalho de todos os PDFs.
   - **Modelos PDF**: CRUD de modelos reutilizáveis por módulo (orçamento/of/encomenda). Cada modelo define `finalidade` (cliente/interno/ambos), `mostrar_branding` e que secções incluir (checkboxes). Endpoints `GET /api/pdf-secoes`, `GET/POST/PUT/DELETE /api/pdf-templates` (escrita só admin).
