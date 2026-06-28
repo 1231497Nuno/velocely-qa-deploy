@@ -37,7 +37,7 @@ export default function OrdemFabricoDetail() {
   const upd = (patch) => setOf({ ...of, ...patch });
 
   const addItem = () =>
-    upd({ itens: [...of.itens, { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", operacoes: [] }] });
+    upd({ itens: [...of.itens, { artigo_id: "", artigo_nome: "", quantidade: 1, personalizacoes: [], operacoes: [] }] });
 
   const updItem = (i, patch) => {
     const it = [...of.itens];
@@ -45,6 +45,16 @@ export default function OrdemFabricoDetail() {
     upd({ itens: it });
   };
   const delItem = (i) => upd({ itens: of.itens.filter((_, idx) => idx !== i) });
+
+  const addItemPers = (i, tipoId) => {
+    if (!tipoId) return;
+    const t = tipos.find((x) => x.id === tipoId);
+    if (!t) return;
+    const cur = of.itens[i].personalizacoes || [];
+    if (cur.some((p) => p.id === t.id)) return;
+    updItem(i, { personalizacoes: [...cur, { id: t.id, nome: t.nome, valor: Number(t.valor) || 0 }] });
+  };
+  const delItemPers = (i, pi) => updItem(i, { personalizacoes: (of.itens[i].personalizacoes || []).filter((_, idx) => idx !== pi) });
 
   const save = async () => {
     const body = {
@@ -226,13 +236,25 @@ export default function OrdemFabricoDetail() {
               {of.itens.map((it, i) => (
                 <div key={it.id || i} className="border border-gray-200 rounded-sm p-3 space-y-2">
                   <ArtigoCombobox artigos={artigos} value={it.artigo_id} testid={`of-item-artigo-${i}`} onChange={(a) => updItem(i, { artigo_id: a.id, artigo_nome: a.nome, operacoes: [] })} />
-                  <div className="grid grid-cols-[1fr_70px_28px] gap-2 items-center">
-                    <select data-testid={`of-item-tipo-${i}`} value={it.tipo_personalizacao_id || ""} onChange={(e) => { const t = tipos.find((x) => x.id === e.target.value); updItem(i, { tipo_personalizacao_id: e.target.value, tipo_personalizacao_nome: t ? t.nome : "" }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-                      <option value="">Personalização —</option>
-                      {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                    </select>
-                    <input data-testid={`of-item-qtd-${i}`} type="number" min="1" value={it.quantidade} onChange={(e) => updItem(i, { quantidade: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Qtd</span>
+                    <input data-testid={`of-item-qtd-${i}`} type="number" min="1" value={it.quantidade} onChange={(e) => updItem(i, { quantidade: e.target.value })} className="w-20 border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                    <div className="flex-1" />
                     <button onClick={() => delItem(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600 flex justify-center"><Trash2 size={14} /></button>
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {(it.personalizacoes || []).map((p, pi) => (
+                        <span key={p.id || pi} data-testid={`of-item-pers-${i}-${pi}`} className="inline-flex items-center gap-1.5 text-xs text-gray-700 bg-gray-100 rounded-full pl-2.5 pr-1 py-0.5">
+                          {p.nome}
+                          <button onClick={() => delItemPers(i, pi)} data-testid={`of-item-pers-del-${i}-${pi}`} className="w-4 h-4 rounded-full hover:bg-gray-300 text-gray-500 flex items-center justify-center leading-none">×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <select data-testid={`of-item-add-pers-${i}`} value="" onChange={(e) => { addItemPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                      <option value="">+ Adicionar personalização</option>
+                      {tipos.filter((t) => !(it.personalizacoes || []).some((p) => p.id === t.id)).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                    </select>
                   </div>
                 </div>
               ))}

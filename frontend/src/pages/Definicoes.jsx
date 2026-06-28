@@ -91,7 +91,14 @@ function ModelosTab() {
   const load = async () => setItems(await api.get("/pdf-templates"));
   useEffect(() => { api.get("/pdf-secoes").then(setSecoes); load(); }, []);
 
-  const allOn = (modulo) => Object.fromEntries((secoes[modulo] || []).map((s) => [s.key, true]));
+  const allOn = (modulo) => {
+    const o = {};
+    (secoes[modulo] || []).forEach((s) => {
+      o[s.key] = true;
+      (s.campos || []).forEach((c) => { o[c.key] = true; });
+    });
+    return o;
+  };
 
   const openNew = () => { setForm({ ...emptyTpl, campos: allOn("encomenda") }); setEditId(null); setOpen(true); };
   const openEdit = (t) => { setForm({ nome: t.nome, modulo: t.modulo, finalidade: t.finalidade || "ambos", mostrar_branding: t.mostrar_branding !== false, campos: t.campos || {} }); setEditId(t.id); setOpen(true); };
@@ -171,13 +178,28 @@ function ModelosTab() {
             </label>
             <div>
               <div className="text-sm font-medium text-gray-700 mb-2">Secções a incluir</div>
-              <div className="space-y-1.5 border border-gray-200 rounded-sm p-3">
-                {secoesModulo.map((s) => (
-                  <label key={s.key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input data-testid={`secao-${s.key}`} type="checkbox" checked={form.campos[s.key] !== false} onChange={(e) => setForm({ ...form, campos: { ...form.campos, [s.key]: e.target.checked } })} className="w-4 h-4 accent-black" />
-                    {s.label}
-                  </label>
-                ))}
+              <div className="space-y-2 border border-gray-200 rounded-sm p-3">
+                {secoesModulo.map((s) => {
+                  const secOn = form.campos[s.key] !== false;
+                  return (
+                    <div key={s.key}>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-800 cursor-pointer">
+                        <input data-testid={`secao-${s.key}`} type="checkbox" checked={secOn} onChange={(e) => setForm({ ...form, campos: { ...form.campos, [s.key]: e.target.checked } })} className="w-4 h-4 accent-black" />
+                        {s.label}
+                      </label>
+                      {s.campos && (
+                        <div className={`mt-1.5 ml-6 grid grid-cols-2 gap-x-4 gap-y-1 ${secOn ? "" : "opacity-40 pointer-events-none"}`}>
+                          {s.campos.map((c) => (
+                            <label key={c.key} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                              <input data-testid={`secao-${c.key}`} type="checkbox" checked={form.campos[c.key] !== false} onChange={(e) => setForm({ ...form, campos: { ...form.campos, [c.key]: e.target.checked } })} className="w-3.5 h-3.5 accent-black" />
+                              {c.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

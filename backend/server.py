@@ -476,9 +476,19 @@ class EmpresaSettings(BaseModel):
 
 
 # Secções disponíveis por módulo para os modelos de PDF
+_CLIENTE_CAMPOS = [
+    {"key": "cliente_nome", "label": "Nome"},
+    {"key": "cliente_nif", "label": "NIF"},
+    {"key": "cliente_morada", "label": "Morada"},
+    {"key": "cliente_codigo_postal", "label": "Código postal"},
+    {"key": "cliente_cidade", "label": "Cidade"},
+    {"key": "cliente_pais", "label": "País"},
+    {"key": "cliente_telefone", "label": "Telefone"},
+    {"key": "cliente_email", "label": "Email"},
+]
 PDF_SECOES = {
     "orcamento": [
-        {"key": "dados_cliente", "label": "Dados do cliente"},
+        {"key": "dados_cliente", "label": "Dados do cliente", "campos": _CLIENTE_CAMPOS},
         {"key": "datas_estado", "label": "Datas e estado"},
         {"key": "linhas_artigos", "label": "Linhas de artigos"},
         {"key": "personalizacoes", "label": "Personalizações"},
@@ -487,14 +497,16 @@ PDF_SECOES = {
         {"key": "notas", "label": "Notas"},
     ],
     "of": [
-        {"key": "dados_cliente", "label": "Dados do cliente"},
+        {"key": "dados_cliente", "label": "Dados do cliente", "campos": _CLIENTE_CAMPOS},
         {"key": "datas_estado", "label": "Datas, estado e progresso"},
+        {"key": "orcamento_origem", "label": "Dados do orçamento de origem"},
         {"key": "roteiro_operacoes", "label": "Roteiro de operações"},
         {"key": "tempos", "label": "Tempos (máquina/mão de obra)"},
         {"key": "notas", "label": "Notas"},
     ],
     "encomenda": [
-        {"key": "dados_cliente", "label": "Dados do cliente"},
+        {"key": "dados_cliente", "label": "Dados do cliente", "campos": _CLIENTE_CAMPOS},
+        {"key": "orcamento_origem", "label": "Dados do orçamento de origem"},
         {"key": "artigos", "label": "Lista de artigos"},
         {"key": "valor_total", "label": "Valor total"},
         {"key": "pagamento", "label": "Estado de pagamento"},
@@ -748,6 +760,42 @@ def section_on(fields: dict, key: str) -> bool:
     return bool(fields.get(key, True))
 
 
+_CLIENTE_META = [
+    ("cliente_nome", "Cliente", "nome"),
+    ("cliente_nif", "NIF", "nif"),
+    ("cliente_morada", "Morada", "morada"),
+    ("cliente_codigo_postal", "Cód. Postal", "codigo_postal"),
+    ("cliente_cidade", "Cidade", "cidade"),
+    ("cliente_pais", "País", "pais"),
+    ("cliente_telefone", "Telefone", "contacto"),
+    ("cliente_email", "Email", "email"),
+]
+
+
+def cliente_meta_pairs(record: dict, cliente: dict, fields: dict) -> list:
+    """Dados cruzados do cliente — campos selecionáveis a partir do registo de Cliente."""
+    c = cliente or {}
+    pairs = []
+    for fkey, label, ckey in _CLIENTE_META:
+        if not section_on(fields, fkey):
+            continue
+        val = (c.get("nome") or record.get("cliente")) if fkey == "cliente_nome" else c.get(ckey)
+        if val:
+            pairs.append((label, val))
+    return pairs
+
+
+def orcamento_origem_pairs(orc: dict) -> list:
+    if not orc:
+        return []
+    t = compute_orcamento_totais(orc)
+    return [
+        ("Orçamento origem", orc.get("numero")),
+        ("Data orçamento", orc.get("data")),
+        ("Total orçamento", fmt_eur(t.get("total"))),
+    ]
+
+
 def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_branding=True):
     settings = settings or {}
     left_flowables = []
@@ -808,14 +856,15 @@ def _pdf_footer(elems, st, settings):
         elems.append(Paragraph(rodape, st["small"]))
 
 
-def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True) -> bytes:
+def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
     elems = []
     meta_pairs = []
     if section_on(fields, "dados_cliente"):
-        meta_pairs += [("Cliente", orc.get("cliente")), ("Descrição", orc.get("descricao")), ("Nº Encomenda", orc.get("numero_encomenda"))]
+        meta_pairs += cliente_meta_pairs(orc, cliente, fields)
+        meta_pairs += [("Descrição", orc.get("descricao")), ("Nº Encomenda", orc.get("numero_encomenda"))]
     if section_on(fields, "datas_estado"):
         meta_pairs += [("Data", orc.get("data")), ("Validade", orc.get("validade")), ("Estado", STATUS_PT.get(orc.get("status"), orc.get("status")))]
     _header(elems, st, "ORÇAMENTO", orc.get("numero", ""), meta_pairs, settings, show_branding)
@@ -920,16 +969,19 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
     return buf.getvalue()
 
 
-def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_branding: bool = True) -> bytes:
+def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
     elems = []
     meta_pairs = []
     if section_on(fields, "dados_cliente"):
-        meta_pairs += [("Cliente", of.get("cliente")), ("Descrição", of.get("descricao")), ("Nº Encomenda", of.get("numero_encomenda"))]
+        meta_pairs += cliente_meta_pairs(of, cliente, fields)
+        meta_pairs += [("Descrição", of.get("descricao")), ("Nº Encomenda", of.get("numero_encomenda"))]
     if section_on(fields, "datas_estado"):
-        meta_pairs += [("Data", of.get("data")), ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))), ("Progresso", f"{round(of.get('progresso') or 0)}%"), ("Origem", of.get("orcamento_numero"))]
+        meta_pairs += [("Data", of.get("data")), ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))), ("Progresso", f"{round(of.get('progresso') or 0)}%")]
+    if section_on(fields, "orcamento_origem"):
+        meta_pairs += orcamento_origem_pairs(orcamento)
     _header(elems, st, "ORDEM DE FABRICO", of.get("numero", ""), meta_pairs, settings, show_branding)
 
     show_tempos = section_on(fields, "tempos")
@@ -996,16 +1048,17 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
     return buf.getvalue()
 
 
-def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True) -> bytes:
+def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
     elems = []
     meta_pairs = []
     if section_on(fields, "dados_cliente"):
-        meta_pairs += [("Cliente", enc.get("cliente")), ("Data", enc.get("data")), ("Estado", ENC_ESTADO_PT.get(enc.get("estado"), enc.get("estado")))]
-        if enc.get("orcamento_numero"):
-            meta_pairs.append(("Origem", enc.get("orcamento_numero")))
+        meta_pairs += cliente_meta_pairs(enc, cliente, fields)
+        meta_pairs += [("Data", enc.get("data")), ("Estado", ENC_ESTADO_PT.get(enc.get("estado"), enc.get("estado")))]
+    if section_on(fields, "orcamento_origem"):
+        meta_pairs += orcamento_origem_pairs(orcamento)
     _header(elems, st, "ENCOMENDA", enc.get("numero", ""), meta_pairs, settings, show_branding)
 
     artigos = enc.get("artigos") or []
@@ -1117,6 +1170,18 @@ async def load_pdf_config(template_id: Optional[str]):
             fields = t.get("campos") or {}
             show_branding = t.get("mostrar_branding", True)
     return settings, fields, show_branding
+
+
+async def _fetch_cliente(cid: Optional[str]):
+    if not cid:
+        return None
+    return await db.clientes.find_one({"id": cid}, {"_id": 0})
+
+
+async def _fetch_orcamento(oid: Optional[str]):
+    if not oid:
+        return None
+    return await db.orcamentos.find_one({"id": oid}, {"_id": 0})
 @api_router.get("/maquinas", response_model=List[Maquina])
 async def list_maquinas():
     return await db.maquinas.find({}, {"_id": 0}).sort("nome", 1).to_list(1000)
@@ -1324,7 +1389,8 @@ async def orcamento_pdf(oid: str, template_id: Optional[str] = None):
         raise HTTPException(404, "Orçamento não encontrado")
     o = compute_orcamento_totais(o)
     settings, fields, show_branding = await load_pdf_config(template_id)
-    pdf = build_orcamento_pdf(o, settings, fields, show_branding)
+    cliente = await _fetch_cliente(o.get("cliente_id"))
+    pdf = build_orcamento_pdf(o, settings, fields, show_branding, cliente)
     filename = f"{o.get('numero', 'orcamento')}.pdf"
     return StreamingResponse(
         BytesIO(pdf),
@@ -1485,7 +1551,9 @@ async def of_pdf(ofid: str, template_id: Optional[str] = None):
         raise HTTPException(404, "OF não encontrada")
     o = recompute_of_status(o)
     settings, fields, show_branding = await load_pdf_config(template_id)
-    pdf = build_of_pdf(o, settings, fields, show_branding)
+    cliente = await _fetch_cliente(o.get("cliente_id"))
+    orcamento = await _fetch_orcamento(o.get("orcamento_id"))
+    pdf = build_of_pdf(o, settings, fields, show_branding, cliente, orcamento)
     filename = f"{o.get('numero', 'ordem-fabrico')}.pdf"
     return StreamingResponse(
         BytesIO(pdf),
@@ -1888,7 +1956,9 @@ async def encomenda_pdf(eid: str, template_id: Optional[str] = None):
     ofs = await db.ordens_fabrico.find({"encomenda_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
     settings, fields, show_branding = await load_pdf_config(template_id)
-    pdf = build_encomenda_pdf(e, settings, fields, show_branding)
+    cliente = await _fetch_cliente(e.get("cliente_id"))
+    orcamento = await _fetch_orcamento(e.get("orcamento_id"))
+    pdf = build_encomenda_pdf(e, settings, fields, show_branding, cliente, orcamento)
     filename = f"{e.get('numero', 'encomenda')}.pdf"
     return StreamingResponse(
         BytesIO(pdf),
