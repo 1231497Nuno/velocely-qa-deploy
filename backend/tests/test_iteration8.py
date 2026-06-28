@@ -16,8 +16,23 @@ def _load_react_url():
 
 BASE_URL = _load_react_url().rstrip('/')
 API = f"{BASE_URL}/api"
-ADMIN_EMAIL = "admin@prodcost.pt"
-ADMIN_PASS = "Admin123!"
+
+
+def _load_admin_creds():
+    e = os.environ.get('TEST_ADMIN_EMAIL')
+    p = os.environ.get('TEST_ADMIN_PASSWORD')
+    if e and p:
+        return e, p
+    import re
+    txt = Path('/app/memory/test_credentials.md').read_text()
+    m_e = re.search(r"Email:\s*`([^`]+)`", txt)
+    m_p = re.search(r"Password:\s*`([^`]+)`", txt)
+    if m_e and m_p:
+        return m_e.group(1), m_p.group(1)
+    raise RuntimeError('Credenciais de teste em falta (TEST_ADMIN_* ou test_credentials.md)')
+
+
+ADMIN_EMAIL, ADMIN_PASS = _load_admin_creds()
 
 TESTE_PREFIX = "teste-"
 

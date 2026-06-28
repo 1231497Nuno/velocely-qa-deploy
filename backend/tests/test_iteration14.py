@@ -8,17 +8,30 @@ Covers:
 - PUT preserves prioritaria
 """
 import os
+import re
 import pytest
 import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
 
 
+def _load_admin_creds():
+    email = os.environ.get("TEST_ADMIN_EMAIL")
+    pwd = os.environ.get("TEST_ADMIN_PASSWORD")
+    if email and pwd:
+        return email, pwd
+    txt = open("/app/memory/test_credentials.md").read()
+    m_e = re.search(r"Email:\s*`([^`]+)`", txt)
+    m_p = re.search(r"Password:\s*`([^`]+)`", txt)
+    if m_e and m_p:
+        return m_e.group(1), m_p.group(1)
+    raise RuntimeError("Credenciais de teste em falta (TEST_ADMIN_* ou test_credentials.md)")
+
+
 @pytest.fixture(scope="module")
 def auth_token():
-    r = requests.post(f"{BASE_URL}/api/auth/login", json={
-        "email": "admin@prodcost.pt", "password": "Admin123!"
-    })
+    email, pwd = _load_admin_creds()
+    r = requests.post(f"{BASE_URL}/api/auth/login", json={"email": email, "password": pwd})
     assert r.status_code == 200, r.text
     return r.json()["token"]
 

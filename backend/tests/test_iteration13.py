@@ -26,7 +26,7 @@ def _load_admin_creds():
             return m_e.group(1), m_p.group(1)
     except Exception:
         pass
-    return "admin@prodcost.pt", "Admin123!"
+    raise RuntimeError("Credenciais de teste em falta: defina TEST_ADMIN_EMAIL/TEST_ADMIN_PASSWORD ou /app/memory/test_credentials.md")
 
 
 @pytest.fixture(scope="module")

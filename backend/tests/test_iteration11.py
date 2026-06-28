@@ -11,6 +11,7 @@ import os
 import time
 import requests
 import pytest
+import secrets
 from pathlib import Path
 
 def _load_frontend_env_url():
@@ -67,7 +68,7 @@ def colaborador_creds(admin_token):
     """Cria um utilizador colaborador (teste-) para testar 403 e devolve credenciais."""
     h = {"Authorization": f"Bearer {admin_token}"}
     email = f"teste-colab-it11-{int(time.time())}@example.com"
-    password = "Colab123!"
+    password = "T" + secrets.token_urlsafe(8) + "9!"
     payload = {"email": email, "password": password, "nome": "teste-Colab It11", "perfil_id": "colaborador"}
     r = requests.post(f"{API}/users", json=payload, headers=h, timeout=15)
     if r.status_code not in (200, 201):
