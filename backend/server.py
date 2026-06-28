@@ -461,6 +461,62 @@ class Encomenda(EncomendaInput):
     created_at: str = Field(default_factory=now_iso)
 
 
+class EmpresaSettings(BaseModel):
+    nome: str = "Gestão Produção"
+    morada: str = ""
+    codigo_postal: str = ""
+    cidade: str = ""
+    pais: str = ""
+    nif: str = ""
+    telefone: str = ""
+    email: str = ""
+    website: str = ""
+    logo_base64: str = ""
+    rodape: str = ""
+
+
+# Secções disponíveis por módulo para os modelos de PDF
+PDF_SECOES = {
+    "orcamento": [
+        {"key": "dados_cliente", "label": "Dados do cliente"},
+        {"key": "datas_estado", "label": "Datas e estado"},
+        {"key": "linhas_artigos", "label": "Linhas de artigos"},
+        {"key": "personalizacoes", "label": "Personalizações"},
+        {"key": "materiais", "label": "Materiais / consumíveis"},
+        {"key": "totais", "label": "Totais e preço final"},
+        {"key": "notas", "label": "Notas"},
+    ],
+    "of": [
+        {"key": "dados_cliente", "label": "Dados do cliente"},
+        {"key": "datas_estado", "label": "Datas, estado e progresso"},
+        {"key": "roteiro_operacoes", "label": "Roteiro de operações"},
+        {"key": "tempos", "label": "Tempos (máquina/mão de obra)"},
+        {"key": "notas", "label": "Notas"},
+    ],
+    "encomenda": [
+        {"key": "dados_cliente", "label": "Dados do cliente"},
+        {"key": "artigos", "label": "Lista de artigos"},
+        {"key": "valor_total", "label": "Valor total"},
+        {"key": "pagamento", "label": "Estado de pagamento"},
+        {"key": "ofs_associadas", "label": "OFs associadas e estado"},
+        {"key": "notas", "label": "Notas / descrição"},
+    ],
+}
+
+
+class PdfTemplateInput(BaseModel):
+    nome: str
+    modulo: str
+    finalidade: str = "ambos"
+    mostrar_branding: bool = True
+    campos: dict = Field(default_factory=dict)
+
+
+class PdfTemplate(PdfTemplateInput):
+    id: str = Field(default_factory=new_id)
+    created_at: str = Field(default_factory=now_iso)
+
+
 # ----------------------- Cost computation -----------------------
 def to_minutes(val, unidade) -> float:
     val = val or 0
@@ -627,12 +683,13 @@ def compute_orcamento_totais(orc: dict) -> dict:
 
 # ----------------------- PDF generation -----------------------
 from io import BytesIO
+import base64
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable,
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image,
 )
 
 DARK = colors.HexColor("#0A0A0A")
@@ -666,10 +723,58 @@ STATUS_PT = {
 }
 
 
-def _header(elems, st, doc_title, numero, meta_pairs):
+def _logo_flowable(b64: str):
+    if not b64:
+        return None
+    try:
+        if b64.strip().startswith("data:") and "," in b64:
+            b64 = b64.split(",", 1)[1]
+        raw = base64.b64decode(b64)
+        img = Image(BytesIO(raw))
+        iw, ih = float(img.imageWidth), float(img.imageHeight)
+        if iw <= 0 or ih <= 0:
+            return None
+        ratio = min((45 * mm) / iw, (16 * mm) / ih)
+        img.drawWidth = iw * ratio
+        img.drawHeight = ih * ratio
+        return img
+    except Exception:
+        return None
+
+
+def section_on(fields: dict, key: str) -> bool:
+    if not fields:
+        return True
+    return bool(fields.get(key, True))
+
+
+def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_branding=True):
+    settings = settings or {}
+    left_flowables = []
+    if show_branding and (settings.get("nome") or settings.get("logo_base64")):
+        logo = _logo_flowable(settings.get("logo_base64"))
+        if logo:
+            left_flowables.append(logo)
+            left_flowables.append(Spacer(1, 4))
+        left_flowables.append(Paragraph(f"<b>{settings.get('nome') or ''}</b>", st["brand"]))
+        contact = []
+        morada_line = " ".join(x for x in [settings.get("morada"), settings.get("codigo_postal"), settings.get("cidade")] if x)
+        if morada_line:
+            contact.append(morada_line)
+        if settings.get("pais"):
+            contact.append(settings.get("pais"))
+        if settings.get("nif"):
+            contact.append(f"NIF: {settings.get('nif')}")
+        line2 = " · ".join(x for x in [settings.get("telefone"), settings.get("email"), settings.get("website")] if x)
+        for c in contact:
+            left_flowables.append(Paragraph(c, st["small"]))
+        if line2:
+            left_flowables.append(Paragraph(line2, st["small"]))
+    else:
+        left_flowables.append(Paragraph("Gestão <font color='#9CA3AF'>Produção</font>", st["brand"]))
+
     head = Table(
-        [[Paragraph("Gestão <font color='#9CA3AF'>Produção</font>", st["brand"]),
-          Paragraph(doc_title, st["h1"])]],
+        [[left_flowables, Paragraph(doc_title, st["h1"])]],
         colWidths=[95 * mm, 75 * mm],
     )
     head.setStyle(TableStyle([
@@ -694,53 +799,61 @@ def _header(elems, st, doc_title, numero, meta_pairs):
     elems.append(Spacer(1, 12))
 
 
-def build_orcamento_pdf(orc: dict) -> bytes:
+def _pdf_footer(elems, st, settings):
+    rodape = (settings or {}).get("rodape")
+    if rodape:
+        elems.append(Spacer(1, 16))
+        elems.append(HRFlowable(width="100%", thickness=0.5, color=LINE))
+        elems.append(Spacer(1, 4))
+        elems.append(Paragraph(rodape, st["small"]))
+
+
+def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
     elems = []
-    _header(elems, st, "ORÇAMENTO", orc.get("numero", ""), [
-        ("Cliente", orc.get("cliente")),
-        ("Descrição", orc.get("descricao")),
-        ("Nº Encomenda", orc.get("numero_encomenda")),
-        ("Data", orc.get("data")),
-        ("Validade", orc.get("validade")),
-        ("Estado", STATUS_PT.get(orc.get("status"), orc.get("status"))),
-    ])
+    meta_pairs = []
+    if section_on(fields, "dados_cliente"):
+        meta_pairs += [("Cliente", orc.get("cliente")), ("Descrição", orc.get("descricao")), ("Nº Encomenda", orc.get("numero_encomenda"))]
+    if section_on(fields, "datas_estado"):
+        meta_pairs += [("Data", orc.get("data")), ("Validade", orc.get("validade")), ("Estado", STATUS_PT.get(orc.get("status"), orc.get("status")))]
+    _header(elems, st, "ORÇAMENTO", orc.get("numero", ""), meta_pairs, settings, show_branding)
 
-    header = [Paragraph(t, st["th"]) for t in ["Artigo", "Personalização", "Qtd", "Preço Unit.", "Pers. €/un", "Subtotal"]]
-    data = [header]
-    for l in orc.get("linhas", []):
-        qtd = l.get("quantidade") or 0
-        preco = l.get("preco_unit") or 0
-        pers = pers_valor_unit(l)
-        sub = (preco + pers) * qtd
-        data.append([
-            Paragraph(l.get("artigo_nome") or "—", st["cell"]),
-            Paragraph(pers_nomes(l) or "—", st["cell"]),
-            Paragraph(f"{qtd:g}", st["cell"]),
-            Paragraph(fmt_eur(preco), st["cell"]),
-            Paragraph(fmt_eur(pers), st["cell"]),
-            Paragraph(fmt_eur(sub), st["cellb"]),
-        ])
-    tbl = Table(data, colWidths=[55 * mm, 35 * mm, 15 * mm, 25 * mm, 22 * mm, 18 * mm])
-    tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), DARK),
-        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
-        ("ALIGN", (0, 0), (1, -1), "LEFT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    elems.append(tbl)
-    elems.append(Spacer(1, 14))
+    show_pers = section_on(fields, "personalizacoes")
+    if section_on(fields, "linhas_artigos"):
+        cols = ["Artigo"] + (["Personalização", "Pers. €/un"] if show_pers else []) + ["Qtd", "Preço Unit.", "Subtotal"]
+        header = [Paragraph(t, st["th"]) for t in cols]
+        data = [header]
+        for l in orc.get("linhas", []):
+            qtd = l.get("quantidade") or 0
+            preco = l.get("preco_unit") or 0
+            pers = pers_valor_unit(l)
+            sub = (preco + pers) * qtd
+            row = [Paragraph(l.get("artigo_nome") or "—", st["cell"])]
+            if show_pers:
+                row += [Paragraph(pers_nomes(l) or "—", st["cell"]), Paragraph(fmt_eur(pers), st["cell"])]
+            row += [Paragraph(f"{qtd:g}", st["cell"]), Paragraph(fmt_eur(preco), st["cell"]), Paragraph(fmt_eur(sub), st["cellb"])]
+            data.append(row)
+        col_widths = [55 * mm] + ([35 * mm, 22 * mm] if show_pers else []) + ([20 * mm, 30 * mm, 23 * mm] if not show_pers else [15 * mm, 25 * mm, 18 * mm])
+        tbl = Table(data, colWidths=col_widths)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+            ("ALIGN", (-3, 0), (-1, -1), "RIGHT"),
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        elems.append(tbl)
+        elems.append(Spacer(1, 14))
 
     materiais = orc.get("materiais") or []
-    if materiais:
+    if materiais and section_on(fields, "materiais"):
         elems.append(Paragraph("Materiais / Consumíveis", st["cellb"]))
         elems.append(Spacer(1, 4))
         mhead = [Paragraph(t, st["th"]) for t in ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Margem", "Valor"]]
@@ -775,75 +888,147 @@ def build_orcamento_pdf(orc: dict) -> bytes:
         elems.append(mtbl)
         elems.append(Spacer(1, 14))
 
-    tot_rows = [["Preço dos artigos", fmt_eur(orc.get("subtotal_venda"))]]
-    if (orc.get("total_personalizacao") or 0) > 0:
-        tot_rows.append(["Personalização", fmt_eur(orc.get("total_personalizacao"))])
-    if (orc.get("total_materiais") or 0) > 0:
-        tot_rows.append(["Materiais", fmt_eur(orc.get("total_materiais"))])
-    tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
-    last = len(tot_rows) - 1
-    tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
-    tot.setStyle(TableStyle([
-        ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("FONTNAME", (0, 0), (-1, last - 1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, last - 1), 9),
-        ("TEXTCOLOR", (0, 0), (-1, last - 1), GREY),
-        ("LINEABOVE", (0, last), (-1, last), 1, DARK),
-        ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
-        ("FONTSIZE", (0, last), (-1, last), 13),
-        ("TEXTCOLOR", (0, last), (-1, last), DARK),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    elems.append(tot)
+    if section_on(fields, "totais"):
+        tot_rows = [["Preço dos artigos", fmt_eur(orc.get("subtotal_venda"))]]
+        if (orc.get("total_personalizacao") or 0) > 0:
+            tot_rows.append(["Personalização", fmt_eur(orc.get("total_personalizacao"))])
+        if (orc.get("total_materiais") or 0) > 0:
+            tot_rows.append(["Materiais", fmt_eur(orc.get("total_materiais"))])
+        tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
+        last = len(tot_rows) - 1
+        tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
+        tot.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+            ("FONTNAME", (0, 0), (-1, last - 1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, last - 1), 9),
+            ("TEXTCOLOR", (0, 0), (-1, last - 1), GREY),
+            ("LINEABOVE", (0, last), (-1, last), 1, DARK),
+            ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+            ("FONTSIZE", (0, last), (-1, last), 13),
+            ("TEXTCOLOR", (0, last), (-1, last), DARK),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        elems.append(tot)
+
+    if section_on(fields, "notas") and orc.get("notas"):
+        elems.append(Spacer(1, 10))
+        elems.append(Paragraph(f"<b>Notas:</b> {orc.get('notas')}", st["small"]))
+    _pdf_footer(elems, st, settings)
     doc.build(elems)
     return buf.getvalue()
 
 
-def build_of_pdf(of: dict) -> bytes:
+def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_branding: bool = True) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
     elems = []
-    _header(elems, st, "ORDEM DE FABRICO", of.get("numero", ""), [
-        ("Cliente", of.get("cliente")),
-        ("Descrição", of.get("descricao")),
-        ("Nº Encomenda", of.get("numero_encomenda")),
-        ("Data", of.get("data")),
-        ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))),
-        ("Progresso", f"{round(of.get('progresso') or 0)}%"),
-        ("Origem", of.get("orcamento_numero")),
-    ])
+    meta_pairs = []
+    if section_on(fields, "dados_cliente"):
+        meta_pairs += [("Cliente", of.get("cliente")), ("Descrição", of.get("descricao")), ("Nº Encomenda", of.get("numero_encomenda"))]
+    if section_on(fields, "datas_estado"):
+        meta_pairs += [("Data", of.get("data")), ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))), ("Progresso", f"{round(of.get('progresso') or 0)}%"), ("Origem", of.get("orcamento_numero"))]
+    _header(elems, st, "ORDEM DE FABRICO", of.get("numero", ""), meta_pairs, settings, show_branding)
 
-    for it in of.get("itens", []):
-        title = f"{it.get('artigo_nome') or 'Artigo'}  ×{it.get('quantidade') or 0:g}"
-        _pn = pers_nomes(it)
-        if _pn:
-            title += f"   ·   {_pn}"
-        elems.append(Paragraph(title, st["cellb"]))
-        elems.append(Spacer(1, 4))
-        header = [Paragraph(t, st["th"]) for t in ["Operação", "Máquina", "T. Máq", "Mão de Obra", "T. M.O", "T. Real", "Concl."]]
+    show_tempos = section_on(fields, "tempos")
+    if section_on(fields, "roteiro_operacoes"):
+        for it in of.get("itens", []):
+            title = f"{it.get('artigo_nome') or 'Artigo'}  ×{it.get('quantidade') or 0:g}"
+            _pn = pers_nomes(it)
+            if _pn:
+                title += f"   ·   {_pn}"
+            elems.append(Paragraph(title, st["cellb"]))
+            elems.append(Spacer(1, 4))
+            if show_tempos:
+                cols = ["Operação", "Máquina", "T. Máq", "Mão de Obra", "T. M.O", "T. Real", "Concl."]
+                col_widths = [33 * mm, 31 * mm, 17 * mm, 31 * mm, 17 * mm, 18 * mm, 13 * mm]
+            else:
+                cols = ["Operação", "Máquina", "Mão de Obra", "Concl."]
+                col_widths = [55 * mm, 45 * mm, 45 * mm, 15 * mm]
+            data = [[Paragraph(t, st["th"]) for t in cols]]
+            for op in it.get("operacoes", []):
+                concl = Paragraph("Sim" if op.get("concluida") else "—", st["cellb"] if op.get("concluida") else st["cell"])
+                if show_tempos:
+                    real_min = (op.get("tempo_real_seg") or 0) / 60.0
+                    data.append([
+                        Paragraph(op.get("nome") or "—", st["cell"]),
+                        Paragraph(op.get("maquina_nome") or "—", st["cell"]),
+                        Paragraph(f"{op.get('tempo_maquina') or 0:g} min", st["cell"]),
+                        Paragraph(op.get("mao_obra_nome") or "—", st["cell"]),
+                        Paragraph(f"{op.get('tempo_mao_obra') or 0:g} min", st["cell"]),
+                        Paragraph(f"{real_min:.1f} min", st["cell"]),
+                        concl,
+                    ])
+                else:
+                    data.append([
+                        Paragraph(op.get("nome") or "—", st["cell"]),
+                        Paragraph(op.get("maquina_nome") or "—", st["cell"]),
+                        Paragraph(op.get("mao_obra_nome") or "—", st["cell"]),
+                        concl,
+                    ])
+            if len(data) == 1:
+                data.append([Paragraph("Sem operações", st["cell"])] + [""] * (len(cols) - 1))
+            tbl = Table(data, colWidths=col_widths)
+            tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), DARK),
+                ("ALIGN", (-2, 0), (-1, -1), "RIGHT" if show_tempos else "CENTER"),
+                ("ALIGN", (0, 0), (0, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            elems.append(tbl)
+            elems.append(Spacer(1, 14))
+        if not of.get("itens"):
+            elems.append(Paragraph("Sem artigos nesta ordem de fabrico.", st["cell"]))
+
+    if section_on(fields, "notas") and of.get("notas"):
+        elems.append(Spacer(1, 6))
+        elems.append(Paragraph(f"<b>Notas:</b> {of.get('notas')}", st["small"]))
+    _pdf_footer(elems, st, settings)
+    doc.build(elems)
+    return buf.getvalue()
+
+
+def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True) -> bytes:
+    st = _pdf_styles()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    elems = []
+    meta_pairs = []
+    if section_on(fields, "dados_cliente"):
+        meta_pairs += [("Cliente", enc.get("cliente")), ("Data", enc.get("data")), ("Estado", ENC_ESTADO_PT.get(enc.get("estado"), enc.get("estado")))]
+        if enc.get("orcamento_numero"):
+            meta_pairs.append(("Origem", enc.get("orcamento_numero")))
+    _header(elems, st, "ENCOMENDA", enc.get("numero", ""), meta_pairs, settings, show_branding)
+
+    artigos = enc.get("artigos") or []
+    if section_on(fields, "artigos") and artigos:
+        header = [Paragraph(t, st["th"]) for t in ["Artigo", "Personalização", "Qtd", "Preço Unit.", "Subtotal"]]
         data = [header]
-        for op in it.get("operacoes", []):
-            real_min = (op.get("tempo_real_seg") or 0) / 60.0
+        for a in artigos:
+            qtd = a.get("quantidade") or 0
+            pu = a.get("preco_unit") or 0
+            pers = pers_valor_unit(a)
+            sub = (pu + pers) * qtd
             data.append([
-                Paragraph(op.get("nome") or "—", st["cell"]),
-                Paragraph(op.get("maquina_nome") or "—", st["cell"]),
-                Paragraph(f"{op.get('tempo_maquina') or 0:g} min", st["cell"]),
-                Paragraph(op.get("mao_obra_nome") or "—", st["cell"]),
-                Paragraph(f"{op.get('tempo_mao_obra') or 0:g} min", st["cell"]),
-                Paragraph(f"{real_min:.1f} min", st["cell"]),
-                Paragraph("Sim" if op.get("concluida") else "—", st["cellb"] if op.get("concluida") else st["cell"]),
+                Paragraph(a.get("artigo_nome") or "—", st["cell"]),
+                Paragraph(", ".join(p.get("nome", "") for p in (a.get("personalizacoes") or [])) or "—", st["cell"]),
+                Paragraph(f"{qtd:g}", st["cell"]),
+                Paragraph(fmt_eur(pu + pers), st["cell"]),
+                Paragraph(fmt_eur(sub), st["cellb"]),
             ])
-        if len(data) == 1:
-            data.append([Paragraph("Sem operações", st["cell"]), "", "", "", "", "", ""])
-        tbl = Table(data, colWidths=[33 * mm, 31 * mm, 17 * mm, 31 * mm, 17 * mm, 18 * mm, 13 * mm])
+        tbl = Table(data, colWidths=[58 * mm, 42 * mm, 16 * mm, 26 * mm, 28 * mm])
         tbl.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), DARK),
-            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
-            ("ALIGN", (4, 0), (5, -1), "RIGHT"),
-            ("ALIGN", (6, 0), (6, -1), "CENTER"),
+            ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+            ("ALIGN", (0, 0), (1, -1), "LEFT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
@@ -855,16 +1040,83 @@ def build_of_pdf(of: dict) -> bytes:
         elems.append(tbl)
         elems.append(Spacer(1, 14))
 
-    if not of.get("itens"):
-        elems.append(Paragraph("Sem artigos nesta ordem de fabrico.", st["cell"]))
-    if of.get("notas"):
-        elems.append(Spacer(1, 6))
-        elems.append(Paragraph(f"<b>Notas:</b> {of.get('notas')}", st["small"]))
+    if section_on(fields, "ofs_associadas") and (enc.get("ordens_fabrico") or enc.get("ordens_resumo")):
+        ofs = enc.get("ordens_fabrico") or enc.get("ordens_resumo") or []
+        elems.append(Paragraph("Ordens de Fabrico", st["cellb"]))
+        elems.append(Spacer(1, 4))
+        ohead = [Paragraph(t, st["th"]) for t in ["Nº OF", "Estado", "Progresso"]]
+        odata = [ohead]
+        for o in ofs:
+            odata.append([
+                Paragraph(o.get("numero") or "—", st["cell"]),
+                Paragraph(STATUS_PT.get(o.get("status"), o.get("status")) or "—", st["cell"]),
+                Paragraph(f"{round(o.get('progresso') or 0)}%", st["cell"]),
+            ])
+        otbl = Table(odata, colWidths=[40 * mm, 50 * mm, 30 * mm], hAlign="LEFT")
+        otbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), DARK),
+            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        elems.append(otbl)
+        elems.append(Spacer(1, 14))
+
+    tot_rows = []
+    if section_on(fields, "pagamento"):
+        tot_rows += [
+            ["Pago", fmt_eur(enc.get("valor_pago"))],
+            ["Pendente", fmt_eur(enc.get("valor_pendente"))],
+            [f"Pagamento: {PAY_PT.get(enc.get('status_pagamento'), enc.get('status_pagamento'))}", ""],
+        ]
+    if section_on(fields, "valor_total"):
+        tot_rows.append(["VALOR TOTAL", fmt_eur(enc.get("valor_total"))])
+    if tot_rows:
+        last = len(tot_rows) - 1
+        has_total = section_on(fields, "valor_total")
+        tot = Table(tot_rows, colWidths=[50 * mm, 35 * mm], hAlign="RIGHT")
+        styles = [
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("TEXTCOLOR", (0, 0), (-1, -1), GREY),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]
+        if has_total:
+            styles += [
+                ("LINEABOVE", (0, last), (-1, last), 1, DARK),
+                ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+                ("FONTSIZE", (0, last), (-1, last), 13),
+                ("TEXTCOLOR", (0, last), (-1, last), DARK),
+            ]
+        tot.setStyle(TableStyle(styles))
+        elems.append(tot)
+
+    if section_on(fields, "notas") and (enc.get("notas") or enc.get("descricao")):
+        elems.append(Spacer(1, 10))
+        elems.append(Paragraph(f"<b>Notas:</b> {enc.get('notas') or enc.get('descricao')}", st["small"]))
+    _pdf_footer(elems, st, settings)
     doc.build(elems)
     return buf.getvalue()
 
 
-# ----------------------- Routes: Maquinas -----------------------
+async def load_pdf_config(template_id: Optional[str]):
+    settings = await db.empresa_settings.find_one({"id": "empresa"}, {"_id": 0}) or {}
+    fields = {}
+    show_branding = True
+    if template_id:
+        t = await db.pdf_templates.find_one({"id": template_id}, {"_id": 0})
+        if t:
+            fields = t.get("campos") or {}
+            show_branding = t.get("mostrar_branding", True)
+    return settings, fields, show_branding
 @api_router.get("/maquinas", response_model=List[Maquina])
 async def list_maquinas():
     return await db.maquinas.find({}, {"_id": 0}).sort("nome", 1).to_list(1000)
@@ -1066,12 +1318,13 @@ async def get_orcamento(oid: str):
 
 
 @api_router.get("/orcamentos/{oid}/pdf")
-async def orcamento_pdf(oid: str):
+async def orcamento_pdf(oid: str, template_id: Optional[str] = None):
     o = await db.orcamentos.find_one({"id": oid}, {"_id": 0})
     if not o:
         raise HTTPException(404, "Orçamento não encontrado")
     o = compute_orcamento_totais(o)
-    pdf = build_orcamento_pdf(o)
+    settings, fields, show_branding = await load_pdf_config(template_id)
+    pdf = build_orcamento_pdf(o, settings, fields, show_branding)
     filename = f"{o.get('numero', 'orcamento')}.pdf"
     return StreamingResponse(
         BytesIO(pdf),
@@ -1226,12 +1479,13 @@ async def get_of(ofid: str):
 
 
 @api_router.get("/ordens-fabrico/{ofid}/pdf")
-async def of_pdf(ofid: str):
+async def of_pdf(ofid: str, template_id: Optional[str] = None):
     o = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
     if not o:
         raise HTTPException(404, "OF não encontrada")
     o = recompute_of_status(o)
-    pdf = build_of_pdf(o)
+    settings, fields, show_branding = await load_pdf_config(template_id)
+    pdf = build_of_pdf(o, settings, fields, show_branding)
     filename = f"{o.get('numero', 'ordem-fabrico')}.pdf"
     return StreamingResponse(
         BytesIO(pdf),
@@ -1623,6 +1877,73 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, _u: dict = 
     doc = recompute_of_status(doc)
     await db.ordens_fabrico.insert_one({k: v for k, v in doc.items() if k != "progresso"})
     return doc
+
+
+@api_router.get("/encomendas/{eid}/pdf")
+async def encomenda_pdf(eid: str, template_id: Optional[str] = None):
+    e = await db.encomendas.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Encomenda não encontrada")
+    e = await compute_encomenda(e)
+    ofs = await db.ordens_fabrico.find({"encomenda_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
+    settings, fields, show_branding = await load_pdf_config(template_id)
+    pdf = build_encomenda_pdf(e, settings, fields, show_branding)
+    filename = f"{e.get('numero', 'encomenda')}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ----------------------- Definições da Empresa -----------------------
+@api_router.get("/settings/empresa")
+async def get_empresa(_u: dict = Depends(get_current_user)):
+    s = await db.empresa_settings.find_one({"id": "empresa"}, {"_id": 0})
+    return s or {"id": "empresa", **EmpresaSettings().model_dump()}
+
+
+@api_router.put("/settings/empresa")
+async def update_empresa(data: EmpresaSettings, admin: dict = Depends(require_admin)):
+    doc = {"id": "empresa", **data.model_dump()}
+    await db.empresa_settings.update_one({"id": "empresa"}, {"$set": doc}, upsert=True)
+    return doc
+
+
+# ----------------------- Modelos de PDF -----------------------
+@api_router.get("/pdf-secoes")
+async def pdf_secoes(_u: dict = Depends(get_current_user)):
+    return PDF_SECOES
+
+
+@api_router.get("/pdf-templates")
+async def list_pdf_templates(modulo: Optional[str] = None, _u: dict = Depends(get_current_user)):
+    q = {"modulo": modulo} if modulo else {}
+    return await db.pdf_templates.find(q, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+
+@api_router.post("/pdf-templates")
+async def create_pdf_template(data: PdfTemplateInput, admin: dict = Depends(require_admin)):
+    t = PdfTemplate(**data.model_dump())
+    await db.pdf_templates.insert_one(t.model_dump())
+    return t.model_dump()
+
+
+@api_router.put("/pdf-templates/{tid}")
+async def update_pdf_template(tid: str, data: PdfTemplateInput, admin: dict = Depends(require_admin)):
+    existing = await db.pdf_templates.find_one({"id": tid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Modelo não encontrado")
+    await db.pdf_templates.update_one({"id": tid}, {"$set": data.model_dump()})
+    return {**existing, **data.model_dump()}
+
+
+@api_router.delete("/pdf-templates/{tid}")
+async def delete_pdf_template(tid: str, admin: dict = Depends(require_admin)):
+    await db.pdf_templates.delete_one({"id": tid})
+    return {"ok": True}
+
 
 
 

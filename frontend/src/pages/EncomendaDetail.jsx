@@ -4,6 +4,7 @@ import { api, fmtDate, eur } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import Combobox from "../components/Combobox";
+import PdfExportButton from "../components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2,
   Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil,
@@ -108,6 +109,7 @@ export default function EncomendaDetail() {
           <p className="text-sm text-gray-500 mt-1">Encomenda · {enc.cliente}{enc.orcamento_numero ? ` · origem ${enc.orcamento_numero}` : ""}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <PdfExportButton modulo="encomenda" recordId={id} />
           {can("encomendas", "edit") && (
             <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Save size={16} /> Guardar</button>
           )}

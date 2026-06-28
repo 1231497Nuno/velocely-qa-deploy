@@ -17,6 +17,7 @@ import {
   LogOut,
   Contact,
   ClipboardList,
+  Settings,
 } from "lucide-react";
 
 const NAV = [
@@ -38,7 +39,9 @@ export default function Layout({ children }) {
   const { user, isAdmin, can, logout } = useAuth();
   const visible = NAV.filter((n) => n.modulo === "dashboard" || can(n.modulo, "view"));
   const nav = isAdmin
-    ? [...visible, { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores" }]
+    ? [...visible,
+        { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores" },
+        { to: "/definicoes", label: "Definições", icon: Settings, tid: "nav-definicoes" }]
     : visible;
 
   return (

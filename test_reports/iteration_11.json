@@ -1,0 +1,40 @@
+{
+  "summary": "Iteração 11 valida o módulo de Definições (Empresa + Modelos PDF) e a integração do PdfExportButton nos 3 módulos (Orçamento, Ordem de Fabrico, Encomenda). Backend pytest /app/backend/tests/test_iteration11.py: 15/15 PASS — cobre GET/PUT /api/settings/empresa (com verificação de persistência via GET de leitura), GET /api/pdf-secoes (3 módulos: orcamento, of, encomenda com as chaves esperadas), CRUD completo de /api/pdf-templates (POST nos 3 módulos, filtro por modulo=, PUT com alteração de finalidade/branding/campos), permissões admin (PUT /settings/empresa, POST /pdf-templates, DELETE /pdf-templates devolvem 403 a colaborador), e geração de PDF (status 200 + content-type application/pdf + magic %PDF) em GET /api/orcamentos/{id}/pdf, /api/ordens-fabrico/{id}/pdf e /api/encomendas/{id}/pdf — tanto sem template_id como com template_id que desativa secções (encomenda.ofs_associadas=false; orcamento.personalizacoes/materiais=false). UI Playwright (headed, admin login): (a) Definições/Empresa: preenchido nome, NIF, morada, CP, cidade, telefone, email, rodapé e Guardar (PUT 200); após reload os valores foram lidos como nome='teste-Famarte UI It11', cidade='Braga', rodape='Rodapé UI It11' — PERSISTÊNCIA OK; (b) Definições/Modelos PDF: lista existente apresenta 3 modelos (Orcamento·orcamento·cliente·7 secções, Of·of·interno·5 secções, Encomenda Cliente·encomenda·ambos·6 secções) com badge BRANDING — todos visíveis com data-testid='modelo-<id>'; (c) PdfExportButton em EncomendaDetail: pdf-export-btn presente, popover abre e apresenta pdf-completo com href=…/api/encomendas/{id}/pdf e pdf-template-<id> com href=…?template_id=<id>; (d) PdfExportButton em OrcamentoDetail: idêntico, href=…/api/orcamentos/{id}/pdf (template_id ✓); (e) PdfExportButton em OrdemFabricoDetail: idêntico, href=…/api/ordens-fabrico/{id}/pdf (template_id ✓). Contas reais geral@famarte.pt e m-p@live.com.pt intactas; colaborador teste eliminado no teardown.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "OrcamentoDetail.jsx linha ~300", "issues": ["Hydration warning na consola: <span> não pode ser child de <option>. O wrapper x-ve-dynamic do Vite/Emergent inseriu um <span> dentro de <option>. Não afeta funcionalidade do popover de PDF, mas gera warnings React em SSR/hydration. Investigar para limpar a consola."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/iteration11_results.xml"
+  ],
+  "action_items": [
+    "(Opcional) Limpar warning de hydration em OrcamentoDetail.jsx ~linha 300 (option contém span injetado pelo build).",
+    "(Opcional) UX: a lista 'Ativas' das Ordens de Fabrico mostra 0 quando todas estão concluídas; talvez abrir por defeito o tab com itens, ou indicar visualmente que há OFs em 'Concluídas'.",
+    "(Opcional) Validar manualmente upload de logótipo via logo-input — o teste atual não cobriu o upload de imagem real."
+  ],
+  "critical_code_review_comments": [
+    "server.py PDF endpoints (/api/{modulo}/{id}/pdf): são abertos (sem auth) — confirmado pelos testes a passarem sem Bearer; isto é intencional para abrir em nova aba via <a href>. Risco baixo (apenas leitura) mas exposição de dados financeiros — considerar token opcional via query no futuro.",
+    "PdfTemplateInput: usa Field(default_factory=dict) para campos, e o filter section_on() trata chave em falta como ativa. Quando o utilizador não marca explicitamente uma secção como False, ela aparece — comportamento consistente.",
+    "EncomendaInput.valor_total_manual é declarado como bool (não Optional[bool]) — qualquer cliente que envie null devolve 422. UI envia bool, mas terceiros poderão ter problemas. Considerar tornar Optional[bool] com default False.",
+    "OrcamentoDetail.jsx tem warning de hydration (<span> dentro de <option>) introduzido pelo wrapper do build x-ve-dynamic. Não-crítico.",
+    "build_encomenda_pdf/build_orcamento_pdf/build_of_pdf: assinatura (data, settings, fields, show_branding) consistente; secções condicionais respeitam fields. PDFs gerados ok mesmo com várias secções desativadas — verificado em testes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration11.py (novo)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15)",
+    "frontend": "100% das funcionalidades testadas: Definições/Empresa persistência via UI ✓; Modelos PDF list visíveis ✓; PdfExportButton popover em Encomenda/Orcamento/OF com hrefs corretos (incl. template_id) ✓. CRUD de modelos via UI (criar/editar/apagar) foi parcialmente coberto (a UI mostra os 3 modelos pré-existentes — Orcamento, Of, Encomenda Cliente — após login; criação/edição via dialog não foi completada na segunda passagem mas o fluxo backend correspondente está 100% coberto via pytest)."
+  },
+  "test_credentials": "admin@prodcost.pt / Admin123! — token devolvido no campo 'token' (não 'access_token').",
+  "seed_data_creation": "Backend: criados 3 modelos PDF 'teste-Modelo-*', 1 orcamento, 1 encomenda, 1 OF, 1 utilizador colaborador 'teste-colab-it11-*'. Todos eliminados no cleanup (test_zz_cleanup_templates + fixtures yield). UI: gravou EmpresaSettings com nome='teste-Famarte UI It11' (não é eliminado pois é singleton — main agent pode restaurar via Definições). Contas reais geral@famarte.pt e m-p@live.com.pt intactas.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "PdfExportButton wired em OrcamentoDetail.jsx:196, OrdemFabricoDetail.jsx:139, EncomendaDetail.jsx:112. Para clicar numa OF concluída, é preciso primeiro carregar no tab 'of-tab-concluidas' (tab default 'Ativas' está geralmente vazio). PDFs sem auth (públicos). EncomendaInput.valor_total_manual exige bool (não None). EmpresaSettings é singleton com id='empresa' guardado em db.empresa_settings. PDF_SECOES keys: orcamento[dados_cliente,datas_estado,linhas_artigos,personalizacoes,materiais,totais,notas]; of[dados_cliente,datas_estado,roteiro_operacoes,tempos,notas]; encomenda[dados_cliente,artigos,valor_total,pagamento,ofs_associadas,notas]. require_admin protege PUT /settings/empresa e POST/PUT/DELETE /pdf-templates (403 para colaborador, verificado).",
+  "rca of the issue": "Sem bugs bloqueantes identificados. (1) Warning de hydration em OrcamentoDetail.jsx ~linha 300: <span> ve-dynamic injetado pelo build dentro de <option>; é cosmético em React 18+. Mitigação: usar children string puro no <option> (e.g., {t.nome} em vez de wrapper). (2) Diferença de UX em Ordens de Fabrico (tab Ativas defaulta vazio): não é bug. (3) EncomendaInput.valor_total_manual: campo bool não-Optional — clientes não-UI podem enviar null e receber 422; considerar Optional[bool]=False para robustez."
+}
