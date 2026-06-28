@@ -1387,19 +1387,19 @@ async def converter_orcamento(oid: str):
 
 # ----------------------- Clientes -----------------------
 @api_router.get("/clientes")
-async def list_clientes():
+async def list_clientes(_u: dict = Depends(get_current_user)):
     return await db.clientes.find({}, {"_id": 0}).sort("nome", 1).to_list(5000)
 
 
 @api_router.post("/clientes")
-async def create_cliente(data: ClienteInput):
+async def create_cliente(data: ClienteInput, _u: dict = Depends(get_current_user)):
     c = Cliente(**data.model_dump())
     await db.clientes.insert_one(c.model_dump())
     return c.model_dump()
 
 
 @api_router.put("/clientes/{cid}")
-async def update_cliente(cid: str, data: ClienteInput):
+async def update_cliente(cid: str, data: ClienteInput, _u: dict = Depends(get_current_user)):
     existing = await db.clientes.find_one({"id": cid}, {"_id": 0})
     if not existing:
         raise HTTPException(404, "Cliente não encontrado")
@@ -1408,14 +1408,14 @@ async def update_cliente(cid: str, data: ClienteInput):
 
 
 @api_router.delete("/clientes/{cid}")
-async def delete_cliente(cid: str):
+async def delete_cliente(cid: str, _u: dict = Depends(get_current_user)):
     await db.clientes.delete_one({"id": cid})
     return {"ok": True}
 
 
 # ----------------------- Encomendas -----------------------
 @api_router.get("/encomendas")
-async def list_encomendas():
+async def list_encomendas(_u: dict = Depends(get_current_user)):
     encs = await db.encomendas.find({}, {"_id": 0}).sort("created_at", -1).to_list(5000)
     for e in encs:
         e["num_ofs"] = await db.ordens_fabrico.count_documents({"encomenda_id": e["id"]})
@@ -1423,7 +1423,7 @@ async def list_encomendas():
 
 
 @api_router.get("/encomendas/{eid}")
-async def get_encomenda(eid: str):
+async def get_encomenda(eid: str, _u: dict = Depends(get_current_user)):
     e = await db.encomendas.find_one({"id": eid}, {"_id": 0})
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -1433,7 +1433,7 @@ async def get_encomenda(eid: str):
 
 
 @api_router.post("/encomendas")
-async def create_encomenda(data: EncomendaInput):
+async def create_encomenda(data: EncomendaInput, _u: dict = Depends(get_current_user)):
     enc = Encomenda(**data.model_dump())
     enc.numero = await next_sequence("ENC")
     if not enc.data:
@@ -1443,7 +1443,7 @@ async def create_encomenda(data: EncomendaInput):
 
 
 @api_router.put("/encomendas/{eid}")
-async def update_encomenda(eid: str, data: EncomendaInput):
+async def update_encomenda(eid: str, data: EncomendaInput, _u: dict = Depends(get_current_user)):
     existing = await db.encomendas.find_one({"id": eid}, {"_id": 0})
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -1452,7 +1452,7 @@ async def update_encomenda(eid: str, data: EncomendaInput):
 
 
 @api_router.delete("/encomendas/{eid}")
-async def delete_encomenda(eid: str):
+async def delete_encomenda(eid: str, _u: dict = Depends(get_current_user)):
     await db.ordens_fabrico.update_many(
         {"encomenda_id": eid}, {"$set": {"encomenda_id": None, "encomenda_numero": None}}
     )
@@ -1461,7 +1461,7 @@ async def delete_encomenda(eid: str):
 
 
 @api_router.post("/encomendas/{eid}/ordens-fabrico")
-async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput):
+async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, _u: dict = Depends(get_current_user)):
     enc = await db.encomendas.find_one({"id": eid}, {"_id": 0})
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")

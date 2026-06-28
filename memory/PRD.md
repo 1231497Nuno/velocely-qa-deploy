@@ -62,3 +62,11 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - **Perfis & Permissões (RBAC)**: perfis personalizáveis (`/api/perfis` CRUD) com permissões por módulo (10 módulos) e ação (view/create/edit/delete). Perfis de sistema: Administrador (acesso total, bloqueado) e Colaborador. `resolve_perfil`, `user_public` async devolve `perfil.permissoes`; `require_admin` = admin OU utilizadores.edit. Frontend: `can(modulo,acao)` no AuthContext, nav filtrada, rotas com `modulo`, gating de botões criar/editar/eliminar nas páginas; Gestão de Utilizadores com tabs Utilizadores + Perfis & Acessos (matriz de permissões).
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
+
+## Iteração (2026-06-27) — Clientes + Encomendas
+- **Clientes** (novo módulo): CRUD (nome, morada, contacto, email, NIF, notas) com pesquisa. `/api/clientes` (protegido por auth).
+- **Seletor de cliente** (`ClienteSelector`): dropdown de clientes existentes + botão "+ Novo" (criação inline), usado em Orçamentos, Ordens de Fabrico e Encomendas. Orçamento/OF guardam `cliente_id`.
+- **Encomendas** (novo módulo): criação manual (numeração `ENC-2026-XXXX`) e **auto-criação na conversão Orçamento→OF** (encomenda com o cliente; OF ligada via `encomenda_id`/`encomenda_numero`). Detalhe da encomenda mostra info do cliente + OFs associadas + botão "Criar Ordem de Fabrico" (`POST /api/encomendas/{id}/ordens-fabrico`). `/api/encomendas` protegido por auth.
+- **OF** mostra a encomenda a que pertence (link no cabeçalho).
+- RBAC: novos módulos `clientes` e `encomendas` (com migração dos perfis existentes; Colaborador recebe view/create/edit por defeito).
+- Tested: iteration_9.json — backend 14/14, frontend 100%. Endpoints clientes/encomendas passaram a exigir token (401 sem auth).
