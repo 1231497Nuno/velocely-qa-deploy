@@ -63,6 +63,13 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
+## Iteração 15 (2026-06-28) — Tempo nas personalizações + Calendário de prazos
+- **Tempo nas personalizações**: `TipoPersonalizacao.tempo` (min de mão de obra por unidade) e `MaoObra.responsavel_personalizacoes` (flag). Na OF, `_apply_pers_tempo` soma `Σ(tempo personalizações) × quantidade` à mão de obra da operação cuja mão de obra está marcada como responsável (fallback: 1ª operação). Idempotente via `OFOperacao.tempo_mao_obra_base` (repõe a base antes de somar — PUT não duplica). `OFOperacao.mao_obra_id` adicionado para identificar a operação. `PersonalizacaoSel.tempo` propagado. Verificado: base 2min + 5min×2 = 12min, custo 2,40€.
+- **Calendário de prazos**: `GET /api/prazos` (auth) devolve encomendas (não concluídas/canceladas) e OFs (não concluídas) com `prazo_entrega`, `dias_restantes`, `estado_prazo` (atrasada/proxima≤7d/futura). Dashboard ganhou `prazos_atrasadas`/`prazos_proximos_7` + banner `dash-prazos-banner`→/calendario. Nova página `Calendario.jsx` (rota `/calendario`, nav `nav-calendario`): calendário (react-day-picker com modifiers de cor) + listas agrupadas (atrasados/próximos 7d/futuros).
+- Frontend config: `MaoObra.jsx` (checkbox + coluna Personalizações), `TiposPersonalizacao.jsx` (campo + coluna Tempo M.O.).
+- Tested: iteration_15.json — backend 6/6 PASS, frontend 100%, sem issues. Contas reais intactas.
+
+
 ## Iteração (2026-06-28) — Prazo de entrega, prioridade de OFs e filtro de encomendas
 - **Encomendas concluídas saem dos pendentes**: filtro "Pendentes | Concluídas | Todas" em `Encomendas.jsx` (default Pendentes). Concluída/cancelada não aparecem em Pendentes.
 - **Prazo de entrega** (`EncomendaInput.prazo_entrega`): campo na criação e no detalhe (auto-guardado), coluna na lista (a vermelho se vencido e não concluído).
