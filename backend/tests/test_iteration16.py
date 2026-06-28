@@ -10,8 +10,30 @@ import requests
 import pytest
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://budgeting-orders.preview.emergentagent.com").rstrip("/")
-ADMIN_EMAIL = "admin@prodcost.pt"
-ADMIN_PASSWORD = "Admin123!"
+
+
+def _load_admin_creds():
+    """Lê credenciais de teste de env ou /app/memory/test_credentials.md (evita secret hardcoded)."""
+    from pathlib import Path
+    email = os.environ.get("TEST_ADMIN_EMAIL")
+    password = os.environ.get("TEST_ADMIN_PASSWORD")
+    if email and password:
+        return email, password
+    e = p = None
+    creds = Path("/app/memory/test_credentials.md")
+    if creds.exists():
+        for line in creds.read_text().splitlines():
+            s = line.strip()
+            if s.startswith("- Email:") and e is None:
+                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
+            elif s.startswith("- Password:") and p is None:
+                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
+            if e and p:
+                break
+    return email or e, password or p
+
+
+ADMIN_EMAIL, ADMIN_PASSWORD = _load_admin_creds()
 
 
 @pytest.fixture(scope="session")

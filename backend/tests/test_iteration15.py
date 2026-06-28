@@ -17,7 +17,30 @@ def _load_env():
     raise RuntimeError("REACT_APP_BACKEND_URL not found")
 
 BASE = (os.environ.get("REACT_APP_BACKEND_URL") or _load_env()).rstrip("/")
-ADMIN = {"email": "admin@prodcost.pt", "password": "Admin123!"}
+
+
+def _load_admin_creds():
+    """Lê credenciais de teste de env ou /app/memory/test_credentials.md (evita secret hardcoded)."""
+    email = os.environ.get("TEST_ADMIN_EMAIL")
+    password = os.environ.get("TEST_ADMIN_PASSWORD")
+    if email and password:
+        return email, password
+    e = p = None
+    creds = Path("/app/memory/test_credentials.md")
+    if creds.exists():
+        for line in creds.read_text().splitlines():
+            s = line.strip()
+            if s.startswith("- Email:") and e is None:
+                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
+            elif s.startswith("- Password:") and p is None:
+                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
+            if e and p:
+                break
+    return email or e, password or p
+
+
+_e, _p = _load_admin_creds()
+ADMIN = {"email": _e, "password": _p}
 
 
 # ---------- fixtures ----------
