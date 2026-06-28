@@ -63,7 +63,17 @@ Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de pr
 - ⚠️ Contas reais do utilizador: `geral@famarte.pt` (admin), `m-p@live.com.pt` (colaborador). Admin de recuperação: `admin@prodcost.pt`/`Admin123!`.
 - Tested: iteration_8.json — backend 8/8, frontend 100%, sem regressões.
 
-## Iteração (2026-06-27) — Clientes + Encomendas
+## Iteração (2026-06-28) — Dropdowns pesquisáveis + Clientes expandidos + Workflow de Encomendas + Dashboard
+- **Combobox genérico** (`components/Combobox.jsx`): dropdown pesquisável reutilizável. `ClienteSelector` passou a usá-lo (pesquisa por nome/cidade/NIF) em Orçamentos, OFs e Encomendas; selecção de artigos na Encomenda também é Combobox.
+- **Clientes expandidos**: novos campos `codigo_postal`, `cidade`, `pais` (default "Portugal") no modelo + formulários (Clientes e criação inline). Lista mostra coluna Cidade.
+- **Workflow avançado de Encomendas**:
+  - Modelo `Encomenda` ganhou `artigos` (lista `EncomendaArtigo` com preco_unit+personalizacoes), `valor_total` (+`valor_total_manual`), `valor_pago`, `autorizada_producao`.
+  - `compute_encomenda` (server.py): valor_total auto = total do orçamento associado (inclui operações/máquinas/personalizações) OU soma dos artigos; editável manualmente. status_pagamento derivado (pendente/parcial/pago) de valor_pago vs valor_total. `pode_produzir` = pago total OU autorizada_producao. estado auto (aberta/em_producao/concluida) a partir das OFs; auto-conclui quando todas as OFs concluídas.
+  - **Gate de produção**: `iniciar_operacao` devolve 403 se a encomenda associada não estiver paga nem autorizada (frontend mostra toast).
+  - Conversão Orçamento→Encomenda popula `enc.artigos` (das linhas) e `valor_total` (= total do orçamento).
+  - `EncomendaDetail.jsx` revamp: KPIs (valor, pago/pendente, custo real vs estimado, margem), editor de artigos, gestão de pagamento (input + "Pago total"), toggle de autorização manual, indicador de produção. Lista de Encomendas mostra Valor + badge de Pagamento.
+- **Dashboard revamp** (`Dashboard.jsx` + `GET /api/dashboard`): KPIs de encomendas (valor, recebido/pendente, custo produção real vs estimado, margem, por autorizar); gráfico Valor encomenda vs Custo produção (estimado/real); pie Encomendas por pagamento; mantém OFs por estado, valor de orçamentos/mês e top artigos.
+- Tested: iteration_10.json — backend 7/7 PASS (incl. gate 403→200, valor auto, conversão). Combobox confirmado a filtrar com escrita real (artefacto só no `fill` do Playwright). Contas reais intactas.
 - **Clientes** (novo módulo): CRUD (nome, morada, contacto, email, NIF, notas) com pesquisa. `/api/clientes` (protegido por auth).
 - **Seletor de cliente** (`ClienteSelector`): dropdown de clientes existentes + botão "+ Novo" (criação inline), usado em Orçamentos, Ordens de Fabrico e Encomendas. Orçamento/OF guardam `cliente_id`.
 - **Encomendas** (novo módulo): criação manual (numeração `ENC-2026-XXXX`) e **auto-criação na conversão Orçamento→OF** (encomenda com o cliente; OF ligada via `encomenda_id`/`encomenda_numero`). Detalhe da encomenda mostra info do cliente + OFs associadas + botão "Criar Ordem de Fabrico" (`POST /api/encomendas/{id}/ordens-fabrico`). `/api/encomendas` protegido por auth.
