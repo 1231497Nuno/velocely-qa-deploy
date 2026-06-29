@@ -30,20 +30,20 @@ export function AuthProvider({ children }) {
     refresh();
   }, [refresh]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const { token, user: u } = await api.post("/auth/login", { email, password });
     setToken(token);
     setUser(u);
     return u;
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(false);
     window.location.href = "/login";
-  };
+  }, []);
 
-  const isAdmin = user && user.perfil && user.perfil.admin;
+  const isAdmin = !!(user && user.perfil && user.perfil.admin);
 
   const can = useCallback(
     (modulo, acao = "view") => {
@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     () => ({ user, ready, login, logout, isAdmin, can, refresh }),
-    [user, ready, isAdmin, can, refresh]
+    [user, ready, login, logout, isAdmin, can, refresh]
   );
 
   return (

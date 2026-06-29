@@ -1,6 +1,12 @@
 # PRD — Velocely (Production Costing ERP)
 
-> **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (URL: customer-assets…/qckzlidl_Logotipo.png); subtítulo "Gestão de Produção".
+> **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
+
+## Iteração 19 (2026-06-29) — Correções de qualidade
+- **AuthContext:** `value` do Provider envolvido em `useMemo`; `login`/`logout` em `useCallback` (estabilidade referencial total, evita re-renders em cascata). Validado: login/logout/RBAC/sessão sem regressões (iteration_19.json, frontend 6/6).
+- **Testes:** credenciais deixaram de estar hardcoded em `test_iteration17/18.py` (leem de env `TEST_ADMIN_*` ou `test_credentials.md`), alinhado com it15/it16.
+- **Unidade de medida no artigo:** passou a `<select>` (lista igual aos materiais: un/kg/g/m/cm/m²/L/ml/folha/par/h). Logótipo clicável → Dashboard.
+- **Falsos positivos do Code Quality Report (não alterados):** `is True/False/None` (idiomático), `secrets.token_urlsafe` em it11:71, "8 undefined vars" (pyflakes=0), index-keys em formulários editáveis, localStorage (decisão JWT-SPA), complexidade PDF/componentes (já refatorados nas it16-17).
 
 ## Iteração 18 (2026-06-29) — Personalizações na Encomenda + Unidade de medida + Logótipo
 - **Encomenda como Orçamento:** secção de artigos permite adicionar/editar/remover personalizações por linha (chips + select + valor editável), com auto-save. Reflete no subtotal e valor total. `pers_valor_unit` suporta lista e formato legacy.
