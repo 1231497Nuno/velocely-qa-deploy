@@ -3,6 +3,7 @@ import { Plus, X, Package, Cog, Calculator, Tag } from "lucide-react";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
+const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", "h"];
 
 export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
   const addMat = () => setForm({ ...form, materiais: [...form.materiais, { material_id: "", material_nome: "", unidade: "", quantidade: 1, custo_unitario: 0 }] });
@@ -48,10 +49,9 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Unidade de medida</label>
-            <input data-testid="artigo-unidade-input" list="unidades-medida" value={form.unidade || ""} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="un" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-            <datalist id="unidades-medida">
-              <option value="un" /><option value="m²" /><option value="m" /><option value="cm" /><option value="kg" /><option value="g" /><option value="L" /><option value="par" /><option value="cx" /><option value="conj" />
-            </datalist>
+            <select data-testid="artigo-unidade-input" value={form.unidade || "un"} onChange={(e) => setForm({ ...form, unidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+              {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Valor do Artigo (€)</label>
