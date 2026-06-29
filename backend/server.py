@@ -395,20 +395,24 @@ class Orcamento(OrcamentoInput):
 class OFOperacao(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
+    maquina_id: Optional[str] = None
     maquina_nome: Optional[str] = None
     mao_obra_id: Optional[str] = None
     mao_obra_nome: Optional[str] = None
     tempo_maquina: float = 0.0
+    tempo_maquina_base: Optional[float] = None  # tempo de máquina por unidade
     tempo_mao_obra: float = 0.0
-    tempo_mao_obra_base: Optional[float] = None  # mão de obra do roteiro, sem personalizações
+    tempo_mao_obra_base: Optional[float] = None  # mão de obra do roteiro (por unidade), sem personalizações
     tempo_min: float = 0.0
     custo_estimado: float = 0.0
     custo_maquina_estimado: float = 0.0
     custo_mao_obra_estimado: float = 0.0
+    maquina_custo_hora: float = 0.0
     mao_obra_custo_hora: float = 0.0
     timer_inicio: Optional[str] = None
     tempo_real_seg: float = 0.0
     concluida: bool = False
+    manual: bool = False
 
 
 class OFItem(BaseModel):
@@ -1546,21 +1550,25 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                     maq = await db.maquinas.find_one({"id": op.get("maquina_id")}, {"_id": 0}) if op.get("maquina_id") else None
                     mo = await db.mao_obra.find_one({"id": op.get("mao_obra_id")}, {"_id": 0}) if op.get("mao_obra_id") else None
                     mo_hora = (mo or {}).get("custo_hora") or 0
-                    custo_maq = round2((t_maq / 60.0) * maquina_custo_hora(maq))
+                    maq_hora = maquina_custo_hora(maq)
+                    custo_maq = round2((t_maq / 60.0) * maq_hora)
                     custo_mo = round2((t_mo / 60.0) * mo_hora)
                     operacoes.append(
                         OFOperacao(
                             nome=op.get("nome", ""),
-                            maquina_nome=op.get("maquina_nome"),
+                            maquina_id=op.get("maquina_id"),
+                            maquina_nome=op.get("maquina_nome") or ((maq or {}).get("nome")),
                             mao_obra_id=op.get("mao_obra_id"),
                             mao_obra_nome=op.get("mao_obra_nome"),
                             tempo_maquina=t_maq,
+                            tempo_maquina_base=t_maq,
                             tempo_mao_obra=t_mo,
                             tempo_mao_obra_base=t_mo,
                             tempo_min=t_maq + t_mo,
                             custo_estimado=round2(custo_maq + custo_mo),
                             custo_maquina_estimado=custo_maq,
                             custo_mao_obra_estimado=custo_mo,
+                            maquina_custo_hora=maq_hora,
                             mao_obra_custo_hora=mo_hora,
                         ).model_dump()
                     )
@@ -1571,9 +1579,10 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
 
 
 async def _apply_pers_tempo(itens: List[dict]) -> None:
-    """Soma o tempo das personalizações (× quantidade) à mão de obra da operação
-    cuja mão de obra está marcada como responsável pelas personalizações.
-    Idempotente: repõe sempre a partir de tempo_mao_obra_base antes de somar."""
+    """Calcula os tempos/custos estimados das operações da OF:
+    tempo = tempo_base (por unidade) × quantidade; a mão de obra da operação
+    responsável pelas personalizações soma ainda (tempo personalização × qtd).
+    Idempotente: recalcula sempre a partir das bases por unidade."""
     resp_mo = await db.mao_obra.find_one({"responsavel_personalizacoes": True}, {"_id": 0})
     resp_id = resp_mo.get("id") if resp_mo else None
     resp_rate = (resp_mo or {}).get("custo_hora") or 0
@@ -1585,44 +1594,68 @@ async def _apply_pers_tempo(itens: List[dict]) -> None:
         if not ops:
             continue
         qtd = it.get("quantidade") or 1
-        pers_min = 0.0
+        pers_min_unit = 0.0
         for p in (it.get("personalizacoes") or []):
             t = p.get("tempo")
             if not t:
                 t = tempo_map.get(p.get("id"), 0)
-            pers_min += (t or 0)
-        pers_min = round2(pers_min * qtd)
+            pers_min_unit += (t or 0)
+        pers_min = round2(pers_min_unit * qtd)
 
-        # garantir base e repor todas as operações ao valor base
+        # garantir bases (por unidade) e taxas; resolver taxas em falta (operações manuais)
         for op in ops:
             if op.get("tempo_mao_obra_base") is None:
                 op["tempo_mao_obra_base"] = op.get("tempo_mao_obra") or 0
-            base = op.get("tempo_mao_obra_base") or 0
-            rate = op.get("mao_obra_custo_hora") or 0
-            op["tempo_mao_obra"] = base
-            op["custo_mao_obra_estimado"] = round2((base / 60.0) * rate)
-            op["tempo_min"] = round2((op.get("tempo_maquina") or 0) + base)
-            op["custo_estimado"] = round2((op.get("custo_maquina_estimado") or 0) + op["custo_mao_obra_estimado"])
+            if op.get("tempo_maquina_base") is None:
+                op["tempo_maquina_base"] = op.get("tempo_maquina") or 0
+            if not op.get("maquina_custo_hora"):
+                if op.get("maquina_id"):
+                    m = await db.maquinas.find_one({"id": op["maquina_id"]}, {"_id": 0})
+                    if m:
+                        op["maquina_custo_hora"] = maquina_custo_hora(m)
+                        if not op.get("maquina_nome"):
+                            op["maquina_nome"] = m.get("nome")
+                if not op.get("maquina_custo_hora"):
+                    mb = op.get("tempo_maquina_base") or 0
+                    oldc = op.get("custo_maquina_estimado") or 0
+                    op["maquina_custo_hora"] = round2(oldc / (mb / 60.0)) if mb > 0 else 0
+            if not op.get("mao_obra_custo_hora"):
+                if op.get("mao_obra_id"):
+                    mo = await db.mao_obra.find_one({"id": op["mao_obra_id"]}, {"_id": 0})
+                    if mo:
+                        op["mao_obra_custo_hora"] = mo.get("custo_hora") or 0
+                        if not op.get("mao_obra_nome"):
+                            op["mao_obra_nome"] = mo.get("nome")
+                if not op.get("mao_obra_custo_hora"):
+                    ob = op.get("tempo_mao_obra_base") or 0
+                    oldc = op.get("custo_mao_obra_estimado") or 0
+                    op["mao_obra_custo_hora"] = round2(oldc / (ob / 60.0)) if ob > 0 else 0
 
-        if pers_min <= 0:
-            continue
+        # operação alvo para o tempo de personalização
         target = None
         if resp_id:
             target = next((op for op in ops if op.get("mao_obra_id") == resp_id), None)
-        if target is None:
+        if target is None and pers_min > 0:
             target = ops[0]
-        base = target.get("tempo_mao_obra_base") or 0
-        rate = target.get("mao_obra_custo_hora") or 0
-        if rate == 0 and (resp_id is None or target.get("mao_obra_id") == resp_id):
-            rate = resp_rate
-            target["mao_obra_custo_hora"] = rate
-            if not target.get("mao_obra_nome") and resp_mo:
-                target["mao_obra_nome"] = resp_mo.get("nome")
-                target["mao_obra_id"] = resp_id
-        target["tempo_mao_obra"] = round2(base + pers_min)
-        target["custo_mao_obra_estimado"] = round2((target["tempo_mao_obra"] / 60.0) * rate)
-        target["tempo_min"] = round2((target.get("tempo_maquina") or 0) + target["tempo_mao_obra"])
-        target["custo_estimado"] = round2((target.get("custo_maquina_estimado") or 0) + target["custo_mao_obra_estimado"])
+
+        for op in ops:
+            maq_total = round2((op.get("tempo_maquina_base") or 0) * qtd)
+            mo_total = round2((op.get("tempo_mao_obra_base") or 0) * qtd)
+            if op is target and pers_min > 0:
+                if not op.get("mao_obra_custo_hora") and (resp_id is None or op.get("mao_obra_id") == resp_id):
+                    op["mao_obra_custo_hora"] = resp_rate
+                    if not op.get("mao_obra_nome") and resp_mo:
+                        op["mao_obra_nome"] = resp_mo.get("nome")
+                        op["mao_obra_id"] = resp_id
+                mo_total = round2(mo_total + pers_min)
+            maq_rate = op.get("maquina_custo_hora") or 0
+            mo_rate = op.get("mao_obra_custo_hora") or 0
+            op["tempo_maquina"] = maq_total
+            op["tempo_mao_obra"] = mo_total
+            op["custo_maquina_estimado"] = round2((maq_total / 60.0) * maq_rate)
+            op["custo_mao_obra_estimado"] = round2((mo_total / 60.0) * mo_rate)
+            op["tempo_min"] = round2(maq_total + mo_total)
+            op["custo_estimado"] = round2(op["custo_maquina_estimado"] + op["custo_mao_obra_estimado"])
 
 
 @api_router.get("/ordens-fabrico")
@@ -1848,21 +1881,25 @@ async def converter_orcamento(oid: str):
             maq = await db.maquinas.find_one({"id": op.get("maquina_id")}, {"_id": 0}) if op.get("maquina_id") else None
             mo = await db.mao_obra.find_one({"id": op.get("mao_obra_id")}, {"_id": 0}) if op.get("mao_obra_id") else None
             mo_hora = (mo or {}).get("custo_hora") or 0
-            custo_maq = round2((t_maq / 60.0) * maquina_custo_hora(maq))
+            maq_hora = maquina_custo_hora(maq)
+            custo_maq = round2((t_maq / 60.0) * maq_hora)
             custo_mo = round2((t_mo / 60.0) * mo_hora)
             operacoes.append(
                 OFOperacao(
                     nome=op.get("nome", ""),
+                    maquina_id=op.get("maquina_id"),
                     maquina_nome=op.get("maquina_nome") or ((maq or {}).get("nome")),
                     mao_obra_id=op.get("mao_obra_id"),
                     mao_obra_nome=op.get("mao_obra_nome") or ((mo or {}).get("nome")),
                     tempo_maquina=t_maq,
+                    tempo_maquina_base=t_maq,
                     tempo_mao_obra=t_mo,
                     tempo_mao_obra_base=t_mo,
                     tempo_min=t_maq + t_mo,
                     custo_estimado=round2(custo_maq + custo_mo),
                     custo_maquina_estimado=custo_maq,
                     custo_mao_obra_estimado=custo_mo,
+                    maquina_custo_hora=maq_hora,
                     mao_obra_custo_hora=mo_hora,
                 ).model_dump()
             )

@@ -7,6 +7,7 @@ import StatusBadge from "../components/StatusBadge";
 import ArtigoCombobox from "../components/ArtigoCombobox";
 import PdfExportButton from "../components/PdfExportButton";
 import { OFRoteiroPanel } from "../components/of/OFRoteiroPanel";
+import { OFItemOperacoes } from "../components/of/OFItemOperacoes";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "../components/ui/progress";
@@ -18,12 +19,16 @@ export default function OrdemFabricoDetail() {
   const [of, setOf] = useState(null);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
+  const [maquinas, setMaquinas] = useState([]);
+  const [maoObra, setMaoObra] = useState([]);
   const [, setTick] = useState(0);
 
   const load = useCallback(async () => {
     setOf(await api.get(`/ordens-fabrico/${id}`));
     setArtigos(await api.get("/artigos"));
     setTipos(await api.get("/tipos-personalizacao"));
+    setMaquinas(await api.get("/maquinas"));
+    setMaoObra(await api.get("/mao-obra"));
   }, [id]);
   useEffect(() => {
     load();
@@ -56,6 +61,22 @@ export default function OrdemFabricoDetail() {
     updItem(i, { personalizacoes: [...cur, { id: t.id, nome: t.nome, valor: Number(t.valor) || 0, tempo: Number(t.tempo) || 0 }] });
   };
   const delItemPers = (i, pi) => updItem(i, { personalizacoes: (of.itens[i].personalizacoes || []).filter((_, idx) => idx !== pi) });
+
+  const addOp = (i) => {
+    const it = [...of.itens];
+    it[i] = { ...it[i], operacoes: [...(it[i].operacoes || []), { id: crypto.randomUUID(), nome: "", maquina_id: "", maquina_nome: "", mao_obra_id: "", mao_obra_nome: "", tempo_maquina_base: 0, tempo_mao_obra_base: 0, tempo_maquina: 0, tempo_mao_obra: 0, manual: true }] };
+    upd({ itens: it });
+  };
+  const updOp = (i, opId, patch) => {
+    const it = [...of.itens];
+    it[i] = { ...it[i], operacoes: (it[i].operacoes || []).map((o) => (o.id === opId ? { ...o, ...patch } : o)) };
+    upd({ itens: it });
+  };
+  const delOp = (i, opId) => {
+    const it = [...of.itens];
+    it[i] = { ...it[i], operacoes: (it[i].operacoes || []).filter((o) => o.id !== opId) };
+    upd({ itens: it });
+  };
 
   const save = async () => {
     const body = {
@@ -265,6 +286,9 @@ export default function OrdemFabricoDetail() {
                       {tipos.filter((t) => !(it.personalizacoes || []).some((p) => p.id === t.id)).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
                     </select>
                   </div>
+                  {it.artigo_id && (
+                    <OFItemOperacoes item={it} i={i} maquinas={maquinas} maoObra={maoObra} addOp={addOp} updOp={updOp} delOp={delOp} />
+                  )}
                 </div>
               ))}
               {of.itens.length === 0 && <p className="text-xs text-gray-400">Sem artigos. Adicione e guarde para carregar o roteiro.</p>}
