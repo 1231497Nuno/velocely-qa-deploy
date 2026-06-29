@@ -2,6 +2,12 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 20 (2026-06-29) — Tempos da OF × quantidade + editor de operações
+- **Tempos × quantidade:** cada operação da OF tem agora `tempo_maquina_base`/`tempo_mao_obra_base` (por unidade) e os tempos/custos estimados são `base × quantidade`, recalculados em cada save (`_apply_pers_tempo`, idempotente). Personalização continua a somar `tempo×qtd` à operação responsável.
+- **Editor de operações na OF:** novo `OFItemOperacoes` por artigo no detalhe da OF — adicionar/editar/remover operações (nome, máquina, mão de obra, tempos por unidade), incluindo em OFs geradas automaticamente. Taxas €/h resolvidas no backend via `maquina_id`/`mao_obra_id` (fallback: derivar do custo antigo). `OFOperacao` ganhou `maquina_id`, `maquina_custo_hora`, `manual`.
+- **Nota:** OFs antigas recalculam os tempos ×qtd no próximo save (comportamento esperado).
+- Tested: iteration_20.json — backend 7/7 pytest, frontend 100%. Dados de teste limpos.
+
 ## Iteração 19 (2026-06-29) — Correções de qualidade
 - **AuthContext:** `value` do Provider envolvido em `useMemo`; `login`/`logout` em `useCallback` (estabilidade referencial total, evita re-renders em cascata). Validado: login/logout/RBAC/sessão sem regressões (iteration_19.json, frontend 6/6).
 - **Testes:** credenciais deixaram de estar hardcoded em `test_iteration17/18.py` (leem de env `TEST_ADMIN_*` ou `test_credentials.md`), alinhado com it15/it16.
