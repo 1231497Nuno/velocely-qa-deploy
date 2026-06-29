@@ -1,4 +1,12 @@
-# PRD — ProdCost (Production Costing ERP)
+# PRD — Velocely (Production Costing ERP)
+
+> **Branding:** O software chama-se **Velocely** (anteriormente "Gestão Produção"). Logo de texto na sidebar/login; subtítulo "Gestão de Produção". Cliente pode fornecer ficheiro de logótipo para integrar.
+
+## Iteração 17 (2026-06-29) — Descontos + preços unitários + rebranding Velocely
+- **Descontos (% ou €, toggle):** por linha de artigo e no total — em Orçamentos e Encomendas (não nas OFs). Backend: `desconto_valor()`, `compute_orcamento_totais()` (campos `desconto_linhas`/`subtotal_liquido`/`desconto_total_valor`), `encomenda_artigos_breakdown()`. Descontos de linha aplicados antes do desconto total (sobre subtotal líquido). PDFs de orçamento/encomenda mostram linhas de desconto.
+- **Preços unitários:** colunas "Preço Unit." (artigo) + "Unit. c/Pers" (preço + personalizações/un) em Orçamentos e Encomendas; OF mostra preço unitário + total c/ personalizações (só leitura) via `OFItem.preco_unit`. Backfill runtime em `GET /api/ordens-fabrico/{id}` para OFs antigas.
+- **Rebranding Velocely:** Layout (sidebar + mobile), Login, `index.html` title.
+- Tested: iteration_17.json — backend 9/9 pytest, frontend 100%. Dados de teste limpos; contas reais intactas.
 
 ## Original Problem Statement
 Fase 2 (Orçamentação) + Fase 3 (Ordens de Fabrico) sobre app de custeio de produção.

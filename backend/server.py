@@ -1648,6 +1648,12 @@ async def get_of(ofid: str):
     if not o:
         raise HTTPException(404, "OF não encontrada")
     o = recompute_of_status(o)
+    # Backfill runtime: OFs antigas sem preco_unit por item
+    for it in o.get("itens", []):
+        if not it.get("preco_unit") and it.get("artigo_id"):
+            a = await db.artigos.find_one({"id": it["artigo_id"]}, {"_id": 0})
+            if a:
+                it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
     if o.get("encomenda_id"):
         e = await db.encomendas.find_one({"id": o["encomenda_id"]}, {"_id": 0})
         o["prazo_entrega"] = (e or {}).get("prazo_entrega")
