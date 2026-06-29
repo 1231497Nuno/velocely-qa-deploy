@@ -1,4 +1,7 @@
+import { eur } from "../../lib/api";
 import { Cog, Clock, Play, Square, CheckCircle2 } from "lucide-react";
+
+const persUnit = (it) => (it.personalizacoes || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
 
 export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, elapsedSeg, fmtDur }) {
   const hasRoteiro = itens.filter((it) => (it.operacoes || []).length > 0).length > 0;
@@ -13,7 +16,15 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, elapsedSeg
             (it.operacoes || []).length > 0 && (
               <div key={it.id || idx}>
                 <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
-                  <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade}</span></div>
+                  <div>
+                    <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade}</span></div>
+                    <div className="text-xs text-gray-500 mt-0.5" data-testid={`of-item-precos-${idx}`}>
+                      <span className="tabular-nums">{eur(it.preco_unit || 0)}/un</span>
+                      {persUnit(it) > 0 && (
+                        <span className="tabular-nums"> · c/ personalizações <span className="font-medium text-gray-700">{eur((it.preco_unit || 0) + persUnit(it))}/un</span></span>
+                      )}
+                    </div>
+                  </div>
                   {(it.personalizacoes && it.personalizacoes.length > 0) ? (
                     <div className="flex flex-wrap gap-1 justify-end" data-testid={`of-item-pers-${idx}`}>
                       {it.personalizacoes.map((p, pi) => (

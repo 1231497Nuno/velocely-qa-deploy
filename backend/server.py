@@ -331,6 +331,8 @@ class OrcamentoLinha(BaseModel):
     roteiro: List[Operacao] = Field(default_factory=list)
     custo_producao_unit: float = 0.0
     preco_unit: float = 0.0
+    desconto: float = 0.0
+    desconto_tipo: str = "pct"  # pct | eur
 
 
 class MaterialLinha(BaseModel):
@@ -374,6 +376,8 @@ class OrcamentoInput(BaseModel):
     status: str = "rascunho"
     margem: float = 0.0
     notas: str = ""
+    desconto_total: float = 0.0
+    desconto_total_tipo: str = "pct"  # pct | eur
     linhas: List[OrcamentoLinha] = Field(default_factory=list)
     materiais: List[MaterialLinha] = Field(default_factory=list)
 
@@ -410,6 +414,7 @@ class OFItem(BaseModel):
     artigo_id: str
     artigo_nome: str = ""
     quantidade: float = 1
+    preco_unit: float = 0.0
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
@@ -444,6 +449,8 @@ class EncomendaArtigo(BaseModel):
     artigo_nome: str = ""
     quantidade: float = 1
     preco_unit: float = 0.0
+    desconto: float = 0.0
+    desconto_tipo: str = "pct"  # pct | eur
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
 
 
@@ -455,6 +462,8 @@ class EncomendaInput(BaseModel):
     prazo_entrega: Optional[str] = None
     estado: str = "aberta"
     notas: str = ""
+    desconto_total: float = 0.0
+    desconto_total_tipo: str = "pct"  # pct | eur
     artigos: List[EncomendaArtigo] = Field(default_factory=list)
     valor_total: Optional[float] = None
     valor_total_manual: bool = False
@@ -669,34 +678,58 @@ def fill_materiais(materiais: List[dict]) -> List[dict]:
     return out
 
 
+def desconto_valor(base: float, desconto, tipo) -> float:
+    """Valor do desconto sobre `base`. tipo 'eur' = valor fixo (limitado à base), senão percentagem."""
+    d = desconto or 0
+    if d <= 0:
+        return 0.0
+    if (tipo or "pct") == "eur":
+        return round2(min(d, base))
+    return round2(base * d / 100.0)
+
+
+def linha_venda_bruto(l: dict) -> float:
+    """Venda bruta da linha (preço unit + personalizações) × quantidade, sem desconto."""
+    qtd = l.get("quantidade") or 0
+    return round2(((l.get("preco_unit") or 0) + pers_valor_unit(l)) * qtd)
+
+
 def compute_orcamento_totais(orc: dict) -> dict:
     subtotal_custo = 0.0
     subtotal_venda = 0.0
     total_pers = 0.0
+    desconto_linhas = 0.0
     for l in orc.get("linhas", []):
         qtd = l.get("quantidade") or 0
         subtotal_custo += (l.get("custo_producao_unit") or 0) * qtd
         subtotal_venda += (l.get("preco_unit") or 0) * qtd
         total_pers += pers_valor_unit(l) * qtd
+        desconto_linhas += desconto_valor(linha_venda_bruto(l), l.get("desconto"), l.get("desconto_tipo"))
     custo_materiais = 0.0
     venda_materiais = 0.0
     for m in orc.get("materiais", []):
         c = material_custo(m)
         custo_materiais += c
         venda_materiais += round2(c * material_margem_factor(m))
-    subtotal_custo = round2(subtotal_custo)
     subtotal_venda = round2(subtotal_venda)
     total_pers = round2(total_pers)
     custo_materiais = round2(custo_materiais)
     venda_materiais = round2(venda_materiais)
+    desconto_linhas = round2(desconto_linhas)
     subtotal_custo = round2(subtotal_custo + custo_materiais)
-    total = round2(subtotal_venda + total_pers + venda_materiais)
+    # subtotal após descontos de linha, antes do desconto global
+    subtotal_liquido = round2(subtotal_venda + total_pers + venda_materiais - desconto_linhas)
+    desc_total_val = desconto_valor(subtotal_liquido, orc.get("desconto_total"), orc.get("desconto_total_tipo"))
+    total = round2(subtotal_liquido - desc_total_val)
     orc = {**orc}
     orc["subtotal_custo"] = subtotal_custo
     orc["subtotal_venda"] = subtotal_venda
     orc["total_personalizacao"] = total_pers
     orc["custo_materiais"] = custo_materiais
     orc["total_materiais"] = venda_materiais
+    orc["desconto_linhas"] = desconto_linhas
+    orc["subtotal_liquido"] = subtotal_liquido
+    orc["desconto_total_valor"] = desc_total_val
     orc["total"] = total
     orc["lucro"] = round2(total - subtotal_custo)
     return orc
@@ -981,6 +1014,10 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
             tot_rows.append(["Personalização", fmt_eur(orc.get("total_personalizacao"))])
         if (orc.get("total_materiais") or 0) > 0:
             tot_rows.append(["Materiais", fmt_eur(orc.get("total_materiais"))])
+        if (orc.get("desconto_linhas") or 0) > 0:
+            tot_rows.append(["Desconto linhas", "- " + fmt_eur(orc.get("desconto_linhas"))])
+        if (orc.get("desconto_total_valor") or 0) > 0:
+            tot_rows.append(["Desconto total", "- " + fmt_eur(orc.get("desconto_total_valor"))])
         tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
         last = len(tot_rows) - 1
         tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
@@ -1139,6 +1176,8 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
             [f"Pagamento: {PAY_PT.get(enc.get('status_pagamento'), enc.get('status_pagamento'))}", ""],
         ]
     if section_on(fields, "valor_total"):
+        if (enc.get("desconto_total_valor") or 0) > 0:
+            tot_rows.append(["Desconto", "- " + fmt_eur(enc.get("desconto_total_valor"))])
         tot_rows.append(["VALOR TOTAL", fmt_eur(enc.get("valor_total"))])
     if tot_rows:
         has_total = section_on(fields, "valor_total")
@@ -1493,6 +1532,8 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
         operacoes = it.get("operacoes")
         if a:
             it["artigo_nome"] = a.get("nome", it.get("artigo_nome", ""))
+            if not it.get("preco_unit"):
+                it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
             if not operacoes:
                 operacoes = []
                 for op in a.get("roteiro", []):
@@ -1907,12 +1948,29 @@ PAY_PT = {"pendente": "Pendente", "parcial": "Pago parcial", "pago": "Pago total
 ENC_ESTADO_PT = {"aberta": "Aberta", "em_producao": "Em Produção", "concluida": "Concluída", "cancelada": "Cancelada"}
 
 
-def encomenda_artigos_total(enc: dict) -> float:
-    total = 0.0
+def encomenda_artigos_breakdown(enc: dict) -> dict:
+    bruto = 0.0
+    desc_linhas = 0.0
     for a in enc.get("artigos", []):
         qtd = a.get("quantidade") or 0
-        total += (a.get("preco_unit") or 0) * qtd + pers_valor_unit(a) * qtd
-    return round2(total)
+        linha_bruto = round2(((a.get("preco_unit") or 0) + pers_valor_unit(a)) * qtd)
+        bruto += linha_bruto
+        desc_linhas += desconto_valor(linha_bruto, a.get("desconto"), a.get("desconto_tipo"))
+    bruto = round2(bruto)
+    desc_linhas = round2(desc_linhas)
+    subtotal_liquido = round2(bruto - desc_linhas)
+    desc_total = desconto_valor(subtotal_liquido, enc.get("desconto_total"), enc.get("desconto_total_tipo"))
+    return {
+        "bruto": bruto,
+        "desconto_linhas": desc_linhas,
+        "subtotal_liquido": subtotal_liquido,
+        "desconto_total_valor": desc_total,
+        "total": round2(subtotal_liquido - desc_total),
+    }
+
+
+def encomenda_artigos_total(enc: dict) -> float:
+    return encomenda_artigos_breakdown(enc)["total"]
 
 
 async def compute_encomenda(enc: dict) -> dict:
@@ -1938,6 +1996,10 @@ async def compute_encomenda(enc: dict) -> dict:
     else:
         valor = encomenda_artigos_total(enc)
     enc["valor_total"] = round2(valor)
+    bd = encomenda_artigos_breakdown(enc)
+    enc["valor_artigos_bruto"] = bd["bruto"]
+    enc["desconto_linhas"] = bd["desconto_linhas"]
+    enc["desconto_total_valor"] = bd["desconto_total_valor"]
 
     pago = enc.get("valor_pago") or 0
     if pago <= 0:

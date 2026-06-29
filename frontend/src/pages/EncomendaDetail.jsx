@@ -42,10 +42,23 @@ export default function EncomendaDetail() {
 
   const upd = (patch) => setEnc({ ...enc, ...patch });
 
-  const artigosTotal = (enc.artigos || []).reduce((s, a) => {
-    const persUnit = (a.personalizacoes || []).reduce((x, p) => x + (Number(p.valor) || 0), 0);
-    return s + ((Number(a.preco_unit) || 0) + persUnit) * (Number(a.quantidade) || 0);
-  }, 0);
+  const persUnitOf = (a) => (a.personalizacoes || []).reduce((x, p) => x + (Number(p.valor) || 0), 0);
+  const lineGross = (a) => ((Number(a.preco_unit) || 0) + persUnitOf(a)) * (Number(a.quantidade) || 0);
+  const lineDisc = (a) => {
+    const base = lineGross(a);
+    const d = Number(a.desconto) || 0;
+    if (d <= 0) return 0;
+    return a.desconto_tipo === "eur" ? Math.min(d, base) : (base * d) / 100;
+  };
+  const lineNet = (a) => lineGross(a) - lineDisc(a);
+
+  const subtotalLiquidoArtigos = (enc.artigos || []).reduce((s, a) => s + lineNet(a), 0);
+  const descTotalVal = (() => {
+    const d = Number(enc.desconto_total) || 0;
+    if (d <= 0) return 0;
+    return enc.desconto_total_tipo === "eur" ? Math.min(d, subtotalLiquidoArtigos) : (subtotalLiquidoArtigos * d) / 100;
+  })();
+  const artigosTotal = subtotalLiquidoArtigos - descTotalVal;
   const valorMostrado = enc.valor_total_manual ? (Number(enc.valor_total) || 0) : (enc.orcamento_id ? enc.valor_total : artigosTotal);
 
   const bodyFrom = (e) => ({
@@ -56,10 +69,14 @@ export default function EncomendaDetail() {
     prazo_entrega: e.prazo_entrega || null,
     estado: e.estado,
     notas: e.notas || "",
+    desconto_total: Number(e.desconto_total) || 0,
+    desconto_total_tipo: e.desconto_total_tipo || "pct",
     artigos: (e.artigos || []).map((a) => ({
       ...a,
       quantidade: Number(a.quantidade) || 1,
       preco_unit: Number(a.preco_unit) || 0,
+      desconto: Number(a.desconto) || 0,
+      desconto_tipo: a.desconto_tipo || "pct",
     })),
     valor_total: e.valor_total_manual ? Number(e.valor_total) || 0 : null,
     valor_total_manual: !!e.valor_total_manual,
@@ -182,6 +199,22 @@ export default function EncomendaDetail() {
             )}
           </div>
 
+          {!enc.valor_total_manual && !enc.orcamento_id && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Desconto no total</label>
+                {descTotalVal > 0 && <span className="text-xs text-red-600 tabular-nums" data-testid="enc-desc-total-val">- {eur(descTotalVal)}</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <input data-testid="enc-desc-total-input" type="number" min="0" step="0.01" value={enc.desconto_total ?? 0} onChange={(e) => upd({ desconto_total: e.target.value })} onBlur={() => persist({}, "Desconto atualizado")} className="flex-1 border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                <select data-testid="enc-desc-total-tipo" value={enc.desconto_total_tipo || "pct"} onChange={(e) => persist({ desconto_total_tipo: e.target.value }, "Desconto atualizado")} className="border border-gray-300 rounded-sm px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20">
+                  <option value="pct">%</option>
+                  <option value="eur">€</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Valor pago</label>
             <div className="flex items-center gap-2">
@@ -239,21 +272,22 @@ export default function EncomendaDetail() {
           <p className="text-sm text-gray-400 py-4 text-center">Sem artigos. Adicione artigos ou converta um orçamento.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[560px]" data-testid="enc-artigos-table">
+            <table className="w-full text-sm min-w-[820px]" data-testid="enc-artigos-table">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Artigo</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Personalização</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Qtd</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Unit.</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Unit. c/Pers</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Desconto</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subtotal</th>
                   <th className="px-4 py-2.5 w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {enc.artigos.map((a, i) => {
-                  const persUnit = (a.personalizacoes || []).reduce((x, p) => x + (Number(p.valor) || 0), 0);
-                  const sub = ((Number(a.preco_unit) || 0) + persUnit) * (Number(a.quantidade) || 0);
+                  const unitPers = (Number(a.preco_unit) || 0) + persUnitOf(a);
                   return (
                     <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100">
                       <td className="px-4 py-2.5 font-medium text-gray-900">{a.artigo_nome}</td>
@@ -264,7 +298,18 @@ export default function EncomendaDetail() {
                       <td className="px-4 py-2.5 text-right">
                         <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} onBlur={() => persist({})} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(sub)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900" data-testid={`enc-artigo-unit-pers-${i}`}>{eur(unitPers)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          <input data-testid={`enc-artigo-desc-${i}`} type="number" min="0" step="0.01" value={a.desconto ?? 0} onChange={(e) => updArtigo(i, { desconto: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-1.5 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                          <select data-testid={`enc-artigo-desc-tipo-${i}`} value={a.desconto_tipo || "pct"} onChange={(e) => updArtigo(i, { desconto_tipo: e.target.value })} onBlur={() => persist({})} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                            <option value="pct">%</option>
+                            <option value="eur">€</option>
+                          </select>
+                        </div>
+                        {lineDisc(a) > 0 && <div className="text-[10px] text-red-500 text-right mt-0.5">- {eur(lineDisc(a))}</div>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium" data-testid={`enc-artigo-subtotal-${i}`}>{eur(lineNet(a))}</td>
                       <td className="px-4 py-2.5"><button data-testid={`enc-artigo-del-${i}`} onClick={() => delArtigo(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button></td>
                     </tr>
                   );

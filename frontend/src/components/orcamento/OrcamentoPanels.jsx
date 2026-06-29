@@ -64,7 +64,7 @@ export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMat
   );
 }
 
-export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, custoProducao, lucro, total }) {
+export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, descontoLinhas = 0, descTotal, descTotalTipo = "pct", descTotalVal = 0, onDescTotal, onDescTotalTipo, custoProducao, lucro, total }) {
   return (
     <div className="flex justify-end">
       <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3">
@@ -80,6 +80,28 @@ export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, cust
           <span className="text-gray-500">Materiais</span>
           <span className="tabular-nums font-medium" data-testid="orc-materiais">{eur(totalMateriais)}</span>
         </div>
+        {descontoLinhas > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Desconto nas linhas</span>
+            <span className="tabular-nums text-red-600" data-testid="orc-desconto-linhas">- {eur(descontoLinhas)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
+          <span className="text-gray-500">Desconto no total</span>
+          <div className="flex items-center gap-1">
+            <input data-testid="orc-desc-total-input" type="number" min="0" step="0.01" value={descTotal ?? 0} onChange={(e) => onDescTotal && onDescTotal(e.target.value)} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+            <select data-testid="orc-desc-total-tipo" value={descTotalTipo} onChange={(e) => onDescTotalTipo && onDescTotalTipo(e.target.value)} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+              <option value="pct">%</option>
+              <option value="eur">€</option>
+            </select>
+          </div>
+        </div>
+        {descTotalVal > 0 && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-400">Valor do desconto total</span>
+            <span className="tabular-nums text-red-600" data-testid="orc-desc-total-val">- {eur(descTotalVal)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
           <span className="text-gray-400">Custo de produção</span>
           <span className="tabular-nums text-gray-400" data-testid="orc-subtotal">{eur(custoProducao)}</span>

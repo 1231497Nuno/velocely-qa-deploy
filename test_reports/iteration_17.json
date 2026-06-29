@@ -1,0 +1,43 @@
+{
+  "summary": "Iteração 17 — DESCONTOS (linha + total) em Orçamentos e Encomendas, PREÇO UNITÁRIO em OF, e REBRANDING Velocely. BACKEND: 9/9 testes pytest passaram em test_iteration17.py. Orçamento — desconto linha % (10% sobre 21,22 = 2,12; subtotal_liquido 19,10) e desconto total € (5€ → total 14,10) ✅; desconto linha € (1€ sobre 8,61 → total 7,61) ✅; regressão sem desconto (8,61×2 = 17,22) ✅; PDF gera %PDF >1KB com descontos ✅. Encomenda — 3×10 = 30 bruto, desc linha 2€ → 28, desc total 10% = 2,80€ → total 25,20 ✅ (todos os campos novos: valor_artigos_bruto, desconto_linhas, desconto_total_valor, valor_total); regressão sem desconto (2×5 = 10) ✅; PDF ✅. OF — preco_unit é auto-preenchido a partir de artigo_breakdown.preco_venda (8,61) ✅; campo desconto em OFItem é corretamente ignorado/ausente do schema (sem desconto em OFs por design) ✅. FRONTEND (Playwright admin login): Rebranding Velocely confirmado no login (logo 'Velocely') e na sidebar (header 'Velocely / Gestão de Produção'); sem ocorrências de 'ProdCost' nem 'Gestão Produção' isolado. Encomenda detail UI testada com encomenda real criada via API (3×10, desc linha 2€, desc total 10%) — TODOS os testids esperados presentes: enc-desc-total-input=10, enc-desc-total-tipo=pct, enc-desc-total-val='- 2,80 €', enc-artigo-subtotal-0='28,00 €', enc-artigo-desc-0 e enc-artigo-unit-pers-0 (mostra '10,00 €' para artigo sem personalização); enc-kpi-valor='25,20 €' confere com o cálculo. OF detail UI (criada via API com artigo sem roteiro) — painel of-roteiro renderiza placeholder porque OFRoteiroPanel só renderiza 'of-item-precos-{idx}' DENTRO de itens com operacoes.length>0 (comportamento intencional). OF real OF-2026-0043 (com 2 itens com operações) tem preco_unit=None (legacy — criada antes desta feature) e mostraria '0,00€/un' até ser re-guardada. CLEANUP completo: artigo, OF e encomenda de teste removidos via DELETE. Contas reais (geral@famarte.pt, m-p@live.com.pt) e dados reais NÃO foram tocados.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "<title> da página", "issues": ["page.title() devolve 'Gestão Produção · Orçamentos & Ordens de Fabrico' apesar de /public/index.html ter '<title>Velocely · Gestão de Produção</title>'. Provavelmente service-worker / cache antigo ou title definido dinamicamente em código — buscar fonte. Visualmente o utilizador vê Velocely na app (login + sidebar), portanto cosmético/minor; mas a tab do browser ainda mostra 'Gestão Produção'."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/test_reports/pytest/iteration17_results.xml"
+  ],
+  "action_items": [
+    "Investigar e corrigir <title> da página (provável service-worker cache ou referência hardcoded em algum ficheiro fora de /public/index.html) — alinhar com 'Velocely · Gestão de Produção'.",
+    "(Opcional/Migração) OFs legacy criadas antes desta feature têm itens.preco_unit=None — quando o utilizador abre a OF, of-item-precos mostra '0,00€/un'. Considerar: (a) backfill script que itera ordens_fabrico e popula preco_unit via artigo_breakdown; ou (b) na rota GET /api/ordens-fabrico/{id}, recalcular preco_unit em runtime quando estiver vazio.",
+    "(Cobertura UI futura) Quando houver orçamentos reais em DB, testar OrcamentoDetail UI: line-desc-{i}, line-desc-tipo-{i}, orc-desc-total-input/tipo/val, orc-desconto-linhas, orc-subtotal-venda, orc-total, line-preco-{i}, line-unit-pers-{i}, line-subtotal-{i}."
+  ],
+  "critical_code_review_comments": [
+    "server.py:desconto_valor() (l.681) — robusto: limita desconto € à base (min(d, base)), evita totais negativos. Bom.",
+    "server.py:compute_orcamento_totais() (l.697) — fluxo correto: desconto_linhas aplicado ANTES do desconto total (sobre subtotal_liquido). Campos expostos: desconto_linhas, subtotal_liquido, desconto_total_valor, total. desconto_linhas inclui apenas linhas (não materiais) — confirmar se é o esperado quando há materiais com desconto na linha; atualmente MaterialLinha não tem campos de desconto (design ok).",
+    "server.py:encomenda_artigos_breakdown() (l.1951) — paralelo ao orçamento. Bem isolado em função pura.",
+    "server.py:build_of_itens() (l.1525) — só preenche preco_unit se `not it.get('preco_unit')` — não atualiza OFs com preco_unit=0 manual; pode ser intencional (preserva valor do utilizador). OFs criadas ANTES desta feature têm preco_unit ausente → primeira edição/save re-popula. Recomendado backfill (ver action item).",
+    "OFRoteiroPanel.jsx — of-item-precos-{idx} só renderiza dentro de items com operacoes.length>0. Item sem roteiro não mostra o preço. Considerar expor preço também na zona de Artigos para itens sem operações.",
+    "EncomendaDetail.jsx — enc-desc-total-input usa onBlur para persistir; enc-desc-total-tipo persiste imediatamente onChange. Inconsistência menor mas funcional (utilizador pode escrever no campo sem trigger imediato). UX ok.",
+    "OrcamentoPanels.jsx — orc-desc-total-input/tipo/val + orc-desconto-linhas presentes com testids corretos; o cálculo client-side (lineNet) e a coluna 'Preço Unit' (line-preco-{i}) e 'Unit. c/Pers' (line-unit-pers-{i}) batem com a fórmula do backend.",
+    "Rebranding — confirmado em Login.jsx (logo 'Velocely') e Layout.jsx (sidebar). Tab title ainda diz 'Gestão Produção' (ver design issue)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17.py (novo — 9 testes pytest: 4 orçamento, 3 encomenda, 2 OF)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 testes pytest)",
+    "frontend": "100% — Rebranding Velocely ok; testids de descontos em EncomendaDetail confirmados; cálculos UI batem com backend (28,00€ + -2,80€ = 25,20€)"
+  },
+  "test_credentials": "admin@prodcost.pt / Admin123!",
+  "seed_data_creation": "Criados via pytest+UI prep (cleanup completo): 1 artigo 'teste-it17-artigo' (preco_venda 8,61€), 3 orçamentos teste-it17-orc-*, 3 encomendas teste-it17-enc-*, 1 OF teste-it17-of, 1 artigo+OF+encomenda extra para UI test. Todos DELETED com status 200.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature de descontos (linha+total) em Orçamentos e Encomendas e exibição de preço unitário em OF está 100% funcional no backend (9/9 testes) e validada na UI da Encomenda. Para testar UI de OrcamentoDetail completa: criar 1 orçamento via /api/orcamentos com 1 linha (artigo_id, quantidade, personalizacoes, desconto, desconto_tipo) + desconto_total/desconto_total_tipo, depois navegar /orcamentos/{id} e validar testids line-preco-{i}, line-unit-pers-{i}, line-desc-{i}, line-desc-tipo-{i}, line-subtotal-{i}, orc-desc-total-input, orc-desc-total-tipo, orc-desc-total-val, orc-desconto-linhas, orc-total. Para testar of-item-precos: o artigo deve ter roteiro com pelo menos 1 operação. Endpoint /api/ordens-fabrico aceita 'itens' (com personalizacoes), e backend recomputa preco_unit a partir de artigo_breakdown.preco_venda. Atenção ao bug de cache do <title> (action item).",
+  "rca of the issue": "Sem bugs encontrados. Único pendente é o <title> em tab do browser que ainda mostra 'Gestão Produção · Orçamentos & Ordens de Fabrico' — não consegui localizar a fonte em /app/frontend/src nem em /public/index.html (que já tem 'Velocely · Gestão de Produção'). Provavelmente SW/cache antigo ou alguma referência indireta. Reset hard refresh + clear SW pode resolver, mas é melhor investigar o código antes."
+}

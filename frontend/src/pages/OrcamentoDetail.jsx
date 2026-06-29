@@ -131,12 +131,29 @@ export default function OrcamentoDetail() {
   };
   const delMaterial = (i) => upd({ materiais: (orc.materiais || []).filter((_, idx) => idx !== i) });
 
+  // --- descontos ---
+  const lineGross = (l) => (linePreco(l) + persUnit(l)) * (l.quantidade || 0);
+  const lineDisc = (l) => {
+    const base = lineGross(l);
+    const d = Number(l.desconto) || 0;
+    if (d <= 0) return 0;
+    return l.desconto_tipo === "eur" ? Math.min(d, base) : (base * d) / 100;
+  };
+  const lineNet = (l) => lineGross(l) - lineDisc(l);
+
   const subtotalVenda = orc.linhas.reduce((s, l) => s + linePreco(l) * (l.quantidade || 0), 0);
   const subtotalCusto = orc.linhas.reduce((s, l) => s + lineCusto(l) * (l.quantidade || 0), 0);
   const totalPers = orc.linhas.reduce((s, l) => s + persUnit(l) * (l.quantidade || 0), 0);
   const custoMateriais = (orc.materiais || []).reduce((s, m) => s + matCusto(m), 0);
   const totalMateriais = (orc.materiais || []).reduce((s, m) => s + matValor(m), 0);
-  const total = subtotalVenda + totalPers + totalMateriais;
+  const descontoLinhas = orc.linhas.reduce((s, l) => s + lineDisc(l), 0);
+  const subtotalLiquido = subtotalVenda + totalPers + totalMateriais - descontoLinhas;
+  const descTotalVal = (() => {
+    const d = Number(orc.desconto_total) || 0;
+    if (d <= 0) return 0;
+    return orc.desconto_total_tipo === "eur" ? Math.min(d, subtotalLiquido) : (subtotalLiquido * d) / 100;
+  })();
+  const total = subtotalLiquido - descTotalVal;
   const lucro = total - subtotalCusto - custoMateriais;
 
   const save = async () => {
@@ -149,9 +166,13 @@ export default function OrcamentoDetail() {
       validade: orc.validade,
       status: orc.status,
       notas: orc.notas || "",
+      desconto_total: Number(orc.desconto_total) || 0,
+      desconto_total_tipo: orc.desconto_total_tipo || "pct",
       linhas: orc.linhas.filter((l) => l.artigo_id).map((l) => ({
         ...l,
         quantidade: Number(l.quantidade) || 0,
+        desconto: Number(l.desconto) || 0,
+        desconto_tipo: l.desconto_tipo || "pct",
         personalizacoes: (l.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0 })),
         valor_personalizacao: persUnit(l),
       })),
@@ -254,7 +275,7 @@ export default function OrcamentoDetail() {
           <button data-testid="add-line-item" onClick={addLinha} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Adicionar linha</button>
         </div>
         <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[720px]">
+        <table className="w-full text-sm min-w-[920px]">
           <thead>
             <tr className="border-b border-gray-200">
               <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[24%]">Artigo</th>
@@ -262,6 +283,8 @@ export default function OrcamentoDetail() {
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pers. €/un</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Qtd</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Unit.</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Unit. c/Pers</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Desconto</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subtotal</th>
               <th className="px-4 py-2.5 w-12"></th>
             </tr>
@@ -307,14 +330,25 @@ export default function OrcamentoDetail() {
                   <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-preco-${i}`}>{eur(linePreco(l))}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium align-top">{eur((linePreco(l) + persUnit(l)) * (l.quantidade || 0))}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`line-unit-pers-${i}`}>{eur(linePreco(l) + persUnit(l))}</td>
+                <td className="px-4 py-2.5 align-top">
+                  <div className="flex items-center gap-1 justify-end">
+                    <input data-testid={`line-desc-${i}`} type="number" min="0" step="0.01" value={l.desconto ?? 0} onChange={(e) => updLinha(i, { desconto: e.target.value })} className="w-16 text-right border border-gray-300 rounded-sm px-1.5 py-1.5 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                    <select data-testid={`line-desc-tipo-${i}`} value={l.desconto_tipo || "pct"} onChange={(e) => updLinha(i, { desconto_tipo: e.target.value })} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                      <option value="pct">%</option>
+                      <option value="eur">€</option>
+                    </select>
+                  </div>
+                  {lineDisc(l) > 0 && <div className="text-[10px] text-red-500 text-right mt-0.5">- {eur(lineDisc(l))}</div>}
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium align-top" data-testid={`line-subtotal-${i}`}>{eur(lineNet(l))}</td>
                 <td className="px-4 py-2.5 align-top">
                   <button data-testid={`delete-line-${i}`} onClick={() => delLinha(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
                 </td>
               </tr>
               {openOps[i] && l.artigo_id && (
                 <tr className="bg-gray-50/70 border-b border-gray-100">
-                  <td colSpan={7} className="px-4 py-3">
+                  <td colSpan={9} className="px-4 py-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 flex items-center gap-2"><Cog size={13} /> Operações e tempos desta linha</span>
                       <button data-testid={`line-add-op-${i}`} onClick={() => addOp(i)} className="text-xs text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={13} /> Operação</button>
@@ -347,7 +381,7 @@ export default function OrcamentoDetail() {
               </Fragment>
             ))}
             {orc.linhas.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">Sem linhas. Adicione um artigo.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">Sem linhas. Adicione um artigo.</td></tr>
             )}
           </tbody>
         </table>
@@ -356,7 +390,7 @@ export default function OrcamentoDetail() {
 
       <OrcamentoMateriais materiais={orc.materiais} consumiveis={consumiveis} addMaterial={addMaterial} delMaterial={delMaterial} updMaterial={updMaterial} matValor={matValor} isM2={isM2} />
 
-      <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} />
+      <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} />
     </div>
   );
 }
