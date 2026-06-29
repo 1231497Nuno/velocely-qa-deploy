@@ -278,6 +278,7 @@ class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str
     descricao: str = ""
+    unidade: str = "un"
     custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
@@ -288,6 +289,7 @@ class Artigo(BaseModel):
 class ArtigoInput(BaseModel):
     nome: str
     descricao: str = ""
+    unidade: str = "un"
     custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
@@ -414,6 +416,7 @@ class OFItem(BaseModel):
     artigo_id: str
     artigo_nome: str = ""
     quantidade: float = 1
+    unidade: str = "un"
     preco_unit: float = 0.0
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
@@ -1532,6 +1535,7 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
         operacoes = it.get("operacoes")
         if a:
             it["artigo_nome"] = a.get("nome", it.get("artigo_nome", ""))
+            it["unidade"] = a.get("unidade") or it.get("unidade") or "un"
             if not it.get("preco_unit"):
                 it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
             if not operacoes:
@@ -1648,12 +1652,15 @@ async def get_of(ofid: str):
     if not o:
         raise HTTPException(404, "OF não encontrada")
     o = recompute_of_status(o)
-    # Backfill runtime: OFs antigas sem preco_unit por item
+    # Backfill runtime: OFs antigas sem preco_unit/unidade por item
     for it in o.get("itens", []):
-        if not it.get("preco_unit") and it.get("artigo_id"):
+        if it.get("artigo_id") and (not it.get("preco_unit") or not it.get("unidade")):
             a = await db.artigos.find_one({"id": it["artigo_id"]}, {"_id": 0})
             if a:
-                it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
+                if not it.get("preco_unit"):
+                    it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
+                if not it.get("unidade"):
+                    it["unidade"] = a.get("unidade") or "un"
     if o.get("encomenda_id"):
         e = await db.encomendas.find_one({"id": o["encomenda_id"]}, {"_id": 0})
         o["prazo_entrega"] = (e or {}).get("prazo_entrega")

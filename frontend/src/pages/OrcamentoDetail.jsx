@@ -98,6 +98,7 @@ export default function OrcamentoDetail() {
   const delOp = (li, oi) => updLinha(li, { roteiro: (orc.linhas[li].roteiro || []).filter((_, idx) => idx !== oi) });
 
   const persUnit = (l) => (l.personalizacoes || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const artUnidade = (artigoId) => (artigos.find((a) => a.id === artigoId) || {}).unidade || "un";
   const addPers = (i, tipoId) => {
     const t = tipos.find((x) => x.id === tipoId);
     if (!t) return;
@@ -327,7 +328,10 @@ export default function OrcamentoDetail() {
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-pers-total-${i}`}>{eur(persUnit(l))}</td>
                 <td className="px-4 py-2.5 align-top">
-                  <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <input data-testid={`line-qtd-${i}`} type="number" min="0" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                    {l.artigo_id && <span className="text-xs text-gray-400 shrink-0">{artUnidade(l.artigo_id)}</span>}
+                  </div>
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-preco-${i}`}>{eur(linePreco(l))}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`line-unit-pers-${i}`}>{eur(linePreco(l) + persUnit(l))}</td>

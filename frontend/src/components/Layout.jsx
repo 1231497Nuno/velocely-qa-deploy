@@ -50,9 +50,7 @@ export default function Layout({ children }) {
     <div className="min-h-screen flex bg-[#F8F9FA]">
       {/* Top bar (mobile) */}
       <header className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-gray-200 z-30 flex items-center justify-between px-4">
-        <div className="font-display font-extrabold text-base tracking-tight text-gray-900">
-          Veloce<span className="text-gray-400">ly</span>
-        </div>
+        <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-7 w-auto" />
         <button
           data-testid="mobile-menu-toggle"
           onClick={() => setOpen(true)}
@@ -80,10 +78,8 @@ export default function Layout({ children }) {
       >
         <div className="px-6 py-5 border-b border-gray-200 flex items-start justify-between">
           <div>
-            <div className="font-display font-extrabold text-lg tracking-tight text-gray-900 leading-tight">
-              Veloce<span className="text-gray-400">ly</span>
-            </div>
-            <div className="text-xs text-gray-500 mt-0.5">Gestão de Produção</div>
+            <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-8 w-auto" />
+            <div className="text-xs text-gray-500 mt-1.5">Gestão de Produção</div>
           </div>
           <button
             data-testid="mobile-menu-close"

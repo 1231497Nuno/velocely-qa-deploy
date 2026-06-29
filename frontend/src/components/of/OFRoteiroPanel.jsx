@@ -17,7 +17,7 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, elapsedSeg
               <div key={it.id || idx}>
                 <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
                   <div>
-                    <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade}</span></div>
+                    <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade} {it.unidade || "un"}</span></div>
                     <div className="text-xs text-gray-500 mt-0.5" data-testid={`of-item-precos-${idx}`}>
                       <span className="tabular-nums">{eur(it.preco_unit || 0)}/un</span>
                       {persUnit(it) > 0 && (

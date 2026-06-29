@@ -6,7 +6,7 @@ import StatusBadge from "../components/StatusBadge";
 import Combobox from "../components/Combobox";
 import PdfExportButton from "../components/PdfExportButton";
 import {
-  ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2,
+  ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
   Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,12 +20,14 @@ export default function EncomendaDetail() {
   const [enc, setEnc] = useState(null);
   const [cliente, setCliente] = useState(null);
   const [artigos, setArtigos] = useState([]);
+  const [tipos, setTipos] = useState([]);
   const [editValor, setEditValor] = useState(false);
 
   const load = useCallback(async () => {
     const e = await api.get(`/encomendas/${id}`);
     setEnc(e);
     setArtigos(await api.get("/artigos"));
+    setTipos(await api.get("/tipos-personalizacao"));
     if (e.cliente_id) {
       const cs = await api.get("/clientes");
       setCliente(cs.find((c) => c.id === e.cliente_id) || null);
@@ -77,6 +79,7 @@ export default function EncomendaDetail() {
       preco_unit: Number(a.preco_unit) || 0,
       desconto: Number(a.desconto) || 0,
       desconto_tipo: a.desconto_tipo || "pct",
+      personalizacoes: (a.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0, tempo: Number(p.tempo) || 0 })),
     })),
     valor_total: e.valor_total_manual ? Number(e.valor_total) || 0 : null,
     valor_total_manual: !!e.valor_total_manual,
@@ -96,7 +99,7 @@ export default function EncomendaDetail() {
   const addArtigo = (artigoId) => {
     const a = artigos.find((x) => x.id === artigoId);
     if (!a) return;
-    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, quantidade: 1, preco_unit: Number(a.preco_venda) || 0, personalizacoes: [] }] }, "Artigo adicionado");
+    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, quantidade: 1, preco_unit: Number(a.preco_venda) || 0, desconto: 0, desconto_tipo: "pct", personalizacoes: [] }] }, "Artigo adicionado");
   };
   const updArtigo = (i, patch) => {
     const list = [...enc.artigos];
@@ -104,6 +107,23 @@ export default function EncomendaDetail() {
     upd({ artigos: list });
   };
   const delArtigo = (i) => persist({ artigos: enc.artigos.filter((_, idx) => idx !== i) }, "Artigo removido");
+
+  const artUnidade = (artigoId) => (artigos.find((a) => a.id === artigoId) || {}).unidade || "un";
+  const addPers = (i, tipoId) => {
+    const t = tipos.find((x) => x.id === tipoId);
+    if (!t) return;
+    const list = enc.artigos.map((a, idx) => idx === i ? { ...a, personalizacoes: [...(a.personalizacoes || []), { id: t.id, nome: t.nome, valor: Number(t.valor) || 0, tempo: Number(t.tempo) || 0 }] } : a);
+    persist({ artigos: list }, "Personalização adicionada");
+  };
+  const updPers = (i, pi, patch) => {
+    const list = [...(enc.artigos[i].personalizacoes || [])];
+    list[pi] = { ...list[pi], ...patch };
+    updArtigo(i, { personalizacoes: list });
+  };
+  const delPers = (i, pi) => {
+    const list = enc.artigos.map((a, idx) => idx === i ? { ...a, personalizacoes: (a.personalizacoes || []).filter((_, x) => x !== pi) } : a);
+    persist({ artigos: list }, "Personalização removida");
+  };
 
   const criarOF = async () => {
     const itens = (enc.artigos || []).filter((a) => a.artigo_id).map((a) => ({
@@ -291,15 +311,35 @@ export default function EncomendaDetail() {
                   return (
                     <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100">
                       <td className="px-4 py-2.5 font-medium text-gray-900">{a.artigo_nome}</td>
-                      <td className="px-4 py-2.5 text-gray-600 text-xs">{(a.personalizacoes || []).map((p) => p.nome).join(", ") || "—"}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                      <td className="px-4 py-2.5 align-top">
+                        <div className="space-y-1.5 min-w-[160px]" data-testid={`enc-artigo-pers-list-${i}`}>
+                          {(a.personalizacoes || []).map((p, pi) => (
+                            <div key={`${p.id || p.nome}-${pi}`} data-testid={`enc-artigo-pers-${i}-${pi}`} className="flex items-center gap-1.5 bg-gray-100 rounded-sm pl-2 pr-1 py-1">
+                              <span className="flex-1 text-xs text-gray-700 truncate" title={p.nome}>{p.nome}</span>
+                              <input data-testid={`enc-artigo-pers-valor-${i}-${pi}`} type="number" step="0.01" value={p.valor ?? 0} onChange={(e) => updPers(i, pi, { valor: e.target.value })} onBlur={() => persist({})} className="w-14 text-right border border-gray-300 rounded-sm px-1 py-0.5 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20" />
+                              <span className="text-[10px] text-gray-400">€</span>
+                              <button data-testid={`enc-artigo-pers-del-${i}-${pi}`} onClick={() => delPers(i, pi)} className="p-0.5 rounded-sm hover:bg-red-100 text-red-600"><X size={12} /></button>
+                            </div>
+                          ))}
+                          {can("encomendas", "edit") && (
+                            <select data-testid={`enc-artigo-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
+                              <option value="">+ Personalização…</option>
+                              {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome} ({eur(t.valor)})</option>)}
+                            </select>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-4 py-2.5 text-right align-top">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                          <span className="text-xs text-gray-400 shrink-0">{artUnidade(a.artigo_id)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right align-top">
                         <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} onBlur={() => persist({})} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900" data-testid={`enc-artigo-unit-pers-${i}`}>{eur(unitPers)}</td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`enc-artigo-unit-pers-${i}`}>{eur(unitPers)}</td>
+                      <td className="px-4 py-2.5 text-right align-top">
                         <div className="flex items-center gap-1 justify-end">
                           <input data-testid={`enc-artigo-desc-${i}`} type="number" min="0" step="0.01" value={a.desconto ?? 0} onChange={(e) => updArtigo(i, { desconto: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-1.5 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                           <select data-testid={`enc-artigo-desc-tipo-${i}`} value={a.desconto_tipo || "pct"} onChange={(e) => updArtigo(i, { desconto_tipo: e.target.value })} onBlur={() => persist({})} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
@@ -309,8 +349,8 @@ export default function EncomendaDetail() {
                         </div>
                         {lineDisc(a) > 0 && <div className="text-[10px] text-red-500 text-right mt-0.5">- {eur(lineDisc(a))}</div>}
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-medium" data-testid={`enc-artigo-subtotal-${i}`}>{eur(lineNet(a))}</td>
-                      <td className="px-4 py-2.5"><button data-testid={`enc-artigo-del-${i}`} onClick={() => delArtigo(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button></td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium align-top" data-testid={`enc-artigo-subtotal-${i}`}>{eur(lineNet(a))}</td>
+                      <td className="px-4 py-2.5 align-top"><button data-testid={`enc-artigo-del-${i}`} onClick={() => delArtigo(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button></td>
                     </tr>
                   );
                 })}

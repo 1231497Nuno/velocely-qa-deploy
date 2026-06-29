@@ -29,11 +29,8 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A] px-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center gap-2 mb-8 justify-center">
-          <Factory className="text-white" size={26} />
-          <div className="font-display font-extrabold text-2xl tracking-tight text-white">
-            Veloce<span className="text-gray-500">ly</span>
-          </div>
+        <div className="flex justify-center mb-8">
+          <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-14 w-auto" />
         </div>
         <form onSubmit={submit} data-testid="login-form" className="bg-white rounded-sm p-7 sm:p-8 space-y-5">
           <div>

@@ -1,0 +1,41 @@
+{
+  "summary": "Iteração 18 — (1) Artigo.unidade (m²/un/kg), (2) personalizações por linha em Encomenda com valor editável, (3) unidade aparece em Orçamentos/Encomendas/OFs. BACKEND: 12/12 testes pytest passaram (test_iteration18.py): Artigo cria/persist/atualiza unidade m²↔kg; Orçamento aceita linha com artigo_id (frontend lê unidade via /api/artigos); Encomenda — personalizações como LISTA persistem (Bordado 3€); add 2ª (Estampagem 2€) recomputa bruto (pv+3+2)×2; edit valor Bordado 3→5 recomputa para (pv+5+2)×2; remove tudo volta a pv×qtd; regressão descontos (linha 10% pct + total 2€ eur) com personalização Vinil 1€ confere (bruto 25.50, desc_linhas 2.55, desc_total 2.00, total 20.95); PDF orçamento e encomenda geram %PDF >1KB; POST /api/encomendas/{eid}/ordens-fabrico cria OF com itens, e GET retorna item com unidade='m²' e preco_unit=7.50 (build_of_itens preenche). FRONTEND (Playwright admin login + token injetado): EncomendaDetail /encomendas/{id} — TODOS os testids confirmados visualmente e funcionalmente: enc-artigo-row-0 visível; UNIDADE 'm²' aparece junto a enc-artigo-qtd-0 (texto da célula = 'm²'); pers existente Bordado lido em enc-artigo-pers-valor-0-0=3; subtotal-0=21,00€; editar pers valor 3→5 (onBlur auto-save) atualiza subtotal para 25,00€; addPers via select enc-artigo-pers-add-0 cria 2ª linha pers-valor-0-1; delPers enc-artigo-pers-del-0-1 remove; após reload da página, valor=5 persiste (auto-save OK); regressão desc linha enc-artigo-desc-0=10 + tipo pct → subtotal 22,50€; desc total enc-desc-total-input=5 tipo eur → enc-kpi-valor=17,50€. /artigos lista carrega corretamente; /orcamentos e /ordens-fabrico carregam sem erro de consola crítico. Page <title> agora corretamente 'Velocely · Gestão de Produção' (issue da iter17 RESOLVIDA). CLEANUP completo: 1 artigo + 1 encomenda de teste eliminados via DELETE; sem dados reais tocados.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "EncomendaDetail — célula Personalização (select +Personalização…)", "issues": ["Aviso de hydration: <span> dentro de <option> (HTML inválido). Causa: dev-toolbox da Emergent injeta x-dynamic/<span> wrappers nas <option> dinâmicas (EncomendaDetail.jsx l.327). Não afeta funcionalidade (select funciona, addPers funciona). Considerar usar componente custom (Listbox/Combobox) em vez de <select> nativo, OU não envolver as opções com expressões que originem <span> no devtools. Cosmético/dev-only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration18.py",
+    "/app/test_reports/pytest/iteration18_results.xml"
+  ],
+  "action_items": [
+    "(Opcional) Investigar warning 'In HTML, <span> cannot be a child of <option>' em EncomendaDetail.jsx l.327. Hydration warning gerado pelo dev-toolbox; sem impacto funcional, mas aparece na consola.",
+    "(Opcional) Endpoint GET /api/ordens-fabrico não filtra por ?encomenda_id (devolve TODAS as OFs). Não testado nesta feature, mas notado durante cleanup. Considerar implementar filtros opcionais OU documentar que o filtro é client-side."
+  ],
+  "critical_code_review_comments": [
+    "server.py:build_of_itens() (l.1528) — preenche it['unidade'] a partir de a.get('unidade') (com fallback 'un') e it['preco_unit'] via artigo_breakdown.preco_venda quando vazio. Robusto. ✓",
+    "server.py: GET /api/ordens-fabrico/{id} (l.1655) — faz backfill RUNTIME para OFs legacy sem unidade/preco_unit, preservando dados velhos sem precisar de migração. Excelente padrão (mitigação do action item da iter17). ✓",
+    "server.py:pers_valor_unit() (l.637) — suporta ambos formatos: lista de personalizacoes [{nome,valor}] (novo) e valor_personalizacao escalar (legacy). Boa retrocompatibilidade. ✓",
+    "server.py:encomenda_artigos_breakdown() (l.1964) — usa pers_valor_unit por linha; cálculo correto: bruto = (preco_unit + sum(pers))*qtd, desc_linhas por linha, desc_total sobre subtotal_liquido. ✓",
+    "EncomendaDetail.jsx:addPers/updPers/delPers — auto-save via persist() em onChange/onBlur; mantém estado local e sincroniza com servidor. UX adequada. ✓",
+    "EncomendaDetail.jsx l.335 — <span>{artUnidade(a.artigo_id)}</span> junto ao input qtd: mostra unidade do artigo (lookup local). Funciona, mas re-busca a cada render — para muitos artigos, considerar memo/Map. Microoptimização. ✓",
+    "EncomendaDetail.jsx l.325-329 — <select> nativo com <option>{t.nome} ({eur(t.valor)})</option>: causa hydration warning porque o dev-toolbox envolve a expressão em <span>. Substituir por componente Listbox/Combobox eliminaria o warning."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration18.py (novo — 12 testes pytest: 3 artigo, 2 orçamento, 4 encomenda-personalizacoes, 2 encomenda-descontos, 1 OF)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 testes pytest)",
+    "frontend": "100% — Encomenda UI personalizações add/edit/del + auto-save persistente + unidade m² junto à qtd + regressão descontos linha+total funcionam perfeitamente"
+  },
+  "test_credentials": "admin@prodcost.pt / Admin123!",
+  "seed_data_creation": "Criados via pytest+UI prep: 1 artigo (teste-it18-artigo-m2, unidade m², preco_venda 7,50€), 1 orçamento, 3 encomendas (pers+descontos+OF source), 1 OF a partir da encomenda; 1 artigo + 1 encomenda extra para UI test. TODOS DELETED com 200 (verificado via GET — 0 artigos e 0 encomendas 'teste-it18' restantes). Dados reais (geral@famarte.pt, m-p@live.com.pt e DTF/T-shirt/Sweatshirt) NÃO foram tocados.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteração 18 — feature personalizacoes-por-linha em Encomenda (idêntico a Orçamentos) e Artigo.unidade propagada para todos os contextos está 100% funcional. Backend confirma: build_of_itens preenche unidade+preco_unit; pers_valor_unit suporta lista [{nome,valor}] E escalar legacy; encomenda_artigos_breakdown calcula corretamente bruto/desconto_linhas/subtotal_liquido/desconto_total_valor/total. Frontend EncomendaDetail tem testids estáveis enc-artigo-row-{i}, enc-artigo-pers-add-{i}, enc-artigo-pers-valor-{i}-{pi}, enc-artigo-pers-del-{i}-{pi}, enc-artigo-qtd-{i} (com <span>unidade</span> ao lado), enc-artigo-preco-{i}, enc-artigo-unit-pers-{i}, enc-artigo-desc-{i}, enc-artigo-desc-tipo-{i}, enc-artigo-subtotal-{i}, enc-desc-total-input, enc-desc-total-tipo, enc-kpi-valor. ArtigoForm tem artigo-unidade-input. Para testes futuros de UI, fazer login admin → injetar token via localStorage('prodcost_token') é mais rápido que UI login. Único minor warning: hydration <span> in <option> (dev-toolbox, sem impacto).",
+  "rca of the issue": "Sem bugs. Page <title> da iter17 já está correto ('Velocely · Gestão de Produção'). Hydration warning <span> in <option> é causado pelo dev-toolbox da Emergent que envolve expressões dinâmicas em <span> com style display:contents — solução é trocar <select> nativo por Listbox/Combobox custom, mas é cosmético/dev-only e não afeta utilizadores em produção."
+}
