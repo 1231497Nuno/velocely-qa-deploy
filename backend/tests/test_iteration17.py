@@ -24,8 +24,27 @@ def _load_backend_url():
 BASE_URL = _load_backend_url()
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@prodcost.pt"
-ADMIN_PASSWORD = "Admin123!"
+
+def _load_admin_creds():
+    email = os.environ.get("TEST_ADMIN_EMAIL")
+    password = os.environ.get("TEST_ADMIN_PASSWORD")
+    if email and password:
+        return email, password
+    e = p = None
+    creds = Path("/app/memory/test_credentials.md")
+    if creds.exists():
+        for line in creds.read_text().splitlines():
+            s = line.strip()
+            if s.startswith("- Email:") and e is None:
+                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
+            elif s.startswith("- Password:") and p is None:
+                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
+            if e and p:
+                break
+    return email or e, password or p
+
+
+ADMIN_EMAIL, ADMIN_PASSWORD = _load_admin_creds()
 
 # --------------- fixtures ---------------
 
