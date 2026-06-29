@@ -1,6 +1,12 @@
 # PRD — Velocely (Production Costing ERP)
 
-> **Branding:** O software chama-se **Velocely** (anteriormente "Gestão Produção"). Logo de texto na sidebar/login; subtítulo "Gestão de Produção". Cliente pode fornecer ficheiro de logótipo para integrar.
+> **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (URL: customer-assets…/qckzlidl_Logotipo.png); subtítulo "Gestão de Produção".
+
+## Iteração 18 (2026-06-29) — Personalizações na Encomenda + Unidade de medida + Logótipo
+- **Encomenda como Orçamento:** secção de artigos permite adicionar/editar/remover personalizações por linha (chips + select + valor editável), com auto-save. Reflete no subtotal e valor total. `pers_valor_unit` suporta lista e formato legacy.
+- **Unidade de medida no Artigo:** campo `unidade` (un/m²/kg/…) em `Artigo`/`ArtigoInput`; aparece junto à quantidade em Orçamentos, Encomendas e OFs. `OFItem.unidade`+`preco_unit` preenchidos em `build_of_itens` com backfill runtime em GET OF.
+- **Logótipo Velocely:** wordmark integrado (login/sidebar/mobile), substitui texto.
+- Tested: iteration_18.json — backend 12/12 pytest, frontend 100%. Title 'Velocely · Gestão de Produção' confirmado. Dados de teste limpos.
 
 ## Iteração 17 (2026-06-29) — Descontos + preços unitários + rebranding Velocely
 - **Descontos (% ou €, toggle):** por linha de artigo e no total — em Orçamentos e Encomendas (não nas OFs). Backend: `desconto_valor()`, `compute_orcamento_totais()` (campos `desconto_linhas`/`subtotal_liquido`/`desconto_total_valor`), `encomenda_artigos_breakdown()`. Descontos de linha aplicados antes do desconto total (sobre subtotal líquido). PDFs de orçamento/encomenda mostram linhas de desconto.
