@@ -2,10 +2,24 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 22 (2026-07-14) — Refactor Clean Architecture (backend + frontend) — PARIDADE TOTAL
+
+Objetivo: reorganizar o código para arquitetura limpa, sem alterar comportamento (paridade funcional confirmada 19/19 backend + todos os fluxos UI, iteration_21.json). NOTA: base de dados relacional NÃO é suportada nesta plataforma (só MongoDB); introduzida em vez disso uma **camada de repositórios agnóstica à BD**.
+
+**Backend** — `server.py` (monólito ~2880 linhas) dividido em pacote `app/`:
+- `app/core/` — `config.py` (env), `database.py` (client/db + helpers now_iso/new_id/round2/next_sequence), `security.py` (bcrypt/JWT, get_current_user, require_admin, auth_router /api/auth).
+- `app/domain/models.py` — todos os modelos Pydantic + RBAC (perms_all/perms_colaborador) + constantes (STATUS_PT, PAY_PT, ENC_ESTADO_PT, PDF_SECOES).
+- `app/repositories/__init__.py` — `Repository` genérico (find/get/insert/update/delete/count/...) que exclui `_id` via projection; instâncias por coleção. **Trocável por BD relacional sem tocar em serviços/rotas.**
+- `app/services/` — `costing.py` (custeio, orçamento, OF build, encomenda), `pdf.py` (reportlab), `bootstrap.py` (seed perfis/admin).
+- `app/api/routes/` — `catalog.py, orcamentos.py, ordens_fabrico.py, clientes.py, encomendas.py, settings.py, analytics.py, admin.py`.
+- `server.py` fica como raiz de composição (~60 linhas): monta `api_router` prefix `/api`, inclui auth_router, CORS, seed no startup.
+
+**Frontend** — páginas movidas de `src/pages/` para `src/features/<dominio>/` (dashboard, orcamentos, ordens_fabrico, encomendas, clientes, artigos, catalogo, producao, definicoes, utilizadores, auth). Componentes de funcionalidade (widgets, ArtigoForm, OrcamentoPanels, OFRoteiroPanel, OFItemOperacoes) movidos para o respetivo feature. Camada partilhada mantida em `src/components/` (ui + Layout/Combobox/etc.), `src/lib`, `src/context`, `src/hooks`, `src/constants`. Imports normalizados para alias `@/`.
+- Rotas HTTP e contratos de dados inalterados. Nenhuma regressão.
+
 ## Iteração 21 (2026-07-14) — Preço unitário editável + notas por operação na OF
-- **Preço unitário editável no Orçamento:** coluna "Preço Unit." passou a input editável. `OrcamentoLinha.preco_unit_manual` (bool); `fill_linha_custos` respeita o valor manual (não recalcula por custo×margem) e mantém o auto quando `false`. UI mostra badge "manual · auto X" + botão repor (RotateCcw). Propaga para a **Encomenda** (`enc_artigos.preco_unit`, já existia) e para a **OF** (adicionado `preco_unit` aos itens no `converter_orcamento`). Testado via curl: 99.99→total 199.98; reset→8.50; conversão 50€→OF item 50 + Enc artigo 50.
-- **Notas por operação na OF (opção b — no Roteiro):** `OFOperacao.nota` (str). Novo endpoint `POST /api/ordens-fabrico/{id}/operacao/nota` ({item_id, operacao_id, nota}). `OFRoteiroPanel` ganhou `OpNota` (textarea com estado local, guarda no blur) por operação, testid `op-nota-{op.id}`. Passado `updOpNota` de `OrdemFabricoDetail`.
-- Testado: backend curl 100% (preço manual + propagação + nota), smoke UI OK. Dados de teste limpos.
+- **Preço unitário editável no Orçamento:** coluna "Preço Unit." passou a input editável. `OrcamentoLinha.preco_unit_manual` (bool); `fill_linha_custos` respeita o valor manual (não recalcula por custo×margem) e mantém o auto quando `false`. UI badge "manual · auto X" + botão repor. Propaga para Encomenda e OF na conversão.
+- **Notas por operação na OF (no Roteiro):** `OFOperacao.nota`; endpoint `POST /api/ordens-fabrico/{id}/operacao/nota`; `OpNota` (textarea, guarda no blur), testid `op-nota-{op.id}`.
 
 ## Iteração 20 (2026-06-29) — Tempos da OF × quantidade + editor de operações
 - **Tempos × quantidade:** cada operação da OF tem agora `tempo_maquina_base`/`tempo_mao_obra_base` (por unidade) e os tempos/custos estimados são `base × quantidade`, recalculados em cada save (`_apply_pers_tempo`, idempotente). Personalização continua a somar `tempo×qtd` à operação responsável.
