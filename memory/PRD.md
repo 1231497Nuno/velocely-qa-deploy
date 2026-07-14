@@ -2,6 +2,11 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 21 (2026-07-14) — Preço unitário editável + notas por operação na OF
+- **Preço unitário editável no Orçamento:** coluna "Preço Unit." passou a input editável. `OrcamentoLinha.preco_unit_manual` (bool); `fill_linha_custos` respeita o valor manual (não recalcula por custo×margem) e mantém o auto quando `false`. UI mostra badge "manual · auto X" + botão repor (RotateCcw). Propaga para a **Encomenda** (`enc_artigos.preco_unit`, já existia) e para a **OF** (adicionado `preco_unit` aos itens no `converter_orcamento`). Testado via curl: 99.99→total 199.98; reset→8.50; conversão 50€→OF item 50 + Enc artigo 50.
+- **Notas por operação na OF (opção b — no Roteiro):** `OFOperacao.nota` (str). Novo endpoint `POST /api/ordens-fabrico/{id}/operacao/nota` ({item_id, operacao_id, nota}). `OFRoteiroPanel` ganhou `OpNota` (textarea com estado local, guarda no blur) por operação, testid `op-nota-{op.id}`. Passado `updOpNota` de `OrdemFabricoDetail`.
+- Testado: backend curl 100% (preço manual + propagação + nota), smoke UI OK. Dados de teste limpos.
+
 ## Iteração 20 (2026-06-29) — Tempos da OF × quantidade + editor de operações
 - **Tempos × quantidade:** cada operação da OF tem agora `tempo_maquina_base`/`tempo_mao_obra_base` (por unidade) e os tempos/custos estimados são `base × quantidade`, recalculados em cada save (`_apply_pers_tempo`, idempotente). Personalização continua a somar `tempo×qtd` à operação responsável.
 - **Editor de operações na OF:** novo `OFItemOperacoes` por artigo no detalhe da OF — adicionar/editar/remover operações (nome, máquina, mão de obra, tempos por unidade), incluindo em OFs geradas automaticamente. Taxas €/h resolvidas no backend via `maquina_id`/`mao_obra_id` (fallback: derivar do custo antigo). `OFOperacao` ganhou `maquina_id`, `maquina_custo_hora`, `manual`.

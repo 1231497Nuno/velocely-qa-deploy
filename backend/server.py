@@ -333,6 +333,7 @@ class OrcamentoLinha(BaseModel):
     roteiro: List[Operacao] = Field(default_factory=list)
     custo_producao_unit: float = 0.0
     preco_unit: float = 0.0
+    preco_unit_manual: bool = False
     desconto: float = 0.0
     desconto_tipo: str = "pct"  # pct | eur
 
@@ -413,6 +414,7 @@ class OFOperacao(BaseModel):
     tempo_real_seg: float = 0.0
     concluida: bool = False
     manual: bool = False
+    nota: str = ""
 
 
 class OFItem(BaseModel):
@@ -1401,7 +1403,10 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
             }
             bd = await artigo_breakdown(pseudo)
             l["custo_producao_unit"] = bd["custo_producao_total"]
-            l["preco_unit"] = bd["preco_venda"]
+            if l.get("preco_unit_manual") and l.get("preco_unit") is not None:
+                l["preco_unit"] = round2(float(l.get("preco_unit") or 0))
+            else:
+                l["preco_unit"] = bd["preco_venda"]
         out.append(l)
     return out
 
@@ -1856,6 +1861,24 @@ async def toggle_operacao(ofid: str, body: ToggleOp):
     return await _save_of(ofid, of)
 
 
+class NotaBody(BaseModel):
+    item_id: str
+    operacao_id: str
+    nota: str = ""
+
+
+@api_router.post("/ordens-fabrico/{ofid}/operacao/nota")
+async def nota_operacao(ofid: str, body: NotaBody):
+    of = await db.ordens_fabrico.find_one({"id": ofid}, {"_id": 0})
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    op = _find_op(of, body.item_id, body.operacao_id)
+    if not op:
+        raise HTTPException(404, "Operação não encontrada")
+    op["nota"] = body.nota or ""
+    return await _save_of(ofid, of)
+
+
 @api_router.delete("/ordens-fabrico/{ofid}")
 async def delete_of(ofid: str):
     await db.ordens_fabrico.delete_one({"id": ofid})
@@ -1908,6 +1931,7 @@ async def converter_orcamento(oid: str):
                 "artigo_id": l.get("artigo_id"),
                 "artigo_nome": l.get("artigo_nome"),
                 "quantidade": l.get("quantidade", 1),
+                "preco_unit": l.get("preco_unit") or 0,
                 "tipo_personalizacao_id": l.get("tipo_personalizacao_id"),
                 "tipo_personalizacao_nome": pers_nomes(l) or l.get("tipo_personalizacao_nome"),
                 "personalizacoes": l.get("personalizacoes") or [],

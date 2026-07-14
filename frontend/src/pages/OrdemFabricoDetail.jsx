@@ -118,6 +118,9 @@ export default function OrdemFabricoDetail() {
   const pararOp = async (itemId, opId) => {
     setOf(await api.post(`/ordens-fabrico/${id}/operacao/parar`, { item_id: itemId, operacao_id: opId }));
   };
+  const updOpNota = async (itemId, opId, nota) => {
+    setOf(await api.post(`/ordens-fabrico/${id}/operacao/nota`, { item_id: itemId, operacao_id: opId, nota }));
+  };
   const finalizar = async () => {
     setOf(await api.post(`/ordens-fabrico/${id}/finalizar`));
     toast.success("Ordem de fabrico finalizada");
@@ -297,7 +300,7 @@ export default function OrdemFabricoDetail() {
         </div>
 
         {/* Right: roteiro */}
-        <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} elapsedSeg={elapsedSeg} fmtDur={fmtDur} />
+        <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} updOpNota={updOpNota} elapsedSeg={elapsedSeg} fmtDur={fmtDur} />
       </div>
     </div>
   );

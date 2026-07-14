@@ -1,9 +1,30 @@
+import { useState } from "react";
 import { eur } from "../../lib/api";
-import { Cog, Clock, Play, Square, CheckCircle2 } from "lucide-react";
+import { Cog, Clock, Play, Square, CheckCircle2, StickyNote } from "lucide-react";
 
 const persUnit = (it) => (it.personalizacoes || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
 
-export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, elapsedSeg, fmtDur }) {
+function OpNota({ op, itemId, onSave }) {
+  const [val, setVal] = useState(op.nota || "");
+  return (
+    <div className="w-full mt-1">
+      <div className="flex items-start gap-1.5">
+        <StickyNote size={13} className="text-gray-400 mt-1.5 shrink-0" />
+        <textarea
+          data-testid={`op-nota-${op.id}`}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={() => { if ((op.nota || "") !== val) onSave(itemId, op.id, val); }}
+          placeholder="Notas desta operação…"
+          rows={1}
+          className="flex-1 resize-y border border-gray-200 rounded-sm px-2 py-1 text-xs text-gray-700 bg-gray-50/60 focus:outline-none focus:ring-1 focus:ring-black/20 focus:bg-white"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota, elapsedSeg, fmtDur }) {
   const hasRoteiro = itens.filter((it) => (it.operacoes || []).length > 0).length > 0;
   return (
     <div className="lg:col-span-2 bg-white border border-gray-200 rounded-sm p-5">
@@ -58,6 +79,7 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, elapsedSeg
                           )
                         )}
                         {op.concluida && <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />}
+                        <OpNota op={op} itemId={it.id} onSave={updOpNota} />
                       </div>
                     );
                   })}

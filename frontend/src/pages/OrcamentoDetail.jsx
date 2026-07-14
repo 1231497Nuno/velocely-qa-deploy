@@ -7,7 +7,7 @@ import StatusBadge from "../components/StatusBadge";
 import PdfExportButton from "../components/PdfExportButton";
 import ArtigoCombobox from "../components/ArtigoCombobox";
 import { OrcamentoMateriais, OrcamentoTotais } from "../components/orcamento/OrcamentoPanels";
-import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTS = [
@@ -69,7 +69,8 @@ export default function OrcamentoDetail() {
     }
     return c;
   };
-  const linePreco = (l) => lineCusto(l) * (1 + (Number(l.margem) || 0) / 100);
+  const linePreco = (l) => (l.preco_unit_manual ? (Number(l.preco_unit) || 0) : compPreco(l));
+  const compPreco = (l) => lineCusto(l) * (1 + (Number(l.margem) || 0) / 100);
 
   const addLinha = () =>
     upd({
@@ -333,7 +334,13 @@ export default function OrcamentoDetail() {
                     {l.artigo_id && <span className="text-xs text-gray-400 shrink-0">{artUnidade(l.artigo_id)}</span>}
                   </div>
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-preco-${i}`}>{eur(linePreco(l))}</td>
+                <td className="px-4 py-2.5 align-top" data-testid={`line-preco-${i}`}>
+                  <div className="flex items-center gap-1 justify-end">
+                    <input data-testid={`line-preco-input-${i}`} type="number" min="0" step="0.01" value={l.preco_unit_manual ? (l.preco_unit ?? 0) : Number(compPreco(l).toFixed(2))} onChange={(e) => updLinha(i, { preco_unit: e.target.value, preco_unit_manual: true })} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+                    {l.preco_unit_manual && <button data-testid={`line-preco-reset-${i}`} onClick={() => updLinha(i, { preco_unit_manual: false })} title="Repor preço automático" className="p-1 rounded-sm hover:bg-gray-100 text-gray-500"><RotateCcw size={13} /></button>}
+                  </div>
+                  {l.preco_unit_manual && <div className="text-[10px] text-blue-500 text-right mt-0.5">manual · auto {eur(compPreco(l))}</div>}
+                </td>
                 <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`line-unit-pers-${i}`}>{eur(linePreco(l) + persUnit(l))}</td>
                 <td className="px-4 py-2.5 align-top">
                   <div className="flex items-center gap-1 justify-end">
