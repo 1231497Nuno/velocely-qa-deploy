@@ -2,6 +2,14 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 38 (2026-07-15) — Progresso de produção da Encomenda + Página de detalhe do Artigo + Barras de pesquisa por secção
+Concluídas e testadas (iteration_28.json — backend 6/6, frontend 7/7, sem bugs):
+- **Progresso de produção da Encomenda**: `compute_encomenda` calcula `progresso_producao`, `qtd_em_ofs` e `qtd_total` (qtd lançada em OFs vs total da encomenda, capado por artigo a min(of_qty, enc_qty)). Lista de Encomendas ganhou coluna "Produção" com barra + % (`enc-progresso-{id}`); detalhe da encomenda mostra barra "Produção lançada em OFs" (`enc-detail-progresso`).
+- **Página de detalhe do Artigo** (como nos Clientes): nova rota `/artigos/:id` → `ArtigoDetail.jsx`. Clicar no **nome do artigo** na lista (`artigo-nome-link-{id}`) abre o detalhe (imagem, custo/margem/preço, 6 KPIs, secções de Encomendas/Orçamentos/OFs com quantidades + histórico). Novo endpoint `GET /api/artigos/{aid}/resumo` (auth). O antigo botão "olho" de utilizações do artigo foi **removido** (substituído pela página de detalhe); os botões "olho" em Máquinas/Materiais/Mão de Obra/Personalizações mantêm-se.
+- **Barras de pesquisa por secção**: novo componente reutilizável `components/SeccaoPesquisavel.jsx` (render-prop com filtro client-side). Aplicado às secções Encomendas/Orçamentos/OFs no `ArtigoDetail` (`artigo-*-search`) e no `ClienteDetail` (`cliente-*-search`).
+- Nota (não bloqueante): `artigo_resumo` e `compute_encomenda` fazem varreduras completas / N+1 — OK para o volume atual; otimizar com filtros Mongo/batching se escalar.
+
+
 ## Iteração 37 (2026-07-15) — OFs faseadas + "Onde é usado" (referências inversas) + pesquisa global no mobile
 Concluídas e testadas (iteration_27.json — backend 14/14, frontend 100%, sem bugs):
 - **OFs faseadas**: no detalhe da Encomenda, "Criar Ordem de Fabrico" abre diálogo (`of-faseada-dialog`) com uma linha por artigo e quantidade pré-preenchida com a **quantidade em falta** (total − já em OFs). Cria OF só com linhas de qtd>0. Por decisão do utilizador, NÃO impede ultrapassar o total (apenas sugere). A tabela de artigos mostra `em OFs X/total` (`enc-artigo-emofs-{i}`). Lógica: `ofQtyByArtigo`, `remaining`, `openCriarOF`, `criarOF`.
