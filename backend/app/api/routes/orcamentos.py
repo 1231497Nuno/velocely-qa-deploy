@@ -167,6 +167,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(get_current_user)):
             {
                 "artigo_id": l.get("artigo_id"),
                 "artigo_nome": l.get("artigo_nome"),
+                "imagem": l.get("imagem") or "",
                 "quantidade": l.get("quantidade", 1),
                 "preco_unit": l.get("preco_unit") or 0,
                 "tipo_personalizacao_id": l.get("tipo_personalizacao_id"),
@@ -193,6 +194,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(get_current_user)):
             "id": new_id(),
             "artigo_id": l.get("artigo_id"),
             "artigo_nome": l.get("artigo_nome", ""),
+            "imagem": l.get("imagem") or "",
             "quantidade": l.get("quantidade", 1),
             "preco_unit": l.get("preco_unit") or 0,
             "personalizacoes": l.get("personalizacoes") or [],

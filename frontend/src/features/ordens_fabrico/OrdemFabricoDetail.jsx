@@ -9,6 +9,7 @@ import PdfExportButton from "@/components/PdfExportButton";
 import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import ImagemUpload from "@/components/ImagemUpload";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -269,7 +270,12 @@ export default function OrdemFabricoDetail() {
             <div className="space-y-3">
               {of.itens.map((it, i) => (
                 <div key={it.id || i} className="border border-gray-200 rounded-sm p-3 space-y-2">
-                  <ArtigoCombobox artigos={artigos} value={it.artigo_id} testid={`of-item-artigo-${i}`} onChange={(a) => updItem(i, { artigo_id: a.id, artigo_nome: a.nome, operacoes: [] })} />
+                  <div className="flex items-start gap-2">
+                    <ImagemUpload value={it.imagem} onChange={(p) => updItem(i, { imagem: p })} size={44} editable={!!it.artigo_id} testid={`of-item-imagem-${i}`} />
+                    <div className="flex-1 min-w-0">
+                      <ArtigoCombobox artigos={artigos} value={it.artigo_id} testid={`of-item-artigo-${i}`} onChange={(a) => updItem(i, { artigo_id: a.id, artigo_nome: a.nome, imagem: it.imagem || a.imagem || "", operacoes: [] })} />
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">Qtd</span>
                     <input data-testid={`of-item-qtd-${i}`} type="number" min="1" value={it.quantidade} onChange={(e) => updItem(i, { quantidade: e.target.value })} className="w-20 border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />

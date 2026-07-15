@@ -8,6 +8,7 @@ import PdfExportButton from "@/components/PdfExportButton";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import ImagemUpload from "@/components/ImagemUpload";
 import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -306,11 +307,14 @@ export default function OrcamentoDetail() {
               <Fragment key={i}>
               <tr className="border-b border-gray-100">
                 <td className="px-4 py-2.5">
+                  <div className="flex items-start gap-2">
+                  <ImagemUpload value={l.imagem} onChange={(p) => updLinha(i, { imagem: p })} size={40} editable={!!l.artigo_id} testid={`line-imagem-${i}`} />
+                  <div className="flex-1 min-w-0">
                   <ArtigoCombobox
                     artigos={artigos}
                     value={l.artigo_id}
                     testid={`line-artigo-${i}`}
-                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, custo_base_unit: Math.round(((a.custo_artigo || 0) + (a.custo_materiais || 0)) * 100) / 100, margem: a.margem ?? 30, roteiro: JSON.parse(JSON.stringify(a.roteiro || [])) })}
+                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, imagem: l.imagem || a.imagem || "", custo_base_unit: Math.round(((a.custo_artigo || 0) + (a.custo_materiais || 0)) * 100) / 100, margem: a.margem ?? 30, roteiro: JSON.parse(JSON.stringify(a.roteiro || [])) })}
                   />
                   {l.artigo_id && (
                     <button data-testid={`line-ops-toggle-${i}`} onClick={() => setOpenOps((o) => ({ ...o, [i]: !o[i] }))} className="mt-1.5 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1">
@@ -318,6 +322,8 @@ export default function OrcamentoDetail() {
                       <Cog size={12} /> Operações ({(l.roteiro || []).length})
                     </button>
                   )}
+                  </div>
+                  </div>
                 </td>
                 <td className="px-4 py-2.5 align-top">
                   <div className="space-y-1.5" data-testid={`line-pers-list-${i}`}>

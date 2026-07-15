@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArtigoForm } from "@/features/artigos/ArtigoForm";
 
-const empty = { nome: "", descricao: "", unidade: "un", custo_artigo: 0, margem: 30, materiais: [], roteiro: [] };
+const empty = { nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30, materiais: [], roteiro: [] };
 
 export default function Artigos() {
   const { can } = useAuth();
@@ -50,6 +50,7 @@ export default function Artigos() {
       nome: a.nome,
       descricao: a.descricao || "",
       unidade: a.unidade || "un",
+      imagem: a.imagem || "",
       custo_artigo: a.custo_artigo ?? 0,
       margem: a.margem ?? 30,
       materiais: a.materiais || [],
@@ -65,6 +66,7 @@ export default function Artigos() {
       nome: form.nome,
       descricao: form.descricao,
       unidade: form.unidade || "un",
+      imagem: form.imagem || "",
       custo_artigo: Number(form.custo_artigo) || 0,
       margem: Number(form.margem) || 0,
       materiais: form.materiais.filter((m) => m.material_id).map((m) => ({

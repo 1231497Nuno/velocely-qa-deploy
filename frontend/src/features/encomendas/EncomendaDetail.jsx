@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import ImagemUpload from "@/components/ImagemUpload";
 import PdfExportButton from "@/components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
@@ -100,7 +101,7 @@ export default function EncomendaDetail() {
   const addArtigo = (artigoId) => {
     const a = artigos.find((x) => x.id === artigoId);
     if (!a) return;
-    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, quantidade: 1, preco_unit: Number(a.preco_venda) || 0, desconto: 0, desconto_tipo: "pct", personalizacoes: [] }] }, "Artigo adicionado");
+    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, imagem: a.imagem || "", quantidade: 1, preco_unit: Number(a.preco_venda) || 0, desconto: 0, desconto_tipo: "pct", personalizacoes: [] }] }, "Artigo adicionado");
   };
   const updArtigo = (i, patch) => {
     const list = [...enc.artigos];
@@ -128,7 +129,7 @@ export default function EncomendaDetail() {
 
   const criarOF = async () => {
     const itens = (enc.artigos || []).filter((a) => a.artigo_id).map((a) => ({
-      artigo_id: a.artigo_id, artigo_nome: a.artigo_nome, quantidade: Number(a.quantidade) || 1,
+      artigo_id: a.artigo_id, artigo_nome: a.artigo_nome, imagem: a.imagem || "", quantidade: Number(a.quantidade) || 1,
       personalizacoes: a.personalizacoes || [], operacoes: [],
     }));
     const of = await api.post(`/encomendas/${id}/ordens-fabrico`, { cliente: enc.cliente, itens });
@@ -311,7 +312,12 @@ export default function EncomendaDetail() {
                   const unitPers = (Number(a.preco_unit) || 0) + persUnitOf(a);
                   return (
                     <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100">
-                      <td className="px-4 py-2.5 font-medium text-gray-900">{a.artigo_nome}</td>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">
+                        <div className="flex items-center gap-2.5">
+                          <ImagemUpload value={a.imagem} onChange={(p) => persist({ artigos: enc.artigos.map((x, idx) => idx === i ? { ...x, imagem: p } : x) }, "Imagem atualizada")} size={40} testid={`enc-artigo-imagem-${i}`} />
+                          <span>{a.artigo_nome}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-2.5 align-top">
                         <div className="space-y-1.5 min-w-[160px]" data-testid={`enc-artigo-pers-list-${i}`}>
                           {(a.personalizacoes || []).map((p, pi) => (

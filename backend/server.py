@@ -26,6 +26,8 @@ from app.api.routes.settings import router as settings_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.admin import router as admin_router
 from app.api.routes.historico import router as historico_router
+from app.api.routes.uploads import router as uploads_router
+from app.services.storage import init_storage
 
 app = FastAPI()
 
@@ -33,7 +35,7 @@ api_router = APIRouter(prefix="/api")
 for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router,
     encomendas_router, settings_router, analytics_router, admin_router,
-    historico_router,
+    historico_router, uploads_router,
 ):
     api_router.include_router(r)
 
@@ -54,6 +56,10 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def _startup_seed_admin():
+    try:
+        init_storage()
+    except Exception as e:
+        logger.error(f"Storage init falhou: {e}")
     await users_repo.create_index("email", unique=True)
     await seed_perfis()
     await seed_admin()

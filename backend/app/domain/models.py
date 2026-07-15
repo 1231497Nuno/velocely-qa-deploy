@@ -134,6 +134,7 @@ class Artigo(BaseModel):
     nome: str
     descricao: str = ""
     unidade: str = "un"
+    imagem: str = ""
     custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
@@ -145,6 +146,7 @@ class ArtigoInput(BaseModel):
     nome: str
     descricao: str = ""
     unidade: str = "un"
+    imagem: str = ""
     custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
@@ -178,6 +180,7 @@ class OrcamentoLinha(BaseModel):
     id: str = Field(default_factory=new_id)
     artigo_id: str
     artigo_nome: str = ""
+    imagem: str = ""
     quantidade: float = 1
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
@@ -276,6 +279,7 @@ class OFItem(BaseModel):
     id: str = Field(default_factory=new_id)
     artigo_id: str
     artigo_nome: str = ""
+    imagem: str = ""
     quantidade: float = 1
     unidade: str = "un"
     preco_unit: float = 0.0
@@ -311,6 +315,7 @@ class EncomendaArtigo(BaseModel):
     id: str = Field(default_factory=new_id)
     artigo_id: Optional[str] = None
     artigo_nome: str = ""
+    imagem: str = ""
     quantidade: float = 1
     preco_unit: float = 0.0
     desconto: float = 0.0

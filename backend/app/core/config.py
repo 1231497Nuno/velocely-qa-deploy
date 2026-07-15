@@ -12,3 +12,4 @@ JWT_ALGORITHM = "HS256"
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@prodcost.pt")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")

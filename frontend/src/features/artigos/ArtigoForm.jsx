@@ -1,5 +1,6 @@
 import { eur } from "@/lib/api";
 import { Plus, X, Package, Cog, Calculator, Tag } from "lucide-react";
+import ImagemUpload from "@/components/ImagemUpload";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
@@ -38,7 +39,12 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
     <div className="space-y-6 py-2">
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-3">Informação Base</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="flex gap-4 items-start">
+          <div className="shrink-0">
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Imagem</label>
+            <ImagemUpload value={form.imagem} onChange={(p) => setForm({ ...form, imagem: p })} size={72} testid="artigo-imagem" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1">
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
             <input data-testid="artigo-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
@@ -57,6 +63,7 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Valor de Compra (€)</label>
             <input data-testid="artigo-valor-input" type="number" step="0.01" value={form.custo_artigo} onChange={(e) => setForm({ ...form, custo_artigo: e.target.value })} placeholder="custo de aquisição" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
           </div>
+        </div>
         </div>
       </section>
 

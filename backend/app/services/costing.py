@@ -211,6 +211,8 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
         a = await artigos_repo.get(l.get("artigo_id"))
         if a:
             l["artigo_nome"] = a.get("nome", l.get("artigo_nome", ""))
+            if not l.get("imagem") and a.get("imagem"):
+                l["imagem"] = a.get("imagem")
             if l.get("custo_base_unit") is None:
                 bd_a = await artigo_breakdown(a)
                 l["custo_base_unit"] = round2(bd_a["custo_artigo"] + bd_a["custo_materiais"])
@@ -300,6 +302,8 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
         if a:
             it["artigo_nome"] = a.get("nome", it.get("artigo_nome", ""))
             it["unidade"] = a.get("unidade") or it.get("unidade") or "un"
+            if not it.get("imagem") and a.get("imagem"):
+                it["imagem"] = a.get("imagem")
             if not it.get("preco_unit"):
                 it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
             if not operacoes:
