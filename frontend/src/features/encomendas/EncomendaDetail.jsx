@@ -346,6 +346,15 @@ export default function EncomendaDetail() {
         {/* OFs */}
         <div className="bg-white border border-gray-200 rounded-sm p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h3>
+          <div className="mb-3" data-testid="enc-detail-progresso">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+              <span>Produção lançada em OFs</span>
+              <span className="tabular-nums">{enc.qtd_em_ofs || 0}/{enc.qtd_total || 0} un · {enc.progresso_producao || 0}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className={`h-full ${((enc.progresso_producao || 0) >= 100) ? "bg-emerald-500" : "bg-blue-500"} transition-[width] duration-500`} style={{ width: `${Math.min(100, enc.progresso_producao || 0)}%` }} />
+            </div>
+          </div>
           {(enc.ordens_fabrico || []).length === 0 ? (
             <p className="text-sm text-gray-400 py-6 text-center">Ainda sem ordens de fabrico.</p>
           ) : (

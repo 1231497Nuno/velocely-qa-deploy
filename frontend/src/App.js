@@ -6,6 +6,7 @@ import Layout from "@/components/Layout";
 import Login from "@/features/auth/Login";
 import Dashboard from "@/features/dashboard/Dashboard";
 import Artigos from "@/features/artigos/Artigos";
+import ArtigoDetail from "@/features/artigos/ArtigoDetail";
 import Maquinas from "@/features/catalogo/Maquinas";
 import Materiais from "@/features/catalogo/Materiais";
 import MaoObra from "@/features/catalogo/MaoObra";
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
       <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
+      <Route path="/artigos/:id" element={<Protected modulo="artigos"><ArtigoDetail /></Protected>} />
       <Route path="/maquinas" element={<Protected modulo="maquinas"><Maquinas /></Protected>} />
       <Route path="/materiais" element={<Protected modulo="materiais"><Materiais /></Protected>} />
       <Route path="/mao-obra" element={<Protected modulo="mao_obra"><MaoObra /></Protected>} />

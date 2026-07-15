@@ -452,6 +452,24 @@ async def compute_encomenda(enc: dict) -> dict:
     ofs = [recompute_of_status(o) for o in ofs]
     enc["num_ofs"] = len(ofs)
 
+    # Progresso de produção: quantidade já lançada em OFs vs total da encomenda
+    enc_tot_by_art: dict = {}
+    for a in (enc.get("artigos") or []):
+        aid = a.get("artigo_id")
+        if aid:
+            enc_tot_by_art[aid] = enc_tot_by_art.get(aid, 0) + (a.get("quantidade") or 0)
+    of_qty_by_art: dict = {}
+    for o in ofs:
+        for it in o.get("itens", []):
+            aid = it.get("artigo_id")
+            if aid:
+                of_qty_by_art[aid] = of_qty_by_art.get(aid, 0) + (it.get("quantidade") or 0)
+    total_qtd = sum(enc_tot_by_art.values())
+    em_ofs = sum(min(of_qty_by_art.get(aid, 0), tot) for aid, tot in enc_tot_by_art.items())
+    enc["qtd_total"] = round2(total_qtd)
+    enc["qtd_em_ofs"] = round2(em_ofs)
+    enc["progresso_producao"] = round(em_ofs / total_qtd * 100) if total_qtd > 0 else 0
+
     custo_est = custo_real = 0.0
     for o in ofs:
         for it in o.get("itens", []):

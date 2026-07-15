@@ -4,6 +4,7 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { toast } from "sonner";
 import {
   ArrowLeft, FileText, ClipboardList, Factory, Coins, Wallet, TrendingUp,
@@ -110,8 +111,8 @@ export default function ClienteDetail() {
       </div>
 
       {/* Encomendas */}
-      <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><ClipboardList size={15} /> Encomendas</h2>
+      <SeccaoPesquisavel title="Encomendas" icon={ClipboardList} rows={encomendas} searchKeys={["numero", "estado", "status_pagamento"]} placeholder="Pesquisar encomenda..." testid="cliente-encomendas">
+        {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead><tr className="border-b border-gray-200 bg-gray-50">
@@ -119,7 +120,7 @@ export default function ClienteDetail() {
               <Th align="right">Valor</Th><Th align="right">Pendente</Th><Th>Prazo</Th><th className="w-8"></th>
             </tr></thead>
             <tbody data-testid="cliente-encomendas-table">
-              {encomendas.map((e) => (
+              {rows.map((e) => (
                 <tr key={e.id} data-testid={`cliente-encomenda-row-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{e.numero}</td>
                   <td className="px-4 py-3 text-gray-600">{fmtDate(e.data)}</td>
@@ -131,22 +132,23 @@ export default function ClienteDetail() {
                   <td className="px-4 py-3 text-gray-400"><ChevronRight size={16} /></td>
                 </tr>
               ))}
-              {encomendas.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
             </tbody>
           </table>
         </div>
-      </section>
+        )}
+      </SeccaoPesquisavel>
 
       {/* Orçamentos */}
-      <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><FileText size={15} /> Orçamentos</h2>
+      <SeccaoPesquisavel title="Orçamentos" icon={FileText} rows={orcamentos} searchKeys={["numero", "status", "of_numero"]} placeholder="Pesquisar orçamento..." testid="cliente-orcamentos">
+        {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
             <thead><tr className="border-b border-gray-200 bg-gray-50">
               <Th>Nº</Th><Th>Data</Th><Th align="center">Estado</Th><Th align="right">Total</Th><Th>OF</Th><th className="w-8"></th>
             </tr></thead>
             <tbody data-testid="cliente-orcamentos-table">
-              {orcamentos.map((o) => (
+              {rows.map((o) => (
                 <tr key={o.id} data-testid={`cliente-orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
                   <td className="px-4 py-3 text-gray-600">{fmtDate(o.data)}</td>
@@ -156,22 +158,23 @@ export default function ClienteDetail() {
                   <td className="px-4 py-3 text-gray-400"><ChevronRight size={16} /></td>
                 </tr>
               ))}
-              {orcamentos.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Sem orçamentos.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Sem orçamentos.</td></tr>}
             </tbody>
           </table>
         </div>
-      </section>
+        )}
+      </SeccaoPesquisavel>
 
       {/* Ordens de Fabrico */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h2>
+      <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "status"]} placeholder="Pesquisar OF..." testid="cliente-ofs" className="mb-2">
+        {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
             <thead><tr className="border-b border-gray-200 bg-gray-50">
               <Th>Nº</Th><Th>Data</Th><Th align="center">Estado</Th><Th align="right">Progresso</Th><th className="w-8"></th>
             </tr></thead>
             <tbody data-testid="cliente-ofs-table">
-              {ordens_fabrico.map((o) => (
+              {rows.map((o) => (
                 <tr key={o.id} data-testid={`cliente-of-row-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero} {o.prioritaria && <span className="text-red-600 text-xs font-semibold">· prioritária</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{fmtDate(o.data)}</td>
@@ -180,11 +183,12 @@ export default function ClienteDetail() {
                   <td className="px-4 py-3 text-gray-400"><ChevronRight size={16} /></td>
                 </tr>
               ))}
-              {ordens_fabrico.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">Sem ordens de fabrico.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">Sem ordens de fabrico.</td></tr>}
             </tbody>
           </table>
         </div>
-      </section>
+        )}
+      </SeccaoPesquisavel>
 
       <section className="mt-6" data-testid="cliente-historico-precos">
         <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Coins size={15} /> Histórico de preços por artigo</h2>

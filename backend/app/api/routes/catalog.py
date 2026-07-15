@@ -6,10 +6,10 @@ from app.domain.models import (
     Maquina, MaquinaInput, Consumivel, ConsumivelInput, MaoObra, MaoObraInput,
     Artigo, ArtigoInput, TipoPersonalizacao, TipoPersonalizacaoInput,
 )
-from app.core.database import new_id, now_iso
+from app.core.database import new_id, now_iso, round2
 from app.core.security import get_current_user
-from app.repositories import maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo
-from app.services.costing import artigo_breakdown, enrich_artigo
+from app.repositories import maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo, orcamentos_repo, encomendas_repo, ordens_repo
+from app.services.costing import artigo_breakdown, enrich_artigo, compute_orcamento_totais, compute_encomenda, recompute_of_status
 from app.services import audit
 
 router = APIRouter()
@@ -142,6 +142,66 @@ async def get_artigo(aid: str):
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
     return enrich_artigo(a, await artigo_breakdown(a))
+
+
+@router.get("/artigos/{aid}/resumo")
+async def artigo_resumo(aid: str, _u: dict = Depends(get_current_user)):
+    a = await artigos_repo.get(aid)
+    if not a:
+        raise HTTPException(404, "Artigo não encontrado")
+    artigo = enrich_artigo(a, await artigo_breakdown(a))
+
+    orcamentos = []
+    for o in await orcamentos_repo.find(limit=5000):
+        linhas = [l for l in (o.get("linhas") or []) if l.get("artigo_id") == aid]
+        if not linhas:
+            continue
+        oc = compute_orcamento_totais(o)
+        orcamentos.append({
+            "id": o["id"], "numero": o.get("numero"), "cliente": o.get("cliente"), "data": o.get("data"),
+            "status": o.get("status"), "quantidade": round2(sum(l.get("quantidade") or 0 for l in linhas)),
+            "total": oc.get("total"),
+        })
+
+    encomendas = []
+    for e in await encomendas_repo.find(limit=5000):
+        arts = [x for x in (e.get("artigos") or []) if x.get("artigo_id") == aid]
+        if not arts:
+            continue
+        ec = await compute_encomenda(e)
+        encomendas.append({
+            "id": e["id"], "numero": e.get("numero"), "cliente": e.get("cliente"), "data": e.get("data"),
+            "estado": ec.get("estado"), "status_pagamento": ec.get("status_pagamento"),
+            "quantidade": round2(sum(x.get("quantidade") or 0 for x in arts)), "valor_total": ec.get("valor_total"),
+        })
+
+    ordens_fabrico = []
+    for f in await ordens_repo.find(limit=5000):
+        its = [x for x in (f.get("itens") or []) if x.get("artigo_id") == aid]
+        if not its:
+            continue
+        fc = recompute_of_status(f)
+        ordens_fabrico.append({
+            "id": f["id"], "numero": f.get("numero"), "cliente": f.get("cliente"), "data": f.get("data"),
+            "status": fc.get("status"), "progresso": fc.get("progresso"),
+            "quantidade": round2(sum(x.get("quantidade") or 0 for x in its)),
+        })
+
+    _key = lambda x: x.get("data") or ""
+    orcamentos.sort(key=_key, reverse=True)
+    encomendas.sort(key=_key, reverse=True)
+    ordens_fabrico.sort(key=_key, reverse=True)
+
+    stats = {
+        "num_orcamentos": len(orcamentos),
+        "num_encomendas": len(encomendas),
+        "num_ofs": len(ordens_fabrico),
+        "qtd_orcada": round2(sum(x["quantidade"] for x in orcamentos)),
+        "qtd_encomendada": round2(sum(x["quantidade"] for x in encomendas)),
+        "qtd_produzida": round2(sum(x["quantidade"] for x in ordens_fabrico)),
+    }
+    return {"artigo": artigo, "orcamentos": orcamentos, "encomendas": encomendas,
+            "ordens_fabrico": ordens_fabrico, "stats": stats}
 
 
 @router.post("/artigos")

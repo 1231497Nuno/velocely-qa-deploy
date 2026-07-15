@@ -90,6 +90,7 @@ export default function Encomendas() {
               <SortTh label="Valor" sortKey="valor_total" sort={sort} onSort={toggle} align="right" />
               <SortTh label="Pagamento" sortKey="status_pagamento" sort={sort} onSort={toggle} align="center" />
               <SortTh label="OFs" sortKey="num_ofs" sort={sort} onSort={toggle} align="center" />
+              <SortTh label="Produção" sortKey="progresso_producao" sort={sort} onSort={toggle} align="center" />
               <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="center" />
               <th className="px-4 py-3 w-20"></th>
             </tr>
@@ -108,6 +109,14 @@ export default function Encomendas() {
                 <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{eur(e.valor_total)}</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={payBadge[e.status_pagamento]} /></td>
                 <td className="px-4 py-3 text-center tabular-nums text-gray-700">{e.num_ofs}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2" data-testid={`enc-progresso-${e.id}`} title={`${e.qtd_em_ofs || 0}/${e.qtd_total || 0} un em OFs`}>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[44px]">
+                      <div className={`h-full ${((e.progresso_producao || 0) >= 100) ? "bg-emerald-500" : "bg-blue-500"}`} style={{ width: `${Math.min(100, e.progresso_producao || 0)}%` }} />
+                    </div>
+                    <span className="text-xs tabular-nums text-gray-500 w-9 text-right">{e.progresso_producao || 0}%</span>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={e.estado} /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
@@ -117,7 +126,7 @@ export default function Encomendas() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
           </tbody>
         </table>
       </div>
