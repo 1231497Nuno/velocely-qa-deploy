@@ -241,6 +241,7 @@ class OrcamentoInput(BaseModel):
     desconto_total_tipo: str = "pct"  # pct | eur
     linhas: List[OrcamentoLinha] = Field(default_factory=list)
     materiais: List[MaterialLinha] = Field(default_factory=list)
+    imagens: List[str] = Field(default_factory=list)
 
 
 class Orcamento(OrcamentoInput):
@@ -300,6 +301,7 @@ class OrdemFabricoInput(BaseModel):
     notas: str = ""
     prioritaria: bool = False
     itens: List[OFItem] = Field(default_factory=list)
+    imagens: List[str] = Field(default_factory=list)
 
 
 class OrdemFabrico(OrdemFabricoInput):
@@ -334,6 +336,7 @@ class EncomendaInput(BaseModel):
     desconto_total: float = 0.0
     desconto_total_tipo: str = "pct"  # pct | eur
     artigos: List[EncomendaArtigo] = Field(default_factory=list)
+    imagens: List[str] = Field(default_factory=list)
     valor_total: Optional[float] = None
     valor_total_manual: bool = False
     valor_pago: float = 0.0

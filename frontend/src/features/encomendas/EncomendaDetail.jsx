@@ -6,6 +6,7 @@ import StatusBadge from "@/components/StatusBadge";
 import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
+import ImagensGaleria from "@/components/ImagensGaleria";
 import PdfExportButton from "@/components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
@@ -73,6 +74,7 @@ export default function EncomendaDetail() {
     prazo_entrega: e.prazo_entrega || null,
     estado: e.estado,
     notas: e.notas || "",
+    imagens: e.imagens || [],
     desconto_total: Number(e.desconto_total) || 0,
     desconto_total_tipo: e.desconto_total_tipo || "pct",
     artigos: (e.artigos || []).map((a) => ({
@@ -132,7 +134,7 @@ export default function EncomendaDetail() {
       artigo_id: a.artigo_id, artigo_nome: a.artigo_nome, imagem: a.imagem || "", quantidade: Number(a.quantidade) || 1,
       personalizacoes: a.personalizacoes || [], operacoes: [],
     }));
-    const of = await api.post(`/encomendas/${id}/ordens-fabrico`, { cliente: enc.cliente, itens });
+    const of = await api.post(`/encomendas/${id}/ordens-fabrico`, { cliente: enc.cliente, itens, imagens: enc.imagens || [] });
     toast.success("Ordem de fabrico criada");
     nav(`/ordens-fabrico/${of.id}`);
   };
@@ -314,7 +316,7 @@ export default function EncomendaDetail() {
                     <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100">
                       <td className="px-4 py-2.5 font-medium text-gray-900">
                         <div className="flex items-center gap-2.5">
-                          <ImagemUpload value={a.imagem} onChange={(p) => persist({ artigos: enc.artigos.map((x, idx) => idx === i ? { ...x, imagem: p } : x) }, "Imagem atualizada")} size={40} testid={`enc-artigo-imagem-${i}`} />
+                          <ImagemUpload value={a.imagem} editable={false} size={40} testid={`enc-artigo-imagem-${i}`} />
                           <span>{a.artigo_nome}</span>
                         </div>
                       </td>
@@ -367,6 +369,8 @@ export default function EncomendaDetail() {
         )}
         <p className="text-xs text-gray-400 mt-3">As alterações aos artigos são guardadas automaticamente e o valor é recalculado. Encomendas com origem em orçamento usam o valor do orçamento.</p>
       </div>
+
+      <ImagensGaleria value={enc.imagens} onChange={(imgs) => persist({ imagens: imgs })} title="Imagens da encomenda" hint="Imagens de referência de toda a encomenda. Transitam para a ordem de fabrico ao criar." />
 
       <HistoricoTimeline tipo="encomenda" id={id} />
     </div>

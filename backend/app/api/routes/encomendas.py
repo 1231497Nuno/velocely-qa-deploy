@@ -121,6 +121,8 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
     payload["encomenda_id"] = eid
     payload["cliente"] = enc.get("cliente") or payload.get("cliente") or ""
     payload["cliente_id"] = enc.get("cliente_id")
+    if not payload.get("imagens"):
+        payload["imagens"] = enc.get("imagens") or []
     of = OrdemFabrico(**payload)
     of.numero = await next_sequence("OF")
     of.encomenda_numero = enc.get("numero")

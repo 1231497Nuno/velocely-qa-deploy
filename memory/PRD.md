@@ -2,7 +2,14 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 31 (2026-07-15) — Upload de imagem por artigo (Orçamentos/Encomendas/OFs) + object storage
+## Iteração 32 (2026-07-15) — Imagens de linha só-leitura + galeria de imagens ao nível do documento
+- **Imagem da linha do artigo** passou a **só-leitura** em Orçamentos, Encomendas e OFs (herda do catálogo do artigo; edita-se apenas no Artigo). `ImagemUpload editable={false}`.
+- **Nova área de imagens ao nível do documento** (`components/ImagensGaleria.jsx` — upload múltiplo, miniaturas, remover, preview). Campo `imagens: List[str]` adicionado a OrcamentoInput/OrdemFabricoInput/EncomendaInput (herdado por Orcamento/OrdemFabrico/Encomenda).
+- **Propagação**: `converter_orcamento` copia `orc.imagens` → OF.imagens e Encomenda.imagens; `create_of_for_encomenda` copia `enc.imagens` → OF.imagens (com fallback no backend). Frontend envia imagens ao criar OF.
+- Frontend: galeria integrada em OrcamentoDetail (guarda via `saveImagens`/`bodyFrom`), EncomendaDetail (via `persist`, `bodyFrom` inclui imagens) e OrdemFabricoDetail (via `saveImagens`/`bodyFrom`). testids: imagens-galeria, galeria-add, galeria-input, galeria-remove, galeria-preview.
+- Verificado: curl end-to-end (auto-fill de linha + propagação de imagens de documento orçamento→OF+encomenda e encomenda→OF, todos OK) + screenshot (galeria presente, linha read-only, sem erros da app).
+- Nota: warning `<option> em <span>` na consola é artefacto da instrumentação dev do editor (todos os `<select>` com texto dinâmico), não é bug de produção.
+
 - Integração **object storage Emergent** (`app/services/storage.py`, usa `EMERGENT_LLM_KEY`, adicionada à `.env` + `config.py`). Rotas `app/api/routes/uploads.py`: `POST /api/upload/imagem` (multipart, valida imagem+≤5MB, guarda em `velocely/uploads/`, metadados na coleção `files`) e `GET /api/files/{path}` (auth via header OU `?auth=<jwt>`, devolve bytes). Init no arranque do server.
 - Campo `imagem` (path) adicionado a: Artigo/ArtigoInput (imagem de catálogo), OrcamentoLinha, EncomendaArtigo, OFItem.
 - **Auto-preenchimento**: `fill_linha_custos` e `build_of_itens` copiam a imagem do catálogo do artigo para a linha/item se esta estiver vazia (respeita override manual).

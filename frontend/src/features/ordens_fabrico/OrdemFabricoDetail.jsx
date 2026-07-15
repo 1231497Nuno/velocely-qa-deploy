@@ -10,6 +10,7 @@ import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
+import ImagensGaleria from "@/components/ImagensGaleria";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -80,25 +81,38 @@ export default function OrdemFabricoDetail() {
     upd({ itens: it });
   };
 
+  const bodyFrom = (o) => ({
+    cliente: o.cliente,
+    cliente_id: o.cliente_id || null,
+    encomenda_id: o.encomenda_id || null,
+    descricao: o.descricao || "",
+    numero_encomenda: o.numero_encomenda || "",
+    data: o.data,
+    status: o.status,
+    notas: o.notas || "",
+    prioritaria: !!o.prioritaria,
+    imagens: o.imagens || [],
+    itens: (o.itens || []).filter((it) => it.artigo_id).map((it) => ({
+      ...it,
+      quantidade: Number(it.quantidade) || 1,
+    })),
+  });
+
   const save = async () => {
-    const body = {
-      cliente: of.cliente,
-      cliente_id: of.cliente_id || null,
-      encomenda_id: of.encomenda_id || null,
-      descricao: of.descricao || "",
-      numero_encomenda: of.numero_encomenda || "",
-      data: of.data,
-      status: of.status,
-      notas: of.notas || "",
-      prioritaria: !!of.prioritaria,
-      itens: of.itens.filter((it) => it.artigo_id).map((it) => ({
-        ...it,
-        quantidade: Number(it.quantidade) || 1,
-      })),
-    };
-    const updated = await api.put(`/ordens-fabrico/${id}`, body);
+    const updated = await api.put(`/ordens-fabrico/${id}`, bodyFrom(of));
     setOf(updated);
     toast.success("OF guardada · roteiro carregado");
+  };
+
+  const saveImagens = async (imgs) => {
+    const next = { ...of, imagens: imgs };
+    setOf(next);
+    try {
+      const updated = await api.put(`/ordens-fabrico/${id}`, bodyFrom(next));
+      setOf(updated);
+    } catch {
+      toast.error("Falha ao guardar imagens");
+    }
   };
 
   const toggleOp = async (itemId, opId, concluida) => {
@@ -271,7 +285,7 @@ export default function OrdemFabricoDetail() {
               {of.itens.map((it, i) => (
                 <div key={it.id || i} className="border border-gray-200 rounded-sm p-3 space-y-2">
                   <div className="flex items-start gap-2">
-                    <ImagemUpload value={it.imagem} onChange={(p) => updItem(i, { imagem: p })} size={44} editable={!!it.artigo_id} testid={`of-item-imagem-${i}`} />
+                    <ImagemUpload value={it.imagem} size={44} editable={false} testid={`of-item-imagem-${i}`} />
                     <div className="flex-1 min-w-0">
                       <ArtigoCombobox artigos={artigos} value={it.artigo_id} testid={`of-item-artigo-${i}`} onChange={(a) => updItem(i, { artigo_id: a.id, artigo_nome: a.nome, imagem: it.imagem || a.imagem || "", operacoes: [] })} />
                     </div>
@@ -309,6 +323,8 @@ export default function OrdemFabricoDetail() {
         {/* Right: roteiro */}
         <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} updOpNota={updOpNota} elapsedSeg={elapsedSeg} fmtDur={fmtDur} />
       </div>
+
+      <ImagensGaleria value={of.imagens} onChange={saveImagens} title="Imagens da ordem de fabrico" hint="Imagens de referência de toda a OF (herdadas do orçamento/encomenda quando aplicável)." />
 
       <HistoricoTimeline tipo="ordem_fabrico" id={id} />
     </div>

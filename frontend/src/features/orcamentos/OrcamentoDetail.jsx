@@ -9,6 +9,7 @@ import ArtigoCombobox from "@/components/ArtigoCombobox";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
+import ImagensGaleria from "@/components/ImagensGaleria";
 import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -163,38 +164,50 @@ export default function OrcamentoDetail() {
   const lucro = total - subtotalCusto - custoMateriais;
   const linhasAbaixoCusto = orc.linhas.filter((l) => l.artigo_id && linePreco(l) < lineCusto(l)).length;
 
+  const bodyFrom = (o) => ({
+    cliente: o.cliente,
+    cliente_id: o.cliente_id || null,
+    descricao: o.descricao || "",
+    numero_encomenda: o.numero_encomenda || "",
+    data: o.data,
+    validade: o.validade,
+    status: o.status,
+    notas: o.notas || "",
+    imagens: o.imagens || [],
+    desconto_total: Number(o.desconto_total) || 0,
+    desconto_total_tipo: o.desconto_total_tipo || "pct",
+    linhas: (o.linhas || []).filter((l) => l.artigo_id).map((l) => ({
+      ...l,
+      quantidade: Number(l.quantidade) || 0,
+      desconto: Number(l.desconto) || 0,
+      desconto_tipo: l.desconto_tipo || "pct",
+      personalizacoes: (l.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0 })),
+      valor_personalizacao: persUnit(l),
+    })),
+    materiais: (o.materiais || []).map((m) => ({
+      ...m,
+      custo_unitario: Number(m.custo_unitario) || 0,
+      quantidade: Number(m.quantidade) || 0,
+      comprimento_mm: Number(m.comprimento_mm) || 0,
+      largura_mm: Number(m.largura_mm) || 0,
+      margem: Number(m.margem) || 0,
+    })),
+  });
+
   const save = async () => {
-    const body = {
-      cliente: orc.cliente,
-      cliente_id: orc.cliente_id || null,
-      descricao: orc.descricao || "",
-      numero_encomenda: orc.numero_encomenda || "",
-      data: orc.data,
-      validade: orc.validade,
-      status: orc.status,
-      notas: orc.notas || "",
-      desconto_total: Number(orc.desconto_total) || 0,
-      desconto_total_tipo: orc.desconto_total_tipo || "pct",
-      linhas: orc.linhas.filter((l) => l.artigo_id).map((l) => ({
-        ...l,
-        quantidade: Number(l.quantidade) || 0,
-        desconto: Number(l.desconto) || 0,
-        desconto_tipo: l.desconto_tipo || "pct",
-        personalizacoes: (l.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0 })),
-        valor_personalizacao: persUnit(l),
-      })),
-      materiais: (orc.materiais || []).map((m) => ({
-        ...m,
-        custo_unitario: Number(m.custo_unitario) || 0,
-        quantidade: Number(m.quantidade) || 0,
-        comprimento_mm: Number(m.comprimento_mm) || 0,
-        largura_mm: Number(m.largura_mm) || 0,
-        margem: Number(m.margem) || 0,
-      })),
-    };
-    await api.put(`/orcamentos/${id}`, body);
+    await api.put(`/orcamentos/${id}`, bodyFrom(orc));
     await load();
     toast.success("Orçamento guardado");
+  };
+
+  const saveImagens = async (imgs) => {
+    const next = { ...orc, imagens: imgs };
+    setOrc(next);
+    try {
+      await api.put(`/orcamentos/${id}`, bodyFrom(next));
+    } catch {
+      toast.error("Falha ao guardar imagens");
+    }
   };
 
   const converter = async () => {
@@ -308,7 +321,7 @@ export default function OrcamentoDetail() {
               <tr className="border-b border-gray-100">
                 <td className="px-4 py-2.5">
                   <div className="flex items-start gap-2">
-                  <ImagemUpload value={l.imagem} onChange={(p) => updLinha(i, { imagem: p })} size={40} editable={!!l.artigo_id} testid={`line-imagem-${i}`} />
+                  <ImagemUpload value={l.imagem} onChange={(p) => updLinha(i, { imagem: p })} size={40} editable={false} testid={`line-imagem-${i}`} />
                   <div className="flex-1 min-w-0">
                   <ArtigoCombobox
                     artigos={artigos}
@@ -419,6 +432,8 @@ export default function OrcamentoDetail() {
       <OrcamentoMateriais materiais={orc.materiais} consumiveis={consumiveis} addMaterial={addMaterial} delMaterial={delMaterial} updMaterial={updMaterial} matValor={matValor} isM2={isM2} />
 
       <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)} ivaIsento={!!empresa.iva_isento} condicoesPagamento={empresa.condicoes_pagamento} />
+
+      <ImagensGaleria value={orc.imagens} onChange={saveImagens} title="Imagens do orçamento" hint="Imagens de referência de todo o orçamento. Transitam para a encomenda e ordem de fabrico ao converter." />
 
       <HistoricoTimeline tipo="orcamento" id={id} />
     </div>

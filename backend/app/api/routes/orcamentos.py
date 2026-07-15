@@ -184,6 +184,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(get_current_user)):
         data=now_iso()[:10],
         status="pendente",
         notas=f"Gerada a partir do orçamento {orc.get('numero')}",
+        imagens=orc.get("imagens") or [],
     )
     of.numero = await next_sequence("OF")
     of.orcamento_id = orc["id"]
@@ -209,6 +210,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(get_current_user)):
         estado="aberta",
         notas=f"Gerada a partir do orçamento {orc.get('numero')}",
         artigos=enc_artigos,
+        imagens=orc.get("imagens") or [],
         valor_total=orc_t.get("total"),
     )
     enc.numero = await next_sequence("ENC")
