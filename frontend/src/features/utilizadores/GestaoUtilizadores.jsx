@@ -7,7 +7,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 
-const emptyUser = { email: "", name: "", password: "", perfil_id: "" };
+const emptyUser = { login: "", email: "", name: "", cargo: "", password: "", perfil_id: "" };
 
 export default function GestaoUtilizadores() {
   const [tab, setTab] = useState("users");
@@ -34,12 +34,12 @@ export default function GestaoUtilizadores() {
 
   // ---- users ----
   const openNewUser = () => { setUForm({ ...emptyUser, perfil_id: perfis.find((p) => !p.admin)?.id || perfis[0]?.id || "" }); setUEditId(null); setUOpen(true); };
-  const openEditUser = (u) => { setUForm({ email: u.email, name: u.name || "", password: "", perfil_id: u.perfil_id || "" }); setUEditId(u.id); setUOpen(true); };
+  const openEditUser = (u) => { setUForm({ login: u.login || "", email: u.email || "", name: u.name || "", cargo: u.cargo || "", password: "", perfil_id: u.perfil_id || "" }); setUEditId(u.id); setUOpen(true); };
   const saveUser = async () => {
-    if (!uEditId && (!uForm.email.trim() || !uForm.password.trim())) return toast.error("Email e password obrigatórios");
+    if (!uEditId && (!uForm.login.trim() || !uForm.password.trim())) return toast.error("Login e password obrigatórios");
     try {
       if (uEditId) {
-        const body = { name: uForm.name, perfil_id: uForm.perfil_id };
+        const body = { login: uForm.login, name: uForm.name, email: uForm.email, cargo: uForm.cargo, perfil_id: uForm.perfil_id };
         if (uForm.password) body.password = uForm.password;
         await api.put(`/users/${uEditId}`, body);
       } else {
@@ -120,8 +120,10 @@ export default function GestaoUtilizadores() {
           <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Login</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Email</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cargo</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Perfil</th>
                 <th className="px-4 py-3 w-24"></th>
               </tr>
@@ -129,8 +131,10 @@ export default function GestaoUtilizadores() {
             <tbody data-testid="users-table">
               {users.map((u) => (
                 <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900">{u.name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900 mono">{u.login || "—"}</td>
+                  <td className="px-4 py-3 text-gray-700">{u.name || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{u.email || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{u.cargo || "—"}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 ${u.role === "admin" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"}`}>
                       {u.role === "admin" ? <Shield size={12} /> : <User size={12} />} {u.perfil_nome || (u.role === "admin" ? "Administrador" : "Colaborador")}
@@ -144,7 +148,7 @@ export default function GestaoUtilizadores() {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem utilizadores.</td></tr>}
+              {users.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem utilizadores.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -186,13 +190,25 @@ export default function GestaoUtilizadores() {
             <DialogDescription>Defina as credenciais e o perfil de acesso.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
-              <input data-testid="user-name-input" value={uForm.name} onChange={(e) => setUForm({ ...uForm, name: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Login</label>
+                <input data-testid="user-login-input" value={uForm.login} onChange={(e) => setUForm({ ...uForm, login: e.target.value })} placeholder="identificador de acesso" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
+                <input data-testid="user-name-input" value={uForm.name} onChange={(e) => setUForm({ ...uForm, name: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Email</label>
-              <input data-testid="user-email-input" type="email" disabled={!!uEditId} value={uForm.email} onChange={(e) => setUForm({ ...uForm, email: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-100 disabled:text-gray-500" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Email</label>
+                <input data-testid="user-email-input" type="email" value={uForm.email} onChange={(e) => setUForm({ ...uForm, email: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Cargo</label>
+                <input data-testid="user-cargo-input" value={uForm.cargo} onChange={(e) => setUForm({ ...uForm, cargo: e.target.value })} placeholder="ex: Gestor de produção" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

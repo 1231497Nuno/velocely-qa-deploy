@@ -2,6 +2,22 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 27 (2026-07-14) — [Fase 2/3] Login por utilizador + campos do utilizador
+- Login passou de **email** para **utilizador** (`login`). `LoginInput` aceita `login` (e `email` como fallback → não bloqueia utilizadores reais). `create_access_token` inalterado.
+- Migração no arranque: `seed_user_logins()` preenche `login` (derivado do email, único) para utilizadores legado; admin fica com login `admin`. Índice único em `login`.
+- User: novos campos `login`, `cargo` (+ email/name/perfil/password). `UserCreate`/`UserUpdate`/`user_public`/`list_users` atualizados. Admin CRUD valida unicidade de login.
+- Frontend: Login usa campo "Utilizador"; `AuthContext.login(loginId)` envia `{login}`; Gestão de Utilizadores com colunas Login/Nome/Email/Cargo/Perfil e formulário (Login, Nome, Email, Cargo, nova password, Perfil).
+- Testado: login por "admin" + fallback email (200), criar/login/eliminar utilizador teste-, screenshot da tabela. test_credentials.md atualizado (login: admin).
+- ⚠️ Detetado: perfil de sistema "Colaborador" está com `admin=True` na BD real (dá acesso total) → corrigir na Fase 3 (auditoria RBAC).
+- PENDENTE: Fase 3 — histórico/timeline (orçamentos, encomendas, OFs, clientes, artigos, tipos personalização, mão de obra, máquinas, materiais) + auditoria RBAC (backend enforce + frontend) + separadores em falta.
+
+## Iteração 26 (2026-07-14) — [Fase 1/3] IVA + Condições de pagamento + Moeda
+- `EmpresaSettings`: novos campos `moeda_simbolo` (def "€"), `iva_taxa` (def 23), `iva_isento` (bool), `condicoes_pagamento`.
+- IVA: `iva_calc()` em costing; `compute_encomenda` aplica IVA (total_com_iva) e o **pagamento/pendente passa a ser vs total c/IVA**. Orçamento detalhe calcula IVA client-side a partir das Definições. PDFs (orçamento+encomenda) mostram IVA/isenção e condições de pagamento (rodapé) + símbolo de moeda dinâmico (`_set_currency`).
+- Moeda: `eur()` (lib/api) usa símbolo configurável via `setCurrency`, definido no `Layout` ao carregar `/settings/empresa`.
+- Definições: nova secção "Fiscal e financeiro" (moeda, taxa IVA, isento toggle, condições). Testado (curl IVA + PDF + screenshot Definições).
+- PENDENTE nesta funcionalidade: Fase 2 (login por utilizador + campos do user), Fase 3 (histórico/timeline em todos os módulos + auditoria RBAC + separadores em falta).
+
 ## Iteração 25 (2026-07-14) — Alertas no menu + Duplicar + Alerta de margem + Tabelas dinâmicas
 - **Alertas dinâmicos no menu:** `GET /api/alertas` ({pagamentos_pendentes, prazos_atrasados, prazos_proximos, ofs_atrasadas}). `Layout.jsx` mostra badges (poll 60s) — Encomendas (âmbar, pagamentos), Calendário (vermelho atrasados / âmbar próximos), OFs (vermelho atrasadas). testids `nav-badge-nav-*`.
 - **Duplicar/clonar:** endpoints `POST /{orcamentos|encomendas|artigos}/{id}/duplicar` (novo número, estado inicial reposto; artigo → "(cópia)"). Botões `duplicate-*-{id}` nas listas; orçamento/encomenda navegam para a cópia, artigo recarrega. Corrigido bug de serialização: `Repository.insert` remove agora o `_id` (ObjectId) do dict.

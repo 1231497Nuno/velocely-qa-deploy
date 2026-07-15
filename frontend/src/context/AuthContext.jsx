@@ -30,8 +30,8 @@ export function AuthProvider({ children }) {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(async (email, password) => {
-    const { token, user: u } = await api.post("/auth/login", { email, password });
+  const login = useCallback(async (loginId, password) => {
+    const { token, user: u } = await api.post("/auth/login", { login: loginId, password });
     setToken(token);
     setUser(u);
     return u;

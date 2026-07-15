@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { api } from "@/lib/api";
+import { api, setCurrency } from "@/lib/api";
 import {
   LayoutDashboard,
   Boxes,
@@ -45,6 +45,7 @@ export default function Layout({ children }) {
   const { user, isAdmin, can, logout } = useAuth();
 
   useEffect(() => {
+    api.get("/settings/empresa").then((s) => setCurrency(s?.moeda_simbolo)).catch(() => {});
     let active = true;
     const fetchA = () => api.get("/alertas").then((a) => active && setAlertas(a || {})).catch(() => {});
     fetchA();

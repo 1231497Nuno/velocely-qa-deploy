@@ -64,7 +64,9 @@ export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMat
   );
 }
 
-export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, descontoLinhas = 0, descTotal, descTotalTipo = "pct", descTotalVal = 0, onDescTotal, onDescTotalTipo, custoProducao, lucro, total }) {
+export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, descontoLinhas = 0, descTotal, descTotalTipo = "pct", descTotalVal = 0, onDescTotal, onDescTotalTipo, custoProducao, lucro, total, ivaTaxa = 0, ivaIsento = false, condicoesPagamento = "" }) {
+  const ivaVal = ivaTaxa > 0 ? total * ivaTaxa / 100 : 0;
+  const totalComIva = total + ivaVal;
   return (
     <div className="flex justify-end">
       <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3">
@@ -114,6 +116,20 @@ export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, desc
           <span className="font-semibold text-gray-900">Preço Final</span>
           <span className="tabular-nums font-bold text-xl font-display" data-testid="orc-total">{eur(total)}</span>
         </div>
+        {ivaTaxa > 0 && (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">IVA ({ivaTaxa}%)</span>
+              <span className="tabular-nums font-medium" data-testid="orc-iva">{eur(ivaVal)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-200 pt-3">
+              <span className="font-semibold text-gray-900">Total c/ IVA</span>
+              <span className="tabular-nums font-bold text-xl font-display" data-testid="orc-total-iva">{eur(totalComIva)}</span>
+            </div>
+          </>
+        )}
+        {ivaIsento && <div className="text-xs text-gray-400 text-right" data-testid="orc-isento-iva">Isento de IVA</div>}
+        {condicoesPagamento && <div className="text-xs text-gray-400 border-t border-gray-100 pt-2 mt-1"><span className="font-medium text-gray-500">Condições:</span> {condicoesPagamento}</div>}
       </div>
     </div>
   );

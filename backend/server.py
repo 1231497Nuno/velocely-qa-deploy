@@ -15,7 +15,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.core import config
 from app.core.database import client
 from app.core.security import auth_router
-from app.services.bootstrap import seed_perfis, seed_admin
+from app.services.bootstrap import seed_perfis, seed_admin, seed_user_logins
 from app.repositories import users_repo
 from app.api.routes.catalog import router as catalog_router
 from app.api.routes.orcamentos import router as orcamentos_router
@@ -55,6 +55,11 @@ async def _startup_seed_admin():
     await users_repo.create_index("email", unique=True)
     await seed_perfis()
     await seed_admin()
+    await seed_user_logins()
+    try:
+        await users_repo.create_index("login", unique=True)
+    except Exception:
+        pass
 
 
 @app.on_event("shutdown")

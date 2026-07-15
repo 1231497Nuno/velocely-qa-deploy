@@ -25,9 +25,17 @@ LIGHT = colors.HexColor("#F3F4F6")
 LINE = colors.HexColor("#E5E7EB")
 
 
+PDF_CURRENCY = "€"
+
+
 def fmt_eur(v) -> str:
     s = f"{(v or 0):,.2f}".replace(",", " ").replace(".", ",")
-    return f"{s} €"
+    return f"{s} {PDF_CURRENCY}"
+
+
+def _set_currency(settings):
+    global PDF_CURRENCY
+    PDF_CURRENCY = (settings or {}).get("moeda_simbolo") or "€"
 
 
 def _pdf_styles():
@@ -156,7 +164,12 @@ def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_brandi
 
 
 def _pdf_footer(elems, st, settings):
-    rodape = (settings or {}).get("rodape")
+    settings = settings or {}
+    cond = settings.get("condicoes_pagamento")
+    if cond:
+        elems.append(Spacer(1, 10))
+        elems.append(Paragraph(f"<b>Condições de pagamento:</b> {cond}", st["small"]))
+    rodape = settings.get("rodape")
     if rodape:
         elems.append(Spacer(1, 16))
         elems.append(HRFlowable(width="100%", thickness=0.5, color=LINE))
@@ -211,6 +224,7 @@ def _totais_table(rows, has_total_line):
 
 
 def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None) -> bytes:
+    _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
@@ -283,6 +297,15 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
         if (orc.get("desconto_total_valor") or 0) > 0:
             tot_rows.append(["Desconto total", "- " + fmt_eur(orc.get("desconto_total_valor"))])
         tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
+        s = settings or {}
+        iva_taxa = 0.0 if s.get("iva_isento") else float(s.get("iva_taxa") or 0)
+        if iva_taxa > 0:
+            net = orc.get("total") or 0
+            iva_val = round2(net * iva_taxa / 100.0)
+            tot_rows.append([f"IVA ({iva_taxa:g}%)", fmt_eur(iva_val)])
+            tot_rows.append(["TOTAL C/ IVA", fmt_eur(net + iva_val)])
+        elif s.get("iva_isento"):
+            tot_rows.append(["Isento de IVA", ""])
         last = len(tot_rows) - 1
         tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
         tot.setStyle(TableStyle([
@@ -379,6 +402,7 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
 
 
 def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:
+    _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
@@ -442,7 +466,12 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
     if section_on(fields, "valor_total"):
         if (enc.get("desconto_total_valor") or 0) > 0:
             tot_rows.append(["Desconto", "- " + fmt_eur(enc.get("desconto_total_valor"))])
-        tot_rows.append(["VALOR TOTAL", fmt_eur(enc.get("valor_total"))])
+        if (enc.get("iva_taxa") or 0) > 0:
+            tot_rows.append(["Subtotal", fmt_eur(enc.get("valor_total"))])
+            tot_rows.append([f"IVA ({enc.get('iva_taxa'):g}%)", fmt_eur(enc.get("iva_valor"))])
+            tot_rows.append(["TOTAL C/ IVA", fmt_eur(enc.get("total_com_iva"))])
+        else:
+            tot_rows.append(["VALOR TOTAL", fmt_eur(enc.get("valor_total"))])
     if tot_rows:
         has_total = section_on(fields, "valor_total")
         elems.append(_totais_table(tot_rows, has_total))

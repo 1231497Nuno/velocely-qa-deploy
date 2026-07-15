@@ -31,6 +31,7 @@ export default function OrcamentoDetail() {
   const [maoObra, setMaoObra] = useState([]);
   const [consumiveis, setConsumiveis] = useState([]);
   const [openOps, setOpenOps] = useState({});
+  const [empresa, setEmpresa] = useState({});
 
   const load = useCallback(async () => {
     const o = await api.get(`/orcamentos/${id}`);
@@ -50,6 +51,7 @@ export default function OrcamentoDetail() {
     setMaquinas(await api.get("/maquinas"));
     setMaoObra(await api.get("/mao-obra"));
     setConsumiveis(await api.get("/consumiveis"));
+    setEmpresa(await api.get("/settings/empresa").catch(() => ({})));
   }, [id]);
   useEffect(() => {
     load();
@@ -409,7 +411,7 @@ export default function OrcamentoDetail() {
 
       <OrcamentoMateriais materiais={orc.materiais} consumiveis={consumiveis} addMaterial={addMaterial} delMaterial={delMaterial} updMaterial={updMaterial} matValor={matValor} isM2={isM2} />
 
-      <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} />
+      <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)} ivaIsento={!!empresa.iva_isento} condicoesPagamento={empresa.condicoes_pagamento} />
     </div>
   );
 }

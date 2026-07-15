@@ -29,8 +29,10 @@ async def list_users(admin: dict = Depends(require_admin)):
         perfil = await resolve_perfil(u)
         out.append({
             "id": u.get("id"),
+            "login": u.get("login") or (u.get("email") or "").split("@")[0],
             "email": u.get("email"),
             "name": u.get("name", ""),
+            "cargo": u.get("cargo", ""),
             "perfil_id": u.get("perfil_id") or perfil.get("id"),
             "perfil_nome": perfil.get("nome"),
             "role": "admin" if perfil.get("admin") else "colaborador",
@@ -55,15 +57,20 @@ async def _resolve_perfil_id(perfil_id: Optional[str], role: Optional[str]) -> s
 @router.post("/users")
 async def create_user(data: UserCreate, admin: dict = Depends(require_admin)):
     email = (data.email or "").strip().lower()
-    if not email or not data.password:
-        raise HTTPException(400, "Email e password obrigatórios")
-    if await users_repo.find_one({"email": email}):
+    login = (data.login or "").strip().lower() or (email.split("@")[0] if email else "")
+    if not login or not data.password:
+        raise HTTPException(400, "Login e password obrigatórios")
+    if await users_repo.find_one({"login": login}):
+        raise HTTPException(400, "Já existe um utilizador com este login")
+    if email and await users_repo.find_one({"email": email}):
         raise HTTPException(400, "Já existe um utilizador com este email")
     perfil_id = await _resolve_perfil_id(data.perfil_id, data.role)
     doc = {
         "id": new_id(),
+        "login": login,
         "email": email,
         "name": data.name or "",
+        "cargo": data.cargo or "",
         "perfil_id": perfil_id,
         "password_hash": hash_password(data.password),
         "created_at": now_iso(),
@@ -78,8 +85,18 @@ async def update_user(uid: str, data: UserUpdate, admin: dict = Depends(require_
     if not user:
         raise HTTPException(404, "Utilizador não encontrado")
     patch = {}
+    if data.login is not None:
+        login = data.login.strip().lower()
+        if login and login != user.get("login"):
+            if await users_repo.find_one({"login": login, "id": {"$ne": uid}}):
+                raise HTTPException(400, "Já existe um utilizador com este login")
+            patch["login"] = login
+    if data.email is not None:
+        patch["email"] = data.email.strip().lower()
     if data.name is not None:
         patch["name"] = data.name
+    if data.cargo is not None:
+        patch["cargo"] = data.cargo
     if data.perfil_id is not None or data.role is not None:
         patch["perfil_id"] = await _resolve_perfil_id(data.perfil_id, data.role)
     if data.password:

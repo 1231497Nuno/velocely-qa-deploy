@@ -49,8 +49,10 @@ async def user_public(u: dict) -> dict:
     perfil = await resolve_perfil(u)
     return {
         "id": u.get("id"),
+        "login": u.get("login") or (u.get("email") or "").split("@")[0],
         "email": u.get("email"),
         "name": u.get("name", ""),
+        "cargo": u.get("cargo", ""),
         "role": "admin" if perfil.get("admin") else "colaborador",
         "perfil_id": u.get("perfil_id"),
         "perfil": {
@@ -94,13 +96,15 @@ auth_router = APIRouter(prefix="/api/auth")
 
 @auth_router.post("/login")
 async def login(data: LoginInput):
-    email = (data.email or "").strip().lower()
-    user = await users_repo.find_one({"email": email})
+    identifier = (data.login or data.email or "").strip().lower()
+    user = await users_repo.find_one({"login": identifier})
+    if not user:
+        user = await users_repo.find_one({"email": identifier})
     if not user or not verify_password(data.password, user.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="Email ou password incorretos")
+        raise HTTPException(status_code=401, detail="Utilizador ou password incorretos")
     perfil = await resolve_perfil(user)
     role = "admin" if perfil.get("admin") else "colaborador"
-    token = create_access_token(user["id"], user["email"], role)
+    token = create_access_token(user["id"], user.get("email") or user.get("login"), role)
     return {"token": token, "user": await user_public(user)}
 
 

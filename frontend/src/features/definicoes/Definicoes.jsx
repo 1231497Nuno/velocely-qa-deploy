@@ -9,7 +9,7 @@ import {
 
 const MODULO_LABELS = { orcamento: "Orçamento", of: "Ordem de Fabrico", encomenda: "Encomenda" };
 const FINALIDADES = [{ v: "ambos", l: "Ambos" }, { v: "cliente", l: "Cliente" }, { v: "interno", l: "Interno" }];
-const emptyEmpresa = { nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", nif: "", telefone: "", email: "", website: "", logo_base64: "", rodape: "" };
+const emptyEmpresa = { nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", nif: "", telefone: "", email: "", website: "", logo_base64: "", rodape: "", moeda_simbolo: "€", iva_taxa: 23, iva_isento: false, condicoes_pagamento: "" };
 
 const Inp = ({ label, val, onChange, tid, ph }) => (
   <div>
@@ -74,6 +74,25 @@ function EmpresaTab() {
       <div className="mt-4">
         <label className="text-sm font-medium text-gray-700 mb-1.5 block">Rodapé do PDF (opcional)</label>
         <textarea data-testid="emp-rodape" value={form.rodape || ""} onChange={(e) => upd("rodape", e.target.value)} rows={2} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" placeholder="Ex.: Obrigado pela preferência · IVA incluído à taxa legal em vigor" />
+      </div>
+
+      <div className="mt-6 pt-5 border-t border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">Fiscal e financeiro</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+          <Inp label="Símbolo da moeda" tid="emp-moeda" val={form.moeda_simbolo} onChange={(v) => upd("moeda_simbolo", v)} ph="€ / $ / R$" />
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Taxa de IVA (%)</label>
+            <input data-testid="emp-iva-taxa" type="number" min="0" step="0.1" disabled={form.iva_isento} value={form.iva_taxa ?? 0} onChange={(e) => upd("iva_taxa", parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-100 disabled:text-gray-400" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer pb-2">
+            <input data-testid="emp-iva-isento" type="checkbox" checked={!!form.iva_isento} onChange={(e) => upd("iva_isento", e.target.checked)} className="w-4 h-4 accent-black" />
+            Isento de IVA (IVA = 0)
+          </label>
+        </div>
+        <div className="mt-4">
+          <label className="text-sm font-medium text-gray-700 mb-1.5 block">Condições de pagamento (impresso nos PDFs)</label>
+          <textarea data-testid="emp-condicoes" value={form.condicoes_pagamento || ""} onChange={(e) => upd("condicoes_pagamento", e.target.value)} rows={2} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" placeholder="Ex.: Pagamento a 30 dias por transferência bancária · IBAN PT50..." />
+        </div>
       </div>
     </div>
   );

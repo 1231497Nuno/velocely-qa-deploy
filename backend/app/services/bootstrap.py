@@ -49,8 +49,10 @@ async def seed_admin():
     if not existing:
         await users_repo.insert({
             "id": new_id(),
+            "login": email.split("@")[0],
             "email": email,
             "name": "Admin Geral",
+            "cargo": "Administrador",
             "perfil_id": admin_p["id"] if admin_p else None,
             "password_hash": hash_password(password),
             "created_at": now_iso(),
@@ -63,6 +65,8 @@ async def seed_admin():
             patch["name"] = "Admin Geral"
         if not existing.get("perfil_id") and admin_p:
             patch["perfil_id"] = admin_p["id"]
+        if not existing.get("login"):
+            patch["login"] = email.split("@")[0]
         if patch:
             await users_repo.update_where({"email": email}, patch)
     if colab_p:
@@ -70,3 +74,22 @@ async def seed_admin():
             {"perfil_id": {"$in": [None, ""]}, "role": {"$ne": "admin"}},
             {"perfil_id": colab_p["id"]},
         )
+
+
+async def seed_user_logins():
+    """Backfill do campo 'login' para utilizadores legado (derivado do email)."""
+    usados = set()
+    async for u in users_repo.cursor():
+        if u.get("login"):
+            usados.add((u["login"] or "").lower())
+    async for u in users_repo.cursor():
+        if u.get("login"):
+            continue
+        base = ((u.get("email") or "").split("@")[0] or f"user{u.get('id', '')[:6]}").lower()
+        cand = base or "user"
+        n = 1
+        while cand in usados:
+            n += 1
+            cand = f"{base}{n}"
+        usados.add(cand)
+        await users_repo.update(u["id"], {"login": cand})

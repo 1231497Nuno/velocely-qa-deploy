@@ -6,7 +6,7 @@ import { LogIn, Factory } from "lucide-react";
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
+      await login(loginId, password);
       nav("/");
     } catch (err) {
       const d = err?.response?.data?.detail;
@@ -38,13 +38,14 @@ export default function Login() {
             <p className="text-sm text-gray-500 mt-1">Aceda à plataforma de orçamentos e fabrico.</p>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Email</label>
+            <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Utilizador</label>
             <input
               data-testid="login-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
               autoFocus
+              placeholder="o seu utilizador"
               className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
             />
           </div>

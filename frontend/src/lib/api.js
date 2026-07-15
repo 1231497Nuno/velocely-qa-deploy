@@ -33,11 +33,11 @@ export const api = {
   del: (p) => client.delete(p).then((r) => r.data),
 };
 
+let CURRENCY = "€";
+export const setCurrency = (s) => { if (s) CURRENCY = s; };
+
 export const eur = (v) =>
-  new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number(v || 0));
+  `${new Intl.NumberFormat("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v || 0))} ${CURRENCY}`;
 
 export const fmtDate = (d) => {
   if (!d) return "—";

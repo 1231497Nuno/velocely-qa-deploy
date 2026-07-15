@@ -32,20 +32,26 @@ def perms_colaborador() -> dict:
 
 # ----------------------- Auth models -----------------------
 class LoginInput(BaseModel):
-    email: str
+    login: Optional[str] = None
+    email: Optional[str] = None
     password: str
 
 
 class UserCreate(BaseModel):
-    email: str
+    login: Optional[str] = None
+    email: str = ""
     name: str = ""
+    cargo: str = ""
     password: str
     perfil_id: Optional[str] = None
     role: str = "colaborador"
 
 
 class UserUpdate(BaseModel):
+    login: Optional[str] = None
     name: Optional[str] = None
+    email: Optional[str] = None
+    cargo: Optional[str] = None
     password: Optional[str] = None
     perfil_id: Optional[str] = None
     role: Optional[str] = None
@@ -348,6 +354,10 @@ class EmpresaSettings(BaseModel):
     website: str = ""
     logo_base64: str = ""
     rodape: str = ""
+    moeda_simbolo: str = "€"
+    iva_taxa: float = 23.0
+    iva_isento: bool = False
+    condicoes_pagamento: str = ""
 
 
 class PdfTemplateInput(BaseModel):

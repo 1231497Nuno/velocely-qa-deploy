@@ -6,8 +6,15 @@ from app.core.database import round2, new_id
 from app.domain.models import OFOperacao
 from app.repositories import (
     artigos_repo, consumiveis_repo, maquinas_repo, mao_obra_repo, tipos_repo,
-    orcamentos_repo, ordens_repo,
+    orcamentos_repo, ordens_repo, empresa_repo,
 )
+
+
+def iva_calc(net, settings) -> dict:
+    s = settings or {}
+    taxa = 0.0 if s.get("iva_isento") else float(s.get("iva_taxa") or 0)
+    valor = round2((net or 0) * taxa / 100.0)
+    return {"iva_taxa": taxa, "iva_valor": valor, "total_com_iva": round2((net or 0) + valor)}
 
 
 # ----------------------- Tempos / custos base -----------------------
@@ -463,14 +470,18 @@ async def compute_encomenda(enc: dict) -> dict:
     enc["desconto_linhas"] = bd["desconto_linhas"]
     enc["desconto_total_valor"] = bd["desconto_total_valor"]
 
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    enc.update(iva_calc(enc["valor_total"], settings))
+    base_pagamento = enc["total_com_iva"]
+
     pago = enc.get("valor_pago") or 0
     if pago <= 0:
         enc["status_pagamento"] = "pendente"
-    elif pago < enc["valor_total"]:
+    elif pago < base_pagamento:
         enc["status_pagamento"] = "parcial"
     else:
         enc["status_pagamento"] = "pago"
-    enc["valor_pendente"] = round2(max(0.0, enc["valor_total"] - pago))
+    enc["valor_pendente"] = round2(max(0.0, base_pagamento - pago))
     enc["pode_produzir"] = bool(enc.get("autorizada_producao") or enc["status_pagamento"] == "pago")
 
     if enc.get("estado") != "cancelada":
