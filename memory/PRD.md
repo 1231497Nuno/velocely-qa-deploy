@@ -2,6 +2,11 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 23 (2026-07-14) — Relatório de Rentabilidade por Cliente
+- Backend: `GET /api/relatorios/rentabilidade-clientes` (auth) em `analytics.py` — agrega encomendas por cliente (exclui canceladas) via `compute_encomenda`: nº encomendas/OFs, valor faturado, pago, pendente, custo estimado/real, margem (faturado − custo real) e margem_pct. Ordenado por faturado desc.
+- Frontend: nova feature `src/features/relatorios/RentabilidadeClientes.jsx` (KPIs + tabela + pesquisa), rota `/rentabilidade-clientes` (módulo `analise_producao`) e item de navegação `nav-rentabilidade` (PiggyBank).
+- Testado: endpoint (401 sem token, dados corretos) + UI (KPIs, linha, nav presente).
+
 ## Iteração 22 (2026-07-14) — Refactor Clean Architecture (backend + frontend) — PARIDADE TOTAL
 
 Objetivo: reorganizar o código para arquitetura limpa, sem alterar comportamento (paridade funcional confirmada 19/19 backend + todos os fluxos UI, iteration_21.json). NOTA: base de dados relacional NÃO é suportada nesta plataforma (só MongoDB); introduzida em vez disso uma **camada de repositórios agnóstica à BD**.

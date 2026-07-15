@@ -21,6 +21,7 @@ import Encomendas from "@/features/encomendas/Encomendas";
 import EncomendaDetail from "@/features/encomendas/EncomendaDetail";
 import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
+import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
 
 function Protected({ children, adminOnly, modulo }) {
   const { user, ready, isAdmin, can } = useAuth();
@@ -50,6 +51,7 @@ function AppRoutes() {
       <Route path="/ordens-fabrico" element={<Protected modulo="ordens_fabrico"><OrdensFabrico /></Protected>} />
       <Route path="/ordens-fabrico/:id" element={<Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected>} />
       <Route path="/analise-producao" element={<Protected modulo="analise_producao"><AnaliseProducao /></Protected>} />
+      <Route path="/rentabilidade-clientes" element={<Protected modulo="analise_producao"><RentabilidadeClientes /></Protected>} />
       <Route path="/utilizadores" element={<Protected adminOnly><GestaoUtilizadores /></Protected>} />
       <Route path="/definicoes" element={<Protected adminOnly><Definicoes /></Protected>} />
     </Routes>

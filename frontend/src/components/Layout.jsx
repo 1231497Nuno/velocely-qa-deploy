@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Settings,
   CalendarClock,
+  PiggyBank,
 } from "lucide-react";
 
 const NAV = [
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
   { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
   { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
+  { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "analise_producao" },
 ];
 
 export default function Layout({ children }) {

@@ -169,6 +169,51 @@ async def prazos(_u: dict = Depends(get_current_user)):
     return items
 
 
+@router.get("/relatorios/rentabilidade-clientes")
+async def rentabilidade_clientes(_u: dict = Depends(get_current_user)):
+    encs = await encomendas_repo.find(limit=5000)
+    grupos = {}
+    for e in encs:
+        ec = await compute_encomenda(e)
+        if ec.get("estado") == "cancelada":
+            continue
+        key = ec.get("cliente_id") or ec.get("cliente") or "—"
+        g = grupos.get(key)
+        if not g:
+            g = {
+                "cliente": ec.get("cliente") or "—",
+                "cliente_id": ec.get("cliente_id"),
+                "num_encomendas": 0, "num_ofs": 0,
+                "valor_faturado": 0.0, "valor_pago": 0.0, "valor_pendente": 0.0,
+                "custo_estimado": 0.0, "custo_real": 0.0,
+            }
+            grupos[key] = g
+        g["num_encomendas"] += 1
+        g["num_ofs"] += ec.get("num_ofs") or 0
+        g["valor_faturado"] += ec.get("valor_total") or 0
+        g["valor_pago"] += ec.get("valor_pago") or 0
+        g["valor_pendente"] += ec.get("valor_pendente") or 0
+        g["custo_estimado"] += ec.get("custo_producao_estimado") or 0
+        g["custo_real"] += ec.get("custo_producao_real") or 0
+    out = []
+    for g in grupos.values():
+        faturado = round2(g["valor_faturado"])
+        custo_real = round2(g["custo_real"])
+        margem = round2(faturado - custo_real)
+        out.append({
+            **g,
+            "valor_faturado": faturado,
+            "valor_pago": round2(g["valor_pago"]),
+            "valor_pendente": round2(g["valor_pendente"]),
+            "custo_estimado": round2(g["custo_estimado"]),
+            "custo_real": custo_real,
+            "margem": margem,
+            "margem_pct": round2(margem / faturado * 100) if faturado > 0 else 0.0,
+        })
+    out.sort(key=lambda x: x["valor_faturado"], reverse=True)
+    return out
+
+
 @router.get("/dashboard")
 async def dashboard():
     artigos = await artigos_repo.find(limit=1000)
