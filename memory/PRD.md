@@ -2,6 +2,15 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 28 (2026-07-15) — [Fase 3 · 1/3] Histórico / Timeline de auditoria (todos os módulos)
+- Novo serviço `app/services/audit.py`: `registar(...)` (tolerante a falhas), `diff_campos(antes,depois,campos)` (com labels PT e tolerância float), `historico(...)`. Coleção Mongo `historico`.
+- Nova rota `app/api/routes/historico.py`: `GET /api/historico?tipo=&limit=` (global) e `GET /api/historico/{tipo}/{id}` (por entidade) — ambos exigem auth.
+- Logging integrado (com utilizador+timestamp) em: clientes, orçamentos (criado/editado/estado_alterado/duplicado/convertido/eliminado), encomendas (criado/pagamento/producao_autorizada/estado_alterado/editado/duplicado/eliminado), ordens de fabrico (criado/estado_alterado/prioridade/concluido/eliminado), catálogo (artigo/consumível/máquina/mão de obra/tipo personalização — criar/editar/eliminar/duplicar). Rotas de catalog/orcamentos/ordens passaram a exigir `get_current_user` nas escritas.
+- Frontend: componente reutilizável `components/HistoricoTimeline.jsx` (secção "Histórico de alterações" em ClienteDetail, OrcamentoDetail, EncomendaDetail, OrdemFabricoDetail). Nova página global admin-only `features/historico/Historico.jsx` (rota `/historico`, nav `nav-historico`, ícone History) com pesquisa + filtro por módulo.
+- Testado: iteration_23.json — backend 15/15 pytest, frontend 100% (após fix de import em OFDetail). Eventos de teste limpos.
+- PENDENTE Fase 3: [2/3] Auditoria RBAC (corrigir perfil sistema "Colaborador" com admin=True na BD + enforce backend em todas as rotas + esconder botões no frontend); [3/3] matriz de permissões ao criar/editar perfis deve mostrar TODOS os módulos em falta (ex.: Definições, Rentabilidade/Análise, Calendário/Histórico).
+
+
 ## Iteração 27 (2026-07-14) — [Fase 2/3] Login por utilizador + campos do utilizador
 - Login passou de **email** para **utilizador** (`login`). `LoginInput` aceita `login` (e `email` como fallback → não bloqueia utilizadores reais). `create_access_token` inalterado.
 - Migração no arranque: `seed_user_logins()` preenche `login` (derivado do email, único) para utilizadores legado; admin fica com login `admin`. Índice único em `login`.
