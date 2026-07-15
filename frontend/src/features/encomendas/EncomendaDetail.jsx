@@ -4,6 +4,7 @@ import { api, fmtDate, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import Combobox from "@/components/Combobox";
+import HistoricoTimeline from "@/components/HistoricoTimeline";
 import PdfExportButton from "@/components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
@@ -360,6 +361,8 @@ export default function EncomendaDetail() {
         )}
         <p className="text-xs text-gray-400 mt-3">As alterações aos artigos são guardadas automaticamente e o valor é recalculado. Encomendas com origem em orçamento usam o valor do orçamento.</p>
       </div>
+
+      <HistoricoTimeline tipo="encomenda" id={id} />
     </div>
   );
 }

@@ -8,12 +8,13 @@ from pydantic import BaseModel
 
 from app.core.database import now_iso, next_sequence
 from app.core.security import get_current_user
-from app.domain.models import OrdemFabricoInput, OrdemFabrico
+from app.domain.models import OrdemFabricoInput, OrdemFabrico, STATUS_PT
 from app.repositories import ordens_repo, encomendas_repo, artigos_repo
 from app.services.costing import (
     recompute_of_status, build_of_itens, artigo_breakdown, compute_encomenda,
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, fetch_orcamento, build_of_pdf
+from app.services import audit
 
 router = APIRouter()
 
@@ -65,12 +66,15 @@ class PrioridadeBody(BaseModel):
 
 
 @router.post("/ordens-fabrico/{ofid}/prioridade")
-async def set_of_prioridade(ofid: str, body: PrioridadeBody, _u: dict = Depends(get_current_user)):
+async def set_of_prioridade(ofid: str, body: PrioridadeBody, user: dict = Depends(get_current_user)):
     existing = await ordens_repo.get(ofid)
     if not existing:
         raise HTTPException(404, "OF não encontrada")
     await ordens_repo.update(ofid, {"prioritaria": body.prioritaria})
     o = await ordens_repo.get(ofid)
+    txt = "marcada como prioritária" if body.prioritaria else "sem prioridade"
+    await audit.registar("ordem_fabrico", ofid, "prioridade", user,
+                         f"OF {existing.get('numero')} {txt}", existing.get("numero"))
     return recompute_of_status(o)
 
 
@@ -93,7 +97,7 @@ async def of_pdf(ofid: str, template_id: Optional[str] = None):
 
 
 @router.post("/ordens-fabrico")
-async def create_of(data: OrdemFabricoInput):
+async def create_of(data: OrdemFabricoInput, user: dict = Depends(get_current_user)):
     of = OrdemFabrico(**data.model_dump())
     of.numero = await next_sequence("OF")
     if of.encomenda_id:
@@ -106,11 +110,12 @@ async def create_of(data: OrdemFabricoInput):
     doc["itens"] = await build_of_itens(doc.get("itens", []))
     doc = recompute_of_status(doc)
     await ordens_repo.insert({k: v for k, v in doc.items() if k != "progresso"})
+    await audit.registar("ordem_fabrico", of.id, "criado", user, f"OF {of.numero} criada", of.numero)
     return doc
 
 
 @router.put("/ordens-fabrico/{ofid}")
-async def update_of(ofid: str, data: OrdemFabricoInput):
+async def update_of(ofid: str, data: OrdemFabricoInput, user: dict = Depends(get_current_user)):
     existing = await ordens_repo.get(ofid)
     if not existing:
         raise HTTPException(404, "OF não encontrada")
@@ -120,6 +125,12 @@ async def update_of(ofid: str, data: OrdemFabricoInput):
     merged = recompute_of_status(merged)
     to_save = {k: v for k, v in merged.items() if k != "progresso"}
     await ordens_repo.update(ofid, to_save)
+    numero = existing.get("numero")
+    if existing.get("status") != update.get("status"):
+        await audit.registar("ordem_fabrico", ofid, "estado_alterado", user,
+                             f"Estado da OF {numero} → {STATUS_PT.get(update.get('status'), update.get('status'))}", numero)
+    else:
+        await audit.registar("ordem_fabrico", ofid, "editado", user, f"OF {numero} editada", numero)
     return merged
 
 
@@ -193,7 +204,7 @@ async def parar_operacao(ofid: str, body: TimerBody):
 
 
 @router.post("/ordens-fabrico/{ofid}/finalizar")
-async def finalizar_of(ofid: str):
+async def finalizar_of(ofid: str, user: dict = Depends(get_current_user)):
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
@@ -201,7 +212,10 @@ async def finalizar_of(ofid: str):
         for op in it.get("operacoes", []):
             _stop_op(op)
             op["concluida"] = True
-    return await _save_of(ofid, of)
+    saved = await _save_of(ofid, of)
+    await audit.registar("ordem_fabrico", ofid, "concluido", user,
+                         f"OF {of.get('numero')} finalizada (todas as operações concluídas)", of.get("numero"))
+    return saved
 
 
 @router.post("/ordens-fabrico/{ofid}/toggle-operacao")
@@ -236,6 +250,10 @@ async def nota_operacao(ofid: str, body: NotaBody):
 
 
 @router.delete("/ordens-fabrico/{ofid}")
-async def delete_of(ofid: str):
+async def delete_of(ofid: str, user: dict = Depends(get_current_user)):
+    existing = await ordens_repo.get(ofid)
     await ordens_repo.delete({"id": ofid})
+    if existing:
+        await audit.registar("ordem_fabrico", ofid, "eliminado", user,
+                             f"OF {existing.get('numero')} eliminada", existing.get("numero"))
     return {"ok": True}

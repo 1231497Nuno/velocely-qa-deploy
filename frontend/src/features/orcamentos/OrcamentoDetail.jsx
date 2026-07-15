@@ -7,6 +7,7 @@ import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
+import HistoricoTimeline from "@/components/HistoricoTimeline";
 import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -412,6 +413,8 @@ export default function OrcamentoDetail() {
       <OrcamentoMateriais materiais={orc.materiais} consumiveis={consumiveis} addMaterial={addMaterial} delMaterial={delMaterial} updMaterial={updMaterial} matValor={matValor} isM2={isM2} />
 
       <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)} ivaIsento={!!empresa.iva_isento} condicoesPagamento={empresa.condicoes_pagamento} />
+
+      <HistoricoTimeline tipo="orcamento" id={id} />
     </div>
   );
 }

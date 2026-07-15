@@ -21,6 +21,7 @@ import {
   Settings,
   CalendarClock,
   PiggyBank,
+  History,
 } from "lucide-react";
 
 const NAV = [
@@ -75,6 +76,7 @@ export default function Layout({ children }) {
   const nav = isAdmin
     ? [...visible,
         { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores" },
+        { to: "/historico", label: "Histórico", icon: History, tid: "nav-historico" },
         { to: "/definicoes", label: "Definições", icon: Settings, tid: "nav-definicoes" }]
     : visible;
 

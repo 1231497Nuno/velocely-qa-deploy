@@ -4,7 +4,10 @@ from app.core.security import get_current_user
 from app.domain.models import Cliente, ClienteInput
 from app.repositories import clientes_repo, orcamentos_repo, encomendas_repo, ordens_repo
 from app.services.costing import compute_orcamento_totais, compute_encomenda, recompute_of_status
+from app.services import audit
 from app.core.database import round2
+
+_CLIENTE_CAMPOS = ["nome", "morada", "codigo_postal", "cidade", "pais", "contacto", "email", "nif", "notas"]
 
 router = APIRouter()
 
@@ -68,22 +71,32 @@ async def list_clientes(_u: dict = Depends(get_current_user)):
 
 
 @router.post("/clientes")
-async def create_cliente(data: ClienteInput, _u: dict = Depends(get_current_user)):
+async def create_cliente(data: ClienteInput, user: dict = Depends(get_current_user)):
     c = Cliente(**data.model_dump())
     await clientes_repo.insert(c.model_dump())
+    await audit.registar("cliente", c.id, "criado", user, f"Cliente «{c.nome}» criado", c.nome)
     return c.model_dump()
 
 
 @router.put("/clientes/{cid}")
-async def update_cliente(cid: str, data: ClienteInput, _u: dict = Depends(get_current_user)):
+async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(get_current_user)):
     existing = await clientes_repo.get(cid)
     if not existing:
         raise HTTPException(404, "Cliente não encontrado")
-    await clientes_repo.update(cid, data.model_dump())
-    return {**existing, **data.model_dump()}
+    novo = data.model_dump()
+    alteracoes = audit.diff_campos(existing, novo, _CLIENTE_CAMPOS)
+    await clientes_repo.update(cid, novo)
+    if alteracoes:
+        await audit.registar("cliente", cid, "editado", user,
+                             f"Cliente «{novo.get('nome')}» editado", novo.get("nome"), alteracoes)
+    return {**existing, **novo}
 
 
 @router.delete("/clientes/{cid}")
-async def delete_cliente(cid: str, _u: dict = Depends(get_current_user)):
+async def delete_cliente(cid: str, user: dict = Depends(get_current_user)):
+    existing = await clientes_repo.get(cid)
     await clientes_repo.delete({"id": cid})
+    if existing:
+        await audit.registar("cliente", cid, "eliminado", user,
+                             f"Cliente «{existing.get('nome')}» eliminado", existing.get("nome"))
     return {"ok": True}

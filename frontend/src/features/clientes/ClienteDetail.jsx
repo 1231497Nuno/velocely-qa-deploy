@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
+import HistoricoTimeline from "@/components/HistoricoTimeline";
 import { toast } from "sonner";
 import {
   ArrowLeft, FileText, ClipboardList, Factory, Coins, Wallet, TrendingUp,
@@ -182,6 +183,8 @@ export default function ClienteDetail() {
           </table>
         </div>
       </section>
+
+      <HistoricoTimeline tipo="cliente" id={id} />
     </div>
   );
 }

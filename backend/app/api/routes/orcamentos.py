@@ -1,18 +1,22 @@
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.core.database import now_iso, new_id, next_sequence, round2
-from app.domain.models import OrcamentoInput, Orcamento, OrdemFabrico, Encomenda, OFOperacao
+from app.core.security import get_current_user
+from app.domain.models import OrcamentoInput, Orcamento, OrdemFabrico, Encomenda, OFOperacao, STATUS_PT
 from app.repositories import orcamentos_repo, ordens_repo, encomendas_repo
 from app.services.costing import (
     compute_orcamento_totais, fill_linha_custos, fill_materiais, build_of_itens,
     recompute_of_status, pers_nomes, op_minutos_maquina, op_minutos_mao_obra, maquina_custo_hora,
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, build_orcamento_pdf
+from app.services import audit
 from app.repositories import maquinas_repo, mao_obra_repo
+
+_ORC_CAMPOS = ["cliente", "descricao", "numero_encomenda", "validade", "margem", "notas", "desconto_total"]
 
 router = APIRouter()
 
@@ -49,7 +53,7 @@ async def orcamento_pdf(oid: str, template_id: Optional[str] = None):
 
 
 @router.post("/orcamentos")
-async def create_orcamento(data: OrcamentoInput):
+async def create_orcamento(data: OrcamentoInput, user: dict = Depends(get_current_user)):
     o = Orcamento(**data.model_dump())
     o.numero = await next_sequence("ORC")
     if not o.data:
@@ -59,30 +63,45 @@ async def create_orcamento(data: OrcamentoInput):
     doc["materiais"] = fill_materiais(doc.get("materiais", []))
     await orcamentos_repo.insert(doc)
     doc.pop("_id", None)
+    await audit.registar("orcamento", o.id, "criado", user, f"Orçamento {o.numero} criado", o.numero)
     return compute_orcamento_totais(doc)
 
 
 @router.put("/orcamentos/{oid}")
-async def update_orcamento(oid: str, data: OrcamentoInput):
+async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(get_current_user)):
     existing = await orcamentos_repo.get(oid)
     if not existing:
         raise HTTPException(404, "Orçamento não encontrado")
     update = data.model_dump()
     update["linhas"] = await fill_linha_custos(update.get("linhas", []))
     update["materiais"] = fill_materiais(update.get("materiais", []))
+    alteracoes = audit.diff_campos(existing, update, _ORC_CAMPOS)
+    estado_mudou = existing.get("status") != update.get("status")
     await orcamentos_repo.update(oid, update)
     existing.update(update)
+    numero = existing.get("numero")
+    if estado_mudou:
+        await audit.registar(
+            "orcamento", oid, "estado_alterado", user,
+            f"Estado do orçamento {numero} → {STATUS_PT.get(data.status, data.status)}", numero,
+        )
+    if alteracoes:
+        await audit.registar("orcamento", oid, "editado", user, f"Orçamento {numero} editado", numero, alteracoes)
     return compute_orcamento_totais(existing)
 
 
 @router.delete("/orcamentos/{oid}")
-async def delete_orcamento(oid: str):
+async def delete_orcamento(oid: str, user: dict = Depends(get_current_user)):
+    existing = await orcamentos_repo.get(oid)
     await orcamentos_repo.delete({"id": oid})
+    if existing:
+        await audit.registar("orcamento", oid, "eliminado", user,
+                             f"Orçamento {existing.get('numero')} eliminado", existing.get("numero"))
     return {"ok": True}
 
 
 @router.post("/orcamentos/{oid}/duplicar")
-async def duplicar_orcamento(oid: str):
+async def duplicar_orcamento(oid: str, user: dict = Depends(get_current_user)):
     orc = await orcamentos_repo.get(oid)
     if not orc:
         raise HTTPException(404, "Orçamento não encontrado")
@@ -98,11 +117,13 @@ async def duplicar_orcamento(oid: str):
         "data": now_iso()[:10],
     })
     await orcamentos_repo.insert(novo)
+    await audit.registar("orcamento", novo["id"], "duplicado", user,
+                         f"Orçamento {novo['numero']} criado a partir de {orc.get('numero')}", novo["numero"])
     return compute_orcamento_totais(novo)
 
 
 @router.post("/orcamentos/{oid}/converter")
-async def converter_orcamento(oid: str):
+async def converter_orcamento(oid: str, user: dict = Depends(get_current_user)):
     orc = await orcamentos_repo.get(oid)
     if not orc:
         raise HTTPException(404, "Orçamento não encontrado")
@@ -199,4 +220,10 @@ async def converter_orcamento(oid: str):
     doc = recompute_of_status(doc)
     await ordens_repo.insert({k: v for k, v in doc.items() if k != "progresso"})
     await orcamentos_repo.update(oid, {"of_id": of.id, "of_numero": of.numero})
+    await audit.registar("orcamento", oid, "convertido", user,
+                         f"Orçamento {orc.get('numero')} convertido → OF {of.numero} + Encomenda {enc.numero}", orc.get("numero"))
+    await audit.registar("ordem_fabrico", of.id, "criado", user,
+                         f"OF {of.numero} gerada do orçamento {orc.get('numero')}", of.numero)
+    await audit.registar("encomenda", enc.id, "criado", user,
+                         f"Encomenda {enc.numero} gerada do orçamento {orc.get('numero')}", enc.numero)
     return doc

@@ -8,6 +8,7 @@ import ArtigoCombobox from "@/components/ArtigoCombobox";
 import PdfExportButton from "@/components/PdfExportButton";
 import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
+import HistoricoTimeline from "@/components/HistoricoTimeline";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -302,6 +303,8 @@ export default function OrdemFabricoDetail() {
         {/* Right: roteiro */}
         <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} updOpNota={updOpNota} elapsedSeg={elapsedSeg} fmtDur={fmtDur} />
       </div>
+
+      <HistoricoTimeline tipo="ordem_fabrico" id={id} />
     </div>
   );
 }
