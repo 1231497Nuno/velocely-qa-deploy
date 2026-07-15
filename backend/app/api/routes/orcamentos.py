@@ -81,6 +81,26 @@ async def delete_orcamento(oid: str):
     return {"ok": True}
 
 
+@router.post("/orcamentos/{oid}/duplicar")
+async def duplicar_orcamento(oid: str):
+    orc = await orcamentos_repo.get(oid)
+    if not orc:
+        raise HTTPException(404, "Orçamento não encontrado")
+    novo = {**orc}
+    novo.update({
+        "id": new_id(),
+        "numero": await next_sequence("ORC"),
+        "status": "rascunho",
+        "of_id": None,
+        "of_numero": None,
+        "numero_encomenda": "",
+        "created_at": now_iso(),
+        "data": now_iso()[:10],
+    })
+    await orcamentos_repo.insert(novo)
+    return compute_orcamento_totais(novo)
+
+
 @router.post("/orcamentos/{oid}/converter")
 async def converter_orcamento(oid: str):
     orc = await orcamentos_repo.get(oid)

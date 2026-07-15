@@ -7,7 +7,7 @@ import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
-import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTS = [

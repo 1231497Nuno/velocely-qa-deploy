@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.core.database import now_iso, next_sequence
+from app.core.database import now_iso, next_sequence, new_id
 from app.core.security import get_current_user
 from app.domain.models import EncomendaInput, Encomenda, OrdemFabricoInput, OrdemFabrico
 from app.repositories import encomendas_repo, ordens_repo
@@ -58,6 +58,27 @@ async def delete_encomenda(eid: str, _u: dict = Depends(get_current_user)):
     )
     await encomendas_repo.delete({"id": eid})
     return {"ok": True}
+
+
+@router.post("/encomendas/{eid}/duplicar")
+async def duplicar_encomenda(eid: str, _u: dict = Depends(get_current_user)):
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    novo = {**enc}
+    novo.update({
+        "id": new_id(),
+        "numero": await next_sequence("ENC"),
+        "estado": "aberta",
+        "valor_pago": 0.0,
+        "autorizada_producao": False,
+        "orcamento_id": None,
+        "orcamento_numero": None,
+        "created_at": now_iso(),
+        "data": now_iso()[:10],
+    })
+    await encomendas_repo.insert(novo)
+    return await compute_encomenda(novo)
 
 
 @router.post("/encomendas/{eid}/ordens-fabrico")

@@ -32,6 +32,7 @@ class Repository:
 
     async def insert(self, doc: dict):
         await self.col.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     async def insert_many(self, docs: list):

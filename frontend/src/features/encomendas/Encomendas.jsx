@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
-import { Plus, Trash2, Factory } from "lucide-react";
+import { useSort, SortTh } from "@/components/table";
+import { Plus, Trash2, Factory, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -20,6 +21,7 @@ export default function Encomendas() {
   const [estadoFilter, setEstadoFilter] = useState("pendentes");
   const [form, setForm] = useState({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" });
   const nav = useNavigate();
+  const { sort, toggle, apply } = useSort();
 
   const load = useCallback(async () => setItems(await api.get("/encomendas")), []);
   useEffect(() => { load(); }, [load]);
@@ -29,6 +31,12 @@ export default function Encomendas() {
     const enc = await api.post("/encomendas", form);
     toast.success("Encomenda criada");
     setOpen(false);
+    nav(`/encomendas/${enc.id}`);
+  };
+  const duplicar = async (e, id) => {
+    e.stopPropagation();
+    const enc = await api.post(`/encomendas/${id}/duplicar`);
+    toast.success("Encomenda duplicada");
     nav(`/encomendas/${enc.id}`);
   };
   const remove = async (e, id) => {
@@ -45,6 +53,7 @@ export default function Encomendas() {
     return true;
   });
   const items_f = ql ? byEstado.filter((e) => [e.numero, e.cliente, e.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql))) : byEstado;
+  const rows = apply(items_f);
   const payBadge = { pendente: "pendente", parcial: "parcial", pago: "pago" };
   const hoje = new Date().toISOString().slice(0, 10);
   const filtros = [["pendentes", "Pendentes"], ["concluidas", "Concluídas"], ["todas", "Todas"]];
@@ -74,19 +83,19 @@ export default function Encomendas() {
         <table className="w-full text-sm min-w-[680px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Prazo entrega</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pagamento</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">OFs</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
-              <th className="px-4 py-3 w-12"></th>
+              <SortTh label="Nº" sortKey="numero" sort={sort} onSort={toggle} />
+              <SortTh label="Cliente" sortKey="cliente" sort={sort} onSort={toggle} />
+              <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} />
+              <SortTh label="Prazo entrega" sortKey="prazo_entrega" sort={sort} onSort={toggle} />
+              <SortTh label="Valor" sortKey="valor_total" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Pagamento" sortKey="status_pagamento" sort={sort} onSort={toggle} align="center" />
+              <SortTh label="OFs" sortKey="num_ofs" sort={sort} onSort={toggle} align="center" />
+              <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="center" />
+              <th className="px-4 py-3 w-20"></th>
             </tr>
           </thead>
           <tbody data-testid="encomendas-table">
-            {items_f.map((e) => (
+            {rows.map((e) => (
               <tr key={e.id} data-testid={`encomenda-row-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{e.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{e.cliente}</td>
@@ -101,11 +110,14 @@ export default function Encomendas() {
                 <td className="px-4 py-3 text-center tabular-nums text-gray-700">{e.num_ofs}</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={e.estado} /></td>
                 <td className="px-4 py-3">
-                  {can("encomendas", "delete") && <button data-testid={`delete-encomenda-${e.id}`} onClick={(ev) => remove(ev, e.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
+                  <div className="flex items-center justify-end gap-1">
+                    {can("encomendas", "create") && <button data-testid={`duplicate-encomenda-${e.id}`} onClick={(ev) => duplicar(ev, e.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>}
+                    {can("encomendas", "delete") && <button data-testid={`delete-encomenda-${e.id}`} onClick={(ev) => remove(ev, e.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
+                  </div>
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
           </tbody>
         </table>
       </div>

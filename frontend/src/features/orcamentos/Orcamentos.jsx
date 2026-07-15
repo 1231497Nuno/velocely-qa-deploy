@@ -5,7 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import StatusBadge from "@/components/StatusBadge";
-import { Plus, Trash2 } from "lucide-react";
+import { useSort, SortTh } from "@/components/table";
+import { Plus, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Orcamentos() {
@@ -13,6 +14,7 @@ export default function Orcamentos() {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const nav = useNavigate();
+  const { sort, toggle, apply } = useSort();
 
   const load = useCallback(async () => setItems(await api.get("/orcamentos")), []);
   useEffect(() => {
@@ -25,6 +27,13 @@ export default function Orcamentos() {
       status: "rascunho",
       linhas: [],
     });
+    nav(`/orcamentos/${o.id}`);
+  };
+
+  const duplicar = async (e, id) => {
+    e.stopPropagation();
+    const o = await api.post(`/orcamentos/${id}/duplicar`);
+    toast.success("Orçamento duplicado");
     nav(`/orcamentos/${o.id}`);
   };
 
@@ -41,6 +50,7 @@ export default function Orcamentos() {
         [o.numero, o.cliente, o.numero_encomenda].some((v) => (v || "").toLowerCase().includes(ql))
       )
     : items;
+  const rows = apply(items_f);
 
   return (
     <div>
@@ -61,18 +71,18 @@ export default function Orcamentos() {
         <table className="w-full text-sm min-w-[680px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Número</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
+              <SortTh label="Número" sortKey="numero" sort={sort} onSort={toggle} />
+              <SortTh label="Cliente" sortKey="cliente" sort={sort} onSort={toggle} />
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº Enc.</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Validade</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Total</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
-              <th className="px-4 py-3 w-12"></th>
+              <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} />
+              <SortTh label="Validade" sortKey="validade" sort={sort} onSort={toggle} />
+              <SortTh label="Total" sortKey="total" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Estado" sortKey="status" sort={sort} onSort={toggle} align="center" />
+              <th className="px-4 py-3 w-20"></th>
             </tr>
           </thead>
           <tbody data-testid="orcamentos-table">
-            {items_f.map((o) => (
+            {rows.map((o) => (
               <tr key={o.id} data-testid={`orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
@@ -82,11 +92,14 @@ export default function Orcamentos() {
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(o.total)}</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
                 <td className="px-4 py-3">
-                  {can("orcamentos","delete") && (<button data-testid={`delete-orcamento-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
+                  <div className="flex items-center justify-end gap-1">
+                    {can("orcamentos","create") && (<button data-testid={`duplicate-orcamento-${o.id}`} onClick={(e) => duplicar(e, o.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>)}
+                    {can("orcamentos","delete") && (<button data-testid={`delete-orcamento-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
+                  </div>
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && (
+            {rows.length === 0 && (
               <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem orçamentos. Crie o primeiro.</td></tr>
             )}
           </tbody>
@@ -95,7 +108,7 @@ export default function Orcamentos() {
 
       {/* Mobile: cartões */}
       <div className="md:hidden space-y-3" data-testid="orcamentos-cards">
-        {items_f.map((o) => (
+        {rows.map((o) => (
           <div key={o.id} data-testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -111,6 +124,7 @@ export default function Orcamentos() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="tabular-nums font-semibold text-gray-900">{eur(o.total)}</span>
+                {can("orcamentos","create") && (<button data-testid={`duplicate-orcamento-mobile-${o.id}`} onClick={(e) => duplicar(e, o.id)} className="p-2 rounded-sm hover:bg-gray-100 text-gray-500"><Copy size={16} /></button>)}
                 {can("orcamentos","delete") && (<button data-testid={`delete-orcamento-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>)}
               </div>
             </div>

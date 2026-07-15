@@ -3,7 +3,8 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useSort, SortTh } from "@/components/table";
+import { Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -27,6 +28,7 @@ export default function Artigos() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const { sort, toggle, apply } = useSort();
 
   const load = useCallback(async () => {
     setItems(await api.get("/artigos"));
@@ -89,8 +91,15 @@ export default function Artigos() {
     load();
   };
 
+  const duplicar = async (id) => {
+    await api.post(`/artigos/${id}/duplicar`);
+    toast.success("Artigo duplicado");
+    load();
+  };
+
   const ql = q.trim().toLowerCase();
   const items_f = ql ? items.filter((a) => [a.nome, a.descricao].some((v) => (v || "").toLowerCase().includes(ql))) : items;
+  const rows = apply(items_f);
 
   return (
     <div>
@@ -110,18 +119,18 @@ export default function Artigos() {
         <table className="w-full text-sm min-w-[720px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Artigo</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Materiais</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Máquinas</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Mão de Obra</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Total</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Margem</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Venda</th>
-              <th className="px-4 py-3 w-24"></th>
+              <SortTh label="Artigo" sortKey="nome" sort={sort} onSort={toggle} />
+              <SortTh label="Materiais" sortKey="custo_materiais" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Máquinas" sortKey="custo_maquinas" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Mão de Obra" sortKey="custo_mao_obra" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Custo Total" sortKey="custo_producao_total" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Margem" sortKey="margem" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Preço Venda" sortKey="preco_venda" sort={sort} onSort={toggle} align="right" />
+              <th className="px-4 py-3 w-32"></th>
             </tr>
           </thead>
           <tbody data-testid="artigos-table">
-            {items_f.map((a) => (
+            {rows.map((a) => (
               <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   <div className="font-medium text-gray-900">{a.nome}</div>
@@ -136,13 +145,14 @@ export default function Artigos() {
                 <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    {can("artigos","create") && (<button data-testid={`duplicate-artigo-${a.id}`} onClick={() => duplicar(a.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>)}
                     {can("artigos","edit") && (<button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
                     {can("artigos","delete") && (<button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && (
+            {rows.length === 0 && (
               <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
             )}
           </tbody>

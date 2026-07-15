@@ -214,6 +214,42 @@ async def rentabilidade_clientes(_u: dict = Depends(get_current_user)):
     return out
 
 
+@router.get("/alertas")
+async def alertas(_u: dict = Depends(get_current_user)):
+    encs = await encomendas_repo.find(limit=5000)
+    enc_map = {e["id"]: e for e in encs}
+    pagamentos_pendentes = prazos_atrasados = prazos_proximos = 0
+    for e in encs:
+        ec = await compute_encomenda(e)
+        if ec["estado"] in ("concluida", "cancelada"):
+            continue
+        if (ec.get("valor_pendente") or 0) > 0:
+            pagamentos_pendentes += 1
+        prazo = e.get("prazo_entrega")
+        if prazo:
+            _d, est = _prazo_meta(prazo)
+            if est == "atrasada":
+                prazos_atrasados += 1
+            elif est == "proxima":
+                prazos_proximos += 1
+    ofs_atrasadas = 0
+    for o in await ordens_repo.find(limit=5000):
+        oc = recompute_of_status(o)
+        if oc.get("status") == "concluido":
+            continue
+        prazo = (enc_map.get(o.get("encomenda_id")) or {}).get("prazo_entrega")
+        if prazo:
+            _d, est = _prazo_meta(prazo)
+            if est == "atrasada":
+                ofs_atrasadas += 1
+    return {
+        "pagamentos_pendentes": pagamentos_pendentes,
+        "prazos_atrasados": prazos_atrasados,
+        "prazos_proximos": prazos_proximos,
+        "ofs_atrasadas": ofs_atrasadas,
+    }
+
+
 @router.get("/dashboard")
 async def dashboard():
     artigos = await artigos_repo.find(limit=1000)

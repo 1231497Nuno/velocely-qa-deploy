@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { api } from "@/lib/api";
 import {
   LayoutDashboard,
   Boxes,
@@ -40,7 +41,35 @@ const NAV = [
 
 export default function Layout({ children }) {
   const [open, setOpen] = useState(false);
+  const [alertas, setAlertas] = useState({});
   const { user, isAdmin, can, logout } = useAuth();
+
+  useEffect(() => {
+    let active = true;
+    const fetchA = () => api.get("/alertas").then((a) => active && setAlertas(a || {})).catch(() => {});
+    fetchA();
+    const t = setInterval(fetchA, 60000);
+    return () => { active = false; clearInterval(t); };
+  }, []);
+
+  const badgeFor = (to) => {
+    if (to === "/calendario") {
+      const atr = alertas.prazos_atrasados || 0;
+      if (atr > 0) return { n: atr, red: true };
+      const prox = alertas.prazos_proximos || 0;
+      return prox > 0 ? { n: prox, red: false } : null;
+    }
+    if (to === "/encomendas") {
+      const n = alertas.pagamentos_pendentes || 0;
+      return n > 0 ? { n, red: false } : null;
+    }
+    if (to === "/ordens-fabrico") {
+      const n = alertas.ofs_atrasadas || 0;
+      return n > 0 ? { n, red: true } : null;
+    }
+    return null;
+  };
+
   const visible = NAV.filter((n) => n.modulo === "dashboard" || can(n.modulo, "view"));
   const nav = isAdmin
     ? [...visible,
@@ -113,7 +142,18 @@ export default function Layout({ children }) {
               }
             >
               <n.icon size={18} strokeWidth={1.8} />
-              {n.label}
+              <span className="flex-1">{n.label}</span>
+              {(() => {
+                const b = badgeFor(n.to);
+                return b ? (
+                  <span
+                    data-testid={`nav-badge-${n.tid}`}
+                    className={`text-[10px] font-bold tabular-nums rounded-full min-w-[18px] text-center px-1.5 py-0.5 ${b.red ? "bg-red-500 text-white" : "bg-amber-400 text-gray-900"}`}
+                  >
+                    {b.n}
+                  </span>
+                ) : null;
+              })()}
             </NavLink>
           ))}
         </nav>

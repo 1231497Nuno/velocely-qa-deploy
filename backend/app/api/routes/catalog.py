@@ -6,6 +6,7 @@ from app.domain.models import (
     Maquina, MaquinaInput, Consumivel, ConsumivelInput, MaoObra, MaoObraInput,
     Artigo, ArtigoInput, TipoPersonalizacao, TipoPersonalizacaoInput,
 )
+from app.core.database import new_id, now_iso
 from app.repositories import maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo
 from app.services.costing import artigo_breakdown, artigo_custo_total, enrich_artigo
 
@@ -141,6 +142,21 @@ async def update_artigo(aid: str, data: ArtigoInput):
 async def delete_artigo(aid: str):
     await artigos_repo.delete({"id": aid})
     return {"ok": True}
+
+
+@router.post("/artigos/{aid}/duplicar")
+async def duplicar_artigo(aid: str):
+    a = await artigos_repo.get(aid)
+    if not a:
+        raise HTTPException(404, "Artigo não encontrado")
+    novo = {**a}
+    novo.update({
+        "id": new_id(),
+        "nome": f"{a.get('nome', 'Artigo')} (cópia)",
+        "created_at": now_iso(),
+    })
+    await artigos_repo.insert(novo)
+    return enrich_artigo(novo, await artigo_breakdown(novo))
 
 
 # ----------------------- Tipos de Personalização -----------------------
