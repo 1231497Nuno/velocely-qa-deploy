@@ -2,6 +2,15 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 37 (2026-07-15) — OFs faseadas + "Onde é usado" (referências inversas) + pesquisa global no mobile
+Concluídas e testadas (iteration_27.json — backend 14/14, frontend 100%, sem bugs):
+- **OFs faseadas**: no detalhe da Encomenda, "Criar Ordem de Fabrico" abre diálogo (`of-faseada-dialog`) com uma linha por artigo e quantidade pré-preenchida com a **quantidade em falta** (total − já em OFs). Cria OF só com linhas de qtd>0. Por decisão do utilizador, NÃO impede ultrapassar o total (apenas sugere). A tabela de artigos mostra `em OFs X/total` (`enc-artigo-emofs-{i}`). Lógica: `ofQtyByArtigo`, `remaining`, `openCriarOF`, `criarOF`.
+- **"Onde é usado" (referências inversas)**: novo serviço `app/services/referencias.py` + rota `app/api/routes/referencias.py` (registada em server.py). Endpoints (auth): `GET /api/maquinas/{id}/utilizacoes`, `/api/mao-obra/{id}/utilizacoes`, `/api/consumiveis/{id}/utilizacoes` → `{artigos}`; `GET /api/tipos-personalizacao/{id}/utilizacoes` e `GET /api/artigos/{id}/utilizacoes` → `{orcamentos, encomendas, ordens_fabrico}`.
+- Frontend: componente reutilizável `components/UtilizacoesDialog.jsx` (grupos artigos/orçamentos/encomendas/OFs; orçamentos/encomendas/OFs são clicáveis e navegam para o detalhe). Botão de olho (`Eye`) adicionado a Máquinas (`uso-maquina-{id}`), Materiais (`uso-material-{id}`), Mão de Obra (`uso-maoobra-{id}`), Tipos de Personalização (`uso-tipo-{id}`) e Artigos (`uso-artigo-{id}`).
+- **Pesquisa global no mobile**: `Layout.jsx` ganhou botão `mobile-search-toggle` no header mobile que expande `mobile-search-bar` com `GlobalSearch` (prop nova `onNavigate` fecha a barra ao navegar).
+- Nota (não bloqueante): serviço de referências faz varredura completa das coleções por chamada — OK para o volume atual; indexar/aggregation se escalar. Warning pré-existente `<option><span>` mantém-se (não é regressão).
+
+
 ## Iteração 36 (2026-07-15) — 6 Features (Kanban, Minhas Tarefas, Pesquisa Global, Notificações, Pagamentos Parciais+Recibos, Histórico de Preços) + 2 bugfixes críticos
 Concluída a batch das 6 funcionalidades pedidas (todas testadas em iteration_26.json). Corrigidos os 2 bugs críticos que restavam:
 - **BUG 1 (frontend)**: `EncomendaDetail.jsx:42` usava `api.delete` (inexistente) → trocado por `api.del`. Remoção de pagamento parcial via UI voltou a funcionar (sem overlay de erro).
