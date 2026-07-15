@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { eur } from "@/lib/api";
 import { Cog, Clock, Play, Square, CheckCircle2, StickyNote } from "lucide-react";
+import ImagemUpload from "@/components/ImagemUpload";
 
 const persUnit = (it) => (it.personalizacoes || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
 
@@ -36,7 +37,9 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota,
           {itens.map((it, idx) => (
             (it.operacoes || []).length > 0 && (
               <div key={it.id || idx}>
-                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
+                <div className="flex items-center gap-3 mb-2 pb-2 border-b border-gray-200">
+                  <ImagemUpload value={it.imagem} editable={false} size={48} testid={`of-roteiro-imagem-${idx}`} />
+                  <div className="flex items-center justify-between flex-1 min-w-0">
                   <div>
                     <div className="font-medium text-gray-900">{it.artigo_nome} <span className="text-gray-400 text-sm">× {it.quantidade} {it.unidade || "un"}</span></div>
                     <div className="text-xs text-gray-500 mt-0.5" data-testid={`of-item-precos-${idx}`}>
@@ -53,6 +56,7 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota,
                       ))}
                     </div>
                   ) : (it.tipo_personalizacao_nome && <span className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5">{it.tipo_personalizacao_nome}</span>)}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {it.operacoes.map((op) => {

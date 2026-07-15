@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ArtigoForm } from "@/features/artigos/ArtigoForm";
+import ImagemUpload from "@/components/ImagemUpload";
 
 const empty = { nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30, materiais: [], roteiro: [] };
 
@@ -135,9 +136,14 @@ export default function Artigos() {
             {rows.map((a) => (
               <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{a.nome}</div>
-                  {a.descricao && <div className="text-xs text-gray-500">{a.descricao}</div>}
-                  <div className="text-xs text-gray-400 mt-0.5">{(a.materiais || []).length} materiais · {(a.roteiro || []).length} operações</div>
+                  <div className="flex items-center gap-3">
+                    <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900">{a.nome}</div>
+                      {a.descricao && <div className="text-xs text-gray-500">{a.descricao}</div>}
+                      <div className="text-xs text-gray-400 mt-0.5">{(a.materiais || []).length} materiais · {(a.roteiro || []).length} operações</div>
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_materiais)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_maquinas)}</td>

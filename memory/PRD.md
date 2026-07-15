@@ -2,7 +2,11 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 32 (2026-07-15) — Imagens de linha só-leitura + galeria de imagens ao nível do documento
+## Iteração 33 (2026-07-15) — Miniaturas de artigo nas listas
+- Tabela de **Artigos** (`Artigos.jsx`): miniatura só-leitura na 1ª coluna (data-testid `artigo-row-imagem-{id}`), clicável para pré-visualizar.
+- **Roteiro de produção da OF** (`OFRoteiroPanel.jsx`): miniatura do artigo no cabeçalho de cada item (data-testid `of-roteiro-imagem-{idx}`), para o chão de fábrica identificar cada peça num relance.
+- Ambas usam `ImagemUpload editable={false}`. Verificado por screenshot (14 miniaturas na tabela). Limpos dados de teste antigos (`teste-`).
+
 - **Imagem da linha do artigo** passou a **só-leitura** em Orçamentos, Encomendas e OFs (herda do catálogo do artigo; edita-se apenas no Artigo). `ImagemUpload editable={false}`.
 - **Nova área de imagens ao nível do documento** (`components/ImagensGaleria.jsx` — upload múltiplo, miniaturas, remover, preview). Campo `imagens: List[str]` adicionado a OrcamentoInput/OrdemFabricoInput/EncomendaInput (herdado por Orcamento/OrdemFabrico/Encomenda).
 - **Propagação**: `converter_orcamento` copia `orc.imagens` → OF.imagens e Encomenda.imagens; `create_of_for_encomenda` copia `enc.imagens` → OF.imagens (com fallback no backend). Frontend envia imagens ao criar OF.
