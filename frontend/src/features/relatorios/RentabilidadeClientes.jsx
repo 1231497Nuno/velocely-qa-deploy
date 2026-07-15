@@ -3,6 +3,12 @@ import { api, eur } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import { Coins, TrendingUp, TrendingDown, Users, Wallet } from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
+} from "recharts";
+
+const INK = "#111827";
+const tooltipStyle = { fontSize: 12, borderRadius: 4, border: "1px solid #E5E7EB" };
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
   <div data-testid={testid} className="bg-white border border-gray-200 rounded-sm p-4">
@@ -51,6 +57,12 @@ export default function RentabilidadeClientes() {
   }), { faturado: 0, custo: 0, pendente: 0 });
   const totMargem = tot.faturado - tot.custo;
 
+  const chartData = rows.slice(0, 8).map((r) => ({
+    label: (r.cliente || "—").length > 14 ? `${r.cliente.slice(0, 13)}…` : (r.cliente || "—"),
+    faturado: r.valor_faturado,
+    custo_real: r.custo_real,
+  }));
+
   return (
     <div>
       <PageHeader
@@ -66,6 +78,25 @@ export default function RentabilidadeClientes() {
       </div>
 
       <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por cliente..." testid="rentabilidade-search" />
+
+      {chartData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4" data-testid="rentabilidade-chart">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <Coins size={15} /> Faturado vs. Custo Real por cliente (€)
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} width={55} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [eur(v), n === "faturado" ? "Faturado" : "Custo Real"]} cursor={{ fill: "#F9FAFB" }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => (v === "faturado" ? "Faturado" : "Custo Real")} />
+              <Bar name="faturado" dataKey="faturado" fill={INK} radius={[2, 2, 0, 0]} />
+              <Bar name="custo_real" dataKey="custo_real" fill="#9CA3AF" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[820px]">
