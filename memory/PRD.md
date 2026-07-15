@@ -2,6 +2,12 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 24 (2026-07-14) — Página de detalhe do Cliente (360º) + gráfico Rentabilidade
+- Backend: `GET /api/clientes/{cid}/resumo` (auth) — devolve dados do cliente + orçamentos, encomendas e OFs associados (match por `cliente_id` ou, em legado sem id, por nome) + estatísticas (nº orçamentos/aceites, nº encomendas/OFs, faturado, pago, pendente, custo real, margem).
+- Frontend: nova `features/clientes/ClienteDetail.jsx` (rota `/clientes/:id`) com cartão de contactos, 6 KPIs e tabelas de Encomendas/Orçamentos/OFs com linhas clicáveis → navegam para o detalhe respetivo. Nome do cliente na lista (`Clientes.jsx`) passou a link.
+- Rentabilidade por Cliente: adicionado gráfico de barras Faturado vs. Custo Real (recharts, top 8).
+- Testado: endpoint (401 sem token + associações corretas) e UI (navegação lista→cliente→itens).
+
 ## Iteração 23 (2026-07-14) — Relatório de Rentabilidade por Cliente
 - Backend: `GET /api/relatorios/rentabilidade-clientes` (auth) em `analytics.py` — agrega encomendas por cliente (exclui canceladas) via `compute_encomenda`: nº encomendas/OFs, valor faturado, pago, pendente, custo estimado/real, margem (faturado − custo real) e margem_pct. Ordenado por faturado desc.
 - Frontend: nova feature `src/features/relatorios/RentabilidadeClientes.jsx` (KPIs + tabela + pesquisa), rota `/rentabilidade-clientes` (módulo `analise_producao`) e item de navegação `nav-rentabilidade` (PiggyBank).

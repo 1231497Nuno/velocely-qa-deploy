@@ -17,6 +17,7 @@ import OrdemFabricoDetail from "@/features/ordens_fabrico/OrdemFabricoDetail";
 import AnaliseProducao from "@/features/producao/AnaliseProducao";
 import GestaoUtilizadores from "@/features/utilizadores/GestaoUtilizadores";
 import Clientes from "@/features/clientes/Clientes";
+import ClienteDetail from "@/features/clientes/ClienteDetail";
 import Encomendas from "@/features/encomendas/Encomendas";
 import EncomendaDetail from "@/features/encomendas/EncomendaDetail";
 import Definicoes from "@/features/definicoes/Definicoes";
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
       <Route path="/calendario" element={<Protected><Calendario /></Protected>} />
       <Route path="/clientes" element={<Protected modulo="clientes"><Clientes /></Protected>} />
+      <Route path="/clientes/:id" element={<Protected modulo="clientes"><ClienteDetail /></Protected>} />
       <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
       <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />

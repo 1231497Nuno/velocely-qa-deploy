@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
@@ -64,7 +65,7 @@ export default function Clientes() {
           <tbody data-testid="clientes-table">
             {items_f.map((c) => (
               <tr key={c.id} data-testid={`cliente-row-${c.id}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
+                <td className="px-4 py-3 font-medium text-gray-900"><Link data-testid={`cliente-link-${c.id}`} to={`/clientes/${c.id}`} className="hover:underline decoration-gray-400 underline-offset-2">{c.nome}</Link></td>
                 <td className="px-4 py-3 text-gray-600">{c.cidade || "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{c.contacto || "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{c.email || "—"}</td>
