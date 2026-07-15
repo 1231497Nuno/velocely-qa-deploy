@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
+import { toast } from "sonner";
 import {
   ArrowLeft, FileText, ClipboardList, Factory, Coins, Wallet, TrendingUp,
-  Mail, Phone, MapPin, Hash, ChevronRight,
+  Mail, Phone, MapPin, Hash, ChevronRight, Plus,
 } from "lucide-react";
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
@@ -31,6 +33,7 @@ const InfoLine = ({ icon: Icon, value }) =>
 export default function ClienteDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -50,11 +53,36 @@ export default function ClienteDetail() {
   const { cliente: c, orcamentos, encomendas, ordens_fabrico, stats } = data;
   const morada = [c.morada, c.codigo_postal, c.cidade, c.pais].filter(Boolean).join(", ");
 
+  const novoOrcamento = async () => {
+    const o = await api.post("/orcamentos", { cliente: c.nome, cliente_id: c.id, status: "rascunho", linhas: [] });
+    toast.success("Orçamento criado");
+    nav(`/orcamentos/${o.id}`);
+  };
+  const novaEncomenda = async () => {
+    const enc = await api.post("/encomendas", { cliente: c.nome, cliente_id: c.id, descricao: "", prazo_entrega: "", notas: "" });
+    toast.success("Encomenda criada");
+    nav(`/encomendas/${enc.id}`);
+  };
+
   return (
     <div>
-      <button data-testid="cliente-back-btn" onClick={() => nav("/clientes")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors">
-        <ArrowLeft size={16} /> Voltar aos clientes
-      </button>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <button data-testid="cliente-back-btn" onClick={() => nav("/clientes")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+          <ArrowLeft size={16} /> Voltar aos clientes
+        </button>
+        <div className="flex items-center gap-2">
+          {can("orcamentos", "create") && (
+            <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+              <FileText size={15} /> Novo Orçamento
+            </button>
+          )}
+          {can("encomendas", "create") && (
+            <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+              <Plus size={15} /> Nova Encomenda
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
