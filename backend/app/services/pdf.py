@@ -12,7 +12,7 @@ from reportlab.platypus import (
 )
 
 from app.core.database import round2
-from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT, PDF_SECOES
+from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.services.costing import (
     compute_orcamento_totais, pers_valor_unit, pers_nomes,
     material_custo, material_margem_factor,

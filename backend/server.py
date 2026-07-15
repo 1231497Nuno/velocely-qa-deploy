@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
-async def _startup_seed_admin():
+async def _startup_seed_admin() -> None:
     try:
         init_storage()
     except Exception as e:
@@ -71,5 +71,5 @@ async def _startup_seed_admin():
 
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown_db_client() -> None:
     client.close()

@@ -1,6 +1,5 @@
 """Iteration 8: RBAC perfis + material margem por linha + lista endpoints (pesquisa)."""
 import os
-import time
 import requests
 import pytest
 from pathlib import Path

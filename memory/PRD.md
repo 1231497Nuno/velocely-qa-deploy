@@ -2,7 +2,20 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 34 (2026-07-15) — Moeda por seleção + imagem de fundo do login
+## Iteração 35 (2026-07-15) — Code Quality: correções seguras aplicadas
+Aplicadas as correções críticas e de baixo risco do relatório de qualidade:
+- **Segredos em testes**: `ADMIN_PASSWORD` hardcoded → `os.environ.get("TEST_ADMIN_PASSWORD", ...)` em test_iteration25_imagens, test_iteration21, test_iteration20, test_historico_audit.
+- **Imports não usados removidos**: security.py (`now_iso`), pdf.py (`PDF_SECOES`), admin.py (`perms_colaborador`), catalog.py (`artigo_custo_total`), e `time`/`io` em testes.
+- **Keys por índice → IDs estáveis**: OrcamentoDetail (linhas `l.id`, roteiro `op.id`), ArtigoForm (materiais `m.id`, roteiro `op.id`).
+- **Type hints**: return types em bootstrap.py (seed_perfis/seed_admin/seed_user_logins) e server.py (startup/shutdown).
+- Verificado: backend saudável, PDF/dashboard/rbac OK; frontend compila sem erros de consola.
+
+Deferido (com justificação, não aplicado):
+- **localStorage → httpOnly cookies**: decisão de arquitetura do SPA; alteração de auth grande e de alto risco. Mantido.
+- **Refactors de complexidade** (dashboard() cc=51, converter_orcamento, componentes >300 linhas): alto risco de regressão vs. baixo valor para o utilizador; adiado.
+- **"10 variáveis possivelmente indefinidas"** e **40 hook-deps**: falsos positivos — pyflakes não encontra variáveis indefinidas; AuthContext useMemo já lista todas as deps; os `load` useCallback usam `api`/setState estáveis (idiomático manter `[]`).
+- Keys por índice em sub-listas estáticas de `alteracoes` (nunca reordenadas): mantidas.
+
 - **Moeda** em Definições passou de campo de texto para **menu de seleção** (Euro, Dólar, Libra, Real, Franco suíço, Kwanza, Metical, Escudo CV); mantém valor personalizado existente como opção. Guarda em `moeda_simbolo`.
 - **Imagem de fundo do login**: campo `login_bg_base64` (base64) em `EmpresaSettings` + secção "Ecrã de login" em Definições (upload máx. 3MB, preview, remover — `login-bg-input`/`login-bg-remove`).
 - Novo endpoint **público** `GET /api/branding` (sem auth) devolve `{nome, login_bg_base64}` para o ecrã de login. `Login.jsx` busca o branding e aplica a imagem como fundo (cover + overlay `bg-black/45`); fallback para fundo escuro `#0A0A0A`.

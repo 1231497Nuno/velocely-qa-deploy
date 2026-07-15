@@ -6,7 +6,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core import config
-from app.core.database import now_iso
 from app.domain.models import LoginInput, perms_all, perms_colaborador
 from app.repositories import users_repo, perfis_repo
 

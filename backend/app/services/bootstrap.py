@@ -6,7 +6,7 @@ from app.domain.models import RBAC_MODULES, RBAC_ACTIONS, perms_all, perms_colab
 from app.repositories import perfis_repo, users_repo
 
 
-async def seed_perfis():
+async def seed_perfis() -> None:
     admin_p = await perfis_repo.find_one({"sistema": True, "admin": True})
     if not admin_p:
         await perfis_repo.insert({
@@ -76,7 +76,7 @@ async def seed_admin():
         )
 
 
-async def seed_user_logins():
+async def seed_user_logins() -> None:
     """Backfill do campo 'login' para utilizadores legado (derivado do email)."""
     usados = set()
     async for u in users_repo.cursor():

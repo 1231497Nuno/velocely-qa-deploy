@@ -81,7 +81,7 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
           {form.materiais.map((m, i) => {
             const sub = (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0);
             return (
-              <div key={i} className="grid grid-cols-[1fr_80px_90px_90px_32px] gap-2 items-center">
+              <div key={m.id || m.material_id || i} className="grid grid-cols-[1fr_80px_90px_90px_32px] gap-2 items-center">
                 <select data-testid={`material-select-${i}`} value={m.material_id || ""} onChange={(e) => { const c = consumiveis.find((x) => x.id === e.target.value); updMat(i, { material_id: e.target.value, material_nome: c ? c.nome : "", unidade: c ? c.unidade : "", custo_unitario: c ? c.custo_unitario : 0 }); }} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
                   <option value="">Selecionar...</option>
                   {consumiveis.map((c) => <option key={c.id} value={c.id}>{`${c.nome} (${c.unidade})`}</option>)}
@@ -104,7 +104,7 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
         </div>
         <div className="space-y-3">
           {form.roteiro.map((op, i) => (
-            <div key={i} className="border border-gray-200 rounded-sm p-3 space-y-2">
+            <div key={op.id || i} className="border border-gray-200 rounded-sm p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <input data-testid={`op-nome-${i}`} placeholder="Nome da operação (ex: Impressão)" value={op.nome} onChange={(e) => updOp(i, { nome: e.target.value })} className="flex-1 border border-gray-300 rounded-sm px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
                 <button onClick={() => delOp(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><X size={15} /></button>

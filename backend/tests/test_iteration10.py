@@ -7,7 +7,6 @@ Pré-requisitos: admin@prodcost.pt / Admin123! existente (seed).
 """
 
 import os
-import time
 
 import pytest
 import requests

@@ -9,7 +9,7 @@ from app.domain.models import (
 from app.core.database import new_id, now_iso
 from app.core.security import get_current_user
 from app.repositories import maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo
-from app.services.costing import artigo_breakdown, artigo_custo_total, enrich_artigo
+from app.services.costing import artigo_breakdown, enrich_artigo
 from app.services import audit
 
 router = APIRouter()

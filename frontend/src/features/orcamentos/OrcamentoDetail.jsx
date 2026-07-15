@@ -317,7 +317,7 @@ export default function OrcamentoDetail() {
           </thead>
           <tbody data-testid="orc-linhas">
             {orc.linhas.map((l, i) => (
-              <Fragment key={i}>
+              <Fragment key={l.id || i}>
               <tr className="border-b border-gray-100">
                 <td className="px-4 py-2.5">
                   <div className="flex items-start gap-2">
@@ -396,7 +396,7 @@ export default function OrcamentoDetail() {
                     </div>
                     <div className="space-y-2" data-testid={`line-ops-${i}`}>
                       {(l.roteiro || []).map((op, oi) => (
-                        <div key={oi} className="grid grid-cols-[1fr_1fr_60px_50px_1fr_60px_50px_28px] gap-1.5 items-center bg-white border border-gray-200 rounded-sm p-1.5">
+                        <div key={op.id || oi} className="grid grid-cols-[1fr_1fr_60px_50px_1fr_60px_50px_28px] gap-1.5 items-center bg-white border border-gray-200 rounded-sm p-1.5">
                           <input placeholder="Operação" value={op.nome || ""} onChange={(e) => updOp(i, oi, { nome: e.target.value })} className="border border-gray-300 rounded-sm px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-black/20" />
                           <select value={op.maquina_id || ""} onChange={(e) => { const mq = maquinas.find((x) => x.id === e.target.value); updOp(i, oi, { maquina_id: e.target.value, maquina_nome: mq ? mq.nome : "" }); }} className="border border-gray-300 rounded-sm px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
                             <option value="">Máquina…</option>

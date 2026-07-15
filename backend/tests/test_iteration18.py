@@ -8,7 +8,6 @@ Iteration 18 — Velocely ERP:
 """
 
 import os
-import time
 import pytest
 import requests
 

@@ -3,7 +3,6 @@ Cobre: /api/upload/imagem (auth, tamanho, formato), /api/files/{path} (auth via 
 auto-preenchimento catálogo→linha em orçamentos, override,
 propagação orçamento→OF+encomenda, propagação encomenda→OF, build_of_itens auto imagem.
 """
-import io
 import os
 import pytest
 import requests
@@ -29,7 +28,7 @@ BASE_URL = _load_backend_url()
 API = f"{BASE_URL}/api"
 
 ADMIN_LOGIN = "admin"
-ADMIN_PASSWORD = "Admin123!"
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
 
 
 def _png_bytes(w=2, h=2):

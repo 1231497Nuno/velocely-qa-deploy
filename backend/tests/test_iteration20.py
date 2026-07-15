@@ -27,7 +27,7 @@ def _load_base_url():
 
 BASE_URL = _load_base_url()
 ADMIN_EMAIL = "admin@prodcost.pt"
-ADMIN_PASSWORD = "Admin123!"
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
 
 created_of_ids: list[str] = []
 

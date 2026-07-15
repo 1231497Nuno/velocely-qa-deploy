@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.database import new_id, now_iso
 from app.core.security import require_admin, resolve_perfil, user_public, hash_password
 from app.domain.models import (
-    UserCreate, UserUpdate, PerfilInput, RBAC_MODULES, RBAC_ACTIONS, perms_all, perms_colaborador,
+    UserCreate, UserUpdate, PerfilInput, RBAC_MODULES, RBAC_ACTIONS, perms_all,
     Maquina, MaoObra, Consumivel, TipoPersonalizacao, Artigo, ArtigoMaterial, Operacao,
 )
 from app.repositories import (

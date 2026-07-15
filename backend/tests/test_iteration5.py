@@ -1,6 +1,5 @@
 """Iteration 5 tests: Análise da Produção (monthly) + Orçamento line roteiro persistence."""
 import os
-import time
 import requests
 
 BASE = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
