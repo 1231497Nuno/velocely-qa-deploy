@@ -3,7 +3,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import UtilizacoesDialog from "@/components/UtilizacoesDialog";
 
 const empty = { nome: "", custo_amortizacao_hora: 0, custo_energia_hora: 0 };
 
@@ -23,6 +24,7 @@ export default function Maquinas() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const [uso, setUso] = useState(null);
 
   const load = useCallback(async () => setItems(await api.get("/maquinas")), []);
   useEffect(() => {
@@ -103,6 +105,7 @@ export default function Maquinas() {
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur((m.custo_amortizacao_hora || 0) + (m.custo_energia_hora || 0))}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    <button data-testid={`uso-maquina-${m.id}`} onClick={() => setUso({ endpoint: `/maquinas/${m.id}/utilizacoes`, titulo: `Onde é usada: ${m.nome}`, subtitulo: "Artigos que usam esta máquina no roteiro." })} title="Onde é usada" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Eye size={15} /></button>
                     {can("maquinas","edit") && (<button data-testid={`edit-maquina-${m.id}`} onClick={() => openEdit(m)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
                     {can("maquinas","delete") && (<button data-testid={`delete-maquina-${m.id}`} onClick={() => remove(m.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
@@ -148,6 +151,8 @@ export default function Maquinas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
     </div>
   );
 }

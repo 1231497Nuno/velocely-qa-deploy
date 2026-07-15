@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArtigoForm } from "@/features/artigos/ArtigoForm";
 import ImagemUpload from "@/components/ImagemUpload";
+import UtilizacoesDialog from "@/components/UtilizacoesDialog";
 
 const empty = { nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30, materiais: [], roteiro: [] };
 
@@ -29,6 +30,7 @@ export default function Artigos() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const [uso, setUso] = useState(null);
   const { sort, toggle, apply } = useSort();
 
   const load = useCallback(async () => {
@@ -153,6 +155,7 @@ export default function Artigos() {
                 <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    <button data-testid={`uso-artigo-${a.id}`} onClick={() => setUso({ endpoint: `/artigos/${a.id}/utilizacoes`, titulo: `Onde é usado: ${a.nome}`, subtitulo: "Orçamentos, encomendas e OFs que incluem este artigo." })} title="Onde é usado" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Eye size={15} /></button>
                     {can("artigos","create") && (<button data-testid={`duplicate-artigo-${a.id}`} onClick={() => duplicar(a.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>)}
                     {can("artigos","edit") && (<button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
                     {can("artigos","delete") && (<button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
@@ -182,6 +185,8 @@ export default function Artigos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
     </div>
   );
 }

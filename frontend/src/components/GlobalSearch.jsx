@@ -8,7 +8,7 @@ const ICON = {
   "Ordem de Fabrico": Factory, "Artigo": Boxes,
 };
 
-export default function GlobalSearch() {
+export default function GlobalSearch({ onNavigate }) {
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [res, setRes] = useState([]);
@@ -35,7 +35,7 @@ export default function GlobalSearch() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const go = (url) => { setOpen(false); setQ(""); setRes([]); nav(url); };
+  const go = (url) => { setOpen(false); setQ(""); setRes([]); onNavigate?.(); nav(url); };
 
   return (
     <div className="relative w-full max-w-md" ref={boxRef} data-testid="global-search">

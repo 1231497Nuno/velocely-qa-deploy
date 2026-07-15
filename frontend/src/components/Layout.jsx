@@ -16,6 +16,7 @@ import {
   LineChart,
   Menu,
   X,
+  Search,
   Shield,
   LogOut,
   Contact,
@@ -46,6 +47,7 @@ const NAV = [
 
 export default function Layout({ children }) {
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [alertas, setAlertas] = useState({});
   const { user, isAdmin, can, logout } = useAuth();
 
@@ -90,6 +92,14 @@ export default function Layout({ children }) {
           <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-7 w-auto" />
         </Link>
         <div className="flex items-center gap-1">
+          <button
+            data-testid="mobile-search-toggle"
+            onClick={() => setSearchOpen((v) => !v)}
+            className="p-2 rounded-sm text-gray-700 hover:bg-gray-100"
+            aria-label="Pesquisar"
+          >
+            <Search size={22} />
+          </button>
           <NotificationsBell />
           <button
             data-testid="mobile-menu-toggle"
@@ -101,6 +111,13 @@ export default function Layout({ children }) {
           </button>
         </div>
       </header>
+
+      {/* Barra de pesquisa (mobile) */}
+      {searchOpen && (
+        <div className="lg:hidden fixed top-14 inset-x-0 z-30 bg-white border-b border-gray-200 p-3" data-testid="mobile-search-bar">
+          <GlobalSearch onNavigate={() => setSearchOpen(false)} />
+        </div>
+      )}
 
       {/* Overlay (mobile) */}
       {open && (

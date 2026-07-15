@@ -27,6 +27,7 @@ from app.api.routes.analytics import router as analytics_router
 from app.api.routes.admin import router as admin_router
 from app.api.routes.historico import router as historico_router
 from app.api.routes.uploads import router as uploads_router
+from app.api.routes.referencias import router as referencias_router
 from app.services.storage import init_storage
 
 app = FastAPI()
@@ -35,7 +36,7 @@ api_router = APIRouter(prefix="/api")
 for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router,
     encomendas_router, settings_router, analytics_router, admin_router,
-    historico_router, uploads_router,
+    historico_router, uploads_router, referencias_router,
 ):
     api_router.include_router(r)
 

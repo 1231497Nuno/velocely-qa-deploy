@@ -10,9 +10,17 @@ import ImagensGaleria from "@/components/ImagensGaleria";
 import PdfExportButton from "@/components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
-  Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil, Receipt,
+  Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil, Receipt, Layers,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 const METODO_PT = { transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY", cheque: "Cheque", cartao: "Cartão", outro: "Outro" };
@@ -30,6 +38,8 @@ export default function EncomendaDetail() {
   const [pagValor, setPagValor] = useState("");
   const [pagMetodo, setPagMetodo] = useState("transferencia");
   const [pagNota, setPagNota] = useState("");
+  const [ofOpen, setOfOpen] = useState(false);
+  const [ofQtys, setOfQtys] = useState({});
 
   const addPagamento = async (valorOverride, notaOverride) => {
     const v = Number(valorOverride ?? pagValor);
@@ -151,13 +161,32 @@ export default function EncomendaDetail() {
   };
 
   const criarOF = async () => {
-    const itens = (enc.artigos || []).filter((a) => a.artigo_id).map((a) => ({
-      artigo_id: a.artigo_id, artigo_nome: a.artigo_nome, imagem: a.imagem || "", quantidade: Number(a.quantidade) || 1,
-      personalizacoes: a.personalizacoes || [], operacoes: [],
-    }));
+    const itens = (enc.artigos || [])
+      .filter((a) => a.artigo_id && (Number(ofQtys[a.id]) || 0) > 0)
+      .map((a) => ({
+        artigo_id: a.artigo_id, artigo_nome: a.artigo_nome, imagem: a.imagem || "", quantidade: Number(ofQtys[a.id]) || 0,
+        personalizacoes: a.personalizacoes || [], operacoes: [],
+      }));
+    if (itens.length === 0) return toast.error("Indica pelo menos uma quantidade a produzir");
     const of = await api.post(`/encomendas/${id}/ordens-fabrico`, { cliente: enc.cliente, itens, imagens: enc.imagens || [] });
     toast.success("Ordem de fabrico criada");
     nav(`/ordens-fabrico/${of.id}`);
+  };
+
+  // Quantidade já atribuída a OFs, por artigo
+  const ofQtyByArtigo = (enc.ordens_fabrico || []).reduce((acc, o) => {
+    (o.itens || []).forEach((it) => {
+      if (it.artigo_id) acc[it.artigo_id] = (acc[it.artigo_id] || 0) + (Number(it.quantidade) || 0);
+    });
+    return acc;
+  }, {});
+  const remaining = (a) => Math.max(0, (Number(a.quantidade) || 0) - (ofQtyByArtigo[a.artigo_id] || 0));
+
+  const openCriarOF = () => {
+    const init = {};
+    (enc.artigos || []).forEach((a) => { if (a.artigo_id) init[a.id] = remaining(a); });
+    setOfQtys(init);
+    setOfOpen(true);
   };
 
   const artigoOptions = artigos.map((a) => ({ value: a.id, label: a.nome, hint: eur(a.preco_venda) }));
@@ -182,7 +211,7 @@ export default function EncomendaDetail() {
             <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Save size={16} /> Guardar</button>
           )}
           {can("ordens_fabrico", "create") && (
-            <button data-testid="encomenda-criar-of-btn" onClick={criarOF} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Criar Ordem de Fabrico</button>
+            <button data-testid="encomenda-criar-of-btn" onClick={openCriarOF} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Criar Ordem de Fabrico</button>
           )}
         </div>
       </div>
@@ -396,6 +425,9 @@ export default function EncomendaDetail() {
                           <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                           <span className="text-xs text-gray-400 shrink-0">{artUnidade(a.artigo_id)}</span>
                         </div>
+                        {(ofQtyByArtigo[a.artigo_id] || 0) > 0 && (
+                          <div className="text-[10px] text-gray-400 text-right mt-0.5" data-testid={`enc-artigo-emofs-${i}`}>em OFs {ofQtyByArtigo[a.artigo_id]}/{Number(a.quantidade) || 0}</div>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right align-top">
                         <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} onBlur={() => persist({})} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
@@ -437,6 +469,46 @@ export default function EncomendaDetail() {
       <ImagensGaleria value={enc.imagens} onChange={(imgs) => persist({ imagens: imgs })} title="Imagens da encomenda" hint="Imagens de referência de toda a encomenda. Transitam para a ordem de fabrico ao criar." />
 
       <HistoricoTimeline tipo="encomenda" id={id} />
+
+      {/* Diálogo — criar OF faseada (quantidades parciais por linha) */}
+      <Dialog open={ofOpen} onOpenChange={setOfOpen}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" data-testid="of-faseada-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2"><Layers size={18} /> Criar Ordem de Fabrico</DialogTitle>
+            <DialogDescription>Escolhe a quantidade de cada artigo a produzir nesta OF. Sugerimos a quantidade em falta; podes ajustar livremente.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            {(enc.artigos || []).filter((a) => a.artigo_id).length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">Esta encomenda não tem artigos.</p>
+            ) : (enc.artigos || []).filter((a) => a.artigo_id).map((a) => {
+              const emOFs = ofQtyByArtigo[a.artigo_id] || 0;
+              const total = Number(a.quantidade) || 0;
+              const rem = remaining(a);
+              return (
+                <div key={a.id} data-testid={`of-faseada-linha-${a.id}`} className="flex items-center gap-3 border border-gray-200 rounded-sm px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-900 truncate">{a.artigo_nome}</div>
+                    <div className="text-xs text-gray-400">
+                      Total {total} {artUnidade(a.artigo_id)} · Em OFs {emOFs} · <span className={rem > 0 ? "text-amber-600" : "text-emerald-600"}>Em falta {rem}</span>
+                    </div>
+                  </div>
+                  <input
+                    data-testid={`of-faseada-qtd-${a.id}`}
+                    type="number" min="0" step="1"
+                    value={ofQtys[a.id] ?? 0}
+                    onChange={(e) => setOfQtys({ ...ofQtys, [a.id]: e.target.value })}
+                    className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20"
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <button onClick={() => setOfOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
+            <button data-testid="of-faseada-criar-btn" onClick={() => { setOfOpen(false); criarOF(); }} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Factory size={15} /> Criar OF</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

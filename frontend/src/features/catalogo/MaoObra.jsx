@@ -3,7 +3,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import UtilizacoesDialog from "@/components/UtilizacoesDialog";
 
 const empty = { nome: "", custo_hora: 0, responsavel_personalizacoes: false };
 
@@ -23,6 +24,7 @@ export default function MaoObra() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const [uso, setUso] = useState(null);
 
   const load = useCallback(async () => setItems(await api.get("/mao-obra")), []);
   useEffect(() => {
@@ -95,6 +97,7 @@ export default function MaoObra() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    <button data-testid={`uso-maoobra-${m.id}`} onClick={() => setUso({ endpoint: `/mao-obra/${m.id}/utilizacoes`, titulo: `Onde é usada: ${m.nome}`, subtitulo: "Artigos que usam esta mão de obra no roteiro." })} title="Onde é usada" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Eye size={15} /></button>
                     {can("mao_obra","edit") && (<button data-testid={`edit-maoobra-${m.id}`} onClick={() => openEdit(m)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
                     {can("mao_obra","delete") && (<button data-testid={`delete-maoobra-${m.id}`} onClick={() => remove(m.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
@@ -137,6 +140,8 @@ export default function MaoObra() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
     </div>
   );
 }

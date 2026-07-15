@@ -3,7 +3,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import UtilizacoesDialog from "@/components/UtilizacoesDialog";
 
 const empty = { nome: "", descricao: "", valor: 0, tempo: 0 };
 
@@ -23,6 +24,7 @@ export default function TiposPersonalizacao() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const [uso, setUso] = useState(null);
 
   const load = useCallback(async () => setItems(await api.get("/tipos-personalizacao")), []);
   useEffect(() => {
@@ -93,6 +95,7 @@ export default function TiposPersonalizacao() {
                 <td className="px-4 py-3 text-right tabular-nums">{(t.tempo || 0) > 0 ? `${t.tempo}m` : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    <button data-testid={`uso-tipo-${t.id}`} onClick={() => setUso({ endpoint: `/tipos-personalizacao/${t.id}/utilizacoes`, titulo: `Onde é usada: ${t.nome}`, subtitulo: "Orçamentos, encomendas e OFs que usam esta personalização." })} title="Onde é usada" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Eye size={15} /></button>
                     {can("personalizacao","edit") && (<button data-testid={`edit-tipo-${t.id}`} onClick={() => openEdit(t)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
                     {can("personalizacao","delete") && (<button data-testid={`delete-tipo-${t.id}`} onClick={() => remove(t.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                   </div>
@@ -138,6 +141,8 @@ export default function TiposPersonalizacao() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
     </div>
   );
 }
