@@ -157,6 +157,7 @@ export default function OrcamentoDetail() {
   })();
   const total = subtotalLiquido - descTotalVal;
   const lucro = total - subtotalCusto - custoMateriais;
+  const linhasAbaixoCusto = orc.linhas.filter((l) => l.artigo_id && linePreco(l) < lineCusto(l)).length;
 
   const save = async () => {
     const body = {
@@ -271,6 +272,12 @@ export default function OrcamentoDetail() {
       </div>
 
       {/* Linhas */}
+      {linhasAbaixoCusto > 0 && (
+        <div data-testid="orc-alerta-margem" className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-sm px-4 py-2.5 mb-3 text-sm">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span><strong>{linhasAbaixoCusto}</strong> {linhasAbaixoCusto === 1 ? "linha está" : "linhas estão"} com preço abaixo do custo de produção — está a vender a perder.</span>
+        </div>
+      )}
       <div className="bg-white border border-gray-200 rounded-sm overflow-hidden mb-4">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-700"><FileText size={16} /> Linhas do Orçamento</div>
@@ -340,6 +347,7 @@ export default function OrcamentoDetail() {
                     {l.preco_unit_manual && <button data-testid={`line-preco-reset-${i}`} onClick={() => updLinha(i, { preco_unit_manual: false })} title="Repor preço automático" className="p-1 rounded-sm hover:bg-gray-100 text-gray-500"><RotateCcw size={13} /></button>}
                   </div>
                   {l.preco_unit_manual && <div className="text-[10px] text-blue-500 text-right mt-0.5">manual · auto {eur(compPreco(l))}</div>}
+                  {linePreco(l) < lineCusto(l) && <div data-testid={`line-abaixo-custo-${i}`} className="text-[10px] text-red-600 font-medium text-right mt-0.5 flex items-center justify-end gap-1"><AlertTriangle size={10} /> abaixo do custo {eur(lineCusto(l))}</div>}
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`line-unit-pers-${i}`}>{eur(linePreco(l) + persUnit(l))}</td>
                 <td className="px-4 py-2.5 align-top">
