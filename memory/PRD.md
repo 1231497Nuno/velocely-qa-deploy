@@ -2,7 +2,12 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 33 (2026-07-15) — Miniaturas de artigo nas listas
+## Iteração 34 (2026-07-15) — Moeda por seleção + imagem de fundo do login
+- **Moeda** em Definições passou de campo de texto para **menu de seleção** (Euro, Dólar, Libra, Real, Franco suíço, Kwanza, Metical, Escudo CV); mantém valor personalizado existente como opção. Guarda em `moeda_simbolo`.
+- **Imagem de fundo do login**: campo `login_bg_base64` (base64) em `EmpresaSettings` + secção "Ecrã de login" em Definições (upload máx. 3MB, preview, remover — `login-bg-input`/`login-bg-remove`).
+- Novo endpoint **público** `GET /api/branding` (sem auth) devolve `{nome, login_bg_base64}` para o ecrã de login. `Login.jsx` busca o branding e aplica a imagem como fundo (cover + overlay `bg-black/45`); fallback para fundo escuro `#0A0A0A`.
+- Verificado: curl (`/branding` público 200; PUT settings 200) + screenshots (login com imagem aplicada; select de moeda é `<select>`; campo de fundo presente). Fundo de teste limpo no fim.
+
 - Tabela de **Artigos** (`Artigos.jsx`): miniatura só-leitura na 1ª coluna (data-testid `artigo-row-imagem-{id}`), clicável para pré-visualizar.
 - **Roteiro de produção da OF** (`OFRoteiroPanel.jsx`): miniatura do artigo no cabeçalho de cada item (data-testid `of-roteiro-imagem-{idx}`), para o chão de fábrica identificar cada peça num relance.
 - Ambas usam `ImagemUpload editable={false}`. Verificado por screenshot (14 miniaturas na tabela). Limpos dados de teste antigos (`teste-`).

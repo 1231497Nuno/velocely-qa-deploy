@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { LogIn, Factory } from "lucide-react";
+import { api } from "@/lib/api";
+import { LogIn } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
@@ -10,6 +11,11 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bg, setBg] = useState("");
+
+  useEffect(() => {
+    api.get("/branding").then((d) => setBg(d?.login_bg_base64 || "")).catch(() => {});
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -27,8 +33,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A] px-4">
-      <div className="w-full max-w-md">
+    <div
+      className="min-h-screen flex items-center justify-center px-4 relative bg-[#0A0A0A]"
+      style={bg ? { backgroundImage: `url(${bg})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+    >
+      {bg && <div className="absolute inset-0 bg-black/45" />}
+      <div className="w-full max-w-md relative z-10">
         <div className="flex justify-center mb-8">
           <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-14 w-auto" />
         </div>

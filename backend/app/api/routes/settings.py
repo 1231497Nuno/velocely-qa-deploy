@@ -23,6 +23,16 @@ async def update_empresa(data: EmpresaSettings, admin: dict = Depends(require_ad
     return doc
 
 
+@router.get("/branding")
+async def get_branding():
+    """Branding público (sem autenticação) para o ecrã de login."""
+    s = await empresa_repo.find_one({"id": "empresa"}) or {}
+    return {
+        "nome": s.get("nome") or "Velocely",
+        "login_bg_base64": s.get("login_bg_base64") or "",
+    }
+
+
 # ----------------------- Modelos de PDF -----------------------
 @router.get("/pdf-secoes")
 async def pdf_secoes(_u: dict = Depends(get_current_user)):

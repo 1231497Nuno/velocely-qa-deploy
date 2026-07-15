@@ -362,6 +362,7 @@ class EmpresaSettings(BaseModel):
     email: str = ""
     website: str = ""
     logo_base64: str = ""
+    login_bg_base64: str = ""
     rodape: str = ""
     moeda_simbolo: str = "€"
     iva_taxa: float = 23.0

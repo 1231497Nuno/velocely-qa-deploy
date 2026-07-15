@@ -9,7 +9,18 @@ import {
 
 const MODULO_LABELS = { orcamento: "Orçamento", of: "Ordem de Fabrico", encomenda: "Encomenda" };
 const FINALIDADES = [{ v: "ambos", l: "Ambos" }, { v: "cliente", l: "Cliente" }, { v: "interno", l: "Interno" }];
-const emptyEmpresa = { nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", nif: "", telefone: "", email: "", website: "", logo_base64: "", rodape: "", moeda_simbolo: "€", iva_taxa: 23, iva_isento: false, condicoes_pagamento: "" };
+const emptyEmpresa = { nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", nif: "", telefone: "", email: "", website: "", logo_base64: "", login_bg_base64: "", rodape: "", moeda_simbolo: "€", iva_taxa: 23, iva_isento: false, condicoes_pagamento: "" };
+
+const MOEDAS = [
+  { simbolo: "€", label: "Euro (€)" },
+  { simbolo: "$", label: "Dólar americano ($)" },
+  { simbolo: "£", label: "Libra esterlina (£)" },
+  { simbolo: "R$", label: "Real brasileiro (R$)" },
+  { simbolo: "CHF", label: "Franco suíço (CHF)" },
+  { simbolo: "Kz", label: "Kwanza angolano (Kz)" },
+  { simbolo: "MT", label: "Metical moçambicano (MT)" },
+  { simbolo: "$", label: "Escudo cabo-verdiano ($)" },
+];
 
 const Inp = ({ label, val, onChange, tid, ph }) => (
   <div>
@@ -29,6 +40,15 @@ function EmpresaTab() {
     if (file.size > 600 * 1024) return toast.error("Logótipo demasiado grande (máx. 600KB)");
     const reader = new FileReader();
     reader.onload = () => upd("logo_base64", reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const onLoginBg = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) return toast.error("Imagem demasiado grande (máx. 3MB)");
+    const reader = new FileReader();
+    reader.onload = () => upd("login_bg_base64", reader.result);
     reader.readAsDataURL(file);
   };
 
@@ -79,7 +99,15 @@ function EmpresaTab() {
       <div className="mt-6 pt-5 border-t border-gray-200">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">Fiscal e financeiro</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          <Inp label="Símbolo da moeda" tid="emp-moeda" val={form.moeda_simbolo} onChange={(v) => upd("moeda_simbolo", v)} ph="€ / $ / R$" />
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Moeda</label>
+            <select data-testid="emp-moeda" value={form.moeda_simbolo || "€"} onChange={(e) => upd("moeda_simbolo", e.target.value)} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+              {!MOEDAS.some((m) => m.simbolo === form.moeda_simbolo) && form.moeda_simbolo && (
+                <option value={form.moeda_simbolo}>{form.moeda_simbolo} (personalizado)</option>
+              )}
+              {MOEDAS.map((m) => <option key={m.label} value={m.simbolo}>{m.label}</option>)}
+            </select>
+          </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Taxa de IVA (%)</label>
             <input data-testid="emp-iva-taxa" type="number" min="0" step="0.1" disabled={form.iva_isento} value={form.iva_taxa ?? 0} onChange={(e) => upd("iva_taxa", parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-100 disabled:text-gray-400" />
@@ -92,6 +120,24 @@ function EmpresaTab() {
         <div className="mt-4">
           <label className="text-sm font-medium text-gray-700 mb-1.5 block">Condições de pagamento (impresso nos PDFs)</label>
           <textarea data-testid="emp-condicoes" value={form.condicoes_pagamento || ""} onChange={(e) => upd("condicoes_pagamento", e.target.value)} rows={2} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" placeholder="Ex.: Pagamento a 30 dias por transferência bancária · IBAN PT50..." />
+        </div>
+      </div>
+
+      <div className="mt-6 pt-5 border-t border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Ecrã de login</h3>
+        <p className="text-xs text-gray-400 mb-4">Imagem de fundo do ecrã de início de sessão (substitui o fundo escuro).</p>
+        <div className="flex items-center gap-4">
+          <div className="w-40 h-24 border border-dashed border-gray-300 rounded-sm flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
+            {form.login_bg_base64 ? <img src={form.login_bg_base64} alt="fundo login" className="w-full h-full object-cover" /> : <ImageIcon size={22} className="text-gray-300" />}
+          </div>
+          <div>
+            <label className="inline-flex items-center gap-2 cursor-pointer border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <Upload size={15} /> Carregar imagem de fundo
+              <input data-testid="login-bg-input" type="file" accept="image/*" onChange={onLoginBg} className="hidden" />
+            </label>
+            {form.login_bg_base64 && <button data-testid="login-bg-remove" onClick={() => upd("login_bg_base64", "")} className="ml-2 text-sm text-red-600 hover:underline">Remover</button>}
+            <p className="text-xs text-gray-400 mt-1">PNG/JPG, máx. 3MB. Recomenda-se uma imagem larga (ex.: 1920×1080).</p>
+          </div>
         </div>
       </div>
     </div>
