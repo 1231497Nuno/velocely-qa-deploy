@@ -39,7 +39,7 @@ export default function EncomendaDetail() {
     toast.success("Pagamento registado");
   };
   const delPagamento = async (pid) => {
-    const updated = await api.delete(`/encomendas/${id}/pagamentos/${pid}`);
+    const updated = await api.del(`/encomendas/${id}/pagamentos/${pid}`);
     setEnc(updated); toast.success("Pagamento removido");
   };
   const reciboUrl = (pid) => `${API}/encomendas/${id}/pagamentos/${pid}/recibo?auth=${getToken()}`;

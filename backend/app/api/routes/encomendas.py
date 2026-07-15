@@ -1,10 +1,12 @@
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+import jwt
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.core import config
 from app.core.database import now_iso, next_sequence, new_id, round2
 from app.core.security import get_current_user
 from app.domain.models import EncomendaInput, Encomenda, OrdemFabricoInput, OrdemFabrico, ENC_ESTADO_PT, Pagamento
@@ -68,8 +70,21 @@ async def delete_pagamento(eid: str, pid: str, user: dict = Depends(get_current_
     return await compute_encomenda(enc)
 
 
+def _valid_token(authorization: Optional[str], auth: Optional[str]) -> bool:
+    header = authorization or (f"Bearer {auth}" if auth else None)
+    if not header or not header.startswith("Bearer "):
+        return False
+    try:
+        jwt.decode(header[7:], config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
+        return True
+    except jwt.InvalidTokenError:
+        return False
+
+
 @router.get("/encomendas/{eid}/pagamentos/{pid}/recibo")
-async def recibo_pdf(eid: str, pid: str, _u: dict = Depends(get_current_user)):
+async def recibo_pdf(eid: str, pid: str, authorization: str = Header(None), auth: str = Query(None)):
+    if not _valid_token(authorization, auth):
+        raise HTTPException(401, "Não autenticado")
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")

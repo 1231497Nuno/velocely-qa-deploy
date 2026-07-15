@@ -2,6 +2,14 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 36 (2026-07-15) — 6 Features (Kanban, Minhas Tarefas, Pesquisa Global, Notificações, Pagamentos Parciais+Recibos, Histórico de Preços) + 2 bugfixes críticos
+Concluída a batch das 6 funcionalidades pedidas (todas testadas em iteration_26.json). Corrigidos os 2 bugs críticos que restavam:
+- **BUG 1 (frontend)**: `EncomendaDetail.jsx:42` usava `api.delete` (inexistente) → trocado por `api.del`. Remoção de pagamento parcial via UI voltou a funcionar (sem overlay de erro).
+- **BUG 2 (backend)**: `GET /api/encomendas/{eid}/pagamentos/{pid}/recibo` só aceitava header `Authorization` → devolvia 401 ao abrir o link `?auth=<token>` em nova aba. Replicado o padrão de `uploads.py` (`Header(None)` + `Query(None)` + `_valid_token`). Recibo PDF abre corretamente.
+- Verificado via curl: recibo `?auth=` → 200 (application/pdf, %PDF), sem auth → 401, add/delete pagamento → valor_pago recalculado. UI sem error overlay (dashboard mostra eventos de auditoria dos pagamentos).
+- Features entregues: Kanban de OFs (3 colunas por status), filtro "As minhas tarefas", pesquisa global no topo (`GlobalSearch`), sino de notificações (`NotificationsBell`), pagamentos parciais com geração de recibo PDF (`build_recibo_pdf`, coleção `pagamentos` na Encomenda), histórico de preços por cliente (`/api/clientes/{id}/historico-precos`) + hint na encomenda.
+
+
 ## Iteração 35 (2026-07-15) — Code Quality: correções seguras aplicadas
 Aplicadas as correções críticas e de baixo risco do relatório de qualidade:
 - **Segredos em testes**: `ADMIN_PASSWORD` hardcoded → `os.environ.get("TEST_ADMIN_PASSWORD", ...)` em test_iteration25_imagens, test_iteration21, test_iteration20, test_historico_audit.
