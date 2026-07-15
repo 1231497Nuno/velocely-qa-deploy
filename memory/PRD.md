@@ -2,6 +2,13 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 25 (2026-07-14) — Alertas no menu + Duplicar + Alerta de margem + Tabelas dinâmicas
+- **Alertas dinâmicos no menu:** `GET /api/alertas` ({pagamentos_pendentes, prazos_atrasados, prazos_proximos, ofs_atrasadas}). `Layout.jsx` mostra badges (poll 60s) — Encomendas (âmbar, pagamentos), Calendário (vermelho atrasados / âmbar próximos), OFs (vermelho atrasadas). testids `nav-badge-nav-*`.
+- **Duplicar/clonar:** endpoints `POST /{orcamentos|encomendas|artigos}/{id}/duplicar` (novo número, estado inicial reposto; artigo → "(cópia)"). Botões `duplicate-*-{id}` nas listas; orçamento/encomenda navegam para a cópia, artigo recarrega. Corrigido bug de serialização: `Repository.insert` remove agora o `_id` (ObjectId) do dict.
+- **Alerta de margem mínima:** em `OrcamentoDetail`, se `preço unit < custo de produção` da linha → aviso vermelho por linha (`line-abaixo-custo-{i}`) + banner de topo (`orc-alerta-margem`).
+- **Tabelas dinâmicas:** novo `components/table.jsx` (`useSort` + `SortTh`); ordenação por coluna (asc/desc, localeCompare pt numeric) em Orçamentos, Encomendas e Artigos.
+- Testado via testing_agent (iteration_22.json): 6/6 fluxos 100%, zero regressões, dados de teste limpos.
+
 ## Iteração 24 (2026-07-14) — Página de detalhe do Cliente (360º) + gráfico Rentabilidade
 - Backend: `GET /api/clientes/{cid}/resumo` (auth) — devolve dados do cliente + orçamentos, encomendas e OFs associados (match por `cliente_id` ou, em legado sem id, por nome) + estatísticas (nº orçamentos/aceites, nº encomendas/OFs, faturado, pago, pendente, custo real, margem).
 - Frontend: nova `features/clientes/ClienteDetail.jsx` (rota `/clientes/:id`) com cartão de contactos, 6 KPIs e tabelas de Encomendas/Orçamentos/OFs com linhas clicáveis → navegam para o detalhe respetivo. Nome do cliente na lista (`Clientes.jsx`) passou a link.
