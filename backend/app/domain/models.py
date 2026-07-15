@@ -7,7 +7,8 @@ from app.core.database import new_id, now_iso
 # ----------------------- RBAC -----------------------
 RBAC_MODULES = [
     "dashboard", "clientes", "encomendas", "artigos", "materiais", "maquinas", "mao_obra",
-    "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "utilizadores",
+    "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "rentabilidade",
+    "calendario", "historico", "definicoes", "utilizadores",
 ]
 RBAC_ACTIONS = ["view", "create", "edit", "delete"]
 
@@ -19,7 +20,7 @@ def perms_all(value: bool) -> dict:
 def perms_colaborador() -> dict:
     p = perms_all(False)
     for m in RBAC_MODULES:
-        if m != "utilizadores":
+        if m not in ("utilizadores", "definicoes", "historico"):
             p[m]["view"] = True
     for m in ("orcamentos", "ordens_fabrico"):
         p[m]["create"] = True

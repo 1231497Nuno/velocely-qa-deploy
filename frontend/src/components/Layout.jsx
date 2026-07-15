@@ -26,7 +26,7 @@ import {
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, tid: "nav-dashboard", modulo: "dashboard" },
-  { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "dashboard" },
+  { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" },
   { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
   { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
   { to: "/materiais", label: "Materiais", icon: Package, tid: "nav-materiais", modulo: "materiais" },
@@ -37,7 +37,9 @@ const NAV = [
   { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
   { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
   { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
-  { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "analise_producao" },
+  { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade" },
+  { to: "/historico", label: "Histórico", icon: History, tid: "nav-historico", modulo: "historico" },
+  { to: "/definicoes", label: "Definições", icon: Settings, tid: "nav-definicoes", modulo: "definicoes" },
 ];
 
 export default function Layout({ children }) {
@@ -75,9 +77,7 @@ export default function Layout({ children }) {
   const visible = NAV.filter((n) => n.modulo === "dashboard" || can(n.modulo, "view"));
   const nav = isAdmin
     ? [...visible,
-        { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores" },
-        { to: "/historico", label: "Histórico", icon: History, tid: "nav-historico" },
-        { to: "/definicoes", label: "Definições", icon: Settings, tid: "nav-definicoes" }]
+        { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores" }]
     : visible;
 
   return (

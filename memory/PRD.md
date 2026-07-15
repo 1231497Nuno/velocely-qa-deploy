@@ -2,7 +2,13 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 28 (2026-07-15) — [Fase 3 · 1/3] Histórico / Timeline de auditoria (todos os módulos)
+## Iteração 29 (2026-07-15) — [Fase 3 · 3/3] Módulos em falta na matriz de perfis
+- `RBAC_MODULES` passou de 12 → 16 módulos: adicionados `rentabilidade`, `calendario`, `historico`, `definicoes`. Labels adicionados em `GET /api/rbac/modulos`.
+- `perms_colaborador()`: novos módulos com `view=True` exceto `historico`/`definicoes` (e `utilizadores`) que ficam a False por defeito. Migração `seed_perfis` (arranque) adiciona os novos módulos aos perfis existentes (Admin=tudo True; Colaborador=defaults; perfis custom=False).
+- Frontend: rotas `/calendario` (modulo `calendario`), `/rentabilidade-clientes` (`rentabilidade`), `/historico` (`historico`), `/definicoes` (`definicoes`) passaram de adminOnly/dashboard para **gating por módulo**. Nav (`Layout.jsx`): Histórico e Definições passaram a itens gated por módulo (visíveis a quem tiver a permissão); Utilizadores mantém-se admin-only. A matriz de perfis (dinâmica via `/rbac/modulos`) mostra agora os 16 módulos.
+- Verificado: curl (16 módulos com labels; admin cobre novos módulos; Colaborador migrado) + screenshot do diálogo "Novo Perfil".
+- ⚠️ CONFIRMADO o bug P0 pendente: perfil de sistema "Colaborador" tem `admin=True` na BD (dá acesso total). A corrigir na próxima tarefa (Segurança RBAC).
+
 - Novo serviço `app/services/audit.py`: `registar(...)` (tolerante a falhas), `diff_campos(antes,depois,campos)` (com labels PT e tolerância float), `historico(...)`. Coleção Mongo `historico`.
 - Nova rota `app/api/routes/historico.py`: `GET /api/historico?tipo=&limit=` (global) e `GET /api/historico/{tipo}/{id}` (por entidade) — ambos exigem auth.
 - Logging integrado (com utilizador+timestamp) em: clientes, orçamentos (criado/editado/estado_alterado/duplicado/convertido/eliminado), encomendas (criado/pagamento/producao_autorizada/estado_alterado/editado/duplicado/eliminado), ordens de fabrico (criado/estado_alterado/prioridade/concluido/eliminado), catálogo (artigo/consumível/máquina/mão de obra/tipo personalização — criar/editar/eliminar/duplicar). Rotas de catalog/orcamentos/ordens passaram a exigir `get_current_user` nas escritas.

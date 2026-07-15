@@ -128,7 +128,9 @@ async def rbac_modulos(admin: dict = Depends(require_admin)):
         "artigos": "Artigos", "materiais": "Materiais",
         "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
         "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",
-        "analise_producao": "Análise da Produção", "utilizadores": "Gestão de Utilizadores",
+        "analise_producao": "Análise da Produção", "rentabilidade": "Rentabilidade por Cliente",
+        "calendario": "Calendário", "historico": "Histórico", "definicoes": "Definições",
+        "utilizadores": "Gestão de Utilizadores",
     }
     return {"modulos": [{"key": m, "label": labels.get(m, m)} for m in RBAC_MODULES], "acoes": RBAC_ACTIONS}
 

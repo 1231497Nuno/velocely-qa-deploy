@@ -39,7 +39,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/calendario" element={<Protected><Calendario /></Protected>} />
+      <Route path="/calendario" element={<Protected modulo="calendario"><Calendario /></Protected>} />
       <Route path="/clientes" element={<Protected modulo="clientes"><Clientes /></Protected>} />
       <Route path="/clientes/:id" element={<Protected modulo="clientes"><ClienteDetail /></Protected>} />
       <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
@@ -54,10 +54,10 @@ function AppRoutes() {
       <Route path="/ordens-fabrico" element={<Protected modulo="ordens_fabrico"><OrdensFabrico /></Protected>} />
       <Route path="/ordens-fabrico/:id" element={<Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected>} />
       <Route path="/analise-producao" element={<Protected modulo="analise_producao"><AnaliseProducao /></Protected>} />
-      <Route path="/rentabilidade-clientes" element={<Protected modulo="analise_producao"><RentabilidadeClientes /></Protected>} />
+      <Route path="/rentabilidade-clientes" element={<Protected modulo="rentabilidade"><RentabilidadeClientes /></Protected>} />
       <Route path="/utilizadores" element={<Protected adminOnly><GestaoUtilizadores /></Protected>} />
-      <Route path="/historico" element={<Protected adminOnly><Historico /></Protected>} />
-      <Route path="/definicoes" element={<Protected adminOnly><Definicoes /></Protected>} />
+      <Route path="/historico" element={<Protected modulo="historico"><Historico /></Protected>} />
+      <Route path="/definicoes" element={<Protected modulo="definicoes"><Definicoes /></Protected>} />
     </Routes>
   );
 }
