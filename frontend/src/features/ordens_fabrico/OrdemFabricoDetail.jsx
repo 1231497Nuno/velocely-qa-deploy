@@ -11,9 +11,10 @@ import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import Combobox from "@/components/Combobox";
 
 export default function OrdemFabricoDetail() {
   const { can } = useAuth();
@@ -24,6 +25,7 @@ export default function OrdemFabricoDetail() {
   const [tipos, setTipos] = useState([]);
   const [maquinas, setMaquinas] = useState([]);
   const [maoObra, setMaoObra] = useState([]);
+  const [utilizadores, setUtilizadores] = useState([]);
   const [, setTick] = useState(0);
 
   const load = useCallback(async () => {
@@ -32,6 +34,7 @@ export default function OrdemFabricoDetail() {
     setTipos(await api.get("/tipos-personalizacao"));
     setMaquinas(await api.get("/maquinas"));
     setMaoObra(await api.get("/mao-obra"));
+    setUtilizadores(await api.get("/utilizadores-lista").catch(() => []));
   }, [id]);
   useEffect(() => {
     load();
@@ -91,6 +94,8 @@ export default function OrdemFabricoDetail() {
     status: o.status,
     notas: o.notas || "",
     prioritaria: !!o.prioritaria,
+    responsavel_id: o.responsavel_id || null,
+    responsavel_nome: o.responsavel_nome || "",
     imagens: o.imagens || [],
     itens: (o.itens || []).filter((it) => it.artigo_id).map((it) => ({
       ...it,
@@ -208,6 +213,26 @@ export default function OrdemFabricoDetail() {
           )}
         </div>
       </div>
+
+      {can("ordens_fabrico", "edit") && (
+        <div className="mb-4 flex items-center gap-3 flex-wrap bg-white border border-gray-200 rounded-sm px-4 py-3" data-testid="of-responsavel-row">
+          <span className="text-sm text-gray-500 flex items-center gap-1.5"><User size={15} /> Responsável:</span>
+          <div className="w-72">
+            <Combobox
+              options={utilizadores.map((u) => ({ value: u.id, label: u.nome, hint: u.login }))}
+              value={of.responsavel_id || ""}
+              onChange={(v, o) => upd({ responsavel_id: v, responsavel_nome: o?.label || "" })}
+              placeholder="Atribuir a um utilizador..."
+              testid="of-responsavel"
+              optionTestidPrefix="of-responsavel-opt"
+            />
+          </div>
+          {of.responsavel_id && (
+            <button data-testid="of-responsavel-clear" onClick={() => upd({ responsavel_id: null, responsavel_nome: "" })} className="text-xs text-gray-400 hover:text-red-600">Remover</button>
+          )}
+          <span className="text-xs text-gray-400">Guarda para aplicar.</span>
+        </div>
+      )}
 
       <div className="mb-4 bg-gray-900 text-white rounded-sm px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="of-total-timer">
         <div className="flex items-center gap-3">

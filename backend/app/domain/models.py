@@ -300,6 +300,8 @@ class OrdemFabricoInput(BaseModel):
     status: str = "pendente"
     notas: str = ""
     prioritaria: bool = False
+    responsavel_id: Optional[str] = None
+    responsavel_nome: str = ""
     itens: List[OFItem] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
 
@@ -325,6 +327,16 @@ class EncomendaArtigo(BaseModel):
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
 
 
+class Pagamento(BaseModel):
+    id: str = Field(default_factory=new_id)
+    recibo_numero: str = ""
+    data: Optional[str] = None
+    valor: float = 0.0
+    metodo: str = "transferencia"  # transferencia | numerario | mbway | cheque | cartao | outro
+    nota: str = ""
+    created_at: str = Field(default_factory=now_iso)
+
+
 class EncomendaInput(BaseModel):
     cliente: str
     cliente_id: Optional[str] = None
@@ -337,6 +349,7 @@ class EncomendaInput(BaseModel):
     desconto_total_tipo: str = "pct"  # pct | eur
     artigos: List[EncomendaArtigo] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
+    pagamentos: List[Pagamento] = Field(default_factory=list)
     valor_total: Optional[float] = None
     valor_total_manual: bool = False
     valor_pago: float = 0.0

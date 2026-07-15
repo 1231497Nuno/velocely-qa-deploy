@@ -12,6 +12,34 @@ _CLIENTE_CAMPOS = ["nome", "morada", "codigo_postal", "cidade", "pais", "contact
 router = APIRouter()
 
 
+@router.get("/clientes/{cid}/historico-precos")
+async def cliente_historico_precos(cid: str, _u: dict = Depends(get_current_user)):
+    """Preços praticados por artigo em encomendas anteriores deste cliente."""
+    encs = await encomendas_repo.find({"cliente_id": cid}, sort=("data", -1), limit=500)
+    agg: dict = {}
+    for e in encs:
+        for a in e.get("artigos", []):
+            aid = a.get("artigo_id")
+            if not aid:
+                continue
+            entry = agg.setdefault(aid, {"artigo_id": aid, "artigo_nome": a.get("artigo_nome", ""), "precos": []})
+            entry["precos"].append({
+                "preco": round2(a.get("preco_unit") or 0),
+                "data": e.get("data"),
+                "doc_numero": e.get("numero"),
+                "quantidade": a.get("quantidade") or 1,
+            })
+    out = []
+    for v in agg.values():
+        precos = v["precos"]
+        v["ultimo_preco"] = precos[0]["preco"] if precos else 0
+        v["ultima_data"] = precos[0]["data"] if precos else None
+        v["ocorrencias"] = len(precos)
+        out.append(v)
+    out.sort(key=lambda x: (x.get("artigo_nome") or "").lower())
+    return out
+
+
 @router.get("/clientes/{cid}/resumo")
 async def cliente_resumo(cid: str, _u: dict = Depends(get_current_user)):
     c = await clientes_repo.get(cid)

@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.database import new_id, now_iso
-from app.core.security import require_admin, resolve_perfil, user_public, hash_password
+from app.core.security import require_admin, resolve_perfil, user_public, hash_password, get_current_user
 from app.domain.models import (
     UserCreate, UserUpdate, PerfilInput, RBAC_MODULES, RBAC_ACTIONS, perms_all,
     Maquina, MaoObra, Consumivel, TipoPersonalizacao, Artigo, ArtigoMaterial, Operacao,
@@ -21,6 +21,20 @@ async def root():
 
 
 # ----------------------- Utilizadores -----------------------
+@router.get("/utilizadores-lista")
+async def utilizadores_lista(_u: dict = Depends(get_current_user)):
+    """Lista simples de utilizadores (id/nome/login) para atribuições. Requer apenas autenticação."""
+    users = await users_repo.find(sort=("name", 1), projection={"password_hash": 0})
+    return [
+        {
+            "id": u.get("id"),
+            "nome": u.get("name") or u.get("login") or (u.get("email") or "").split("@")[0],
+            "login": u.get("login") or (u.get("email") or "").split("@")[0],
+        }
+        for u in users
+    ]
+
+
 @router.get("/users")
 async def list_users(admin: dict = Depends(require_admin)):
     users = await users_repo.find(sort=("created_at", 1), projection={"password_hash": 0})

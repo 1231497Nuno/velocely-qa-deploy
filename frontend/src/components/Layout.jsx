@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, setCurrency } from "@/lib/api";
+import GlobalSearch from "@/components/GlobalSearch";
+import NotificationsBell from "@/components/NotificationsBell";
 import {
   LayoutDashboard,
   Boxes,
@@ -87,14 +89,17 @@ export default function Layout({ children }) {
         <Link to="/" data-testid="mobile-logo-link">
           <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-7 w-auto" />
         </Link>
-        <button
-          data-testid="mobile-menu-toggle"
-          onClick={() => setOpen(true)}
-          className="p-2 -mr-2 rounded-sm text-gray-700 hover:bg-gray-100"
-          aria-label="Abrir menu"
-        >
-          <Menu size={24} />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationsBell />
+          <button
+            data-testid="mobile-menu-toggle"
+            onClick={() => setOpen(true)}
+            className="p-2 -mr-2 rounded-sm text-gray-700 hover:bg-gray-100"
+            aria-label="Abrir menu"
+          >
+            <Menu size={24} />
+          </button>
+        </div>
       </header>
 
       {/* Overlay (mobile) */}
@@ -182,6 +187,10 @@ export default function Layout({ children }) {
 
       {/* Main */}
       <main className="flex-1 lg:ml-64 min-w-0 pt-14 lg:pt-0">
+        <div className="hidden lg:flex sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
+          <GlobalSearch />
+          <div className="ml-auto"><NotificationsBell /></div>
+        </div>
         <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">{children}</div>
       </main>
     </div>

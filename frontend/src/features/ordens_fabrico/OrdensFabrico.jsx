@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import StatusBadge from "@/components/StatusBadge";
-import { Plus, Trash2, Star } from "lucide-react";
+import { Plus, Trash2, Star, LayoutGrid, List, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const TIMER_INFO = {
@@ -55,9 +55,11 @@ const TimerDot = ({ estado, liveSec }) => {
 };
 
 export default function OrdensFabrico() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ativas");
+  const [view, setView] = useState("lista");
+  const [mine, setMine] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [q, setQ] = useState("");
   const nav = useNavigate();
@@ -93,11 +95,19 @@ export default function OrdensFabrico() {
   };
 
   const ql = q.trim().toLowerCase();
-  const matchQ = (o) => !ql || [o.numero, o.cliente, o.numero_encomenda, o.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql));
-  const ativas = items.filter((o) => o.status !== "concluido" && matchQ(o));
-  const concluidas = items.filter((o) => o.status === "concluido" && matchQ(o));
+  const matchQ = (o) => !ql || [o.numero, o.cliente, o.numero_encomenda, o.orcamento_numero, o.responsavel_nome].some((v) => (v || "").toLowerCase().includes(ql));
+  const matchMine = (o) => !mine || o.responsavel_id === user?.id;
+  const base = items.filter((o) => matchQ(o) && matchMine(o));
+  const ativas = base.filter((o) => o.status !== "concluido");
+  const concluidas = base.filter((o) => o.status === "concluido");
   const rows = tab === "ativas" ? ativas : concluidas;
   const hoje = new Date().toISOString().slice(0, 10);
+
+  const KANBAN_COLS = [
+    { key: "pendente", label: "Pendente", dot: "bg-gray-400" },
+    { key: "em_producao", label: "Em Produção", dot: "bg-blue-500" },
+    { key: "concluido", label: "Concluída", dot: "bg-emerald-500" },
+  ];
 
   const Tab = ({ id, label, count }) => (
     <button
@@ -124,11 +134,62 @@ export default function OrdensFabrico() {
 
       <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código, cliente ou nº encomenda..." testid="ofs-search" />
 
-      <div className="flex items-center gap-2 mb-4">
-        <Tab id="ativas" label="Ativas" count={ativas.length} />
-        <Tab id="concluidas" label="Concluídas" count={concluidas.length} />
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          {view === "lista" && <>
+            <Tab id="ativas" label="Ativas" count={ativas.length} />
+            <Tab id="concluidas" label="Concluídas" count={concluidas.length} />
+          </>}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            data-testid="of-filter-minhas"
+            onClick={() => setMine((m) => !m)}
+            className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+          >
+            <UserCheck size={15} /> As minhas tarefas
+          </button>
+          <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden">
+            <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
+            <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
+          </div>
+        </div>
       </div>
 
+      {view === "kanban" && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="of-kanban">
+          {KANBAN_COLS.map((col) => {
+            const cards = base.filter((o) => o.status === col.key);
+            return (
+              <div key={col.key} data-testid={`kanban-col-${col.key}`} className="bg-gray-50 border border-gray-200 rounded-sm p-3">
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="text-sm font-semibold text-gray-700 flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} /> {col.label}</span>
+                  <span className="text-xs tabular-nums bg-white border border-gray-200 text-gray-500 rounded-full px-2 py-0.5">{cards.length}</span>
+                </div>
+                <div className="space-y-2.5">
+                  {cards.map((o) => (
+                    <div key={o.id} data-testid={`kanban-card-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className={`bg-white border rounded-sm p-3 cursor-pointer hover:shadow-sm transition-shadow ${o.prioritaria ? "border-amber-300" : "border-gray-200"}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="mono tabular-nums font-semibold text-gray-900 text-sm">{o.numero}</span>
+                        {o.prioritaria && <Star size={14} className="fill-amber-400 text-amber-500 shrink-0" />}
+                      </div>
+                      <div className="text-sm text-gray-700 truncate mt-0.5">{o.cliente}</div>
+                      <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                        <span className="tabular-nums">{Math.round(o.progresso || 0)}%</span>
+                        {o.prazo_entrega && <span className={`tabular-nums ${o.prazo_entrega < hoje && o.status !== "concluido" ? "text-red-600 font-medium" : ""}`}>{fmtDate(o.prazo_entrega)}</span>}
+                      </div>
+                      {o.responsavel_nome && <div className="mt-2 text-xs text-gray-500 flex items-center gap-1 truncate"><UserCheck size={11} /> {o.responsavel_nome}</div>}
+                    </div>
+                  ))}
+                  {cards.length === 0 && <div className="text-xs text-gray-400 text-center py-6">Vazio</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {view === "lista" && (<>
       <div className="hidden md:block bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[760px]">
           <thead>
@@ -207,13 +268,14 @@ export default function OrdensFabrico() {
         )}
       </div>
 
-      {tab === "ativas" && (
+      {tab === "ativas" && view === "lista" && (
         <div className="flex items-center gap-5 mt-3 text-xs text-gray-500">
           <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> Por iniciar</span>
           <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Em curso</span>
           <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Em pausa</span>
         </div>
       )}
+      </>)}
     </div>
   );
 }

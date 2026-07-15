@@ -484,6 +484,60 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
     return buf.getvalue()
 
 
+def build_recibo_pdf(enc: dict, pag: dict, settings: dict = None, cliente: dict = None, metodo_label: str = "") -> bytes:
+    _set_currency(settings)
+    st = _pdf_styles()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    elems = []
+    nome_cli = (cliente or {}).get("nome") or enc.get("cliente") or "—"
+    nif = (cliente or {}).get("nif") or ""
+    meta_pairs = [
+        ("Cliente", nome_cli),
+        ("NIF", nif),
+        ("Data", pag.get("data")),
+        ("Encomenda", enc.get("numero")),
+    ]
+    _header(elems, st, "RECIBO", pag.get("recibo_numero", ""), meta_pairs, settings, True)
+
+    valor = pag.get("valor") or 0
+    data = [
+        _th_row(st, ["Descrição", "Valor"]),
+        [Paragraph(f"Pagamento referente à encomenda {enc.get('numero') or ''}", st["cell"]), Paragraph(fmt_eur(valor), st["cellb"])],
+    ]
+    elems.append(_data_table(data, [130 * mm, 40 * mm], align=[("ALIGN", (-1, 0), (-1, -1), "RIGHT")]))
+    elems.append(Spacer(1, 12))
+
+    elems.append(Paragraph(f"Recebemos de <b>{nome_cli}</b> a quantia de <b>{fmt_eur(valor)}</b>.", st["val"]))
+    elems.append(Spacer(1, 4))
+    elems.append(Paragraph(f"Método de pagamento: {metodo_label or pag.get('metodo') or '—'}", st["small"]))
+    if pag.get("nota"):
+        elems.append(Paragraph(f"Nota: {pag.get('nota')}", st["small"]))
+    elems.append(Spacer(1, 14))
+
+    total_enc = enc.get("valor_total") or 0
+    total_pago = round2(sum((p.get("valor") or 0) for p in (enc.get("pagamentos") or [])))
+    em_falta = round2((total_enc or 0) - total_pago)
+    tot_rows = [
+        ("Total da encomenda", fmt_eur(total_enc)),
+        ("Total pago acumulado", fmt_eur(total_pago)),
+        ("Em falta", fmt_eur(em_falta if em_falta > 0 else 0)),
+    ]
+    tot = Table([[Paragraph(k, st["cell"]), Paragraph(v, st["cellb"])] for k, v in tot_rows], colWidths=[130 * mm, 40 * mm])
+    tot.setStyle(TableStyle([
+        ("ALIGN", (-1, 0), (-1, -1), "RIGHT"),
+        ("LINEABOVE", (0, 0), (-1, 0), 0.5, LINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    elems.append(tot)
+
+    _pdf_footer(elems, st, settings)
+    doc.build(elems)
+    return buf.getvalue()
+
+
+
 async def load_pdf_config(template_id: Optional[str]):
     settings = await empresa_repo.find_one({"id": "empresa"}) or {}
     fields = {}

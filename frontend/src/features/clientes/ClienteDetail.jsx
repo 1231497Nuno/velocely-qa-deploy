@@ -36,12 +36,14 @@ export default function ClienteDetail() {
   const nav = useNavigate();
   const { can } = useAuth();
   const [data, setData] = useState(null);
+  const [precos, setPrecos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setData(await api.get(`/clientes/${id}/resumo`));
+      setPrecos(await api.get(`/clientes/${id}/historico-precos`).catch(() => []));
     } finally {
       setLoading(false);
     }
@@ -181,6 +183,31 @@ export default function ClienteDetail() {
               {ordens_fabrico.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">Sem ordens de fabrico.</td></tr>}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="mt-6" data-testid="cliente-historico-precos">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Coins size={15} /> Histórico de preços por artigo</h2>
+        <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+          {precos.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-gray-400">Sem preços registados em encomendas anteriores.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr><Th>Artigo</Th><Th align="right">Último preço</Th><Th align="right">Nº vezes</Th><Th align="right">Última encomenda</Th></tr>
+              </thead>
+              <tbody>
+                {precos.map((p) => (
+                  <tr key={p.artigo_id} data-testid={`preco-hist-${p.artigo_id}`} className="border-b border-gray-100 last:border-0">
+                    <td className="px-4 py-2.5 text-gray-900">{p.artigo_nome}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(p.ultimo_preco)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{p.ocorrencias}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-500">{fmtDate(p.ultima_data)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 

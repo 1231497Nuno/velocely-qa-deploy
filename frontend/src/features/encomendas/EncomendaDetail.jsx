@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api, fmtDate, eur } from "@/lib/api";
+import { api, fmtDate, eur, API, getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import Combobox from "@/components/Combobox";
@@ -10,11 +10,12 @@ import ImagensGaleria from "@/components/ImagensGaleria";
 import PdfExportButton from "@/components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
-  Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil,
+  Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil, Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
+const METODO_PT = { transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY", cheque: "Cheque", cartao: "Cartão", outro: "Outro" };
 
 export default function EncomendaDetail() {
   const { can } = useAuth();
@@ -22,9 +23,26 @@ export default function EncomendaDetail() {
   const nav = useNavigate();
   const [enc, setEnc] = useState(null);
   const [cliente, setCliente] = useState(null);
+  const [precoHist, setPrecoHist] = useState({});
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
   const [editValor, setEditValor] = useState(false);
+  const [pagValor, setPagValor] = useState("");
+  const [pagMetodo, setPagMetodo] = useState("transferencia");
+  const [pagNota, setPagNota] = useState("");
+
+  const addPagamento = async (valorOverride, notaOverride) => {
+    const v = Number(valorOverride ?? pagValor);
+    if (!v || v <= 0) return toast.error("Indica um valor positivo");
+    const updated = await api.post(`/encomendas/${id}/pagamentos`, { valor: v, metodo: pagMetodo, nota: notaOverride ?? pagNota });
+    setEnc(updated); setPagValor(""); setPagNota("");
+    toast.success("Pagamento registado");
+  };
+  const delPagamento = async (pid) => {
+    const updated = await api.delete(`/encomendas/${id}/pagamentos/${pid}`);
+    setEnc(updated); toast.success("Pagamento removido");
+  };
+  const reciboUrl = (pid) => `${API}/encomendas/${id}/pagamentos/${pid}/recibo?auth=${getToken()}`;
 
   const load = useCallback(async () => {
     const e = await api.get(`/encomendas/${id}`);
@@ -34,6 +52,8 @@ export default function EncomendaDetail() {
     if (e.cliente_id) {
       const cs = await api.get("/clientes");
       setCliente(cs.find((c) => c.id === e.cliente_id) || null);
+      const hist = await api.get(`/clientes/${e.cliente_id}/historico-precos`).catch(() => []);
+      setPrecoHist(Object.fromEntries((hist || []).map((h) => [h.artigo_id, h])));
     }
   }, [id]);
   useEffect(() => { load(); }, [load]);
@@ -75,6 +95,7 @@ export default function EncomendaDetail() {
     estado: e.estado,
     notas: e.notas || "",
     imagens: e.imagens || [],
+    pagamentos: e.pagamentos || [],
     desconto_total: Number(e.desconto_total) || 0,
     desconto_total_tipo: e.desconto_total_tipo || "pct",
     artigos: (e.artigos || []).map((a) => ({
@@ -239,12 +260,44 @@ export default function EncomendaDetail() {
             </div>
           )}
 
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Valor pago</label>
-            <div className="flex items-center gap-2">
-              <input data-testid="enc-pago-input" type="number" step="0.01" value={enc.valor_pago ?? 0} onChange={(e) => upd({ valor_pago: e.target.value })} onBlur={() => persist({}, "Pagamento atualizado")} className="flex-1 border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              <button data-testid="enc-marcar-pago-btn" onClick={() => persist({ valor_pago: enc.valor_total }, "Marcado como pago total")} className="shrink-0 text-xs border border-gray-300 rounded-sm px-2.5 py-2 hover:bg-gray-50 text-gray-700">Pago total</button>
+          <div data-testid="enc-pagamentos">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pagamentos</label>
+              <span className="text-xs text-gray-500 tabular-nums">Pago {eur(enc.valor_pago)} · Pendente {eur(enc.valor_pendente)}</span>
             </div>
+            {(enc.pagamentos || []).length > 0 ? (
+              <div className="space-y-1.5 mb-2" data-testid="enc-pagamentos-lista">
+                {enc.pagamentos.map((p) => (
+                  <div key={p.id} data-testid={`enc-pagamento-${p.id}`} className="flex items-center justify-between gap-2 border border-gray-200 rounded-sm px-2.5 py-1.5">
+                    <div className="min-w-0 text-sm">
+                      <span className="tabular-nums font-medium text-gray-900">{eur(p.valor)}</span>
+                      <span className="text-xs text-gray-400 ml-2">{METODO_PT[p.metodo] || p.metodo} · {fmtDate(p.data)}{p.recibo_numero ? ` · ${p.recibo_numero}` : ""}</span>
+                      {p.nota && <span className="text-xs text-gray-400 ml-1">· {p.nota}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <a href={reciboUrl(p.id)} target="_blank" rel="noreferrer" data-testid={`enc-recibo-${p.id}`} title="Recibo (PDF)" className="p-1 text-gray-400 hover:text-gray-900"><Receipt size={15} /></a>
+                      {can("encomendas", "edit") && <button onClick={() => delPagamento(p.id)} data-testid={`enc-pagamento-del-${p.id}`} title="Remover" className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-xs text-gray-400 mb-2">Sem pagamentos registados.</p>}
+
+            {can("encomendas", "edit") && (
+              <>
+                <div className="flex items-center gap-1.5" data-testid="enc-pagamento-form">
+                  <input data-testid="enc-pagamento-valor" type="number" step="0.01" placeholder="Valor" value={pagValor} onChange={(e) => setPagValor(e.target.value)} className="w-24 border border-gray-300 rounded-sm px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                  <select data-testid="enc-pagamento-metodo" value={pagMetodo} onChange={(e) => setPagMetodo(e.target.value)} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                    {Object.entries(METODO_PT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <input data-testid="enc-pagamento-nota" placeholder="Nota (opcional)" value={pagNota} onChange={(e) => setPagNota(e.target.value)} className="flex-1 min-w-0 border border-gray-300 rounded-sm px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-black/20" />
+                  <button data-testid="enc-pagamento-add" onClick={() => addPagamento()} className="shrink-0 bg-gray-900 text-white rounded-sm px-2.5 py-1.5 text-sm hover:bg-gray-800"><Plus size={15} /></button>
+                </div>
+                {(enc.valor_pendente || 0) > 0 && (
+                  <button data-testid="enc-marcar-pago-btn" onClick={() => addPagamento(enc.valor_pendente, "Pagamento total")} className="mt-1.5 text-xs border border-gray-300 rounded-sm px-2.5 py-1.5 hover:bg-gray-50 text-gray-700">Registar pagamento total ({eur(enc.valor_pendente)})</button>
+                )}
+              </>
+            )}
           </div>
 
           <div className={`rounded-sm border p-3 flex items-center gap-2.5 ${podeProduzir ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`} data-testid="enc-producao-status">
@@ -346,6 +399,17 @@ export default function EncomendaDetail() {
                       </td>
                       <td className="px-4 py-2.5 text-right align-top">
                         <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} onBlur={() => persist({})} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                        {precoHist[a.artigo_id] && (
+                          <button
+                            type="button"
+                            data-testid={`enc-preco-hint-${i}`}
+                            title="Aplicar o último preço praticado a este cliente"
+                            onClick={() => { updArtigo(i, { preco_unit: precoHist[a.artigo_id].ultimo_preco }); persist({ artigos: enc.artigos.map((x, idx) => idx === i ? { ...x, preco_unit: precoHist[a.artigo_id].ultimo_preco } : x) }); }}
+                            className="block ml-auto mt-1 text-[11px] text-blue-600 hover:underline whitespace-nowrap"
+                          >
+                            Último: {eur(precoHist[a.artigo_id].ultimo_preco)}
+                          </button>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`enc-artigo-unit-pers-${i}`}>{eur(unitPers)}</td>
                       <td className="px-4 py-2.5 text-right align-top">

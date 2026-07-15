@@ -1,4 +1,5 @@
 from collections import defaultdict
+import re
 
 from fastapi import APIRouter, Depends
 
@@ -7,7 +8,7 @@ from app.core.security import get_current_user
 from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.repositories import (
     ordens_repo, orcamentos_repo, artigos_repo, encomendas_repo,
-    maquinas_repo, tipos_repo, consumiveis_repo,
+    maquinas_repo, tipos_repo, consumiveis_repo, clientes_repo,
 )
 from app.services.costing import (
     recompute_of_status, op_custo_real, compute_orcamento_totais,
@@ -248,6 +249,74 @@ async def alertas(_u: dict = Depends(get_current_user)):
         "prazos_proximos": prazos_proximos,
         "ofs_atrasadas": ofs_atrasadas,
     }
+
+
+@router.get("/notificacoes")
+async def notificacoes(_u: dict = Depends(get_current_user)):
+    """Lista de notificações acionáveis (derivadas, não persistidas)."""
+    items = []
+    encs = await encomendas_repo.find(limit=5000)
+    enc_map = {e["id"]: e for e in encs}
+    for e in encs:
+        ec = await compute_encomenda(e)
+        if ec["estado"] in ("concluida", "cancelada"):
+            continue
+        eid = e["id"]
+        num = e.get("numero")
+        cli = e.get("cliente") or ""
+        if not e.get("autorizada_producao"):
+            items.append({"id": f"aut-{eid}", "tipo": "autorizar", "severidade": "info",
+                          "titulo": f"Encomenda {num} por autorizar", "descricao": cli, "url": f"/encomendas/{eid}"})
+        if (ec.get("valor_pendente") or 0) > 0:
+            items.append({"id": f"pag-{eid}", "tipo": "pagamento", "severidade": "aviso",
+                          "titulo": f"Pagamento pendente · {num}", "descricao": f"{cli} — falta {round2(ec['valor_pendente'])}€", "url": f"/encomendas/{eid}"})
+        prazo = e.get("prazo_entrega")
+        if prazo:
+            _d, est = _prazo_meta(prazo)
+            if est == "atrasada":
+                items.append({"id": f"praz-{eid}", "tipo": "prazo", "severidade": "critico",
+                              "titulo": f"Encomenda {num} atrasada", "descricao": f"{cli} — entrega {prazo}", "url": f"/encomendas/{eid}"})
+            elif est == "proxima":
+                items.append({"id": f"prazp-{eid}", "tipo": "prazo", "severidade": "aviso",
+                              "titulo": f"Encomenda {num} entrega em breve", "descricao": f"{cli} — {prazo}", "url": f"/encomendas/{eid}"})
+    for o in await ordens_repo.find(limit=5000):
+        oc = recompute_of_status(o)
+        if oc.get("status") == "concluido":
+            continue
+        prazo = (enc_map.get(o.get("encomenda_id")) or {}).get("prazo_entrega")
+        if prazo:
+            _d, est = _prazo_meta(prazo)
+            if est == "atrasada":
+                items.append({"id": f"of-{o['id']}", "tipo": "of", "severidade": "critico",
+                              "titulo": f"OF {o.get('numero')} atrasada", "descricao": o.get("cliente") or "", "url": f"/ordens-fabrico/{o['id']}"})
+    ordem = {"critico": 0, "aviso": 1, "info": 2}
+    items.sort(key=lambda x: ordem.get(x["severidade"], 3))
+    return {"total": len(items), "notificacoes": items[:40]}
+
+
+@router.get("/search")
+async def search(q: str = "", _u: dict = Depends(get_current_user)):
+    ql = (q or "").strip()
+    if len(ql) < 2:
+        return {"resultados": []}
+    rx = {"$regex": re.escape(ql), "$options": "i"}
+    resultados = []
+    for c in await clientes_repo.find({"$or": [{"nome": rx}, {"nif": rx}, {"cidade": rx}]}, limit=6):
+        resultados.append({"tipo": "Cliente", "id": c["id"], "titulo": c.get("nome") or "—",
+                           "subtitulo": c.get("cidade") or c.get("nif") or "", "url": f"/clientes/{c['id']}"})
+    for o in await orcamentos_repo.find({"$or": [{"numero": rx}, {"cliente": rx}, {"descricao": rx}]}, limit=6):
+        resultados.append({"tipo": "Orçamento", "id": o["id"], "titulo": o.get("numero") or "—",
+                           "subtitulo": o.get("cliente") or "", "url": f"/orcamentos/{o['id']}"})
+    for e in await encomendas_repo.find({"$or": [{"numero": rx}, {"cliente": rx}, {"descricao": rx}]}, limit=6):
+        resultados.append({"tipo": "Encomenda", "id": e["id"], "titulo": e.get("numero") or "—",
+                           "subtitulo": e.get("cliente") or "", "url": f"/encomendas/{e['id']}"})
+    for o in await ordens_repo.find({"$or": [{"numero": rx}, {"cliente": rx}]}, limit=6):
+        resultados.append({"tipo": "Ordem de Fabrico", "id": o["id"], "titulo": o.get("numero") or "—",
+                           "subtitulo": o.get("cliente") or "", "url": f"/ordens-fabrico/{o['id']}"})
+    for a in await artigos_repo.find({"$or": [{"nome": rx}, {"descricao": rx}]}, limit=6):
+        resultados.append({"tipo": "Artigo", "id": a["id"], "titulo": a.get("nome") or "—",
+                           "subtitulo": a.get("descricao") or "", "url": "/artigos"})
+    return {"resultados": resultados}
 
 
 @router.get("/dashboard")

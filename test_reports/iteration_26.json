@@ -1,0 +1,69 @@
+{
+  "summary": "Testado end-to-end FASES A/B/C do Velocely ERP. 16/18 backend tests PASSED. Frontend: Kanban (3 col), filtro 'As minhas tarefas', pesquisa global, notificações, responsável em OF, histórico de preços e hint na encomenda funcionam. DOIS BUGS CRÍTICOS encontrados: (1) recibo PDF via ?auth=<token> devolve 401 (frontend abre com query, endpoint só aceita header), (2) EncomendaDetail.jsx usa api.delete que NÃO EXISTE (só existe api.del) — remoção de pagamento parcial via UI está TOTALMENTE BLOQUEADA (uncaught TypeError). Dados reais preservados; pagamento de teste eliminado via API.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/encomendas/{eid}/pagamentos/{pid}/recibo",
+        "issue": "Não aceita ?auth=<token> na query (só header Authorization). O frontend gera links <a href=...?auth=TOKEN target=_blank> — abrir em nova aba devolve 401 JSON em vez do PDF. Comparar com /files/{path} que já suporta query. Fix: adicionar 'auth: str = Query(None)' no endpoint e derivar header a partir dele.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/ordens-fabrico",
+        "issue": "Algumas OFs antigas não incluem chaves 'responsavel_id'/'responsavel_nome' quando o valor é None (JSON omite). Aceitável, mas melhora consistência devolver sempre as chaves (com null)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "EncomendaDetail.jsx (linha 42) — delPagamento",
+        "issue": "Uncaught TypeError: api.delete is not a function. O módulo api expõe 'del' (não 'delete'). Ao clicar em 'enc-pagamento-del-{pid}' aparece overlay vermelho de erro e o pagamento NÃO é removido. Fix: mudar 'api.delete' para 'api.del' em EncomendaDetail.jsx:42.",
+        "selector": "[data-testid^=\"enc-pagamento-del-\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "EncomendaDetail.jsx — recibo link",
+        "issue": "reciboUrl(pid) constrói URL com '?auth=<token>' mas o endpoint backend só lê header Authorization → resulta em 401 (JSON) ao clicar no ícone Receipt. Fix acoplado ao ponto de backend acima OU trocar para blob via fetch com header.",
+        "selector": "[data-testid^=\"enc-recibo-\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "EncomendaDetail — select de personalização (pré-existente)",
+        "issues": ["Console: '<span> cannot be a child of <option>' (hydration warning já reportado nas iterações 24/25 — não é regressão desta fase)."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration26_phases.py",
+    "/app/test_reports/pytest/iteration26_results.xml"
+  ],
+  "action_items": [
+    "1) FIX CRÍTICO — EncomendaDetail.jsx linha 42: trocar 'api.delete' por 'api.del' (pagamento parcial via UI está BROKEN).",
+    "2) FIX CRÍTICO — /api/encomendas/{eid}/pagamentos/{pid}/recibo: aceitar ?auth=<token> na query (adicionar Query(None) e derivar header, tal como /files/{path}) — sem isto, o link do recibo PDF na UI devolve 401.",
+    "3) (opcional) Devolver sempre chaves responsavel_id/responsavel_nome (null) na listagem de OFs para consistência."
+  ],
+  "critical_code_review_comments": [
+    "api.js expõe {get, post, put, del} — nenhuma outra parte do código usa 'api.delete'. Este erro em EncomendaDetail.jsx é uma regressão pontual introduzida ao adicionar delPagamento.",
+    "encomendas.py:71 (recibo_pdf) usa Depends(get_current_user) que só lê o header Authorization. Como o frontend opera exclusivamente via <a href=...?auth=> target=_blank (não pode injetar cabeçalhos), o padrão correto é o mesmo de uploads.py:59 (Header opcional + Query opcional 'auth').",
+    "compute_encomenda deve garantir 'pagamentos' sempre presente (lista); confirmado que devolve corretamente após POST/DELETE.",
+    "Kanban: filter por o.status (não estado) — correto. Ordens de fabrico expõem 'status' entre {pendente, em_producao, concluido} conforme esperado.",
+    "GlobalSearch.jsx e NotificationsBell.jsx: têm 2 instâncias renderizadas (mobile+desktop) — data-testid duplicados. Não bloqueia mas cria ambiguidade em testes (locators com .first / :visible). Recomenda-se sufixar (-mobile/-desktop) ou renderizar condicionalmente.",
+    "ClienteDetail histórico-precos e enc-preco-hint funcionam e integram-se corretamente com /api/clientes/{id}/historico-precos.",
+    "Responsável na OF: PUT devolve payload atualizado e persiste após reload — OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration26_phases.py (novo)"
+  ],
+  "success_rate": {"backend": "89% (16/18)", "frontend": "80% (kanban/filter/search/notifs/responsavel/histórico/hint OK; delete-pagamento e recibo BROKEN)"},
+  "test_credentials": "admin / Admin123!",
+  "seed_data_creation": "Testes criam pagamentos de teste (nota='teste-*') em encomendas reais e eliminam-nos no final via DELETE. Um pagamento residual (5,00€ na ENC-2026-0046, PID 769ee4ad-...) que ficou por eliminar por causa do bug UI foi manualmente eliminado via API — a encomenda foi restaurada ao estado original (valor_pago=0,00). NENHUM dado real do utilizador foi modificado.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Após fix do api.delete → api.del em EncomendaDetail.jsx e fix do endpoint recibo para aceitar ?auth= na query, retestar: (a) UI: adicionar pagamento parcial, abrir recibo em nova tab (deve carregar PDF), eliminar pagamento (sem erro overlay). (b) Backend: pytest /app/backend/tests/test_iteration26_phases.py — o teste 'test_recibo_pdf_via_query_auth' deve passar. Preserve dados reais; use prefixo 'teste-' e limpe via /api/encomendas/{eid}/pagamentos/{pid}. Data do servidor: 15 julho 2026. Notificações reais atualmente 5. Encomendas: 3 (0026 paga, 0036 pendente, 0046 pendente). OFs: 3 (0062 pendente Nuno, 0043 concluída, 0072 em_producao).",
+  "rca of the issue": "BUG 1 (api.delete): api client (lib/api.js linha 33) expõe método 'del' (nome curto para evitar keyword). EncomendaDetail.jsx linha 42 introduziu 'api.delete' — método inexistente → TypeError não capturado. Fix trivial. BUG 2 (recibo ?auth=): O endpoint recibo_pdf usa Depends(get_current_user) que só aceita header Authorization. Frontend cria link com ?auth=<token> na URL (target=_blank não permite headers custom). O padrão correto está em /files/{path} (uploads.py linha 59) que aceita 'authorization: str = Header(None), auth: str = Query(None)'. Fix: replicar esse padrão em encomendas.py recibo_pdf."
+}
