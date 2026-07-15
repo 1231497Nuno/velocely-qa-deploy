@@ -2,7 +2,15 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 30 (2026-07-15) — Dashboard dinâmico (centro de comando)
+## Iteração 31 (2026-07-15) — Upload de imagem por artigo (Orçamentos/Encomendas/OFs) + object storage
+- Integração **object storage Emergent** (`app/services/storage.py`, usa `EMERGENT_LLM_KEY`, adicionada à `.env` + `config.py`). Rotas `app/api/routes/uploads.py`: `POST /api/upload/imagem` (multipart, valida imagem+≤5MB, guarda em `velocely/uploads/`, metadados na coleção `files`) e `GET /api/files/{path}` (auth via header OU `?auth=<jwt>`, devolve bytes). Init no arranque do server.
+- Campo `imagem` (path) adicionado a: Artigo/ArtigoInput (imagem de catálogo), OrcamentoLinha, EncomendaArtigo, OFItem.
+- **Auto-preenchimento**: `fill_linha_custos` e `build_of_itens` copiam a imagem do catálogo do artigo para a linha/item se esta estiver vazia (respeita override manual).
+- **Propagação**: `converter_orcamento` passa `imagem` das linhas para itens da OF e artigos da Encomenda; `criarOF` na encomenda envia `imagem` nos itens.
+- Frontend: componente reutilizável `components/ImagemUpload.jsx` (thumbnail + preview grande + upload/remover; URL `${API}/files/{path}?auth=${token}`). Integrado em ArtigoForm (imagem de catálogo), OrcamentoDetail (por linha), EncomendaDetail (por linha), OrdemFabricoDetail (por item). testids: artigo-imagem, line-imagem-{i}, enc-artigo-imagem-{i}, of-item-imagem-{i}.
+- Testado: iteration_25.json — backend 11/11 pytest, frontend 100%, propagação e auto-fill validados. Sem bugs.
+- Nota: backend aceita também GIF/WEBP (mais permissivo que JPG/PNG pedido). Warning de hidratação `<option> em <span>` pré-existente, independente desta feature.
+
 - Novos widgets em `features/dashboard/widgets.jsx`: `Greeting` (saudação + data PT), `QuickActions` (Novo Orçamento/Nova Encomenda criam+navegam; Novo Cliente/OFs navegam — gated por permissão, com try/catch+toast), `AttentionCenter` (cartões clicáveis: por autorizar, pagamentos pendentes, prazos atrasados/próximos, OFs atrasadas/em produção; "Tudo em dia" quando vazio), `RecentActivity` (últimos 8 eventos de `/historico` com utilizador + tempo relativo + links), `QuickAnalysis` (gráfico horizontal financeiro: Faturado/Recebido/Pendente/Custo real/Margem).
 - `Dashboard.jsx` reescrito: busca `/dashboard` + `/alertas` em paralelo; **adaptação ao perfil (RBAC)** — KPIs, gráficos e secções só aparecem conforme `can(modulo,'view')`/isAdmin (encomendas/orçamentos/artigos/ordens_fabrico/analise_producao/calendario/historico). Gráficos existentes mantidos por baixo como análise aprofundada.
 - Testado: iteration_24.json — frontend 100%, 0 erros de consola; ações rápidas criam+eliminam sem lixo; cartões de atenção e atividade recente navegam corretamente. testids: dash-greeting, dash-quick-actions (qa-*), dash-attention (att-*), dash-recent-activity, dash-attention-clear.
