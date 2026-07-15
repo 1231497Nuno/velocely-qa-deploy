@@ -220,14 +220,22 @@ export const QuickActions = () => {
   const nav = useNavigate();
   const { can } = useAuth();
   const novoOrcamento = async () => {
-    const o = await api.post("/orcamentos", { cliente: "Novo Cliente", status: "rascunho", linhas: [] });
-    toast.success("Orçamento criado");
-    nav(`/orcamentos/${o.id}`);
+    try {
+      const o = await api.post("/orcamentos", { cliente: "Novo Cliente", status: "rascunho", linhas: [] });
+      toast.success("Orçamento criado");
+      nav(`/orcamentos/${o.id}`);
+    } catch {
+      toast.error("Não foi possível criar o orçamento");
+    }
   };
   const novaEncomenda = async () => {
-    const e = await api.post("/encomendas", { cliente: "Novo Cliente", descricao: "", prazo_entrega: "", notas: "" });
-    toast.success("Encomenda criada");
-    nav(`/encomendas/${e.id}`);
+    try {
+      const e = await api.post("/encomendas", { cliente: "Novo Cliente", descricao: "", prazo_entrega: "", notas: "" });
+      toast.success("Encomenda criada");
+      nav(`/encomendas/${e.id}`);
+    } catch {
+      toast.error("Não foi possível criar a encomenda");
+    }
   };
   const actions = [
     can("orcamentos", "create") && { label: "Novo Orçamento", icon: FileText, onClick: novoOrcamento, tid: "qa-novo-orcamento" },

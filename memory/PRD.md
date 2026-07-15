@@ -2,7 +2,12 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
-## Iteração 29 (2026-07-15) — [Fase 3 · 3/3] Módulos em falta na matriz de perfis
+## Iteração 30 (2026-07-15) — Dashboard dinâmico (centro de comando)
+- Novos widgets em `features/dashboard/widgets.jsx`: `Greeting` (saudação + data PT), `QuickActions` (Novo Orçamento/Nova Encomenda criam+navegam; Novo Cliente/OFs navegam — gated por permissão, com try/catch+toast), `AttentionCenter` (cartões clicáveis: por autorizar, pagamentos pendentes, prazos atrasados/próximos, OFs atrasadas/em produção; "Tudo em dia" quando vazio), `RecentActivity` (últimos 8 eventos de `/historico` com utilizador + tempo relativo + links), `QuickAnalysis` (gráfico horizontal financeiro: Faturado/Recebido/Pendente/Custo real/Margem).
+- `Dashboard.jsx` reescrito: busca `/dashboard` + `/alertas` em paralelo; **adaptação ao perfil (RBAC)** — KPIs, gráficos e secções só aparecem conforme `can(modulo,'view')`/isAdmin (encomendas/orçamentos/artigos/ordens_fabrico/analise_producao/calendario/historico). Gráficos existentes mantidos por baixo como análise aprofundada.
+- Testado: iteration_24.json — frontend 100%, 0 erros de consola; ações rápidas criam+eliminam sem lixo; cartões de atenção e atividade recente navegam corretamente. testids: dash-greeting, dash-quick-actions (qa-*), dash-attention (att-*), dash-recent-activity, dash-attention-clear.
+- Nota (fora de âmbito): warning de hidratação pré-existente em OrcamentoPanels (`<span>` dentro de `<option>`) — não corrigido.
+
 - `RBAC_MODULES` passou de 12 → 16 módulos: adicionados `rentabilidade`, `calendario`, `historico`, `definicoes`. Labels adicionados em `GET /api/rbac/modulos`.
 - `perms_colaborador()`: novos módulos com `view=True` exceto `historico`/`definicoes` (e `utilizadores`) que ficam a False por defeito. Migração `seed_perfis` (arranque) adiciona os novos módulos aos perfis existentes (Admin=tudo True; Colaborador=defaults; perfis custom=False).
 - Frontend: rotas `/calendario` (modulo `calendario`), `/rentabilidade-clientes` (`rentabilidade`), `/historico` (`historico`), `/definicoes` (`definicoes`) passaram de adminOnly/dashboard para **gating por módulo**. Nav (`Layout.jsx`): Histórico e Definições passaram a itens gated por módulo (visíveis a quem tiver a permissão); Utilizadores mantém-se admin-only. A matriz de perfis (dinâmica via `/rbac/modulos`) mostra agora os 16 módulos.
