@@ -139,7 +139,7 @@ async def list_perfis(admin: dict = Depends(require_admin)):
 async def rbac_modulos(admin: dict = Depends(require_admin)):
     labels = {
         "dashboard": "Dashboard", "clientes": "Clientes", "encomendas": "Encomendas",
-        "artigos": "Artigos", "materiais": "Materiais",
+        "artigos": "Artigos", "categorias": "Categorias", "materiais": "Materiais",
         "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
         "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",
         "analise_producao": "Análise da Produção", "rentabilidade": "Rentabilidade por Cliente",

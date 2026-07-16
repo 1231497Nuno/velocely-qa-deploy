@@ -6,7 +6,7 @@ from app.core.database import new_id, now_iso
 
 # ----------------------- RBAC -----------------------
 RBAC_MODULES = [
-    "dashboard", "clientes", "encomendas", "artigos", "materiais", "maquinas", "mao_obra",
+    "dashboard", "clientes", "encomendas", "artigos", "categorias", "materiais", "maquinas", "mao_obra",
     "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "rentabilidade",
     "calendario", "historico", "definicoes", "utilizadores",
 ]
@@ -135,6 +135,10 @@ class Artigo(BaseModel):
     descricao: str = ""
     unidade: str = "un"
     imagem: str = ""
+    categoria_id: Optional[str] = None
+    categoria_nome: str = ""
+    subcategoria_id: Optional[str] = None
+    subcategoria_nome: str = ""
     custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
@@ -147,10 +151,34 @@ class ArtigoInput(BaseModel):
     descricao: str = ""
     unidade: str = "un"
     imagem: str = ""
+    categoria_id: Optional[str] = None
+    categoria_nome: str = ""
+    subcategoria_id: Optional[str] = None
+    subcategoria_nome: str = ""
     custo_artigo: float = 0.0
     margem: float = 30.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
+
+
+class CategoriaInput(BaseModel):
+    nome: str
+
+
+class Categoria(CategoriaInput):
+    id: str = Field(default_factory=new_id)
+    created_at: str = Field(default_factory=now_iso)
+
+
+class SubcategoriaInput(BaseModel):
+    nome: str
+    categoria_id: str
+
+
+class Subcategoria(SubcategoriaInput):
+    id: str = Field(default_factory=new_id)
+    categoria_nome: str = ""
+    created_at: str = Field(default_factory=now_iso)
 
 
 class TipoPersonalizacao(BaseModel):
