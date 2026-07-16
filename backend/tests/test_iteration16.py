@@ -5,35 +5,12 @@ nos builders de PDF + extração de componentes frontend + correção de useCall
 não há regressões funcionais nas APIs principais. Os PDFs continuam a gerar e
 respondem com %PDF e tamanho razoável.
 """
-import os
 import requests
 import pytest
+from conftest import get_base_url, get_admin_credentials
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://budgeting-orders.preview.emergentagent.com").rstrip("/")
-
-
-def _load_admin_creds():
-    """Lê credenciais de teste de env ou /app/memory/test_credentials.md (evita secret hardcoded)."""
-    from pathlib import Path
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    password = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and password:
-        return email, password
-    e = p = None
-    creds = Path("/app/memory/test_credentials.md")
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            s = line.strip()
-            if s.startswith("- Email:") and e is None:
-                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            elif s.startswith("- Password:") and p is None:
-                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            if e and p:
-                break
-    return email or e, password or p
-
-
-ADMIN_EMAIL, ADMIN_PASSWORD = _load_admin_creds()
+BASE_URL = get_base_url()
+ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
 
 
 @pytest.fixture(scope="session")

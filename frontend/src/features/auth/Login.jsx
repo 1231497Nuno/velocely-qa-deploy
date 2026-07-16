@@ -40,7 +40,7 @@ export default function Login() {
       {bg && <div className="absolute inset-0 bg-black/45" />}
       <div className="w-full max-w-md relative z-10">
         <div className="flex justify-center mb-8">
-          <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-14 w-auto" />
+          <img src="/logo.png" alt="Velocely" className="h-14 w-auto" />
         </div>
         <form onSubmit={submit} data-testid="login-form" className="bg-white rounded-sm p-7 sm:p-8 space-y-5">
           <div>

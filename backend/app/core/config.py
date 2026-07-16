@@ -1,15 +1,16 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
-ROOT_DIR = Path(__file__).resolve().parents[2]  # /app/backend
+ROOT_DIR = Path(__file__).resolve().parents[2]  # backend/
 load_dotenv(ROOT_DIR / ".env")
 
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-JWT_SECRET = os.environ["JWT_SECRET"]
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.environ.get("DB_NAME", "velocely")
+JWT_SECRET = os.environ.get("JWT_SECRET", "change-me-in-production")
 JWT_ALGORITHM = "HS256"
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@prodcost.pt")
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@velocely.local")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", str(ROOT_DIR / "uploads"))

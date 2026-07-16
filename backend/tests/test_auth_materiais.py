@@ -1,13 +1,12 @@
 """Tests for JWT auth, RBAC users, material markup (50%) in orçamento."""
-import os
 import requests
 import pytest
+from conftest import get_base_url, get_admin_credentials
 
-BASE = os.environ.get('REACT_APP_BACKEND_URL', 'https://budgeting-orders.preview.emergentagent.com').rstrip('/')
+BASE = get_base_url()
 API = BASE + '/api'
 
-ADMIN_EMAIL = 'admin@prodcost.pt'
-ADMIN_PASS = 'Admin123!'
+ADMIN_EMAIL, ADMIN_PASS = get_admin_credentials()
 
 
 @pytest.fixture(scope='module')
@@ -25,7 +24,7 @@ def admin_headers(admin_token):
 
 
 def test_login_invalid():
-    r = requests.post(f'{API}/auth/login', json={'email': 'admin@prodcost.pt', 'password': 'wrong'}, timeout=15)
+    r = requests.post(f'{API}/auth/login', json={'email': ADMIN_EMAIL, 'password': 'wrong'}, timeout=15)
     assert r.status_code == 401
 
 
@@ -46,7 +45,7 @@ def test_list_users_requires_admin_no_token():
 
 
 def test_users_crud_and_colaborador_403(admin_headers):
-    email = 'test_colab@prodcost.pt'
+    email = 'test_colab@velocely.local'
     # Cleanup if exists - list and delete
     r = requests.get(f'{API}/users', headers=admin_headers, timeout=15)
     assert r.status_code == 200

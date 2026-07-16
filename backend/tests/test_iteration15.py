@@ -4,42 +4,12 @@
     personalização (× qtd) é somado à operação cuja mão de obra é responsável.
 (2) CALENDÁRIO DE PRAZOS — GET /api/prazos (auth) + dashboard prazos_atrasadas/proximos_7.
 """
-import os
 import pytest
 import requests
-from pathlib import Path
+from conftest import get_base_url, get_admin_credentials
 
-def _load_env():
-    p = Path("/app/frontend/.env")
-    for ln in p.read_text().splitlines():
-        if ln.startswith("REACT_APP_BACKEND_URL"):
-            return ln.split("=", 1)[1].strip().strip('"').strip("'")
-    raise RuntimeError("REACT_APP_BACKEND_URL not found")
-
-BASE = (os.environ.get("REACT_APP_BACKEND_URL") or _load_env()).rstrip("/")
-
-
-def _load_admin_creds():
-    """Lê credenciais de teste de env ou /app/memory/test_credentials.md (evita secret hardcoded)."""
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    password = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and password:
-        return email, password
-    e = p = None
-    creds = Path("/app/memory/test_credentials.md")
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            s = line.strip()
-            if s.startswith("- Email:") and e is None:
-                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            elif s.startswith("- Password:") and p is None:
-                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            if e and p:
-                break
-    return email or e, password or p
-
-
-_e, _p = _load_admin_creds()
+BASE = get_base_url()
+_e, _p = get_admin_credentials()
 ADMIN = {"email": _e, "password": _p}
 
 

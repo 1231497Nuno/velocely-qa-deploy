@@ -10,18 +10,17 @@ Cobre:
 - GET /historico/{tipo}/{id} exige autenticação
 - Metadados de utilizador (login/nome)
 """
-import os
 import time
 
 import pytest
 import requests
+from conftest import get_base_url, get_admin_credentials
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or \
-    "https://budgeting-orders.preview.emergentagent.com"
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 ADMIN_LOGIN = "admin"
-ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
+_, ADMIN_PASSWORD = get_admin_credentials()
 
 # IDs criados nos testes, para limpeza
 CREATED = {

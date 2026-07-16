@@ -89,7 +89,7 @@ export default function Layout({ children }) {
       {/* Top bar (mobile) */}
       <header className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-gray-200 z-30 flex items-center justify-between px-4">
         <Link to="/" data-testid="mobile-logo-link">
-          <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-7 w-auto" />
+          <img src="/logo.png" alt="Velocely" className="h-7 w-auto" />
         </Link>
         <div className="flex items-center gap-1">
           <button
@@ -137,7 +137,7 @@ export default function Layout({ children }) {
         <div className="px-6 py-5 border-b border-gray-200 flex items-start justify-between">
           <div>
             <Link to="/" data-testid="sidebar-logo-link" onClick={() => setOpen(false)}>
-              <img src="https://customer-assets.emergentagent.com/job_budgeting-orders/artifacts/qckzlidl_Logotipo.png" alt="Velocely" className="h-8 w-auto" />
+              <img src="/logo.png" alt="Velocely" className="h-8 w-auto" />
             </Link>
             <div className="text-xs text-gray-500 mt-1.5">Gestão de Produção</div>
           </div>

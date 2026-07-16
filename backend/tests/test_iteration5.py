@@ -1,8 +1,8 @@
 """Iteration 5 tests: Análise da Produção (monthly) + Orçamento line roteiro persistence."""
-import os
 import requests
+from conftest import get_base_url
 
-BASE = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+BASE = get_base_url()
 
 
 def test_producao_tempos_endpoint():

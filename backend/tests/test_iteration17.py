@@ -1,50 +1,16 @@
 """
 Iteration 17 — Descontos (linha + total) em Orçamentos e Encomendas; preço unitário em OF.
-Testes pytest contra REACT_APP_BACKEND_URL (https://...).
+Testes pytest contra a API (URL via get_base_url()).
 Cria dados com prefixo 'teste-it17-' e elimina no fim. NÃO toca em dados reais.
 """
-import os
 import pytest
 import requests
-from pathlib import Path
+from conftest import get_base_url, get_admin_credentials
 
-
-def _load_backend_url():
-    url = os.environ.get("REACT_APP_BACKEND_URL", "")
-    if url:
-        return url.rstrip("/")
-    env_path = Path("/app/frontend/.env")
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            if line.startswith("REACT_APP_BACKEND_URL="):
-                return line.split("=", 1)[1].strip().strip('"').rstrip("/")
-    return ""
-
-
-BASE_URL = _load_backend_url()
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
-
-def _load_admin_creds():
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    password = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and password:
-        return email, password
-    e = p = None
-    creds = Path("/app/memory/test_credentials.md")
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            s = line.strip()
-            if s.startswith("- Email:") and e is None:
-                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            elif s.startswith("- Password:") and p is None:
-                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            if e and p:
-                break
-    return email or e, password or p
-
-
-ADMIN_EMAIL, ADMIN_PASSWORD = _load_admin_creds()
+ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
 
 # --------------- fixtures ---------------
 

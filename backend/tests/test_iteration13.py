@@ -4,34 +4,16 @@
 - PDF generation with cliente field selection + cross-data (orcamento de origem)
 - PDF templates can be created/loaded with new subfields
 """
-import os
-import re
 import requests
 import pytest
+from conftest import get_base_url, get_admin_credentials
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL") or open("/app/frontend/.env").read().split("REACT_APP_BACKEND_URL=")[1].split("\n")[0].strip()
-BASE_URL = BASE_URL.rstrip("/")
-
-
-def _load_admin_creds():
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    pwd = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and pwd:
-        return email, pwd
-    try:
-        txt = open("/app/memory/test_credentials.md").read()
-        m_e = re.search(r"Email:\s*`([^`]+)`", txt)
-        m_p = re.search(r"Password:\s*`([^`]+)`", txt)
-        if m_e and m_p:
-            return m_e.group(1), m_p.group(1)
-    except Exception:
-        pass
-    raise RuntimeError("Credenciais de teste em falta: defina TEST_ADMIN_EMAIL/TEST_ADMIN_PASSWORD ou /app/memory/test_credentials.md")
+BASE_URL = get_base_url()
 
 
 @pytest.fixture(scope="module")
 def auth():
-    email, pwd = _load_admin_creds()
+    email, pwd = get_admin_credentials()
     r = requests.post(f"{BASE_URL}/api/auth/login", json={"email": email, "password": pwd}, timeout=30)
     assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
     tok = r.json().get("access_token") or r.json().get("token")

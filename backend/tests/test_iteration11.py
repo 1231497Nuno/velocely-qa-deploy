@@ -7,51 +7,16 @@ Iteration 11 — PDF Templates, Empresa Settings, e PDF export por módulo
 - GET /api/{orcamentos|ordens-fabrico|encomendas}/{id}/pdf (com e sem template_id)
 - Permissões: PUT /settings/empresa e POST/PUT/DELETE /pdf-templates exigem admin
 """
-import os
 import time
 import requests
 import pytest
 import secrets
-from pathlib import Path
+from conftest import get_base_url, get_admin_credentials
 
-def _load_frontend_env_url():
-    try:
-        with open("/app/frontend/.env", "r") as f:
-            for line in f:
-                if line.startswith("REACT_APP_BACKEND_URL="):
-                    return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-    return None
-
-
-BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or _load_frontend_env_url() or "").rstrip("/")
-assert BASE_URL, "REACT_APP_BACKEND_URL not found"
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
-
-def _load_admin_creds():
-    """Lê credenciais de teste de variáveis de ambiente ou de /app/memory/test_credentials.md.
-    Evita ter o segredo hardcoded no ficheiro de teste."""
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    password = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and password:
-        return email, password
-    e = p = None
-    creds = Path("/app/memory/test_credentials.md")
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            s = line.strip()
-            if s.startswith("- Email:") and e is None:
-                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            elif s.startswith("- Password:") and p is None:
-                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            if e and p:
-                break
-    return email or e, password or p
-
-
-ADMIN_EMAIL, ADMIN_PASS = _load_admin_creds()
+ADMIN_EMAIL, ADMIN_PASS = get_admin_credentials()
 
 
 # ----------------- Fixtures -----------------

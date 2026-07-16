@@ -5,15 +5,15 @@
 - GET /artigos/{aid}/resumo stats inclui receita, custo, ganho.
 - E2E sobreproducao: OF com qtd superior ao total do artigo → encomenda reporta sobreproducao=True.
 """
-import os
 import requests
 import pytest
+from conftest import get_base_url, get_admin_credentials
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 ADMIN_LOGIN = "admin"
-ADMIN_PASS = "Admin123!"
+_, ADMIN_PASS = get_admin_credentials()
 
 
 @pytest.fixture(scope="module")

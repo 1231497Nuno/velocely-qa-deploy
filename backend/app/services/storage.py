@@ -1,50 +1,48 @@
-"""Object storage (Emergent) — upload/download de imagens por artigo."""
-import requests
+"""Armazenamento local de ficheiros (uploads de imagens)."""
+from pathlib import Path
 
 from app.core import config
 
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 APP_NAME = "velocely"
 
-_storage_key = None
+
+def _root() -> Path:
+    return Path(config.UPLOAD_DIR)
 
 
-def init_storage():
-    global _storage_key
-    if _storage_key:
-        return _storage_key
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": config.EMERGENT_LLM_KEY}, timeout=30)
-    resp.raise_for_status()
-    _storage_key = resp.json()["storage_key"]
-    return _storage_key
+def init_storage() -> Path:
+    root = _root()
+    root.mkdir(parents=True, exist_ok=True)
+    (root / APP_NAME / "uploads").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _safe_path(path: str) -> Path:
+    """Resolve path within upload root; reject path traversal."""
+    root = _root().resolve()
+    full = (root / path).resolve()
+    if not str(full).startswith(str(root)):
+        raise ValueError("Caminho de ficheiro inválido")
+    return full
 
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data, timeout=120,
-    )
-    if resp.status_code == 403:
-        # chave expirada — reinit e tenta de novo
-        globals()["_storage_key"] = None
-        key = init_storage()
-        resp = requests.put(
-            f"{STORAGE_URL}/objects/{path}",
-            headers={"X-Storage-Key": key, "Content-Type": content_type},
-            data=data, timeout=120,
-        )
-    resp.raise_for_status()
-    return resp.json()
+    init_storage()
+    full = _safe_path(path)
+    full.parent.mkdir(parents=True, exist_ok=True)
+    full.write_bytes(data)
+    meta = full.with_suffix(full.suffix + ".meta")
+    meta.write_text(content_type or "application/octet-stream", encoding="utf-8")
+    return {"path": path, "size": len(data), "content_type": content_type}
 
 
 def get_object(path: str):
-    key = init_storage()
-    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    if resp.status_code == 403:
-        globals()["_storage_key"] = None
-        key = init_storage()
-        resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+    full = _safe_path(path)
+    if not full.is_file():
+        raise FileNotFoundError(path)
+    data = full.read_bytes()
+    meta = full.with_suffix(full.suffix + ".meta")
+    content_type = "application/octet-stream"
+    if meta.is_file():
+        content_type = meta.read_text(encoding="utf-8").strip() or content_type
+    return data, content_type

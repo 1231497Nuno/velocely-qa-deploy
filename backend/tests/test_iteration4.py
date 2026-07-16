@@ -7,11 +7,11 @@ New surfaces:
 - OrdemFabrico.descricao + numero_encomenda
 - converter_orcamento copies descricao + numero_encomenda
 """
-import os
 import pytest
 import requests
+from conftest import get_base_url
 
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 

@@ -1,37 +1,12 @@
 """Iteration 8: RBAC perfis + material margem por linha + lista endpoints (pesquisa)."""
-import os
 import requests
 import pytest
-from pathlib import Path
+from conftest import get_base_url, get_admin_credentials
 
-def _load_react_url():
-    if os.environ.get('REACT_APP_BACKEND_URL'):
-        return os.environ['REACT_APP_BACKEND_URL']
-    envf = Path('/app/frontend/.env')
-    for line in envf.read_text().splitlines():
-        if line.startswith('REACT_APP_BACKEND_URL='):
-            return line.split('=', 1)[1].strip()
-    raise RuntimeError('REACT_APP_BACKEND_URL not set')
-
-BASE_URL = _load_react_url().rstrip('/')
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
-
-def _load_admin_creds():
-    e = os.environ.get('TEST_ADMIN_EMAIL')
-    p = os.environ.get('TEST_ADMIN_PASSWORD')
-    if e and p:
-        return e, p
-    import re
-    txt = Path('/app/memory/test_credentials.md').read_text()
-    m_e = re.search(r"Email:\s*`([^`]+)`", txt)
-    m_p = re.search(r"Password:\s*`([^`]+)`", txt)
-    if m_e and m_p:
-        return m_e.group(1), m_p.group(1)
-    raise RuntimeError('Credenciais de teste em falta (TEST_ADMIN_* ou test_credentials.md)')
-
-
-ADMIN_EMAIL, ADMIN_PASS = _load_admin_creds()
+ADMIN_EMAIL, ADMIN_PASS = get_admin_credentials()
 
 TESTE_PREFIX = "teste-"
 
@@ -124,7 +99,7 @@ def test_create_perfil_and_user_with_perfil(admin_headers):
 
     # Criar utilizador com este perfil
     user_payload = {
-        "email": f"{TESTE_PREFIX}vend@prodcost.pt",
+        "email": f"{TESTE_PREFIX}vend@velocely.local",
         "name": "Teste Vendas",
         "password": "teste123",
         "perfil_id": perfil["id"],
@@ -140,7 +115,7 @@ def test_create_perfil_and_user_with_perfil(admin_headers):
 
 def test_rbac_enforcement_backend_for_restricted_user(admin_headers):
     # Login com o user de teste criado
-    r = _login(f"{TESTE_PREFIX}vend@prodcost.pt", "teste123")
+    r = _login(f"{TESTE_PREFIX}vend@velocely.local", "teste123")
     assert r.status_code == 200, r.text
     token = r.json()["token"]
     h = {"Authorization": f"Bearer {token}"}

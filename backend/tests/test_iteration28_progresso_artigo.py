@@ -5,32 +5,13 @@
 import os
 import requests
 import pytest
+from conftest import get_base_url, get_admin_credentials
 
-_env = os.environ.get("REACT_APP_BACKEND_URL")
-if not _env:
-    # Fallback: read from frontend/.env
-    _env_path = "/app/frontend/.env"
-    if os.path.exists(_env_path):
-        with open(_env_path) as fh:
-            for line in fh:
-                if line.startswith("REACT_APP_BACKEND_URL="):
-                    _env = line.split("=", 1)[1].strip()
-                    break
-assert _env, "REACT_APP_BACKEND_URL not defined"
-BASE_URL = _env.rstrip("/")
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 ADMIN_LOGIN = os.environ.get("TEST_ADMIN_LOGIN", "admin")
-ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD")
-if not ADMIN_PASSWORD:
-    _creds_path = "/app/memory/test_credentials.md"
-    if os.path.exists(_creds_path):
-        with open(_creds_path) as fh:
-            for line in fh:
-                if "assword" in line and "`" in line:
-                    ADMIN_PASSWORD = line.split("`")[1]
-                    break
-assert ADMIN_PASSWORD, "Defina TEST_ADMIN_PASSWORD ou /app/memory/test_credentials.md"
+_, ADMIN_PASSWORD = get_admin_credentials()
 
 # artigo de referência (do problem statement); se não existir, escolher outro
 ARTIGO_REF_ID = "a643f9fb"  # prefixo, resolveremos abaixo

@@ -1,8 +1,16 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {}
+  "folders": [
+    { "path": ".", "name": "Velocely" },
+    { "path": "backend", "name": "Backend" },
+    { "path": "frontend", "name": "Frontend" },
+    { "path": "docs", "name": "Documentação" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/__pycache__": true,
+      "**/.venv": true,
+      "**/build": true
+    }
+  }
 }

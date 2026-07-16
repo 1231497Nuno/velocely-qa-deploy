@@ -3,37 +3,22 @@ Iteration 10 tests — Encomendas avançadas, Clientes com Código Postal/Cidade
 gate de produção (iniciar_operacao 403/200), auto-conclusão, conversão de orçamento
 populando enc.artigos+valor_total, e Dashboard novos KPIs.
 
-Pré-requisitos: admin@prodcost.pt / Admin123! existente (seed).
+Pré-requisitos: utilizador admin do seed (ver ADMIN_EMAIL / ADMIN_PASSWORD).
 """
-
-import os
 
 import pytest
 import requests
+from conftest import get_base_url, get_admin_credentials
 
-def _load_base_url():
-    u = os.environ.get("REACT_APP_BACKEND_URL")
-    if u:
-        return u.rstrip("/")
-    # fallback: read from /app/frontend/.env
-    try:
-        with open("/app/frontend/.env") as f:
-            for line in f:
-                if line.startswith("REACT_APP_BACKEND_URL="):
-                    return line.split("=", 1)[1].strip().rstrip("/")
-    except Exception:
-        pass
-    raise RuntimeError("REACT_APP_BACKEND_URL not set")
-
-
-BASE_URL = _load_base_url()
+BASE_URL = get_base_url()
+ADMIN_EMAIL, ADMIN_PASS = get_admin_credentials()
 
 
 @pytest.fixture(scope="module")
 def token():
     r = requests.post(
         f"{BASE_URL}/api/auth/login",
-        json={"email": "admin@prodcost.pt", "password": "Admin123!"},
+        json={"email": ADMIN_EMAIL, "password": ADMIN_PASS},
         timeout=30,
     )
     assert r.status_code == 200, r.text

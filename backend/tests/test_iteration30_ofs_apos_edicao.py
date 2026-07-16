@@ -3,16 +3,16 @@ PUT/POST /encomendas e POST/DELETE /encomendas/{id}/pagamentos agora devolvem `o
 igual ao GET, para que o frontend (que faz setEnc(updated)) não perca as OFs após edição/pagamento.
 Também: GET /alertas inclui `encomendas_sem_of` (contagem de encomendas ativas com artigos sem OF).
 """
-import os
 import copy
 import requests
 import pytest
+from conftest import get_base_url, get_admin_credentials
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 ADMIN_LOGIN = "admin"
-ADMIN_PASS = "Admin123!"
+_, ADMIN_PASS = get_admin_credentials()
 
 
 @pytest.fixture(scope="module")

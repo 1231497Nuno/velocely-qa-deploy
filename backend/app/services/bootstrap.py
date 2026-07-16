@@ -41,7 +41,7 @@ async def seed_perfis() -> None:
 
 
 async def seed_admin():
-    email = (config.ADMIN_EMAIL or "admin@prodcost.pt").strip().lower()
+    email = (config.ADMIN_EMAIL or "admin@velocely.local").strip().lower()
     password = config.ADMIN_PASSWORD or "Admin123!"
     admin_p = await perfis_repo.find_one({"sistema": True, "admin": True})
     colab_p = await perfis_repo.find_one({"nome": "Colaborador", "sistema": True})

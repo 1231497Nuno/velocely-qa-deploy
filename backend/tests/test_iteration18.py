@@ -7,50 +7,12 @@ Iteration 18 — Velocely ERP:
 5) PDFs orçamento e encomenda geram (%PDF)
 """
 
-import os
 import pytest
 import requests
+from conftest import get_base_url, get_admin_credentials
 
-def _load_backend_url():
-    url = os.environ.get("REACT_APP_BACKEND_URL")
-    if not url:
-        # Load from frontend/.env
-        try:
-            with open("/app/frontend/.env") as f:
-                for line in f:
-                    if line.startswith("REACT_APP_BACKEND_URL="):
-                        url = line.split("=", 1)[1].strip()
-                        break
-        except Exception:
-            pass
-    assert url, "REACT_APP_BACKEND_URL não definido"
-    return url.rstrip("/")
-
-
-BASE_URL = _load_backend_url()
-
-
-def _load_admin_creds():
-    from pathlib import Path
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    password = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and password:
-        return email, password
-    e = p = None
-    creds = Path("/app/memory/test_credentials.md")
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            s = line.strip()
-            if s.startswith("- Email:") and e is None:
-                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            elif s.startswith("- Password:") and p is None:
-                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            if e and p:
-                break
-    return email or e, password or p
-
-
-ADMIN_EMAIL, ADMIN_PASSWORD = _load_admin_creds()
+BASE_URL = get_base_url()
+ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
 
 CREATED = {"artigos": [], "orcamentos": [], "encomendas": [], "ordens_fabrico": []}
 

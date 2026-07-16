@@ -5,23 +5,11 @@ Cobre:
 - FASE C1: POST/DELETE /api/encomendas/{eid}/pagamentos, GET /api/encomendas/{eid}/pagamentos/{pid}/recibo (Auth header + ?auth= query)
 - FASE C2: /api/clientes/{id}/historico-precos
 """
-import os
 import pytest
 import requests
+from conftest import get_base_url
 
-
-def _load_backend_url():
-    v = os.environ.get("REACT_APP_BACKEND_URL")
-    if not v:
-        with open("/app/frontend/.env") as f:
-            for ln in f:
-                if ln.startswith("REACT_APP_BACKEND_URL="):
-                    v = ln.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-    return v.rstrip("/")
-
-
-BASE_URL = _load_backend_url()
+BASE_URL = get_base_url()
 
 
 @pytest.fixture(scope="session")

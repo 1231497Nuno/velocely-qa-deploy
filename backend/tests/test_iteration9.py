@@ -9,46 +9,14 @@ Cobertura:
  - RBAC sem token: review_request diz que devem ser 401 (sanity check)
  - Cleanup de todos os dados "teste-"
 """
-import os
 import pytest
 import requests
-from pathlib import Path
+from conftest import get_base_url, get_admin_credentials
 
-# Carrega REACT_APP_BACKEND_URL a partir de /app/frontend/.env (o supervisor não o injecta neste shell)
-def _load_frontend_env():
-    env_file = Path("/app/frontend/.env")
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            if line.startswith("REACT_APP_BACKEND_URL="):
-                return line.split("=", 1)[1].strip()
-    return None
-
-BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or _load_frontend_env()).rstrip("/")
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
-
-def _load_admin_creds():
-    """Lê credenciais de teste de variáveis de ambiente ou de /app/memory/test_credentials.md.
-    Evita ter o segredo hardcoded no ficheiro de teste."""
-    email = os.environ.get("TEST_ADMIN_EMAIL")
-    password = os.environ.get("TEST_ADMIN_PASSWORD")
-    if email and password:
-        return email, password
-    e = p = None
-    creds = Path("/app/memory/test_credentials.md")
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            s = line.strip()
-            if s.startswith("- Email:") and e is None:
-                e = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            elif s.startswith("- Password:") and p is None:
-                p = s.split("`")[1] if "`" in s else s.split(":", 1)[1].strip()
-            if e and p:
-                break
-    return email or e, password or p
-
-
-ADMIN_EMAIL, ADMIN_PASSWORD = _load_admin_creds()
+ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
 
 # State buckets for cleanup
 _CREATED = {"clientes": [], "encomendas": [], "ofs": [], "orcamentos": [], "artigos": []}

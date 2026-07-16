@@ -16,30 +16,12 @@ Cobertura (numeração garante ordem/loadscope=classe):
 
 Todos os testes num único class → pytest-xdist loadscope (default) mantém-nos no mesmo worker.
 """
-import os
 import pytest
 import requests
+from conftest import get_base_url, get_admin_credentials
 
-
-def _load_base_url():
-    url = os.environ.get("REACT_APP_BACKEND_URL")
-    if not url:
-        try:
-            with open("/app/frontend/.env") as f:
-                for line in f:
-                    if line.startswith("REACT_APP_BACKEND_URL="):
-                        url = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        break
-        except Exception:
-            pass
-    if not url:
-        raise RuntimeError("REACT_APP_BACKEND_URL not defined")
-    return url.rstrip("/")
-
-
-BASE_URL = _load_base_url()
-ADMIN_EMAIL = "admin@prodcost.pt"
-ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
+BASE_URL = get_base_url()
+ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
 
 
 @pytest.fixture(scope="class")

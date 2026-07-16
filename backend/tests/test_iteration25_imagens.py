@@ -3,32 +3,17 @@ Cobre: /api/upload/imagem (auth, tamanho, formato), /api/files/{path} (auth via 
 auto-preenchimento catálogo→linha em orçamentos, override,
 propagação orçamento→OF+encomenda, propagação encomenda→OF, build_of_itens auto imagem.
 """
-import os
 import pytest
 import requests
 import struct
 import zlib
+from conftest import get_base_url, get_admin_credentials
 
-def _load_backend_url():
-    v = os.environ.get("REACT_APP_BACKEND_URL")
-    if not v:
-        try:
-            with open("/app/frontend/.env") as f:
-                for ln in f:
-                    if ln.startswith("REACT_APP_BACKEND_URL="):
-                        v = ln.split("=", 1)[1].strip().strip('"').strip("'")
-                        break
-        except Exception:
-            pass
-    assert v, "REACT_APP_BACKEND_URL not configured"
-    return v.rstrip("/")
-
-
-BASE_URL = _load_backend_url()
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 ADMIN_LOGIN = "admin"
-ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
+_, ADMIN_PASSWORD = get_admin_credentials()
 
 
 def _png_bytes(w=2, h=2):

@@ -3,11 +3,11 @@ New: máquinas have custo_amortizacao_hora + custo_energia_hora; operações use
 tempo_maquina + tempo_maquina_unidade + tempo_mao_obra + tempo_mao_obra_unidade;
 Artigo has margem and returns preco_venda.
 """
-import os
 import pytest
 import requests
+from conftest import get_base_url
 
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
 
 

@@ -9,19 +9,20 @@ Endpoints under test:
 
 Auth: 401 sem token; 200 com admin token.
 """
-import os
 import pytest
 import requests
+from conftest import get_base_url, get_admin_credentials
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://budgeting-orders.preview.emergentagent.com").rstrip("/")
+BASE = get_base_url()
 API = f"{BASE}/api"
+ADMIN_EMAIL, ADMIN_PASS = get_admin_credentials()
 
 
 @pytest.fixture(scope="module")
 def token():
-    r = requests.post(f"{API}/auth/login", json={"login": "admin", "password": "Admin123!"}, timeout=30)
+    r = requests.post(f"{API}/auth/login", json={"login": "admin", "password": ADMIN_PASS}, timeout=30)
     if r.status_code != 200:
-        r = requests.post(f"{API}/auth/login", json={"email": "admin@prodcost.pt", "password": "Admin123!"}, timeout=30)
+        r = requests.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASS}, timeout=30)
     assert r.status_code == 200, f"login failed: {r.status_code} {r.text[:200]}"
     data = r.json()
     tok = data.get("access_token") or data.get("token")
