@@ -2,6 +2,15 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 39 (2026-07-16) — Fluxo orçamento→encomenda + Alertas (sem OF / sobreprodução) + Ganho do artigo
+Concluídas e testadas (iteration_29.json — backend 7/7, frontend 5/5, sem bugs):
+- **MUDANÇA DE FLUXO (crítica)**: `POST /orcamentos/{oid}/converter` agora cria **apenas a Encomenda** (já NÃO cria OF). É a encomenda que gera as OFs. `Orcamento` ganhou `encomenda_id`/`encomenda_numero`; conversão é idempotente e tem path de compatibilidade (deteta encomenda existente por `orcamento_id` para orçamentos convertidos no fluxo antigo). Frontend: botão passou a "Criar Encomenda" (`convert-quote-btn`, gated por `encomendas.create`), navega para a encomenda; link `goto-encomenda-link`. Imports mortos removidos de `orcamentos.py`.
+- **Alerta de artigos sem OF**: `compute_encomenda` calcula `artigos_sem_of`/`tem_artigos_sem_of` (só quando ativa) e `artigos_sobreproducao`/`sobreproducao`. EncomendaDetail: banner vermelho `enc-alerta-sem-of` e âmbar `enc-alerta-sobreproducao`; badges por linha `enc-artigo-semof-{i}` / `enc-artigo-sobre-{i}` / `enc-artigo-emofs-{i}`. Lista de Encomendas: ícones `enc-warn-semof-{id}` (vermelho) / `enc-warn-sobre-{id}` (âmbar) junto ao número.
+- **Alerta de sobreprodução**: acionado quando as OFs de um artigo ultrapassam a qtd encomendada (as OFs faseadas permitem qtd livre).
+- **Ganho do artigo**: `artigo_resumo.stats` inclui `receita` (soma líquida das linhas de encomenda), `custo` (custo de produção × qtd encomendada) e `ganho` (receita − custo). ArtigoDetail mostra KPIs `artigo-kpi-receita` e `artigo-kpi-ganho`.
+- Nota: `ganho` é aproximação (custo usa custo atual do artigo). N+1 em `compute_encomenda` e full-scans em `artigo_resumo` — OK para o volume atual.
+
+
 ## Iteração 38 (2026-07-15) — Progresso de produção da Encomenda + Página de detalhe do Artigo + Barras de pesquisa por secção
 Concluídas e testadas (iteration_28.json — backend 6/6, frontend 7/7, sem bugs):
 - **Progresso de produção da Encomenda**: `compute_encomenda` calcula `progresso_producao`, `qtd_em_ofs` e `qtd_total` (qtd lançada em OFs vs total da encomenda, capado por artigo a min(of_qty, enc_qty)). Lista de Encomendas ganhou coluna "Produção" com barra + % (`enc-progresso-{id}`); detalhe da encomenda mostra barra "Produção lançada em OFs" (`enc-detail-progresso`).
