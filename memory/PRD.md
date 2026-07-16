@@ -2,6 +2,13 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 43 (2026-07-16) — Refactors de manutenção (sem alteração de comportamento)
+Executados os 2 refactors pedidos, ambos verificados como iso-comportamentais:
+- **Backend `dashboard()`** (`analytics.py`): extraídas funções puras `_orcamentos_por_estado`, `_ofs_por_estado`, `_valor_mensal`, `_tempo_por_of`, `_encomendas_por_pagamento`, `_encomendas_por_estado`, `_enc_valor_vs_custo`, `_prazos_counts`. A função `dashboard()` passou de ~141 linhas / complexidade 51 para um orquestrador curto. **Verificado: resposta de `/api/dashboard` byte-a-byte IDÊNTICA ao baseline capturado antes do refactor.**
+- **Frontend `EncomendaDetail.jsx`** (552 linhas): extraídos para novo `EncomendaDetailParts.jsx` os componentes apresentacionais `EncAlertas`, `EncKPIs`, `ClientePanel`, `OFsPanel`, `OfFaseadaDialog`. A tabela de artigos e os handlers de estado (persist/updArtigo/addPers/pagamentos) ficaram no ficheiro principal (evitar prop-threading arriscado). Removidos imports não usados. **Verificado: compila sem erros, renderiza idêntico, diálogo de OF funciona, 0 erros de consola.**
+- Cuidado registado: um decorator `@router.get("/dashboard")` órfão foi apanhado e corrigido durante o refactor (FastAPI interpretava um helper como body param) — resolvido antes da verificação.
+
+
 ## Iteração 42 (2026-07-16) — Correções de qualidade de código (revisão)
 Aplicadas as correções **genuínas e seguras** do relatório de revisão (verificadas: teste backend passa, 0 erros/warnings de consola no smoke test):
 - **Segredo hardcoded** em `tests/test_iteration28_progresso_artigo.py`: password passou a ser lida de `TEST_ADMIN_PASSWORD` (env) com fallback para `/app/memory/test_credentials.md` (padrão já usado no test_iteration11).

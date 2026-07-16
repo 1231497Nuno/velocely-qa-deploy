@@ -322,43 +322,40 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
     return {"resultados": resultados}
 
 
-@router.get("/dashboard")
-async def dashboard():
-    artigos = await artigos_repo.find(limit=1000)
-    custos = [await artigo_custo_total(a) for a in artigos]
-    orcs = await orcamentos_repo.find(limit=1000)
-    orcs_t = [compute_orcamento_totais(o) for o in orcs]
-    ofs = await ordens_repo.find(limit=1000)
-    ofs_t = [recompute_of_status(o) for o in ofs]
-
-    orc_estados = ["rascunho", "enviado", "aceite", "rejeitado"]
-    orcamentos_por_estado = [
+def _orcamentos_por_estado(orcs_t: list) -> list:
+    return [
         {
             "estado": e,
             "label": STATUS_PT.get(e, e),
             "count": sum(1 for o in orcs_t if o.get("status") == e),
             "valor": round2(sum(o["total"] for o in orcs_t if o.get("status") == e)),
         }
-        for e in orc_estados
+        for e in ["rascunho", "enviado", "aceite", "rejeitado"]
     ]
-    of_estados = ["pendente", "em_producao", "concluido"]
-    ofs_por_estado = [
+
+
+def _ofs_por_estado(ofs_t: list) -> list:
+    return [
         {
             "estado": e,
             "label": STATUS_PT.get(e, e),
             "count": sum(1 for o in ofs_t if o.get("status") == e),
         }
-        for e in of_estados
+        for e in ["pendente", "em_producao", "concluido"]
     ]
 
+
+def _valor_mensal(orcs_t: list) -> list:
     mensal = defaultdict(float)
     for o in orcs_t:
         mes = (o.get("created_at") or "")[:7]
         if mes:
             mensal[mes] += o.get("total") or 0
-    valor_mensal = [{"mes": k, "valor": round2(v)} for k, v in sorted(mensal.items())][-6:]
+    return [{"mes": k, "valor": round2(v)} for k, v in sorted(mensal.items())][-6:]
 
-    tempo_por_of = []
+
+def _tempo_por_of(ofs_t: list) -> list:
+    out = []
     for o in ofs_t:
         est = maq = labor_real = 0.0
         for it in o.get("itens", []):
@@ -368,46 +365,37 @@ async def dashboard():
                 labor_real += (op.get("tempo_real_seg") or 0) / 60.0
         real = maq + labor_real
         if est > 0 or real > 0:
-            tempo_por_of.append({"numero": o.get("numero"), "estimado": round2(est), "real": round2(real)})
-    tempo_por_of = tempo_por_of[-8:]
+            out.append({"numero": o.get("numero"), "estimado": round2(est), "real": round2(real)})
+    return out[-8:]
 
-    arts_bd = []
-    for a in artigos:
-        bd = await artigo_breakdown(a)
-        arts_bd.append({"nome": a.get("nome"), "custo": bd["custo_producao_total"], "preco": bd["preco_venda"]})
-    arts_bd.sort(key=lambda x: x["preco"], reverse=True)
-    top_artigos = arts_bd[:6]
 
-    encs = await encomendas_repo.find(limit=2000)
-    encs_c = [await compute_encomenda(e) for e in encs]
-    valor_encomendas = round2(sum(e["valor_total"] for e in encs_c))
-    valor_pago_total = round2(sum((e.get("valor_pago") or 0) for e in encs_c))
-    valor_pendente_total = round2(sum(e["valor_pendente"] for e in encs_c))
-    custo_real_encomendas = round2(sum(e["custo_producao_real"] for e in encs_c))
-    custo_estimado_encomendas = round2(sum(e["custo_producao_estimado"] for e in encs_c))
-
-    pay_states = ["pendente", "parcial", "pago"]
-    encomendas_por_pagamento = [
+def _encomendas_por_pagamento(encs_c: list) -> list:
+    return [
         {
             "estado": s,
             "label": PAY_PT[s],
             "count": sum(1 for e in encs_c if e["status_pagamento"] == s),
             "valor": round2(sum(e["valor_total"] for e in encs_c if e["status_pagamento"] == s)),
         }
-        for s in pay_states
+        for s in ["pendente", "parcial", "pago"]
     ]
-    enc_estados = ["aberta", "em_producao", "concluida", "cancelada"]
-    encomendas_por_estado = [
+
+
+def _encomendas_por_estado(encs_c: list) -> list:
+    return [
         {
             "estado": s,
             "label": ENC_ESTADO_PT[s],
             "count": sum(1 for e in encs_c if e["estado"] == s),
             "valor": round2(sum(e["valor_total"] for e in encs_c if e["estado"] == s)),
         }
-        for s in enc_estados
+        for s in ["aberta", "em_producao", "concluida", "cancelada"]
     ]
-    enc_valor_vs_custo = sorted(encs_c, key=lambda e: e["valor_total"], reverse=True)[:8]
-    enc_valor_vs_custo = [
+
+
+def _enc_valor_vs_custo(encs_c: list) -> list:
+    top = sorted(encs_c, key=lambda e: e["valor_total"], reverse=True)[:8]
+    return [
         {
             "numero": e.get("numero"),
             "valor": e["valor_total"],
@@ -415,22 +403,41 @@ async def dashboard():
             "custo_real": e["custo_producao_real"],
             "margem": e["margem_producao"],
         }
-        for e in enc_valor_vs_custo
+        for e in top
     ]
-    encomendas_por_autorizar = sum(
-        1 for e in encs_c if e["estado"] not in ("concluida", "cancelada") and not e["pode_produzir"]
-    )
 
-    prazos_atrasadas = prazos_proximos_7 = 0
+
+def _prazos_counts(encs_c: list) -> tuple:
+    atrasadas = proximos_7 = 0
     for e in encs_c:
         prazo = e.get("prazo_entrega")
         if not prazo or e["estado"] in ("concluida", "cancelada"):
             continue
-        dias, est = _prazo_meta(prazo)
+        _dias, est = _prazo_meta(prazo)
         if est == "atrasada":
-            prazos_atrasadas += 1
+            atrasadas += 1
         elif est == "proxima":
-            prazos_proximos_7 += 1
+            proximos_7 += 1
+    return atrasadas, proximos_7
+
+
+@router.get("/dashboard")
+async def dashboard():
+    artigos = await artigos_repo.find(limit=1000)
+    custos = [await artigo_custo_total(a) for a in artigos]
+    orcs_t = [compute_orcamento_totais(o) for o in await orcamentos_repo.find(limit=1000)]
+    ofs_t = [recompute_of_status(o) for o in await ordens_repo.find(limit=1000)]
+    encs_c = [await compute_encomenda(e) for e in await encomendas_repo.find(limit=2000)]
+
+    arts_bd = []
+    for a in artigos:
+        bd = await artigo_breakdown(a)
+        arts_bd.append({"nome": a.get("nome"), "custo": bd["custo_producao_total"], "preco": bd["preco_venda"]})
+    arts_bd.sort(key=lambda x: x["preco"], reverse=True)
+
+    valor_encomendas = round2(sum(e["valor_total"] for e in encs_c))
+    custo_real_encomendas = round2(sum(e["custo_producao_real"] for e in encs_c))
+    prazos_atrasadas, prazos_proximos_7 = _prazos_counts(encs_c)
 
     return {
         "total_artigos": len(artigos),
@@ -446,22 +453,24 @@ async def dashboard():
         "ofs_pendentes": sum(1 for o in ofs_t if o.get("status") == "pendente"),
         "ofs_em_producao": sum(1 for o in ofs_t if o.get("status") == "em_producao"),
         "ofs_concluidas": sum(1 for o in ofs_t if o.get("status") == "concluido"),
-        "orcamentos_por_estado": orcamentos_por_estado,
-        "ofs_por_estado": ofs_por_estado,
-        "valor_mensal": valor_mensal,
-        "tempo_por_of": tempo_por_of,
-        "top_artigos": top_artigos,
+        "orcamentos_por_estado": _orcamentos_por_estado(orcs_t),
+        "ofs_por_estado": _ofs_por_estado(ofs_t),
+        "valor_mensal": _valor_mensal(orcs_t),
+        "tempo_por_of": _tempo_por_of(ofs_t),
+        "top_artigos": arts_bd[:6],
         "total_encomendas": len(encs_c),
         "valor_encomendas": valor_encomendas,
-        "valor_pago_total": valor_pago_total,
-        "valor_pendente_total": valor_pendente_total,
+        "valor_pago_total": round2(sum((e.get("valor_pago") or 0) for e in encs_c)),
+        "valor_pendente_total": round2(sum(e["valor_pendente"] for e in encs_c)),
         "custo_real_encomendas": custo_real_encomendas,
-        "custo_estimado_encomendas": custo_estimado_encomendas,
+        "custo_estimado_encomendas": round2(sum(e["custo_producao_estimado"] for e in encs_c)),
         "margem_encomendas": round2(valor_encomendas - custo_real_encomendas),
-        "encomendas_por_pagamento": encomendas_por_pagamento,
-        "encomendas_por_estado": encomendas_por_estado,
-        "enc_valor_vs_custo": enc_valor_vs_custo,
-        "encomendas_por_autorizar": encomendas_por_autorizar,
+        "encomendas_por_pagamento": _encomendas_por_pagamento(encs_c),
+        "encomendas_por_estado": _encomendas_por_estado(encs_c),
+        "enc_valor_vs_custo": _enc_valor_vs_custo(encs_c),
+        "encomendas_por_autorizar": sum(
+            1 for e in encs_c if e["estado"] not in ("concluida", "cancelada") and not e["pode_produzir"]
+        ),
         "prazos_atrasadas": prazos_atrasadas,
         "prazos_proximos_7": prazos_proximos_7,
     }
