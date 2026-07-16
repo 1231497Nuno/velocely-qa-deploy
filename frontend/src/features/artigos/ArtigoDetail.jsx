@@ -6,7 +6,7 @@ import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import {
-  ArrowLeft, FileText, ClipboardList, Factory, Coins, Boxes, Package, ChevronRight,
+  ArrowLeft, FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight,
 } from "lucide-react";
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
@@ -74,8 +74,8 @@ export default function ArtigoDetail() {
           <KPI icon={ClipboardList} label="Encomendas" value={stats.num_encomendas} sub={`${stats.qtd_encomendada} un encomendadas`} testid="artigo-kpi-encomendas" />
           <KPI icon={Factory} label="Ordens de Fabrico" value={stats.num_ofs} sub={`${stats.qtd_produzida} un em produção`} testid="artigo-kpi-ofs" />
           <KPI icon={Package} label="Un. Encomendadas" value={stats.qtd_encomendada} testid="artigo-kpi-qtd-enc" />
-          <KPI icon={Boxes} label="Un. em Produção" value={stats.qtd_produzida} testid="artigo-kpi-qtd-prod" />
-          <KPI icon={Coins} label="Preço de Venda" value={eur(a.preco_venda)} testid="artigo-kpi-preco" />
+          <KPI icon={Coins} label="Receita" value={eur(stats.receita)} sub={`Custo ${eur(stats.custo)}`} testid="artigo-kpi-receita" />
+          <KPI icon={TrendingUp} label="Ganho estimado" value={eur(stats.ganho)} sub="Receita − custo de produção" testid="artigo-kpi-ganho" />
         </div>
       </div>
 

@@ -249,6 +249,8 @@ class Orcamento(OrcamentoInput):
     numero: str = ""
     of_id: Optional[str] = None
     of_numero: Optional[str] = None
+    encomenda_id: Optional[str] = None
+    encomenda_numero: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 

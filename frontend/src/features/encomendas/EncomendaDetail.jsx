@@ -10,7 +10,7 @@ import ImagensGaleria from "@/components/ImagensGaleria";
 import PdfExportButton from "@/components/PdfExportButton";
 import {
   ArrowLeft, Plus, Factory, User, Mail, Phone, MapPin, Hash, Save, Trash2, X,
-  Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil, Receipt, Layers,
+  Wallet, ShieldCheck, ShieldAlert, CheckCircle2, Package, Pencil, Receipt, Layers, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -216,6 +216,30 @@ export default function EncomendaDetail() {
         </div>
       </div>
 
+      {/* Alertas de produção */}
+      {(enc.tem_artigos_sem_of || enc.sobreproducao) && (
+        <div className="space-y-2 mb-4" data-testid="enc-alertas-producao">
+          {enc.tem_artigos_sem_of && (
+            <div data-testid="enc-alerta-sem-of" className="rounded-sm border border-red-200 bg-red-50 p-3 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <div className="font-medium text-red-800">Artigos sem ordem de fabrico</div>
+                <div className="text-xs text-red-700 mt-0.5">Estes artigos não estão em nenhuma OF e não vão ser produzidos: <span className="font-medium">{(enc.artigos_sem_of || []).join(", ")}</span>. Cria uma Ordem de Fabrico para os incluir.</div>
+              </div>
+            </div>
+          )}
+          {enc.sobreproducao && (
+            <div data-testid="enc-alerta-sobreproducao" className="rounded-sm border border-amber-200 bg-amber-50 p-3 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <div className="font-medium text-amber-800">Sobreprodução</div>
+                <div className="text-xs text-amber-700 mt-0.5">As OFs criadas ultrapassam a quantidade encomendada em: <span className="font-medium">{(enc.artigos_sobreproducao || []).join(", ")}</span>.</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* KPIs financeiros */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-kpi-valor">
@@ -239,8 +263,7 @@ export default function EncomendaDetail() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Cliente */}
-        <div className="bg-white border border-gray-200 rounded-sm p-5" data-testid="encomenda-cliente-info">
+        {/* Cliente */}        <div className="bg-white border border-gray-200 rounded-sm p-5" data-testid="encomenda-cliente-info">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><User size={15} /> Cliente</h3>
           <div className="space-y-2 text-sm">
             <div className="font-medium text-gray-900">{enc.cliente}</div>
@@ -434,9 +457,14 @@ export default function EncomendaDetail() {
                           <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                           <span className="text-xs text-gray-400 shrink-0">{artUnidade(a.artigo_id)}</span>
                         </div>
-                        {(ofQtyByArtigo[a.artigo_id] || 0) > 0 && (
-                          <div className="text-[10px] text-gray-400 text-right mt-0.5" data-testid={`enc-artigo-emofs-${i}`}>em OFs {ofQtyByArtigo[a.artigo_id]}/{Number(a.quantidade) || 0}</div>
-                        )}
+                        {(() => {
+                          const emOfs = ofQtyByArtigo[a.artigo_id] || 0;
+                          const tot = Number(a.quantidade) || 0;
+                          if (tot <= 0) return null;
+                          if (emOfs <= 0) return <div className="text-[10px] text-red-600 font-medium text-right mt-0.5" data-testid={`enc-artigo-semof-${i}`}>sem ordem</div>;
+                          if (emOfs > tot) return <div className="text-[10px] text-amber-600 font-medium text-right mt-0.5" data-testid={`enc-artigo-sobre-${i}`}>sobreprod. {emOfs}/{tot}</div>;
+                          return <div className="text-[10px] text-gray-400 text-right mt-0.5" data-testid={`enc-artigo-emofs-${i}`}>em OFs {emOfs}/{tot}</div>;
+                        })()}
                       </td>
                       <td className="px-4 py-2.5 text-right align-top">
                         <input data-testid={`enc-artigo-preco-${i}`} type="number" step="0.01" value={a.preco_unit} onChange={(e) => updArtigo(i, { preco_unit: e.target.value })} onBlur={() => persist({})} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />

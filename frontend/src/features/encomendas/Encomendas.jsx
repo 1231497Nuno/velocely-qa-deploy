@@ -7,7 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Trash2, Factory, Copy } from "lucide-react";
+import { Plus, Trash2, Factory, Copy, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -98,7 +98,13 @@ export default function Encomendas() {
           <tbody data-testid="encomendas-table">
             {rows.map((e) => (
               <tr key={e.id} data-testid={`encomenda-row-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
-                <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{e.numero}</td>
+                <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">
+                  <span className="inline-flex items-center gap-1.5">
+                    {e.numero}
+                    {e.tem_artigos_sem_of && <AlertTriangle size={14} className="text-red-500" data-testid={`enc-warn-semof-${e.id}`} title="Tem artigos sem ordem de fabrico" />}
+                    {e.sobreproducao && <AlertTriangle size={14} className="text-amber-500" data-testid={`enc-warn-sobre-${e.id}`} title="Sobreprodução" />}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-gray-700">{e.cliente}</td>
                 <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(e.data)}</td>
                 <td className="px-4 py-3 tabular-nums" data-testid={`enc-prazo-${e.id}`}>

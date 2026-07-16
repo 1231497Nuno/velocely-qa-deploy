@@ -164,11 +164,18 @@ async def artigo_resumo(aid: str, _u: dict = Depends(get_current_user)):
         })
 
     encomendas = []
+    receita = 0.0
     for e in await encomendas_repo.find(limit=5000):
         arts = [x for x in (e.get("artigos") or []) if x.get("artigo_id") == aid]
         if not arts:
             continue
         ec = await compute_encomenda(e)
+        for x in arts:
+            pers = sum((p.get("valor") or 0) for p in (x.get("personalizacoes") or []))
+            bruto = ((x.get("preco_unit") or 0) + pers) * (x.get("quantidade") or 0)
+            d = x.get("desconto") or 0
+            desc = min(d, bruto) if x.get("desconto_tipo") == "eur" else (bruto * d / 100.0)
+            receita += bruto - desc
         encomendas.append({
             "id": e["id"], "numero": e.get("numero"), "cliente": e.get("cliente"), "data": e.get("data"),
             "estado": ec.get("estado"), "status_pagamento": ec.get("status_pagamento"),
@@ -192,13 +199,18 @@ async def artigo_resumo(aid: str, _u: dict = Depends(get_current_user)):
     encomendas.sort(key=_key, reverse=True)
     ordens_fabrico.sort(key=_key, reverse=True)
 
+    qtd_encomendada = round2(sum(x["quantidade"] for x in encomendas))
+    custo_prod = round2((artigo.get("custo_producao_total") or 0) * qtd_encomendada)
     stats = {
         "num_orcamentos": len(orcamentos),
         "num_encomendas": len(encomendas),
         "num_ofs": len(ordens_fabrico),
         "qtd_orcada": round2(sum(x["quantidade"] for x in orcamentos)),
-        "qtd_encomendada": round2(sum(x["quantidade"] for x in encomendas)),
+        "qtd_encomendada": qtd_encomendada,
         "qtd_produzida": round2(sum(x["quantidade"] for x in ordens_fabrico)),
+        "receita": round2(receita),
+        "custo": custo_prod,
+        "ganho": round2(receita - custo_prod),
     }
     return {"artigo": artigo, "orcamentos": orcamentos, "encomendas": encomendas,
             "ordens_fabrico": ordens_fabrico, "stats": stats}

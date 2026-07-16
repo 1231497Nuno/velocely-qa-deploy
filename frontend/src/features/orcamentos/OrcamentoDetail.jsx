@@ -10,7 +10,7 @@ import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/Orcam
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
-import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTS = [
@@ -212,9 +212,9 @@ export default function OrcamentoDetail() {
 
   const converter = async () => {
     try {
-      const of = await api.post(`/orcamentos/${id}/converter`);
-      toast.success(`Ordem de Fabrico ${of.numero} criada`);
-      nav(`/ordens-fabrico/${of.id}`);
+      const enc = await api.post(`/orcamentos/${id}/converter`);
+      toast.success(`Encomenda ${enc.numero} criada`);
+      nav(`/encomendas/${enc.id}`);
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao converter");
     }
@@ -236,14 +236,14 @@ export default function OrcamentoDetail() {
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <PdfExportButton modulo="orcamento" recordId={id} />
-          {orc.of_id && (
-            <Link to={`/ordens-fabrico/${orc.of_id}`} data-testid="goto-of-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
-              <Factory size={16} /> {orc.of_numero}
+          {orc.encomenda_id && (
+            <Link to={`/encomendas/${orc.encomenda_id}`} data-testid="goto-encomenda-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+              <ClipboardList size={16} /> {orc.encomenda_numero}
             </Link>
           )}
-          {!orc.of_id && can("ordens_fabrico", "create") && (
+          {!orc.encomenda_id && can("encomendas", "create") && (
             <button data-testid="convert-quote-btn" onClick={converter} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <Factory size={16} /> Criar Ordem de Fabrico
+              <ClipboardList size={16} /> Criar Encomenda
             </button>
           )}
           {can("orcamentos", "edit") && (

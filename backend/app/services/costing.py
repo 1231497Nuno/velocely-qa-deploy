@@ -470,6 +470,19 @@ async def compute_encomenda(enc: dict) -> dict:
     enc["qtd_em_ofs"] = round2(em_ofs)
     enc["progresso_producao"] = round(em_ofs / total_qtd * 100) if total_qtd > 0 else 0
 
+    # Alertas: artigos sem OF e sobreprodução (só relevante enquanto a encomenda está ativa)
+    nome_por_art = {}
+    for a in (enc.get("artigos") or []):
+        if a.get("artigo_id"):
+            nome_por_art[a["artigo_id"]] = a.get("artigo_nome") or nome_por_art.get(a["artigo_id"], "")
+    ativo = enc.get("estado") not in ("concluida", "cancelada")
+    sem_of = [nome_por_art.get(aid, "") for aid, tot in enc_tot_by_art.items() if tot > 0 and of_qty_by_art.get(aid, 0) <= 0]
+    sobre = [nome_por_art.get(aid, "") for aid, tot in enc_tot_by_art.items() if of_qty_by_art.get(aid, 0) > tot]
+    enc["artigos_sem_of"] = sem_of if ativo else []
+    enc["tem_artigos_sem_of"] = bool(sem_of) and ativo
+    enc["artigos_sobreproducao"] = sobre
+    enc["sobreproducao"] = bool(sobre)
+
     custo_est = custo_real = 0.0
     for o in ofs:
         for it in o.get("itens", []):
