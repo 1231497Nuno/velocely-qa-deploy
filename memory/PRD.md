@@ -2,6 +2,21 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 42 (2026-07-16) — Correções de qualidade de código (revisão)
+Aplicadas as correções **genuínas e seguras** do relatório de revisão (verificadas: teste backend passa, 0 erros/warnings de consola no smoke test):
+- **Segredo hardcoded** em `tests/test_iteration28_progresso_artigo.py`: password passou a ser lida de `TEST_ADMIN_PASSWORD` (env) com fallback para `/app/memory/test_credentials.md` (padrão já usado no test_iteration11).
+- **`<option><span>` (HTML inválido / warning recorrente desde iter 24)**: em `EncomendaDetail.jsx` e `OrcamentoDetail.jsx`, `<option>{t.nome} ({eur(t.valor)})</option>` → template string único. Warning eliminado.
+- **Index como key** em sub-listas de alterações: `Historico.jsx` e `HistoricoTimeline.jsx` passaram de `key={i}` para `key={`${ev.id}-${a.label}`}`.
+- **Catch vazio** em `NotificationsBell.jsx`: passou a registar o erro via `console.error`.
+
+**Deliberadamente NÃO aplicado (com justificação)**:
+- *Token em localStorage → httpOnly cookies*: decisão arquitetural aceite; mudança implicaria refactor de auth (via integration_expert) — fora de âmbito.
+- *Dependências de hooks (`api`, setters, `c/cs/l/o`)*: `api` é import estável e os setters do useState são estáveis; adicionar `c/cs/l/o` (state usado nos loaders) arriscaria loops infinitos. Sem bug funcional observado — evitado churn arriscado.
+- *Refactors de complexidade* (analytics.dashboard, EncomendaDetail/OrcamentoDetail split): grandes e arriscados sem necessidade funcional; intencionalmente adiados.
+- *`is` vs `==` (96)*: falso positivo — o código usa `is None`/`is False`/`is True` (correto em Python).
+- *"Random password" em test_iteration11:71*: falso positivo — é `secrets.token_urlsafe`, não um segredo hardcoded.
+
+
 ## Iteração 41 (2026-07-16) — Responsividade móvel (cartões) + Cartão "O que está por produzir"
 Concluídas e testadas (iteration_31.json — frontend 100% em mobile 390px e desktop 1920px, sem bugs):
 - **Responsividade móvel**: valores em euros em `text-2xl/3xl` transbordavam cartões estreitos no telemóvel e ficavam escondidos. Corrigido nos componentes `Stat` e `AttCard` (widgets.jsx) e nos KPIs de EncomendaDetail, ClienteDetail e ArtigoDetail: fonte responsiva (`text-lg/xl sm:...`), `break-words`, `min-w-0`, `overflow-hidden`, labels `leading-tight`. Validado: `document.body.scrollWidth === innerWidth` (sem overflow horizontal) e todos os valores contidos.

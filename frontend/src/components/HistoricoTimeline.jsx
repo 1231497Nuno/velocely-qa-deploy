@@ -91,7 +91,7 @@ export default function HistoricoTimeline({ tipo, id, refreshKey = 0 }) {
                     {ev.alteracoes && ev.alteracoes.length > 0 && (
                       <ul className="mt-1 space-y-0.5">
                         {ev.alteracoes.map((a, i) => (
-                          <li key={i} className="text-xs text-gray-500">
+                          <li key={`${ev.id}-${a.label ?? i}`} className="text-xs text-gray-500">
                             <span className="font-medium text-gray-600">{a.label}:</span>{" "}
                             <span className="line-through text-gray-400">{a.de}</span>{" → "}
                             <span className="text-gray-700">{a.para}</span>

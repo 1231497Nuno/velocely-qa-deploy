@@ -20,8 +20,17 @@ assert _env, "REACT_APP_BACKEND_URL not defined"
 BASE_URL = _env.rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_LOGIN = "admin"
-ADMIN_PASSWORD = "Admin123!"
+ADMIN_LOGIN = os.environ.get("TEST_ADMIN_LOGIN", "admin")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    _creds_path = "/app/memory/test_credentials.md"
+    if os.path.exists(_creds_path):
+        with open(_creds_path) as fh:
+            for line in fh:
+                if "assword" in line and "`" in line:
+                    ADMIN_PASSWORD = line.split("`")[1]
+                    break
+assert ADMIN_PASSWORD, "Defina TEST_ADMIN_PASSWORD ou /app/memory/test_credentials.md"
 
 # artigo de referência (do problem statement); se não existir, escolher outro
 ARTIGO_REF_ID = "a643f9fb"  # prefixo, resolveremos abaixo

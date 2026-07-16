@@ -20,7 +20,9 @@ export default function NotificationsBell() {
     try {
       const d = await api.get("/notificacoes");
       setItems(d.notificacoes || []);
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error("Falha ao carregar notificações", e);
+    }
   };
 
   useEffect(() => {

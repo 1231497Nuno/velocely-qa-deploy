@@ -447,7 +447,7 @@ export default function EncomendaDetail() {
                           {can("encomendas", "edit") && (
                             <select data-testid={`enc-artigo-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
                               <option value="">+ Personalização…</option>
-                              {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome} ({eur(t.valor)})</option>)}
+                              {tipos.map((t) => <option key={t.id} value={t.id}>{`${t.nome} (${eur(t.valor)})`}</option>)}
                             </select>
                           )}
                         </div>
