@@ -219,13 +219,15 @@ async def rentabilidade_clientes(_u: dict = Depends(get_current_user)):
 async def alertas(_u: dict = Depends(get_current_user)):
     encs = await encomendas_repo.find(limit=5000)
     enc_map = {e["id"]: e for e in encs}
-    pagamentos_pendentes = prazos_atrasados = prazos_proximos = 0
+    pagamentos_pendentes = prazos_atrasados = prazos_proximos = encomendas_sem_of = 0
     for e in encs:
         ec = await compute_encomenda(e)
         if ec["estado"] in ("concluida", "cancelada"):
             continue
         if (ec.get("valor_pendente") or 0) > 0:
             pagamentos_pendentes += 1
+        if ec.get("tem_artigos_sem_of"):
+            encomendas_sem_of += 1
         prazo = e.get("prazo_entrega")
         if prazo:
             _d, est = _prazo_meta(prazo)
@@ -248,6 +250,7 @@ async def alertas(_u: dict = Depends(get_current_user)):
         "prazos_atrasados": prazos_atrasados,
         "prazos_proximos": prazos_proximos,
         "ofs_atrasadas": ofs_atrasadas,
+        "encomendas_sem_of": encomendas_sem_of,
     }
 
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, CalendarClock, ClipboardList } from "lucide-react";
+import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, CalendarClock, ClipboardList, AlertTriangle } from "lucide-react";
 import {
   Stat, PrazosBanner, EncValorCustoChart, PagamentoPie, MensalArea,
   OFEstadoChart, TempoChart, TempoCustoTotais, TopArtigosChart,
@@ -54,6 +54,7 @@ export default function Dashboard() {
     if (!d) return [];
     const items = [];
     if (canEnc) {
+      items.push({ to: "/encomendas?semof=1", icon: AlertTriangle, count: alertas.encomendas_sem_of || 0, label: "Encomendas com artigos por produzir", tone: "red" });
       items.push({ to: "/encomendas", icon: ShieldAlert, count: d.encomendas_por_autorizar || 0, label: "Encomendas por autorizar", tone: "amber" });
       items.push({ to: "/encomendas", icon: Wallet, count: alertas.pagamentos_pendentes || 0, label: "Pagamentos pendentes", tone: "amber" });
     }

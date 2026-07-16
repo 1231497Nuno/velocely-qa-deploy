@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
@@ -19,12 +19,15 @@ export default function Encomendas() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState("pendentes");
+  const [soSemOf, setSoSemOf] = useState(false);
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" });
   const nav = useNavigate();
   const { sort, toggle, apply } = useSort();
 
   const load = useCallback(async () => setItems(await api.get("/encomendas")), []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (searchParams.get("semof") === "1") { setSoSemOf(true); setEstadoFilter("todas"); } }, [searchParams]);
 
   const create = async () => {
     if (!form.cliente_id) return toast.error("Selecione um cliente");
@@ -53,7 +56,9 @@ export default function Encomendas() {
     return true;
   });
   const items_f = ql ? byEstado.filter((e) => [e.numero, e.cliente, e.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql))) : byEstado;
-  const rows = apply(items_f);
+  const items_alert = soSemOf ? items_f.filter((e) => e.tem_artigos_sem_of) : items_f;
+  const rows = apply(items_alert);
+  const numSemOf = items.filter((e) => e.tem_artigos_sem_of).length;
   const payBadge = { pendente: "pendente", parcial: "parcial", pago: "pago" };
   const hoje = new Date().toISOString().slice(0, 10);
   const filtros = [["pendentes", "Pendentes"], ["concluidas", "Concluídas"], ["todas", "Todas"]];
@@ -77,6 +82,14 @@ export default function Encomendas() {
         <div className="flex-1">
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou orçamento..." testid="encomendas-search" />
         </div>
+        <button
+          data-testid="enc-filtro-sem-of"
+          onClick={() => setSoSemOf((v) => !v)}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-sm border transition-colors w-fit ${soSemOf ? "bg-red-50 border-red-300 text-red-700" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"}`}
+        >
+          <AlertTriangle size={15} className={soSemOf ? "text-red-600" : "text-red-500"} /> Artigos por produzir
+          {numSemOf > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full tabular-nums ${soSemOf ? "bg-red-600 text-white" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>}
+        </button>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">

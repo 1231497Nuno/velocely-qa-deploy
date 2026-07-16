@@ -37,6 +37,12 @@ def _recompute_pago(enc: dict) -> float:
     return round2(sum((p.get("valor") or 0) for p in (enc.get("pagamentos") or [])))
 
 
+async def _attach_ofs(enc: dict) -> dict:
+    ofs = await ordens_repo.find({"encomenda_id": enc["id"]}, sort=("created_at", -1))
+    enc["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
+    return enc
+
+
 @router.post("/encomendas/{eid}/pagamentos")
 async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(get_current_user)):
     enc = await encomendas_repo.get(eid)
@@ -53,7 +59,7 @@ async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(get_
     enc["valor_pago"] = total
     await audit.registar("encomenda", eid, "pagamento", user,
                          f"Pagamento de {pag.valor:.2f}€ ({PAG_METODO_PT.get(pag.metodo, pag.metodo)}) na encomenda {enc.get('numero')} · recibo {pag.recibo_numero}", enc.get("numero"))
-    return await compute_encomenda(enc)
+    return await _attach_ofs(await compute_encomenda(enc))
 
 
 @router.delete("/encomendas/{eid}/pagamentos/{pid}")
@@ -67,7 +73,7 @@ async def delete_pagamento(eid: str, pid: str, user: dict = Depends(get_current_
     enc["pagamentos"] = pagamentos
     enc["valor_pago"] = total
     await audit.registar("encomenda", eid, "pagamento", user, f"Pagamento removido da encomenda {enc.get('numero')}", enc.get("numero"))
-    return await compute_encomenda(enc)
+    return await _attach_ofs(await compute_encomenda(enc))
 
 
 def _valid_token(authorization: Optional[str], auth: Optional[str]) -> bool:
@@ -111,9 +117,7 @@ async def get_encomenda(eid: str, _u: dict = Depends(get_current_user)):
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
     e = await compute_encomenda(e)
-    ofs = await ordens_repo.find({"encomenda_id": eid}, sort=("created_at", -1))
-    e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
-    return e
+    return await _attach_ofs(e)
 
 
 @router.post("/encomendas")
@@ -124,7 +128,7 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(get_curren
         enc.data = now_iso()[:10]
     await encomendas_repo.insert(enc.model_dump())
     await audit.registar("encomenda", enc.id, "criado", user, f"Encomenda {enc.numero} criada", enc.numero)
-    return await compute_encomenda(enc.model_dump())
+    return await _attach_ofs(await compute_encomenda(enc.model_dump()))
 
 
 @router.put("/encomendas/{eid}")
@@ -155,7 +159,7 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     if alteracoes:
         await audit.registar("encomenda", eid, "editado", user, f"Encomenda {numero} editada", numero, alteracoes)
     merged = {**existing, **novo}
-    return await compute_encomenda(merged)
+    return await _attach_ofs(await compute_encomenda(merged))
 
 
 @router.delete("/encomendas/{eid}")
