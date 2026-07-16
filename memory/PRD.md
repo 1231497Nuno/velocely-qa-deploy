@@ -2,6 +2,13 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 40 (2026-07-16) — BUG FIX (OFs desapareciam após guardar) + Filtro "artigos por produzir" + Cartão no Dashboard
+Concluídas e testadas (iteration_30.json — backend 5/5, frontend 100%, sem bugs):
+- **BUG FIX (crítico)**: ao editar uma encomenda com OFs e guardar, o acesso às OFs desaparecia e os artigos passavam a "sem ordem". Causa: `compute_encomenda` não inclui `ordens_fabrico` (só o GET adicionava), pelo que PUT/pagamentos devolviam a encomenda sem OFs e o frontend perdia-as. Fix: helper `_attach_ofs` aplicado a `get/put/create/add_pagamento/delete_pagamento` em `encomendas.py`. Confirmado E2E: após guardar, OFs, barra de progresso e alertas mantêm-se.
+- **Filtro "Artigos por produzir"** na lista de Encomendas (`enc-filtro-sem-of`) com badge de contagem; mostra só encomendas com `tem_artigos_sem_of`. Suporta deep-link `/encomendas?semof=1` (ativa filtro + tab "Todas") via `useSearchParams`.
+- **Cartão no Dashboard**: `/api/alertas` passou a incluir `encomendas_sem_of`; AttentionCenter mostra cartão vermelho "Encomendas com artigos por produzir" (`att-encomendas-com-artigos-por-produzir`) que navega para `/encomendas?semof=1`.
+
+
 ## Iteração 39 (2026-07-16) — Fluxo orçamento→encomenda + Alertas (sem OF / sobreprodução) + Ganho do artigo
 Concluídas e testadas (iteration_29.json — backend 7/7, frontend 5/5, sem bugs):
 - **MUDANÇA DE FLUXO (crítica)**: `POST /orcamentos/{oid}/converter` agora cria **apenas a Encomenda** (já NÃO cria OF). É a encomenda que gera as OFs. `Orcamento` ganhou `encomenda_id`/`encomenda_numero`; conversão é idempotente e tem path de compatibilidade (deteta encomenda existente por `orcamento_id` para orçamentos convertidos no fluxo antigo). Frontend: botão passou a "Criar Encomenda" (`convert-quote-btn`, gated por `encomendas.create`), navega para a encomenda; link `goto-encomenda-link`. Imports mortos removidos de `orcamentos.py`.
