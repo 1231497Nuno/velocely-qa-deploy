@@ -2,6 +2,13 @@
 
 > **Branding:** O software chama-se **Velocely**. Logótipo (wordmark) integrado em login/sidebar/mobile (clicável → Dashboard); subtítulo "Gestão de Produção".
 
+## Iteração 41 (2026-07-16) — Responsividade móvel (cartões) + Cartão "O que está por produzir"
+Concluídas e testadas (iteration_31.json — frontend 100% em mobile 390px e desktop 1920px, sem bugs):
+- **Responsividade móvel**: valores em euros em `text-2xl/3xl` transbordavam cartões estreitos no telemóvel e ficavam escondidos. Corrigido nos componentes `Stat` e `AttCard` (widgets.jsx) e nos KPIs de EncomendaDetail, ClienteDetail e ArtigoDetail: fonte responsiva (`text-lg/xl sm:...`), `break-words`, `min-w-0`, `overflow-hidden`, labels `leading-tight`. Validado: `document.body.scrollWidth === innerWidth` (sem overflow horizontal) e todos os valores contidos.
+- **Cartão "O que está por produzir"** (`PorProduzirCard` em widgets.jsx, colocado após o Centro de Atenção no Dashboard): lista as encomendas ativas com artigos sem OF, com chips dos artigos em falta e badge de prazo (atrasada Xd / entrega hoje / Xd p/ entrega / sem prazo), ordenadas por prazo; cada item liga à encomenda. Client-side (filtra `/encomendas` por `tem_artigos_sem_of`). Envio por email continua em standby.
+- Nota: tabelas internas nas páginas de detalhe fazem scroll horizontal próprio (`overflow-x-auto`) — não transbordam a página. Warning de consola pré-existente `<option><span>` mantém-se (não é regressão).
+
+
 ## Iteração 40 (2026-07-16) — BUG FIX (OFs desapareciam após guardar) + Filtro "artigos por produzir" + Cartão no Dashboard
 Concluídas e testadas (iteration_30.json — backend 5/5, frontend 100%, sem bugs):
 - **BUG FIX (crítico)**: ao editar uma encomenda com OFs e guardar, o acesso às OFs desaparecia e os artigos passavam a "sem ordem". Causa: `compute_encomenda` não inclui `ordens_fabrico` (só o GET adicionava), pelo que PUT/pagamentos devolviam a encomenda sem OFs e o frontend perdia-as. Fix: helper `_attach_ofs` aplicado a `get/put/create/add_pagamento/delete_pagamento` em `encomendas.py`. Confirmado E2E: após guardar, OFs, barra de progresso e alertas mantêm-se.
