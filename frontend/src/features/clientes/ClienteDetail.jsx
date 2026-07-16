@@ -12,12 +12,12 @@ import {
 } from "lucide-react";
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
-  <div data-testid={testid} className="bg-white border border-gray-200 rounded-sm p-4">
-    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">
-      <Icon size={14} /> {label}
+  <div data-testid={testid} className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden">
+    <div className="flex items-center gap-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">
+      <Icon size={14} className="shrink-0" /> {label}
     </div>
-    <div className="text-xl font-bold text-gray-900 mt-2 tabular-nums">{value}</div>
-    {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+    <div className="text-lg sm:text-xl font-bold text-gray-900 mt-2 tabular-nums break-words">{value}</div>
+    {sub && <div className="text-xs text-gray-400 mt-0.5 break-words">{sub}</div>}
   </div>
 );
 

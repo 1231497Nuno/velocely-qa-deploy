@@ -242,23 +242,23 @@ export default function EncomendaDetail() {
 
       {/* KPIs financeiros */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-kpi-valor">
-          <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor da Encomenda</div>
-          <div className="text-2xl font-bold tabular-nums font-display mt-1">{eur(enc.valor_total)}</div>
+        <div className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden" data-testid="enc-kpi-valor">
+          <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Valor da Encomenda</div>
+          <div className="text-xl sm:text-2xl font-bold tabular-nums font-display mt-1 break-words">{eur(enc.valor_total)}</div>
         </div>
-        <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-kpi-pago">
-          <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pago</div>
-          <div className="text-2xl font-bold tabular-nums font-display mt-1 text-emerald-600">{eur(enc.valor_pago)}</div>
-          <div className="text-xs text-gray-500 mt-0.5">Pendente {eur(enc.valor_pendente)}</div>
+        <div className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden" data-testid="enc-kpi-pago">
+          <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Pago</div>
+          <div className="text-xl sm:text-2xl font-bold tabular-nums font-display mt-1 text-emerald-600 break-words">{eur(enc.valor_pago)}</div>
+          <div className="text-xs text-gray-500 mt-0.5 break-words">Pendente {eur(enc.valor_pendente)}</div>
         </div>
-        <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-kpi-custo-real">
-          <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Produção (real)</div>
-          <div className="text-2xl font-bold tabular-nums font-display mt-1">{eur(enc.custo_producao_real)}</div>
-          <div className="text-xs text-gray-500 mt-0.5">Estimado {eur(enc.custo_producao_estimado)}</div>
+        <div className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden" data-testid="enc-kpi-custo-real">
+          <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Custo Produção (real)</div>
+          <div className="text-xl sm:text-2xl font-bold tabular-nums font-display mt-1 break-words">{eur(enc.custo_producao_real)}</div>
+          <div className="text-xs text-gray-500 mt-0.5 break-words">Estimado {eur(enc.custo_producao_estimado)}</div>
         </div>
-        <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-kpi-margem">
-          <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Margem (valor − custo real)</div>
-          <div className={`text-2xl font-bold tabular-nums font-display mt-1 ${enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"}`}>{eur(enc.margem_producao)}</div>
+        <div className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden" data-testid="enc-kpi-margem">
+          <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Margem (valor − custo real)</div>
+          <div className={`text-xl sm:text-2xl font-bold tabular-nums font-display mt-1 break-words ${enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"}`}>{eur(enc.margem_producao)}</div>
         </div>
       </div>
 

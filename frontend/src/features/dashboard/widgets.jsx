@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, eur } from "@/lib/api";
+import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
   Wallet, Coins, Factory, ClipboardList, Boxes, Clock, Gauge, CalendarClock,
@@ -23,13 +23,13 @@ export const PALETTE = {
 const tooltipStyle = { fontSize: 12, borderRadius: 2, border: "1px solid #E5E7EB" };
 
 export const Stat = ({ icon: Icon, label, value, sub, tid, accent = "text-gray-900" }) => (
-  <div data-testid={tid} className="bg-white border border-gray-200 rounded-sm p-5 flex flex-col gap-3">
-    <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">{label}</span>
-      <Icon size={18} className="text-gray-400" strokeWidth={1.8} />
+  <div data-testid={tid} className="bg-white border border-gray-200 rounded-sm p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 min-w-0 overflow-hidden">
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">{label}</span>
+      <Icon size={18} className="text-gray-400 shrink-0" strokeWidth={1.8} />
     </div>
-    <div className={`text-3xl font-bold tracking-tight tabular-nums font-display ${accent}`}>{value}</div>
-    {sub && <div className="text-xs text-gray-500">{sub}</div>}
+    <div className={`text-xl sm:text-3xl font-bold tracking-tight tabular-nums font-display break-words ${accent}`}>{value}</div>
+    {sub && <div className="text-xs text-gray-500 break-words">{sub}</div>}
   </div>
 );
 
@@ -268,13 +268,13 @@ const AttCard = ({ to, icon: Icon, count, label, tone }) => {
     blue: "border-blue-200 bg-blue-50/50 text-blue-600",
   };
   return (
-    <Link to={to} data-testid={`att-${label.toLowerCase().replace(/\s+/g, "-")}`} className={`flex items-center gap-3 border rounded-sm p-4 transition-colors hover:shadow-sm ${tones[tone] || "border-gray-200 bg-white text-gray-600"}`}>
-      <Icon size={22} className="shrink-0" />
-      <div className="min-w-0">
-        <div className="text-2xl font-bold tabular-nums font-display leading-none">{count}</div>
-        <div className="text-xs text-gray-600 mt-1 truncate">{label}</div>
+    <Link to={to} data-testid={`att-${label.toLowerCase().replace(/\s+/g, "-")}`} className={`flex items-center gap-3 border rounded-sm p-3 sm:p-4 transition-colors hover:shadow-sm min-w-0 overflow-hidden ${tones[tone] || "border-gray-200 bg-white text-gray-600"}`}>
+      <Icon size={20} className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-xl sm:text-2xl font-bold tabular-nums font-display leading-none">{count}</div>
+        <div className="text-xs text-gray-600 mt-1 leading-snug break-words">{label}</div>
       </div>
-      <ArrowRight size={16} className="ml-auto text-gray-300" />
+      <ArrowRight size={16} className="ml-auto shrink-0 text-gray-300" />
     </Link>
   );
 };
@@ -288,14 +288,69 @@ export const AttentionCenter = ({ items }) => {
       </h2>
       {active.length === 0 ? (
         <div className="flex items-center gap-2 border border-emerald-200 bg-emerald-50/50 rounded-sm p-4 text-sm text-emerald-700" data-testid="dash-attention-clear">
-          <CheckCircle2 size={18} /> Tudo em dia — sem pendências urgentes.
+          <CheckCircle2 size={18} className="shrink-0" /> Tudo em dia — sem pendências urgentes.
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
           {active.map((i) => <AttCard key={i.label} {...i} />)}
         </div>
       )}
     </section>
+  );
+};
+
+const _diasAte = (prazo) => {
+  if (!prazo) return null;
+  return Math.ceil((new Date(prazo).getTime() - Date.now()) / 86400000);
+};
+
+export const PorProduzirCard = () => {
+  const [encs, setEncs] = useState(null);
+  useEffect(() => {
+    api.get("/encomendas")
+      .then((d) => setEncs((d || []).filter((e) => e.tem_artigos_sem_of)
+        .sort((a, b) => (a.prazo_entrega || "9999").localeCompare(b.prazo_entrega || "9999"))))
+      .catch(() => setEncs([]));
+  }, []);
+  return (
+    <Card title="O que está por produzir" icon={AlertTriangle} className="mb-4">
+      <div data-testid="dash-por-produzir">
+        {encs === null ? (
+          <div className="text-sm text-gray-400 py-6 text-center">A carregar...</div>
+        ) : encs.length === 0 ? (
+          <div className="flex items-center gap-2 text-sm text-emerald-700 py-4"><CheckCircle2 size={16} className="shrink-0" /> Tudo com produção lançada — nada por esquecer.</div>
+        ) : (
+          <ul className="space-y-2.5">
+            {encs.map((e) => {
+              const dias = _diasAte(e.prazo_entrega);
+              const urgente = dias !== null && dias <= 7;
+              return (
+                <li key={e.id} data-testid={`por-produzir-${e.id}`}>
+                  <Link to={`/encomendas/${e.id}`} className="block border border-gray-100 hover:border-gray-300 hover:bg-gray-50 rounded-sm p-3 transition-colors">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="min-w-0">
+                        <span className="text-sm font-semibold text-gray-900 mono">{e.numero}</span>
+                        <span className="text-sm text-gray-500"> · {e.cliente}</span>
+                      </div>
+                      {e.prazo_entrega ? (
+                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${dias < 0 ? "bg-red-100 text-red-700" : urgente ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                          {dias < 0 ? `atrasada ${Math.abs(dias)}d` : dias === 0 ? "entrega hoje" : `${dias}d p/ entrega`}
+                        </span>
+                      ) : <span className="text-xs text-gray-400 shrink-0">sem prazo</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {(e.artigos_sem_of || []).map((nome, idx) => (
+                        <span key={`${e.id}-${idx}`} className="text-xs bg-red-50 text-red-700 border border-red-100 rounded-sm px-2 py-0.5 break-words">{nome}</span>
+                      ))}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Card>
   );
 };
 

@@ -6,7 +6,7 @@ import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, Calen
 import {
   Stat, PrazosBanner, EncValorCustoChart, PagamentoPie, MensalArea,
   OFEstadoChart, TempoChart, TempoCustoTotais, TopArtigosChart,
-  Greeting, QuickActions, AttentionCenter, RecentActivity, QuickAnalysis,
+  Greeting, QuickActions, AttentionCenter, PorProduzirCard, RecentActivity, QuickAnalysis,
 } from "@/features/dashboard/widgets";
 
 export default function Dashboard() {
@@ -83,6 +83,8 @@ export default function Dashboard() {
       <QuickActions />
 
       <AttentionCenter items={attentionItems} />
+
+      {canEnc && <PorProduzirCard />}
 
       {/* Análise rápida + Atividade recente */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
