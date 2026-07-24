@@ -59,6 +59,8 @@ module.exports = {
   webpack: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      "@domain": path.resolve(__dirname, "src/domain"),
+      "@infrastructure": path.resolve(__dirname, "src/infrastructure"),
     },
     configure: (webpackConfig) => {
       webpackConfig.watchOptions = {

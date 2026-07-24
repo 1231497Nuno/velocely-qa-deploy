@@ -33,9 +33,11 @@ Plataforma de **gestão de produção** — orçamentos, encomendas e ordens de 
 │   └── requirements.txt
 ├── frontend/          # Aplicação React
 │   └── src/
-│       ├── components/
-│       ├── features/  # Módulos por domínio
-│       └── lib/
+│       ├── domain/           # formatadores / UI-domínio
+│       ├── infrastructure/   # cliente HTTP
+│       ├── features/         # módulos por domínio
+│       ├── components/       # UI partilhada
+│       └── lib/              # fachadas de compatibilidade
 ├── docs/              # Documentação do projeto
 └── README.md
 ```
