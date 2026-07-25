@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import Login from "@/features/auth/Login";
+import DefinirPassword from "@/features/auth/DefinirPassword";
 import Dashboard from "@/features/dashboard/Dashboard";
 import Artigos from "@/features/artigos/Artigos";
 import ArtigoDetail from "@/features/artigos/ArtigoDetail";
@@ -11,6 +12,7 @@ import Maquinas from "@/features/catalogo/Maquinas";
 import Materiais from "@/features/catalogo/Materiais";
 import MaoObra from "@/features/catalogo/MaoObra";
 import TiposPersonalizacao from "@/features/catalogo/TiposPersonalizacao";
+import Categorias from "@/features/catalogo/Categorias";
 import Orcamentos from "@/features/orcamentos/Orcamentos";
 import OrcamentoDetail from "@/features/orcamentos/OrcamentoDetail";
 import OrdensFabrico from "@/features/ordens_fabrico/OrdensFabrico";
@@ -39,6 +41,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/definir-password" element={<DefinirPassword />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
       <Route path="/calendario" element={<Protected modulo="calendario"><Calendario /></Protected>} />
       <Route path="/clientes" element={<Protected modulo="clientes"><Clientes /></Protected>} />
@@ -47,6 +50,8 @@ function AppRoutes() {
       <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
       <Route path="/artigos/:id" element={<Protected modulo="artigos"><ArtigoDetail /></Protected>} />
+      <Route path="/categorias" element={<Protected modulo="artigos"><Categorias /></Protected>} />
+      <Route path="/subcategorias" element={<Navigate to="/categorias" replace />} />
       <Route path="/maquinas" element={<Protected modulo="maquinas"><Maquinas /></Protected>} />
       <Route path="/materiais" element={<Protected modulo="materiais"><Materiais /></Protected>} />
       <Route path="/mao-obra" element={<Protected modulo="mao_obra"><MaoObra /></Protected>} />

@@ -57,7 +57,13 @@ export default function ArtigoDetail() {
           <div className="flex items-start gap-3">
             <ImagemUpload value={a.imagem} editable={false} size={56} testid="artigo-detail-imagem" />
             <div className="min-w-0">
+              {a.codigo && <div className="mono text-xs tabular-nums text-gray-500 mb-0.5" data-testid="artigo-codigo">{a.codigo}</div>}
               <h1 className="text-xl font-bold tracking-tight text-gray-900 font-display" data-testid="artigo-nome">{a.nome}</h1>
+              {(a.categoria_nome || a.subcategoria_nome) && (
+                <p className="text-sm text-gray-500 mt-0.5" data-testid="artigo-categoria">
+                  {[a.categoria_nome, a.subcategoria_nome].filter(Boolean).join(" · ")}
+                </p>
+              )}
               {a.descricao && <p className="text-sm text-gray-500 mt-0.5">{a.descricao}</p>}
             </div>
           </div>

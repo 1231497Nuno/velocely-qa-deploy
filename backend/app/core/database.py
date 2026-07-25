@@ -21,7 +21,16 @@ def round2(v: float) -> float:
 
 
 async def next_sequence(prefix: str) -> str:
-    """Sequential numbering that resets per year, e.g. ORC-2026-0001."""
+    """Compatibilidade: ORC/ENC/OF/REC → códigos configuráveis.
+
+    Preferir `app.services.numeracao.next_codigo(chave)`.
+    """
+    from app.services.numeracao import next_codigo, NUMERACAO_DEFAULTS
+
+    prefix_map = {v["prefix"]: k for k, v in NUMERACAO_DEFAULTS.items()}
+    chave = prefix_map.get((prefix or "").upper())
+    if chave:
+        return await next_codigo(chave)
     year = datetime.now(timezone.utc).year
     key = f"{prefix}-{year}"
     doc = await db.counters.find_one_and_update(
@@ -30,5 +39,4 @@ async def next_sequence(prefix: str) -> str:
         upsert=True,
         return_document=True,
     )
-    seq = doc["seq"]
-    return f"{prefix}-{year}-{seq:04d}"
+    return f"{prefix}-{year}-{doc['seq']:04d}"

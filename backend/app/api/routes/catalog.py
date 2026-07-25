@@ -1,36 +1,69 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.domain.models import (
     Maquina, MaquinaInput, Consumivel, ConsumivelInput, MaoObra, MaoObraInput,
     Artigo, ArtigoInput, TipoPersonalizacao, TipoPersonalizacaoInput,
+    Categoria, CategoriaInput, Subcategoria, SubcategoriaInput,
 )
 from app.core.database import new_id, now_iso, round2
-from app.core.security import get_current_user
-from app.repositories import maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo, orcamentos_repo, encomendas_repo, ordens_repo
+from app.core.security import get_current_user, require_perm
+from app.repositories import (
+    maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo,
+    orcamentos_repo, encomendas_repo, ordens_repo, categorias_repo, subcategorias_repo,
+)
 from app.services.costing import artigo_breakdown, enrich_artigo, compute_orcamento_totais, compute_encomenda, recompute_of_status
+from app.services.numeracao import next_codigo
 from app.services import audit
 
 router = APIRouter()
 
 
+async def _resolve_categorias(data: dict) -> dict:
+    """Preenche nomes a partir dos IDs; limpa subcategoria se não pertencer à categoria."""
+    cat_id = data.get("categoria_id") or None
+    sub_id = data.get("subcategoria_id") or None
+    if not cat_id:
+        data["categoria_id"] = None
+        data["categoria_nome"] = ""
+        data["subcategoria_id"] = None
+        data["subcategoria_nome"] = ""
+        return data
+    cat = await categorias_repo.get(cat_id)
+    if not cat:
+        raise HTTPException(400, "Categoria inválida")
+    data["categoria_id"] = cat_id
+    data["categoria_nome"] = cat.get("nome") or ""
+    if sub_id:
+        sub = await subcategorias_repo.get(sub_id)
+        if not sub or sub.get("categoria_id") != cat_id:
+            raise HTTPException(400, "Subcategoria inválida para esta categoria")
+        data["subcategoria_id"] = sub_id
+        data["subcategoria_nome"] = sub.get("nome") or ""
+    else:
+        data["subcategoria_id"] = None
+        data["subcategoria_nome"] = ""
+    return data
+
+
 # ----------------------- Máquinas -----------------------
 @router.get("/maquinas", response_model=List[Maquina])
-async def list_maquinas():
+async def list_maquinas(_u: dict = Depends(require_perm("maquinas", "view"))):
     return await maquinas_repo.find(sort=("nome", 1))
 
 
 @router.post("/maquinas", response_model=Maquina)
-async def create_maquina(data: MaquinaInput, user: dict = Depends(get_current_user)):
+async def create_maquina(data: MaquinaInput, user: dict = Depends(require_perm("maquinas", "create"))):
     m = Maquina(**data.model_dump())
+    m.codigo = await next_codigo("maquina")
     await maquinas_repo.insert(m.model_dump())
-    await audit.registar("maquina", m.id, "criado", user, f"Máquina «{m.nome}» criada", m.nome)
+    await audit.registar("maquina", m.id, "criado", user, f"Máquina «{m.nome}» criada", m.codigo or m.nome)
     return m
 
 
 @router.put("/maquinas/{mid}", response_model=Maquina)
-async def update_maquina(mid: str, data: MaquinaInput, user: dict = Depends(get_current_user)):
+async def update_maquina(mid: str, data: MaquinaInput, user: dict = Depends(require_perm("maquinas", "edit"))):
     existing = await maquinas_repo.get(mid)
     if not existing:
         raise HTTPException(404, "Máquina não encontrada")
@@ -44,7 +77,7 @@ async def update_maquina(mid: str, data: MaquinaInput, user: dict = Depends(get_
 
 
 @router.delete("/maquinas/{mid}")
-async def delete_maquina(mid: str, user: dict = Depends(get_current_user)):
+async def delete_maquina(mid: str, user: dict = Depends(require_perm("maquinas", "delete"))):
     existing = await maquinas_repo.get(mid)
     await maquinas_repo.delete({"id": mid})
     if existing:
@@ -54,20 +87,21 @@ async def delete_maquina(mid: str, user: dict = Depends(get_current_user)):
 
 # ----------------------- Consumíveis (Materiais) -----------------------
 @router.get("/consumiveis", response_model=List[Consumivel])
-async def list_consumiveis():
+async def list_consumiveis(_u: dict = Depends(require_perm("materiais", "view"))):
     return await consumiveis_repo.find(sort=("nome", 1))
 
 
 @router.post("/consumiveis", response_model=Consumivel)
-async def create_consumivel(data: ConsumivelInput, user: dict = Depends(get_current_user)):
+async def create_consumivel(data: ConsumivelInput, user: dict = Depends(require_perm("materiais", "create"))):
     c = Consumivel(**data.model_dump())
+    c.codigo = await next_codigo("material")
     await consumiveis_repo.insert(c.model_dump())
-    await audit.registar("consumivel", c.id, "criado", user, f"Material «{c.nome}» criado", c.nome)
+    await audit.registar("consumivel", c.id, "criado", user, f"Material «{c.nome}» criado", c.codigo or c.nome)
     return c
 
 
 @router.put("/consumiveis/{cid}", response_model=Consumivel)
-async def update_consumivel(cid: str, data: ConsumivelInput, user: dict = Depends(get_current_user)):
+async def update_consumivel(cid: str, data: ConsumivelInput, user: dict = Depends(require_perm("materiais", "edit"))):
     existing = await consumiveis_repo.get(cid)
     if not existing:
         raise HTTPException(404, "Consumível não encontrado")
@@ -81,7 +115,7 @@ async def update_consumivel(cid: str, data: ConsumivelInput, user: dict = Depend
 
 
 @router.delete("/consumiveis/{cid}")
-async def delete_consumivel(cid: str, user: dict = Depends(get_current_user)):
+async def delete_consumivel(cid: str, user: dict = Depends(require_perm("materiais", "delete"))):
     existing = await consumiveis_repo.get(cid)
     await consumiveis_repo.delete({"id": cid})
     if existing:
@@ -91,20 +125,21 @@ async def delete_consumivel(cid: str, user: dict = Depends(get_current_user)):
 
 # ----------------------- Mão de Obra -----------------------
 @router.get("/mao-obra", response_model=List[MaoObra])
-async def list_mao_obra():
+async def list_mao_obra(_u: dict = Depends(require_perm("mao_obra", "view"))):
     return await mao_obra_repo.find(sort=("nome", 1))
 
 
 @router.post("/mao-obra", response_model=MaoObra)
-async def create_mao_obra(data: MaoObraInput, user: dict = Depends(get_current_user)):
+async def create_mao_obra(data: MaoObraInput, user: dict = Depends(require_perm("mao_obra", "create"))):
     m = MaoObra(**data.model_dump())
+    m.codigo = await next_codigo("mao_obra")
     await mao_obra_repo.insert(m.model_dump())
-    await audit.registar("mao_obra", m.id, "criado", user, f"Mão de obra «{m.nome}» criada", m.nome)
+    await audit.registar("mao_obra", m.id, "criado", user, f"Mão de obra «{m.nome}» criada", m.codigo or m.nome)
     return m
 
 
 @router.put("/mao-obra/{mid}", response_model=MaoObra)
-async def update_mao_obra(mid: str, data: MaoObraInput, user: dict = Depends(get_current_user)):
+async def update_mao_obra(mid: str, data: MaoObraInput, user: dict = Depends(require_perm("mao_obra", "edit"))):
     existing = await mao_obra_repo.get(mid)
     if not existing:
         raise HTTPException(404, "Mão de obra não encontrada")
@@ -118,7 +153,7 @@ async def update_mao_obra(mid: str, data: MaoObraInput, user: dict = Depends(get
 
 
 @router.delete("/mao-obra/{mid}")
-async def delete_mao_obra(mid: str, user: dict = Depends(get_current_user)):
+async def delete_mao_obra(mid: str, user: dict = Depends(require_perm("mao_obra", "delete"))):
     existing = await mao_obra_repo.get(mid)
     await mao_obra_repo.delete({"id": mid})
     if existing:
@@ -128,7 +163,7 @@ async def delete_mao_obra(mid: str, user: dict = Depends(get_current_user)):
 
 # ----------------------- Artigos -----------------------
 @router.get("/artigos")
-async def list_artigos():
+async def list_artigos(_u: dict = Depends(require_perm("artigos", "view"))):
     artigos = await artigos_repo.find(sort=("nome", 1))
     result = []
     for a in artigos:
@@ -137,7 +172,7 @@ async def list_artigos():
 
 
 @router.get("/artigos/{aid}")
-async def get_artigo(aid: str):
+async def get_artigo(aid: str, _u: dict = Depends(require_perm("artigos", "view"))):
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
@@ -145,7 +180,7 @@ async def get_artigo(aid: str):
 
 
 @router.get("/artigos/{aid}/resumo")
-async def artigo_resumo(aid: str, _u: dict = Depends(get_current_user)):
+async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "view"))):
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
@@ -217,22 +252,24 @@ async def artigo_resumo(aid: str, _u: dict = Depends(get_current_user)):
 
 
 @router.post("/artigos")
-async def create_artigo(data: ArtigoInput, user: dict = Depends(get_current_user)):
-    a = Artigo(**data.model_dump())
+async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("artigos", "create"))):
+    payload = await _resolve_categorias(data.model_dump())
+    a = Artigo(**payload)
+    a.codigo = await next_codigo("artigo")
     doc = a.model_dump()
     await artigos_repo.insert(doc)
     doc.pop("_id", None)
-    await audit.registar("artigo", a.id, "criado", user, f"Artigo «{a.nome}» criado", a.nome)
+    await audit.registar("artigo", a.id, "criado", user, f"Artigo «{a.nome}» criado", a.codigo or a.nome)
     return enrich_artigo(doc, await artigo_breakdown(doc))
 
 
 @router.put("/artigos/{aid}")
-async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(get_current_user)):
+async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(require_perm("artigos", "edit"))):
     existing = await artigos_repo.get(aid)
     if not existing:
         raise HTTPException(404, "Artigo não encontrado")
-    update = data.model_dump()
-    alteracoes = audit.diff_campos(existing, update, ["nome", "descricao", "unidade", "custo_artigo", "margem"])
+    update = await _resolve_categorias(data.model_dump())
+    alteracoes = audit.diff_campos(existing, update, ["nome", "descricao", "unidade", "custo_artigo", "margem", "categoria_id", "subcategoria_id"])
     await artigos_repo.update(aid, update)
     existing.update(update)
     await audit.registar("artigo", aid, "editado", user, f"Artigo «{update.get('nome')}» editado", update.get("nome"), alteracoes)
@@ -240,7 +277,7 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(get_cu
 
 
 @router.delete("/artigos/{aid}")
-async def delete_artigo(aid: str, user: dict = Depends(get_current_user)):
+async def delete_artigo(aid: str, user: dict = Depends(require_perm("artigos", "delete"))):
     existing = await artigos_repo.get(aid)
     await artigos_repo.delete({"id": aid})
     if existing:
@@ -249,37 +286,39 @@ async def delete_artigo(aid: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/artigos/{aid}/duplicar")
-async def duplicar_artigo(aid: str, user: dict = Depends(get_current_user)):
+async def duplicar_artigo(aid: str, user: dict = Depends(require_perm("artigos", "create"))):
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
     novo = {**a}
     novo.update({
         "id": new_id(),
+        "codigo": await next_codigo("artigo"),
         "nome": f"{a.get('nome', 'Artigo')} (cópia)",
         "created_at": now_iso(),
     })
     await artigos_repo.insert(novo)
-    await audit.registar("artigo", novo["id"], "duplicado", user, f"Artigo «{novo['nome']}» criado a partir de «{a.get('nome')}»", novo["nome"])
+    await audit.registar("artigo", novo["id"], "duplicado", user, f"Artigo «{novo['nome']}» criado a partir de «{a.get('nome')}»", novo.get("codigo") or novo["nome"])
     return enrich_artigo(novo, await artigo_breakdown(novo))
 
 
 # ----------------------- Tipos de Personalização -----------------------
 @router.get("/tipos-personalizacao", response_model=List[TipoPersonalizacao])
-async def list_tipos():
+async def list_tipos(_u: dict = Depends(require_perm("personalizacao", "view"))):
     return await tipos_repo.find(sort=("nome", 1))
 
 
 @router.post("/tipos-personalizacao", response_model=TipoPersonalizacao)
-async def create_tipo(data: TipoPersonalizacaoInput, user: dict = Depends(get_current_user)):
+async def create_tipo(data: TipoPersonalizacaoInput, user: dict = Depends(require_perm("personalizacao", "create"))):
     t = TipoPersonalizacao(**data.model_dump())
+    t.codigo = await next_codigo("tipo_personalizacao")
     await tipos_repo.insert(t.model_dump())
-    await audit.registar("tipo_personalizacao", t.id, "criado", user, f"Tipo «{t.nome}» criado", t.nome)
+    await audit.registar("tipo_personalizacao", t.id, "criado", user, f"Tipo «{t.nome}» criado", t.codigo or t.nome)
     return t
 
 
 @router.put("/tipos-personalizacao/{tid}", response_model=TipoPersonalizacao)
-async def update_tipo(tid: str, data: TipoPersonalizacaoInput, user: dict = Depends(get_current_user)):
+async def update_tipo(tid: str, data: TipoPersonalizacaoInput, user: dict = Depends(require_perm("personalizacao", "edit"))):
     existing = await tipos_repo.get(tid)
     if not existing:
         raise HTTPException(404, "Tipo não encontrado")
@@ -293,9 +332,113 @@ async def update_tipo(tid: str, data: TipoPersonalizacaoInput, user: dict = Depe
 
 
 @router.delete("/tipos-personalizacao/{tid}")
-async def delete_tipo(tid: str, user: dict = Depends(get_current_user)):
+async def delete_tipo(tid: str, user: dict = Depends(require_perm("personalizacao", "delete"))):
     existing = await tipos_repo.get(tid)
     await tipos_repo.delete({"id": tid})
     if existing:
         await audit.registar("tipo_personalizacao", tid, "eliminado", user, f"Tipo «{existing.get('nome')}» eliminado", existing.get("nome"))
+    return {"ok": True}
+
+
+# ----------------------- Categorias -----------------------
+@router.get("/categorias", response_model=List[Categoria])
+async def list_categorias(_u: dict = Depends(require_perm("artigos", "view"))):
+    return await categorias_repo.find(sort=("nome", 1))
+
+
+@router.post("/categorias", response_model=Categoria)
+async def create_categoria(data: CategoriaInput, user: dict = Depends(require_perm("artigos", "create"))):
+    c = Categoria(**data.model_dump())
+    c.codigo = await next_codigo("categoria")
+    await categorias_repo.insert(c.model_dump())
+    await audit.registar("categoria", c.id, "criado", user, f"Categoria «{c.nome}» criada", c.codigo or c.nome)
+    return c
+
+
+@router.put("/categorias/{cid}", response_model=Categoria)
+async def update_categoria(cid: str, data: CategoriaInput, user: dict = Depends(require_perm("artigos", "edit"))):
+    existing = await categorias_repo.get(cid)
+    if not existing:
+        raise HTTPException(404, "Categoria não encontrada")
+    novo = data.model_dump()
+    alteracoes = audit.diff_campos(existing, novo, ["nome"])
+    await categorias_repo.update(cid, novo)
+    if novo.get("nome") and novo["nome"] != existing.get("nome"):
+        await subcategorias_repo.update_many({"categoria_id": cid}, {"categoria_nome": novo["nome"]})
+        await artigos_repo.update_many({"categoria_id": cid}, {"categoria_nome": novo["nome"]})
+    existing.update(novo)
+    if alteracoes:
+        await audit.registar("categoria", cid, "editado", user, f"Categoria «{novo.get('nome')}» editada", novo.get("nome"), alteracoes)
+    return existing
+
+
+@router.delete("/categorias/{cid}")
+async def delete_categoria(cid: str, user: dict = Depends(require_perm("artigos", "delete"))):
+    existing = await categorias_repo.get(cid)
+    if not existing:
+        raise HTTPException(404, "Categoria não encontrada")
+    if await subcategorias_repo.find_one({"categoria_id": cid}):
+        raise HTTPException(400, "Categoria tem subcategorias — elimine-as primeiro")
+    if await artigos_repo.find_one({"categoria_id": cid}):
+        raise HTTPException(400, "Categoria em uso por artigos")
+    await categorias_repo.delete({"id": cid})
+    await audit.registar("categoria", cid, "eliminado", user, f"Categoria «{existing.get('nome')}» eliminada", existing.get("codigo") or existing.get("nome"))
+    return {"ok": True}
+
+
+# ----------------------- Subcategorias -----------------------
+@router.get("/subcategorias", response_model=List[Subcategoria])
+async def list_subcategorias(categoria_id: Optional[str] = None, _u: dict = Depends(require_perm("artigos", "view"))):
+    q = {"categoria_id": categoria_id} if categoria_id else {}
+    return await subcategorias_repo.find(q, sort=("nome", 1))
+
+
+@router.post("/subcategorias", response_model=Subcategoria)
+async def create_subcategoria(data: SubcategoriaInput, user: dict = Depends(require_perm("artigos", "create"))):
+    cat = await categorias_repo.get(data.categoria_id)
+    if not cat:
+        raise HTTPException(400, "Categoria inválida")
+    s = Subcategoria(**data.model_dump())
+    s.codigo = await next_codigo("subcategoria")
+    s.categoria_nome = cat.get("nome") or ""
+    await subcategorias_repo.insert(s.model_dump())
+    await audit.registar("subcategoria", s.id, "criado", user, f"Subcategoria «{s.nome}» criada", s.codigo or s.nome)
+    return s
+
+
+@router.put("/subcategorias/{sid}", response_model=Subcategoria)
+async def update_subcategoria(sid: str, data: SubcategoriaInput, user: dict = Depends(require_perm("artigos", "edit"))):
+    existing = await subcategorias_repo.get(sid)
+    if not existing:
+        raise HTTPException(404, "Subcategoria não encontrada")
+    cat = await categorias_repo.get(data.categoria_id)
+    if not cat:
+        raise HTTPException(400, "Categoria inválida")
+    novo = data.model_dump()
+    novo["categoria_nome"] = cat.get("nome") or ""
+    alteracoes = audit.diff_campos(existing, novo, ["nome", "categoria_id"])
+    await subcategorias_repo.update(sid, novo)
+    if novo.get("nome") and novo["nome"] != existing.get("nome"):
+        await artigos_repo.update_many({"subcategoria_id": sid}, {"subcategoria_nome": novo["nome"]})
+    # se mudou de categoria, actualizar artigos
+    if data.categoria_id != existing.get("categoria_id"):
+        await artigos_repo.update_many(
+            {"subcategoria_id": sid},
+            {"categoria_id": data.categoria_id, "categoria_nome": novo["categoria_nome"], "subcategoria_nome": novo.get("nome") or ""},
+        )
+    existing.update(novo)
+    if alteracoes:
+        await audit.registar("subcategoria", sid, "editado", user, f"Subcategoria «{novo.get('nome')}» editada", novo.get("nome"), alteracoes)
+    return existing
+
+
+@router.delete("/subcategorias/{sid}")
+async def delete_subcategoria(sid: str, user: dict = Depends(require_perm("artigos", "delete"))):
+    existing = await subcategorias_repo.get(sid)
+    if not existing:
+        raise HTTPException(404, "Subcategoria não encontrada")
+    if await artigos_repo.find_one({"subcategoria_id": sid}):
+        raise HTTPException(400, "Subcategoria em uso por artigos")
+    await subcategorias_repo.delete({"id": sid})
+    await audit.registar("subcategoria", sid, "eliminado", user, f"Subcategoria «{existing.get('nome')}» eliminada", existing.get("codigo") or existing.get("nome"))
     return {"ok": True}

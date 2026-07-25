@@ -8,6 +8,7 @@ import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
 import PdfExportButton from "@/components/PdfExportButton";
+import EnviarEmailButton from "@/components/EnviarEmailButton";
 import {
   ArrowLeft, Plus, Save, Trash2, X,
   Wallet, ShieldCheck, ShieldAlert, Package, Pencil, Receipt,
@@ -200,6 +201,16 @@ export default function EncomendaDetail() {
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <PdfExportButton modulo="encomenda" recordId={id} />
+          {can("encomendas", "edit") && (
+            <EnviarEmailButton
+              variant="encomenda-pronta"
+              recordId={id}
+              defaultTo={cliente?.email || ""}
+              clienteNome={enc.cliente || cliente?.nome || ""}
+              disabled={enc.estado === "cancelada"}
+              onSent={() => load()}
+            />
+          )}
           {can("encomendas", "edit") && (
             <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Save size={16} /> Guardar</button>
           )}

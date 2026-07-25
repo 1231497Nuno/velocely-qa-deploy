@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 
-from app.core.security import get_current_user
+from app.core.security import require_perm
 from app.services import audit
 
 router = APIRouter()
@@ -12,7 +12,7 @@ router = APIRouter()
 async def historico_global(
     tipo: Optional[str] = None,
     limit: int = 300,
-    _u: dict = Depends(get_current_user),
+    _u: dict = Depends(require_perm("historico", "view")),
 ):
     return await audit.historico(entidade_tipo=tipo, limit=limit)
 
@@ -21,6 +21,6 @@ async def historico_global(
 async def historico_entidade(
     entidade_tipo: str,
     entidade_id: str,
-    _u: dict = Depends(get_current_user),
+    _u: dict = Depends(require_perm("historico", "view")),
 ):
     return await audit.historico(entidade_tipo=entidade_tipo, entidade_id=entidade_id)

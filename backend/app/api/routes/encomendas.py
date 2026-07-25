@@ -8,12 +8,13 @@ from pydantic import BaseModel
 
 from app.core import config
 from app.core.database import now_iso, next_sequence, new_id, round2
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_perm
 from app.domain.models import EncomendaInput, Encomenda, OrdemFabricoInput, OrdemFabrico, ENC_ESTADO_PT, Pagamento
 from app.repositories import encomendas_repo, ordens_repo
 from app.services.costing import compute_encomenda, recompute_of_status, build_of_itens
 from app.services.pdf import load_pdf_config, fetch_cliente, fetch_orcamento, build_encomenda_pdf, build_recibo_pdf
 from app.services import audit
+from app.services import email as email_service
 
 _ENC_CAMPOS = ["cliente", "descricao", "prazo_entrega", "notas", "valor_total", "desconto_total"]
 
@@ -30,6 +31,12 @@ class PagamentoBody(BaseModel):
     data: Optional[str] = None
 
 
+class EnviarEmailBody(BaseModel):
+    to: Optional[str] = None
+    template_id: Optional[str] = None
+    mensagem: str = ""
+
+
 router = APIRouter()
 
 
@@ -44,7 +51,7 @@ async def _attach_ofs(enc: dict) -> dict:
 
 
 @router.post("/encomendas/{eid}/pagamentos")
-async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(get_current_user)):
+async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(require_perm("encomendas", "edit"))):
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -63,7 +70,7 @@ async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(get_
 
 
 @router.delete("/encomendas/{eid}/pagamentos/{pid}")
-async def delete_pagamento(eid: str, pid: str, user: dict = Depends(get_current_user)):
+async def delete_pagamento(eid: str, pid: str, user: dict = Depends(require_perm("encomendas", "edit"))):
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -106,13 +113,13 @@ async def recibo_pdf(eid: str, pid: str, authorization: str = Header(None), auth
 
 
 @router.get("/encomendas")
-async def list_encomendas(_u: dict = Depends(get_current_user)):
+async def list_encomendas(_u: dict = Depends(require_perm("encomendas", "view"))):
     encs = await encomendas_repo.find(sort=("created_at", -1), limit=5000)
     return [await compute_encomenda(e) for e in encs]
 
 
 @router.get("/encomendas/{eid}")
-async def get_encomenda(eid: str, _u: dict = Depends(get_current_user)):
+async def get_encomenda(eid: str, _u: dict = Depends(require_perm("encomendas", "view"))):
     e = await encomendas_repo.get(eid)
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -121,7 +128,7 @@ async def get_encomenda(eid: str, _u: dict = Depends(get_current_user)):
 
 
 @router.post("/encomendas")
-async def create_encomenda(data: EncomendaInput, user: dict = Depends(get_current_user)):
+async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_perm("encomendas", "create"))):
     enc = Encomenda(**data.model_dump())
     enc.numero = await next_sequence("ENC")
     if not enc.data:
@@ -132,7 +139,7 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(get_curren
 
 
 @router.put("/encomendas/{eid}")
-async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(get_current_user)):
+async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(require_perm("encomendas", "edit"))):
     existing = await encomendas_repo.get(eid)
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -163,7 +170,7 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
 
 
 @router.delete("/encomendas/{eid}")
-async def delete_encomenda(eid: str, user: dict = Depends(get_current_user)):
+async def delete_encomenda(eid: str, user: dict = Depends(require_perm("encomendas", "delete"))):
     existing = await encomendas_repo.get(eid)
     await ordens_repo.update_many(
         {"encomenda_id": eid}, {"encomenda_id": None, "encomenda_numero": None}
@@ -176,7 +183,7 @@ async def delete_encomenda(eid: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/encomendas/{eid}/duplicar")
-async def duplicar_encomenda(eid: str, user: dict = Depends(get_current_user)):
+async def duplicar_encomenda(eid: str, user: dict = Depends(require_perm("encomendas", "create"))):
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -199,7 +206,7 @@ async def duplicar_encomenda(eid: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/encomendas/{eid}/ordens-fabrico")
-async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict = Depends(get_current_user)):
+async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict = Depends(require_perm("ordens_fabrico", "create"))):
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -226,7 +233,7 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
 
 
 @router.get("/encomendas/{eid}/pdf")
-async def encomenda_pdf(eid: str, template_id: Optional[str] = None):
+async def encomenda_pdf(eid: str, template_id: Optional[str] = None, _u: dict = Depends(require_perm("encomendas", "view"))):
     e = await encomendas_repo.get(eid)
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -243,3 +250,57 @@ async def encomenda_pdf(eid: str, template_id: Optional[str] = None):
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
+
+
+@router.post("/encomendas/{eid}/enviar-email-pronta", summary="Notificar cliente: encomenda pronta")
+async def enviar_encomenda_pronta_email(
+    eid: str,
+    body: EnviarEmailBody = EnviarEmailBody(),
+    user: dict = Depends(require_perm("encomendas", "edit")),
+):
+    e = await encomendas_repo.get(eid)
+    if not e:
+        raise HTTPException(404, "Encomenda não encontrada")
+    e = await compute_encomenda(e)
+    if e.get("estado") == "cancelada":
+        raise HTTPException(400, "Não é possível notificar uma encomenda cancelada")
+
+    cliente = await fetch_cliente(e.get("cliente_id"))
+    to = (body.to or (cliente or {}).get("email") or "").strip()
+    if not to or "@" not in to:
+        raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")
+
+    ofs = await ordens_repo.find({"encomenda_id": eid}, sort=("created_at", -1))
+    e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
+    settings, fields, show_branding = await load_pdf_config(body.template_id)
+    orcamento = await fetch_orcamento(e.get("orcamento_id"))
+    pdf = build_encomenda_pdf(e, settings, fields, show_branding, cliente, orcamento)
+    numero = e.get("numero") or "encomenda"
+    subject, text, html = await email_service.encomenda_pronta_email(
+        (cliente or {}).get("nome") or e.get("cliente") or "",
+        numero,
+        mensagem=body.mensagem or "",
+    )
+    ok, reason = email_service.send_email(
+        to,
+        subject,
+        text,
+        html=html,
+        attach_logo=True,
+        attachments=[(f"{numero}.pdf", pdf, "application/pdf")],
+    )
+    if not ok and reason == "no_smtp":
+        raise HTTPException(503, "Envio de email não está configurado. Contacte o administrador.")
+    if not ok:
+        raise HTTPException(500, f"Não foi possível enviar o email: {reason}")
+
+    await audit.registar(
+        "encomenda", eid, "email_enviado", user,
+        f"Notificação de encomenda {numero} pronta enviada para {email_service.mask_email(to)}", numero,
+    )
+    return {
+        "ok": True,
+        "email_sent": True,
+        "email_masked": email_service.mask_email(to),
+        "message": f"Notificação enviada para {email_service.mask_email(to)}",
+    }

@@ -59,7 +59,7 @@ export default function TiposPersonalizacao() {
   };
 
   const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((t) => (t.nome || "").toLowerCase().includes(ql)) : items;
+  const items_f = ql ? items.filter((t) => [t.codigo, t.nome, t.descricao].some((v) => (v || "").toLowerCase().includes(ql))) : items;
 
   return (
     <div>
@@ -73,12 +73,13 @@ export default function TiposPersonalizacao() {
         }
       />
 
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome..." testid="personalizacao-search" />
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="personalizacao-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
@@ -89,6 +90,7 @@ export default function TiposPersonalizacao() {
           <tbody data-testid="tipos-table">
             {items_f.map((t) => (
               <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{t.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{t.nome}</td>
                 <td className="px-4 py-3 text-gray-600">{t.descricao || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(t.valor)}</td>
@@ -103,7 +105,7 @@ export default function TiposPersonalizacao() {
               </tr>
             ))}
             {items_f.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
             )}
           </tbody>
         </table>

@@ -4,7 +4,7 @@ import re
 from fastapi import APIRouter, Depends
 
 from app.core.database import round2
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_perm
 from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.repositories import (
     ordens_repo, orcamentos_repo, artigos_repo, encomendas_repo,
@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.get("/producao/tempos")
-async def producao_tempos():
+async def producao_tempos(_u: dict = Depends(require_perm("analise_producao", "view"))):
     ofs = await ordens_repo.find(sort=("created_at", -1))
     result = []
     for o in ofs:
@@ -85,7 +85,7 @@ async def producao_tempos():
 
 
 @router.get("/producao/analise")
-async def producao_analise():
+async def producao_analise(_u: dict = Depends(require_perm("analise_producao", "view"))):
     ofs = await ordens_repo.find(limit=2000)
     by_month = defaultdict(lambda: {"criadas": 0, "concluidas": 0, "tempo_est": 0.0, "tempo_maq": 0.0, "tempo_mo_real": 0.0, "custo_est": 0.0, "custo_real": 0.0})
     for o in ofs:
@@ -131,7 +131,7 @@ async def producao_analise():
 
 
 @router.get("/prazos")
-async def prazos(_u: dict = Depends(get_current_user)):
+async def prazos(_u: dict = Depends(require_perm("calendario", "view"))):
     items = []
     encs = await encomendas_repo.find(limit=2000)
     enc_map = {e["id"]: e for e in encs}
@@ -171,7 +171,7 @@ async def prazos(_u: dict = Depends(get_current_user)):
 
 
 @router.get("/relatorios/rentabilidade-clientes")
-async def rentabilidade_clientes(_u: dict = Depends(get_current_user)):
+async def rentabilidade_clientes(_u: dict = Depends(require_perm("rentabilidade", "view"))):
     encs = await encomendas_repo.find(limit=5000)
     grupos = {}
     for e in encs:
@@ -216,7 +216,7 @@ async def rentabilidade_clientes(_u: dict = Depends(get_current_user)):
 
 
 @router.get("/alertas")
-async def alertas(_u: dict = Depends(get_current_user)):
+async def alertas(_u: dict = Depends(require_perm("dashboard", "view"))):
     encs = await encomendas_repo.find(limit=5000)
     enc_map = {e["id"]: e for e in encs}
     pagamentos_pendentes = prazos_atrasados = prazos_proximos = encomendas_sem_of = 0
@@ -255,7 +255,7 @@ async def alertas(_u: dict = Depends(get_current_user)):
 
 
 @router.get("/notificacoes")
-async def notificacoes(_u: dict = Depends(get_current_user)):
+async def notificacoes(_u: dict = Depends(require_perm("dashboard", "view"))):
     """Lista de notificações acionáveis (derivadas, não persistidas)."""
     items = []
     encs = await encomendas_repo.find(limit=5000)
@@ -422,7 +422,7 @@ def _prazos_counts(encs_c: list) -> tuple:
 
 
 @router.get("/dashboard")
-async def dashboard():
+async def dashboard(_u: dict = Depends(require_perm("dashboard", "view"))):
     artigos = await artigos_repo.find(limit=1000)
     custos = [await artigo_custo_total(a) for a in artigos]
     orcs_t = [compute_orcamento_totais(o) for o in await orcamentos_repo.find(limit=1000)]

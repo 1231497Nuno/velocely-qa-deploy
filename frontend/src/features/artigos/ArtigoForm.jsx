@@ -6,7 +6,27 @@ const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
 const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", "h"];
 
-export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
+export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra, categorias = [], subcategorias = [] }) {
+  const subsDaCat = subcategorias.filter((s) => s.categoria_id === form.categoria_id);
+
+  const setCategoria = (categoria_id) => {
+    const cat = categorias.find((c) => c.id === categoria_id);
+    setForm({
+      ...form,
+      categoria_id: categoria_id || "",
+      categoria_nome: cat?.nome || "",
+      subcategoria_id: "",
+      subcategoria_nome: "",
+    });
+  };
+  const setSubcategoria = (subcategoria_id) => {
+    const sub = subcategorias.find((s) => s.id === subcategoria_id);
+    setForm({
+      ...form,
+      subcategoria_id: subcategoria_id || "",
+      subcategoria_nome: sub?.nome || "",
+    });
+  };
   const addMat = () => setForm({ ...form, materiais: [...form.materiais, { material_id: "", material_nome: "", unidade: "", quantidade: 1, custo_unitario: 0 }] });
   const updMat = (i, patch) => {
     const m = [...form.materiais];
@@ -52,6 +72,20 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra }) {
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
             <input data-testid="artigo-desc-input" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Categoria</label>
+            <select data-testid="artigo-categoria-select" value={form.categoria_id || ""} onChange={(e) => setCategoria(e.target.value)} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+              <option value="">— Sem categoria —</option>
+              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Subcategoria</label>
+            <select data-testid="artigo-subcategoria-select" value={form.subcategoria_id || ""} onChange={(e) => setSubcategoria(e.target.value)} disabled={!form.categoria_id} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-50 disabled:text-gray-400">
+              <option value="">— Sem subcategoria —</option>
+              {subsDaCat.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            </select>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Unidade de medida</label>

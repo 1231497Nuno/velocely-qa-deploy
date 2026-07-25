@@ -1,3 +1,3 @@
 /** Fachada de compatibilidade — preferir @/infrastructure/api e @/domain. */
-export { api, API, getToken, setToken } from "@/infrastructure/api";
+export { api, API, getToken, setToken, getActivationToken, setActivationToken } from "@/infrastructure/api";
 export { eur, fmtDate, setCurrency } from "@/domain";

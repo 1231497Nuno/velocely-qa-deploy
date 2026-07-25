@@ -3,6 +3,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -59,7 +60,7 @@ export default function MaoObra() {
   };
 
   const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((m) => (m.nome || "").toLowerCase().includes(ql)) : items;
+  const items_f = ql ? items.filter((m) => [m.codigo, m.nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
 
   return (
     <div>
@@ -67,18 +68,24 @@ export default function MaoObra() {
         title="Mão de Obra"
         subtitle="Funções e custo/hora alocados às operações dos artigos"
         actions={
-          can("mao_obra","create") && (<button data-testid="new-maoobra-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Plus size={16} /> Nova Função
-          </button>)
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportExcelButton entity="mao_obra" ids={items_f.map((m) => m.id)} />
+            {can("mao_obra", "create") && (
+              <button data-testid="new-maoobra-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <Plus size={16} /> Nova Função
+              </button>
+            )}
+          </div>
         }
       />
 
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome..." testid="mao-obra-search" />
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="mao-obra-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Função</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo / Hora</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Personalizações</th>
@@ -88,6 +95,7 @@ export default function MaoObra() {
           <tbody data-testid="maoobra-table">
             {items_f.map((m) => (
               <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{m.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{m.nome}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(m.custo_hora)}</td>
                 <td className="px-4 py-3 text-center">
@@ -105,7 +113,7 @@ export default function MaoObra() {
               </tr>
             ))}
             {items_f.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem funções. Crie a primeira.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem funções. Crie a primeira.</td></tr>
             )}
           </tbody>
         </table>

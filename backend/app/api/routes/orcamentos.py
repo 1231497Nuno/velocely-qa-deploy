@@ -3,9 +3,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.core.database import now_iso, new_id, next_sequence, round2
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_perm
 from app.domain.models import OrcamentoInput, Orcamento, Encomenda, STATUS_PT
 from app.repositories import orcamentos_repo, encomendas_repo
 from app.services.costing import (
@@ -13,20 +14,27 @@ from app.services.costing import (
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, build_orcamento_pdf
 from app.services import audit
+from app.services import email as email_service
 
 _ORC_CAMPOS = ["cliente", "descricao", "numero_encomenda", "validade", "margem", "notas", "desconto_total"]
 
 router = APIRouter()
 
 
+class EnviarEmailBody(BaseModel):
+    to: Optional[str] = None
+    template_id: Optional[str] = None
+    mensagem: str = Field(default="", max_length=2000)
+
+
 @router.get("/orcamentos")
-async def list_orcamentos():
+async def list_orcamentos(_u: dict = Depends(require_perm("orcamentos", "view"))):
     orcs = await orcamentos_repo.find(sort=("created_at", -1))
     return [compute_orcamento_totais(o) for o in orcs]
 
 
 @router.get("/orcamentos/{oid}")
-async def get_orcamento(oid: str):
+async def get_orcamento(oid: str, _u: dict = Depends(require_perm("orcamentos", "view"))):
     o = await orcamentos_repo.get(oid)
     if not o:
         raise HTTPException(404, "Orçamento não encontrado")
@@ -34,7 +42,7 @@ async def get_orcamento(oid: str):
 
 
 @router.get("/orcamentos/{oid}/pdf")
-async def orcamento_pdf(oid: str, template_id: Optional[str] = None):
+async def orcamento_pdf(oid: str, template_id: Optional[str] = None, _u: dict = Depends(require_perm("orcamentos", "view"))):
     o = await orcamentos_repo.get(oid)
     if not o:
         raise HTTPException(404, "Orçamento não encontrado")
@@ -50,8 +58,66 @@ async def orcamento_pdf(oid: str, template_id: Optional[str] = None):
     )
 
 
+@router.post("/orcamentos/{oid}/enviar-email", summary="Enviar orçamento por email ao cliente")
+async def enviar_orcamento_email(
+    oid: str,
+    body: EnviarEmailBody = EnviarEmailBody(),
+    user: dict = Depends(require_perm("orcamentos", "edit")),
+):
+    o = await orcamentos_repo.get(oid)
+    if not o:
+        raise HTTPException(404, "Orçamento não encontrado")
+    o = compute_orcamento_totais(o)
+    cliente = await fetch_cliente(o.get("cliente_id"))
+    to = (body.to or (cliente or {}).get("email") or "").strip()
+    if not to or "@" not in to:
+        raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")
+
+    settings, fields, show_branding = await load_pdf_config(body.template_id)
+    pdf = build_orcamento_pdf(o, settings, fields, show_branding, cliente)
+    numero = o.get("numero") or "orcamento"
+    total = o.get("total_com_iva") or o.get("total")
+    total_str = f"{float(total):.2f} €".replace(".", ",") if total is not None else None
+    subject, text, html = await email_service.orcamento_email(
+        (cliente or {}).get("nome") or o.get("cliente") or "",
+        numero,
+        total=total_str,
+        mensagem=body.mensagem or "",
+    )
+    ok, reason = email_service.send_email(
+        to,
+        subject,
+        text,
+        html=html,
+        attach_logo=True,
+        attachments=[(f"{numero}.pdf", pdf, "application/pdf")],
+    )
+    if not ok and reason == "no_smtp":
+        raise HTTPException(503, "Envio de email não está configurado. Contacte o administrador.")
+    if not ok:
+        raise HTTPException(500, f"Não foi possível enviar o email: {reason}")
+
+    if o.get("status") == "rascunho":
+        await orcamentos_repo.update(oid, {"status": "enviado"})
+        await audit.registar(
+            "orcamento", oid, "estado_alterado", user,
+            f"Estado do orçamento {numero} → Enviado (email)", numero,
+        )
+    await audit.registar(
+        "orcamento", oid, "email_enviado", user,
+        f"Orçamento {numero} enviado por email para {email_service.mask_email(to)}", numero,
+    )
+    return {
+        "ok": True,
+        "email_sent": True,
+        "email_masked": email_service.mask_email(to),
+        "message": f"Orçamento enviado para {email_service.mask_email(to)}",
+        "status": "enviado" if o.get("status") == "rascunho" else o.get("status"),
+    }
+
+
 @router.post("/orcamentos")
-async def create_orcamento(data: OrcamentoInput, user: dict = Depends(get_current_user)):
+async def create_orcamento(data: OrcamentoInput, user: dict = Depends(require_perm("orcamentos", "create"))):
     o = Orcamento(**data.model_dump())
     o.numero = await next_sequence("ORC")
     if not o.data:
@@ -66,7 +132,7 @@ async def create_orcamento(data: OrcamentoInput, user: dict = Depends(get_curren
 
 
 @router.put("/orcamentos/{oid}")
-async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(get_current_user)):
+async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(require_perm("orcamentos", "edit"))):
     existing = await orcamentos_repo.get(oid)
     if not existing:
         raise HTTPException(404, "Orçamento não encontrado")
@@ -89,7 +155,7 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
 
 
 @router.delete("/orcamentos/{oid}")
-async def delete_orcamento(oid: str, user: dict = Depends(get_current_user)):
+async def delete_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "delete"))):
     existing = await orcamentos_repo.get(oid)
     await orcamentos_repo.delete({"id": oid})
     if existing:
@@ -99,7 +165,7 @@ async def delete_orcamento(oid: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/orcamentos/{oid}/duplicar")
-async def duplicar_orcamento(oid: str, user: dict = Depends(get_current_user)):
+async def duplicar_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "create"))):
     orc = await orcamentos_repo.get(oid)
     if not orc:
         raise HTTPException(404, "Orçamento não encontrado")
@@ -121,7 +187,7 @@ async def duplicar_orcamento(oid: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/orcamentos/{oid}/converter")
-async def converter_orcamento(oid: str, user: dict = Depends(get_current_user)):
+async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "edit"))):
     """Converte o orçamento numa ENCOMENDA (as OFs são criadas depois a partir da encomenda)."""
     orc = await orcamentos_repo.get(oid)
     if not orc:

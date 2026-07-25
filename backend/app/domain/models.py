@@ -35,7 +35,38 @@ def perms_colaborador() -> dict:
 class LoginInput(BaseModel):
     login: Optional[str] = None
     email: Optional[str] = None
+    password: str = ""  # password normal OU código de convite (primeira ativação)
+
+
+class SetPasswordInput(BaseModel):
     password: str
+    password_confirm: str = ""
+
+
+class ProfileUpdate(BaseModel):
+    login: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    cargo: Optional[str] = None
+    telefone: Optional[str] = None
+    avatar: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    login: Optional[str] = None
+    email: Optional[str] = None
+
+
+class PasswordCodeVerify(BaseModel):
+    code: str
+    login: Optional[str] = None
+    email: Optional[str] = None
+
+
+class PasswordResetSet(BaseModel):
+    reset_token: str
+    password: str
+    password_confirm: str = ""
 
 
 class UserCreate(BaseModel):
@@ -43,7 +74,7 @@ class UserCreate(BaseModel):
     email: str = ""
     name: str = ""
     cargo: str = ""
-    password: str
+    password: Optional[str] = None  # se omitido → gera código de convite
     perfil_id: Optional[str] = None
     role: str = "colaborador"
 
@@ -67,6 +98,7 @@ class PerfilInput(BaseModel):
 # ----------------------- Domain models -----------------------
 class Maquina(BaseModel):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     nome: str
     custo_amortizacao_hora: float = 0.0
     custo_energia_hora: float = 0.0
@@ -81,6 +113,7 @@ class MaquinaInput(BaseModel):
 
 class Consumivel(BaseModel):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     nome: str
     unidade: str = "un"
     custo_unitario: float = 0.0
@@ -95,6 +128,7 @@ class ConsumivelInput(BaseModel):
 
 class MaoObra(BaseModel):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     nome: str
     custo_hora: float = 0.0
     responsavel_personalizacoes: bool = False
@@ -131,6 +165,7 @@ class Operacao(BaseModel):
 
 class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     nome: str
     descricao: str = ""
     unidade: str = "un"
@@ -167,6 +202,7 @@ class CategoriaInput(BaseModel):
 
 class Categoria(CategoriaInput):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -177,12 +213,14 @@ class SubcategoriaInput(BaseModel):
 
 class Subcategoria(SubcategoriaInput):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     categoria_nome: str = ""
     created_at: str = Field(default_factory=now_iso)
 
 
 class TipoPersonalizacao(BaseModel):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     nome: str
     descricao: str = ""
     valor: float = 0.0
@@ -252,6 +290,7 @@ class ClienteInput(BaseModel):
 
 class Cliente(ClienteInput):
     id: str = Field(default_factory=new_id)
+    codigo: str = ""
     created_at: str = Field(default_factory=now_iso)
 
 

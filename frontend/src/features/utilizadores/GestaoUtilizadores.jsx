@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
-import { Plus, Pencil, Trash2, Shield, User, Users as UsersIcon, Lock } from "lucide-react";
+import { Plus, Pencil, Trash2, Shield, User, Users as UsersIcon, Lock, KeyRound, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 
-const emptyUser = { login: "", email: "", name: "", cargo: "", password: "", perfil_id: "" };
+const emptyUser = { login: "", email: "", name: "", cargo: "", perfil_id: "" };
 
 export default function GestaoUtilizadores() {
   const [tab, setTab] = useState("users");
@@ -19,6 +19,7 @@ export default function GestaoUtilizadores() {
   const [uOpen, setUOpen] = useState(false);
   const [uForm, setUForm] = useState(emptyUser);
   const [uEditId, setUEditId] = useState(null);
+  const [inviteInfo, setInviteInfo] = useState(null); // { login, invite_code, message }
 
   // perfil dialog
   const [pOpen, setPOpen] = useState(false);
@@ -34,21 +35,60 @@ export default function GestaoUtilizadores() {
 
   // ---- users ----
   const openNewUser = () => { setUForm({ ...emptyUser, perfil_id: perfis.find((p) => !p.admin)?.id || perfis[0]?.id || "" }); setUEditId(null); setUOpen(true); };
-  const openEditUser = (u) => { setUForm({ login: u.login || "", email: u.email || "", name: u.name || "", cargo: u.cargo || "", password: "", perfil_id: u.perfil_id || "" }); setUEditId(u.id); setUOpen(true); };
+  const openEditUser = (u) => { setUForm({ login: u.login || "", email: u.email || "", name: u.name || "", cargo: u.cargo || "", perfil_id: u.perfil_id || "" }); setUEditId(u.id); setUOpen(true); };
+  const showInvite = (res) => {
+    if (!res?.invite_code) return;
+    setInviteInfo({
+      login: res.login,
+      invite_code: res.invite_code,
+      message: res.invite_message || "Envie o login e o código ao utilizador.",
+    });
+  };
+  const errMsg = (e, fallback = "Erro ao guardar") => {
+    const d = e?.response?.data?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((x) => x?.msg || JSON.stringify(x)).join("; ");
+    return fallback;
+  };
   const saveUser = async () => {
-    if (!uEditId && (!uForm.login.trim() || !uForm.password.trim())) return toast.error("Login e password obrigatórios");
+    if (!uEditId && !uForm.login.trim()) return toast.error("Login obrigatório");
     try {
+      const body = {
+        login: uForm.login.trim(),
+        name: uForm.name.trim(),
+        email: (uForm.email || "").trim(),
+        cargo: (uForm.cargo || "").trim(),
+        perfil_id: uForm.perfil_id || null,
+      };
       if (uEditId) {
-        const body = { login: uForm.login, name: uForm.name, email: uForm.email, cargo: uForm.cargo, perfil_id: uForm.perfil_id };
-        if (uForm.password) body.password = uForm.password;
         await api.put(`/users/${uEditId}`, body);
+        toast.success("Utilizador guardado");
       } else {
-        await api.post("/users", uForm);
+        const res = await api.post("/users", body);
+        toast.success("Utilizador criado — envie o código de convite");
+        showInvite(res);
       }
-      toast.success("Utilizador guardado");
       setUOpen(false);
       load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao guardar"); }
+    } catch (e) { toast.error(errMsg(e)); }
+  };
+  const reinvitar = async (u) => {
+    try {
+      const res = await api.post(`/users/${u.id}/reinvitar`);
+      toast.success("Novo código gerado");
+      showInvite(res);
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao gerar código"); }
+  };
+  const copyInvite = async () => {
+    if (!inviteInfo) return;
+    const text = `Utilizador: ${inviteInfo.login}\nCódigo: ${inviteInfo.invite_code}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copiado");
+    } catch {
+      toast.message(text);
+    }
   };
   const removeUser = async (id) => {
     try { await api.del(`/users/${id}`); toast.success("Utilizador eliminado"); load(); }
@@ -123,9 +163,9 @@ export default function GestaoUtilizadores() {
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Login</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Email</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cargo</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Perfil</th>
-                <th className="px-4 py-3 w-24"></th>
+                <th className="px-4 py-3 w-32"></th>
               </tr>
             </thead>
             <tbody data-testid="users-table">
@@ -134,7 +174,13 @@ export default function GestaoUtilizadores() {
                   <td className="px-4 py-3 font-medium text-gray-900 mono">{u.login || "—"}</td>
                   <td className="px-4 py-3 text-gray-700">{u.name || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{u.email || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{u.cargo || "—"}</td>
+                  <td className="px-4 py-3">
+                    {u.must_set_password ? (
+                      <span className="inline-flex text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200 rounded-sm px-2 py-0.5">Pendente activação</span>
+                    ) : (
+                      <span className="inline-flex text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-sm px-2 py-0.5">Activo</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 ${u.role === "admin" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"}`}>
                       {u.role === "admin" ? <Shield size={12} /> : <User size={12} />} {u.perfil_nome || (u.role === "admin" ? "Administrador" : "Colaborador")}
@@ -142,6 +188,7 @@ export default function GestaoUtilizadores() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      <button title="Gerar novo código de convite" data-testid={`reinvite-user-${u.id}`} onClick={() => reinvitar(u)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><KeyRound size={15} /></button>
                       <button data-testid={`edit-user-${u.id}`} onClick={() => openEditUser(u)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
                       <button data-testid={`delete-user-${u.id}`} onClick={() => removeUser(u.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
                     </div>
@@ -187,7 +234,11 @@ export default function GestaoUtilizadores() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-display">{uEditId ? "Editar Utilizador" : "Novo Utilizador"}</DialogTitle>
-            <DialogDescription>Defina as credenciais e o perfil de acesso.</DialogDescription>
+            <DialogDescription>
+              {uEditId
+                ? "Actualize os dados e o perfil de acesso."
+                : "O utilizador recebe um código de convite e define a própria password no primeiro acesso."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -210,22 +261,43 @@ export default function GestaoUtilizadores() {
                 <input data-testid="user-cargo-input" value={uForm.cargo} onChange={(e) => setUForm({ ...uForm, cargo: e.target.value })} placeholder="ex: Gestor de produção" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">{uEditId ? "Nova Password (opcional)" : "Password"}</label>
-                <input data-testid="user-password-input" type="password" value={uForm.password} onChange={(e) => setUForm({ ...uForm, password: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Perfil</label>
-                <select data-testid="user-perfil-select" value={uForm.perfil_id} onChange={(e) => setUForm({ ...uForm, perfil_id: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-                  {perfis.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Perfil</label>
+              <select data-testid="user-perfil-select" value={uForm.perfil_id} onChange={(e) => setUForm({ ...uForm, perfil_id: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
+                {perfis.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
             </div>
           </div>
           <DialogFooter>
             <button onClick={() => setUOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
             <button data-testid="save-user-btn" onClick={saveUser} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite code (mostrado uma vez) */}
+      <Dialog open={!!inviteInfo} onOpenChange={(o) => !o && setInviteInfo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">Código de convite</DialogTitle>
+            <DialogDescription>{inviteInfo?.message}</DialogDescription>
+          </DialogHeader>
+          {inviteInfo && (
+            <div className="space-y-3 py-2">
+              <div className="bg-gray-50 border border-gray-200 rounded-sm p-4 space-y-2">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Utilizador</div>
+                <div className="font-medium mono text-gray-900" data-testid="invite-login">{inviteInfo.login}</div>
+                <div className="text-xs uppercase tracking-wide text-gray-500 pt-2">Código</div>
+                <div className="text-2xl font-display tracking-widest text-gray-900 mono" data-testid="invite-code">{inviteInfo.invite_code}</div>
+              </div>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-3 py-2">
+                Guarde agora — o código não volta a ser mostrado. Expira em 72 horas.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <button onClick={copyInvite} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Copy size={15} /> Copiar</button>
+            <button data-testid="invite-done-btn" onClick={() => setInviteInfo(null)} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Feito</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

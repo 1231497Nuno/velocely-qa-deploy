@@ -34,6 +34,7 @@ ACAO_LABELS = {
     "concluido": "Concluída",
     "operacao": "Operação atualizada",
     "nota": "Nota atualizada",
+    "email_enviado": "Email enviado",
 }
 
 CAMPO_LABELS = {
@@ -52,7 +53,10 @@ CAMPO_LABELS = {
     "margem": "Margem",
     "validade": "Validade",
     "data": "Data",
-    "numero_encomenda": "Nº encomenda",
+    "numero_encomenda": "Referência cliente",
+    "categoria_id": "Categoria",
+    "subcategoria_id": "Subcategoria",
+    "codigo": "Código",
     "desconto_total": "Desconto total",
     "nome": "Nome",
     "custo_artigo": "Valor de compra",

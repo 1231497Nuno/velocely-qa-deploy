@@ -1,6 +1,7 @@
 """Serviço de geração de PDF (Orçamentos, OFs, Encomendas)."""
 from io import BytesIO
 import base64
+from pathlib import Path
 from typing import Optional
 
 from reportlab.lib.pagesizes import A4
@@ -10,6 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image,
 )
+from reportlab.pdfgen import canvas as pdfcanvas
 
 from app.core.database import round2
 from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
@@ -21,9 +23,16 @@ from app.repositories import empresa_repo, pdf_templates_repo, clientes_repo, or
 
 DARK = colors.HexColor("#0A0A0A")
 GREY = colors.HexColor("#6B7280")
+MUTED = colors.HexColor("#9CA3AF")
 LIGHT = colors.HexColor("#F3F4F6")
 LINE = colors.HexColor("#E5E7EB")
+ACCENT = colors.HexColor("#0F766E")  # teal da marca
+ACCENT_SOFT = colors.HexColor("#CCFBF1")
 
+_STATIC = Path(__file__).resolve().parent.parent / "static"
+_PDF_WORDMARK = _STATIC / "pdf-logo-wordmark.png"
+_PDF_MARK = _STATIC / "pdf-logo-mark.png"
+_FE_LOGO = Path(__file__).resolve().parents[3] / "frontend" / "public" / "logo.png"
 
 PDF_CURRENCY = "€"
 
@@ -41,34 +50,71 @@ def _set_currency(settings):
 def _pdf_styles():
     ss = getSampleStyleSheet()
     return {
-        "h1": ParagraphStyle("h1", parent=ss["Title"], fontName="Helvetica-Bold", fontSize=22, textColor=DARK, spaceAfter=2),
-        "brand": ParagraphStyle("brand", fontName="Helvetica-Bold", fontSize=16, textColor=DARK),
-        "small": ParagraphStyle("small", fontName="Helvetica", fontSize=8, textColor=GREY),
-        "label": ParagraphStyle("label", fontName="Helvetica-Bold", fontSize=8, textColor=GREY),
-        "val": ParagraphStyle("val", fontName="Helvetica", fontSize=10, textColor=DARK),
-        "cell": ParagraphStyle("cell", fontName="Helvetica", fontSize=9, textColor=DARK),
-        "cellb": ParagraphStyle("cellb", fontName="Helvetica-Bold", fontSize=9, textColor=DARK),
-        "th": ParagraphStyle("th", fontName="Helvetica-Bold", fontSize=8, textColor=colors.white),
+        "h1": ParagraphStyle(
+            "h1", parent=ss["Title"], fontName="Helvetica-Bold", fontSize=20,
+            textColor=DARK, spaceAfter=0, alignment=2, leading=24,
+        ),
+        "docnum": ParagraphStyle(
+            "docnum", fontName="Helvetica-Bold", fontSize=11, textColor=ACCENT,
+            alignment=2, leading=14,
+        ),
+        "brand": ParagraphStyle("brand", fontName="Helvetica-Bold", fontSize=12, textColor=DARK, leading=15),
+        "small": ParagraphStyle("small", fontName="Helvetica", fontSize=8, textColor=GREY, leading=11),
+        "label": ParagraphStyle("label", fontName="Helvetica-Bold", fontSize=7.5, textColor=MUTED, leading=10),
+        "val": ParagraphStyle("val", fontName="Helvetica", fontSize=10, textColor=DARK, leading=13),
+        "cell": ParagraphStyle("cell", fontName="Helvetica", fontSize=9, textColor=DARK, leading=12),
+        "cellb": ParagraphStyle("cellb", fontName="Helvetica-Bold", fontSize=9, textColor=DARK, leading=12),
+        "th": ParagraphStyle("th", fontName="Helvetica-Bold", fontSize=8, textColor=colors.white, leading=10),
+        "section": ParagraphStyle("section", fontName="Helvetica-Bold", fontSize=10, textColor=DARK, spaceBefore=4, spaceAfter=6),
     }
 
 
-def _logo_flowable(b64: str):
+def _scale_image(img: Image, max_w_mm: float, max_h_mm: float) -> Image:
+    iw, ih = float(img.imageWidth), float(img.imageHeight)
+    if iw <= 0 or ih <= 0:
+        return img
+    ratio = min((max_w_mm * mm) / iw, (max_h_mm * mm) / ih)
+    img.drawWidth = iw * ratio
+    img.drawHeight = ih * ratio
+    return img
+
+
+def _logo_from_bytes(raw: bytes, max_w_mm: float = 52, max_h_mm: float = 16) -> Optional[Image]:
+    try:
+        img = Image(BytesIO(raw))
+        return _scale_image(img, max_w_mm, max_h_mm)
+    except Exception:
+        return None
+
+
+def _logo_from_path(path: Path, max_w_mm: float = 52, max_h_mm: float = 16) -> Optional[Image]:
+    if not path or not path.is_file():
+        return None
+    try:
+        img = Image(str(path))
+        return _scale_image(img, max_w_mm, max_h_mm)
+    except Exception:
+        return None
+
+
+def _logo_flowable(b64: str, max_w_mm: float = 52, max_h_mm: float = 16):
     if not b64:
         return None
     try:
         if b64.strip().startswith("data:") and "," in b64:
             b64 = b64.split(",", 1)[1]
         raw = base64.b64decode(b64)
-        img = Image(BytesIO(raw))
-        iw, ih = float(img.imageWidth), float(img.imageHeight)
-        if iw <= 0 or ih <= 0:
-            return None
-        ratio = min((45 * mm) / iw, (16 * mm) / ih)
-        img.drawWidth = iw * ratio
-        img.drawHeight = ih * ratio
-        return img
+        return _logo_from_bytes(raw, max_w_mm, max_h_mm)
     except Exception:
         return None
+
+
+def _velocely_logo(max_w_mm: float = 52, max_h_mm: float = 14) -> Optional[Image]:
+    for p in (_PDF_WORDMARK, _PDF_MARK, _FE_LOGO):
+        logo = _logo_from_path(p, max_w_mm, max_h_mm)
+        if logo:
+            return logo
+    return None
 
 
 def section_on(fields: dict, key: str) -> bool:
@@ -115,14 +161,24 @@ def orcamento_origem_pairs(orc: dict) -> list:
 def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_branding=True):
     settings = settings or {}
     left_flowables = []
+
+    # Logo: empresa → fallback Velocely
+    logo = None
+    if show_branding:
+        logo = _logo_flowable(settings.get("logo_base64") or "")
+        if not logo:
+            logo = _velocely_logo()
+    if logo:
+        left_flowables.append(logo)
+        left_flowables.append(Spacer(1, 5))
+
     if show_branding and (settings.get("nome") or settings.get("logo_base64")):
-        logo = _logo_flowable(settings.get("logo_base64"))
-        if logo:
-            left_flowables.append(logo)
-            left_flowables.append(Spacer(1, 4))
-        left_flowables.append(Paragraph(f"<b>{settings.get('nome') or ''}</b>", st["brand"]))
+        if settings.get("nome"):
+            left_flowables.append(Paragraph(f"<b>{settings.get('nome')}</b>", st["brand"]))
         contact = []
-        morada_line = " ".join(x for x in [settings.get("morada"), settings.get("codigo_postal"), settings.get("cidade")] if x)
+        morada_line = " ".join(
+            x for x in [settings.get("morada"), settings.get("codigo_postal"), settings.get("cidade")] if x
+        )
         if morada_line:
             contact.append(morada_line)
         if settings.get("pais"):
@@ -134,33 +190,63 @@ def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_brandi
             left_flowables.append(Paragraph(c, st["small"]))
         if line2:
             left_flowables.append(Paragraph(line2, st["small"]))
-    else:
-        left_flowables.append(Paragraph("Gestão <font color='#9CA3AF'>Produção</font>", st["brand"]))
+    elif not left_flowables:
+        left_flowables.append(Paragraph("<b>Velocely</b>", st["brand"]))
+        left_flowables.append(Paragraph("Gestão de Produção", st["small"]))
+
+    # Bloco do título do documento (direita)
+    title_block = [
+        Paragraph(doc_title, st["h1"]),
+        Spacer(1, 3),
+        Paragraph(str(numero or "—"), st["docnum"]),
+    ]
+    title_cell = Table([[title_block]], colWidths=[72 * mm])
+    title_cell.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+        ("BOX", (0, 0), (-1, -1), 0, LIGHT),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+        ("LINEBEFORE", (0, 0), (0, 0), 3, ACCENT),
+    ]))
 
     head = Table(
-        [[left_flowables, Paragraph(doc_title, st["h1"])]],
-        colWidths=[95 * mm, 75 * mm],
+        [[left_flowables, title_cell]],
+        colWidths=[98 * mm, 72 * mm],
     )
     head.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
     elems.append(head)
-    elems.append(Paragraph(f"<b>{numero}</b>", ParagraphStyle("num", fontName="Helvetica-Bold", fontSize=11, textColor=GREY, alignment=2)))
-    elems.append(Spacer(1, 6))
-    elems.append(HRFlowable(width="100%", thickness=1, color=DARK))
-    elems.append(Spacer(1, 10))
-    rows = []
-    for label, value in meta_pairs:
-        rows.append([Paragraph(label.upper(), st["label"]), Paragraph(str(value or "—"), st["val"])])
-    meta = Table(rows, colWidths=[40 * mm, 130 * mm])
-    meta.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    elems.append(meta)
+    elems.append(Spacer(1, 8))
+    elems.append(HRFlowable(width="100%", thickness=2, color=ACCENT, spaceBefore=0, spaceAfter=2))
+    elems.append(HRFlowable(width="100%", thickness=0.5, color=LINE, spaceBefore=0, spaceAfter=0))
     elems.append(Spacer(1, 12))
+
+    if meta_pairs:
+        rows = []
+        for label, value in meta_pairs:
+            rows.append([
+                Paragraph(str(label).upper(), st["label"]),
+                Paragraph(str(value or "—"), st["val"]),
+            ])
+        meta = Table(rows, colWidths=[40 * mm, 130 * mm])
+        meta.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BACKGROUND", (0, 0), (0, -1), colors.Color(0, 0, 0, alpha=0)),
+        ]))
+        elems.append(meta)
+        elems.append(Spacer(1, 14))
 
 
 def _pdf_footer(elems, st, settings):
@@ -177,15 +263,33 @@ def _pdf_footer(elems, st, settings):
         elems.append(Paragraph(rodape, st["small"]))
 
 
+def _page_footer(canvas: pdfcanvas.Canvas, doc):
+    canvas.saveState()
+    page_w, _ = A4
+    y = 12 * mm
+    canvas.setStrokeColor(LINE)
+    canvas.setLineWidth(0.6)
+    canvas.line(20 * mm, y + 6, page_w - 20 * mm, y + 6)
+    canvas.setFillColor(MUTED)
+    canvas.setFont("Helvetica", 7.5)
+    canvas.drawString(20 * mm, y, "Velocely · Gestão de Produção")
+    canvas.drawRightString(page_w - 20 * mm, y, f"Página {doc.page}")
+    # pequeno acento
+    canvas.setFillColor(ACCENT)
+    canvas.rect(20 * mm, y + 5.5, 8 * mm, 1.2, fill=1, stroke=0)
+    canvas.restoreState()
+
+
 _TABLE_BASE_STYLE = [
     ("BACKGROUND", (0, 0), (-1, 0), DARK),
     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+    ("LINEBELOW", (0, 1), (-1, -1), 0.4, LINE),
     ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-    ("TOPPADDING", (0, 0), (-1, -1), 6),
-    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ("TOPPADDING", (0, 0), (-1, -1), 7),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ("LEFTPADDING", (0, 0), (-1, -1), 7),
+    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+    ("LINEBELOW", (0, 0), (-1, 0), 2, ACCENT),
 ]
 
 
@@ -214,10 +318,11 @@ def _totais_table(rows, has_total_line):
     ]
     if has_total_line:
         styles += [
-            ("LINEABOVE", (0, last), (-1, last), 1, DARK),
+            ("LINEABOVE", (0, last), (-1, last), 1.5, ACCENT),
             ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
-            ("FONTSIZE", (0, last), (-1, last), 13),
+            ("FONTSIZE", (0, last), (-1, last), 12),
             ("TEXTCOLOR", (0, last), (-1, last), DARK),
+            ("TOPPADDING", (0, last), (-1, last), 8),
         ]
     tot.setStyle(TableStyle(styles))
     return tot
@@ -227,12 +332,12 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
     _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm)
     elems = []
     meta_pairs = []
     if section_on(fields, "dados_cliente"):
         meta_pairs += cliente_meta_pairs(orc, cliente, fields)
-        meta_pairs += [("Descrição", orc.get("descricao")), ("Nº Encomenda", orc.get("numero_encomenda"))]
+        meta_pairs += [("Descrição", orc.get("descricao")), ("Referência cliente", orc.get("numero_encomenda"))]
     if section_on(fields, "datas_estado"):
         meta_pairs += [("Data", orc.get("data")), ("Validade", orc.get("validade")), ("Estado", STATUS_PT.get(orc.get("status"), orc.get("status")))]
     _header(elems, st, "ORÇAMENTO", orc.get("numero", ""), meta_pairs, settings, show_branding)
@@ -261,7 +366,7 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
 
     materiais = orc.get("materiais") or []
     if materiais and section_on(fields, "materiais"):
-        elems.append(Paragraph("Materiais / Consumíveis", st["cellb"]))
+        elems.append(Paragraph("Materiais / Consumíveis", st["section"]))
         elems.append(Spacer(1, 4))
         mhead = _th_row(st, ["Material", "Unidade", "Dimensões", "Qtd", "Custo", "Margem", "Valor"])
         mdata = [mhead]
@@ -327,14 +432,14 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
         elems.append(Spacer(1, 10))
         elems.append(Paragraph(f"<b>Notas:</b> {orc.get('notas')}", st["small"]))
     _pdf_footer(elems, st, settings)
-    doc.build(elems)
+    doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
 
 
 def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm)
     elems = []
     meta_pairs = []
     if section_on(fields, "dados_cliente"):
@@ -397,7 +502,7 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
         elems.append(Spacer(1, 6))
         elems.append(Paragraph(f"<b>Notas:</b> {of.get('notas')}", st["small"]))
     _pdf_footer(elems, st, settings)
-    doc.build(elems)
+    doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
 
 
@@ -405,7 +510,7 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
     _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm)
     elems = []
     meta_pairs = []
     if section_on(fields, "dados_cliente"):
@@ -440,7 +545,7 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
 
     if section_on(fields, "ofs_associadas") and (enc.get("ordens_fabrico") or enc.get("ordens_resumo")):
         ofs = enc.get("ordens_fabrico") or enc.get("ordens_resumo") or []
-        elems.append(Paragraph("Ordens de Fabrico", st["cellb"]))
+        elems.append(Paragraph("Ordens de Fabrico", st["section"]))
         elems.append(Spacer(1, 4))
         ohead = _th_row(st, ["Nº OF", "Estado", "Progresso"])
         odata = [ohead]
@@ -480,7 +585,7 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
         elems.append(Spacer(1, 10))
         elems.append(Paragraph(f"<b>Notas:</b> {enc.get('notas') or enc.get('descricao')}", st["small"]))
     _pdf_footer(elems, st, settings)
-    doc.build(elems)
+    doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
 
 
@@ -488,7 +593,7 @@ def build_recibo_pdf(enc: dict, pag: dict, settings: dict = None, cliente: dict 
     _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm)
     elems = []
     nome_cli = (cliente or {}).get("nome") or enc.get("cliente") or "—"
     nif = (cliente or {}).get("nif") or ""
@@ -533,7 +638,7 @@ def build_recibo_pdf(enc: dict, pag: dict, settings: dict = None, cliente: dict 
     elems.append(tot)
 
     _pdf_footer(elems, st, settings)
-    doc.build(elems)
+    doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
 
 

@@ -3,6 +3,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -69,7 +70,7 @@ export default function Maquinas() {
   const totalHora = (Number(form.custo_amortizacao_hora) || 0) + (Number(form.custo_energia_hora) || 0);
 
   const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((m) => (m.nome || "").toLowerCase().includes(ql)) : items;
+  const items_f = ql ? items.filter((m) => [m.codigo, m.nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
 
   return (
     <div>
@@ -77,18 +78,24 @@ export default function Maquinas() {
         title="Máquinas"
         subtitle="Custo de amortização/desgaste e energia por hora"
         actions={
-          can("maquinas","create") && (<button data-testid="new-maquina-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Plus size={16} /> Nova Máquina
-          </button>)
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportExcelButton entity="maquinas" ids={items_f.map((m) => m.id)} />
+            {can("maquinas", "create") && (
+              <button data-testid="new-maquina-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <Plus size={16} /> Nova Máquina
+              </button>
+            )}
+          </div>
         }
       />
 
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome da máquina..." testid="maquinas-search" />
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar máquinas por código ou nome..." testid="maquinas-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Amortização / h</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Energia / h</th>
@@ -99,6 +106,7 @@ export default function Maquinas() {
           <tbody data-testid="maquinas-table">
             {items_f.map((m) => (
               <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{m.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{m.nome}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(m.custo_amortizacao_hora)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(m.custo_energia_hora)}</td>
@@ -113,7 +121,7 @@ export default function Maquinas() {
               </tr>
             ))}
             {items_f.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem máquinas. Crie a primeira.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem máquinas. Crie a primeira.</td></tr>
             )}
           </tbody>
         </table>

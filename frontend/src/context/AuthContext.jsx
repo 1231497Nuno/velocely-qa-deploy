@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
-import { api, setToken, getToken } from "../lib/api";
+import { api, setToken, getToken, getActivationToken, setActivationToken } from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -31,14 +31,36 @@ export function AuthProvider({ children }) {
   }, [refresh]);
 
   const login = useCallback(async (loginId, password) => {
-    const { token, user: u } = await api.post("/auth/login", { login: loginId, password });
-    setToken(token);
-    setUser(u);
-    return u;
+    const data = await api.post("/auth/login", { login: loginId, password });
+    if (data.must_set_password && data.activation_token) {
+      setToken(null);
+      setActivationToken(data.activation_token);
+      setUser(false);
+      return { must_set_password: true, user: data.user };
+    }
+    setActivationToken(null);
+    setToken(data.token);
+    setUser(data.user);
+    return { must_set_password: false, user: data.user };
+  }, []);
+
+  const setPassword = useCallback(async (password, passwordConfirm) => {
+    const act = getActivationToken();
+    if (!act) throw new Error("Sessão de activação expirada. Volte a entrar com o código.");
+    const data = await api.post(
+      "/auth/set-password",
+      { password, password_confirm: passwordConfirm },
+      { headers: { Authorization: `Bearer ${act}` } }
+    );
+    setActivationToken(null);
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
   }, []);
 
   const logout = useCallback(() => {
     setToken(null);
+    setActivationToken(null);
     setUser(false);
     window.location.href = "/login";
   }, []);
@@ -55,8 +77,8 @@ export function AuthProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ user, ready, login, logout, isAdmin, can, refresh }),
-    [user, ready, login, logout, isAdmin, can, refresh]
+    () => ({ user, ready, login, setPassword, logout, isAdmin, can, refresh }),
+    [user, ready, login, setPassword, logout, isAdmin, can, refresh]
   );
 
   return (

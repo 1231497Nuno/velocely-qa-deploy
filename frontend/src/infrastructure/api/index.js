@@ -1,1 +1,1 @@
-export { api, API, getToken, setToken } from "./client";
+export { api, API, getToken, setToken, getActivationToken, setActivationToken } from "./client";

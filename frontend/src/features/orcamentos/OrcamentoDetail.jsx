@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
+import EnviarEmailButton from "@/components/EnviarEmailButton";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
@@ -35,9 +36,18 @@ export default function OrcamentoDetail() {
   const [consumiveis, setConsumiveis] = useState([]);
   const [openOps, setOpenOps] = useState({});
   const [empresa, setEmpresa] = useState({});
+  const [clienteEmail, setClienteEmail] = useState("");
 
   const load = useCallback(async () => {
     const o = await api.get(`/orcamentos/${id}`);
+    setOrc(o);
+    if (o.cliente_id) {
+      const cs = await api.get("/clientes").catch(() => []);
+      const c = (cs || []).find((x) => x.id === o.cliente_id);
+      setClienteEmail(c?.email || "");
+    } else {
+      setClienteEmail("");
+    }
     // migrar personalização única (legado) para lista
     o.linhas = (o.linhas || []).map((l) => {
       if ((!l.personalizacoes || l.personalizacoes.length === 0) && l.tipo_personalizacao_id) {
@@ -236,6 +246,18 @@ export default function OrcamentoDetail() {
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <PdfExportButton modulo="orcamento" recordId={id} />
+          {can("orcamentos", "edit") && (
+            <EnviarEmailButton
+              variant="orcamento"
+              recordId={id}
+              defaultTo={clienteEmail}
+              clienteNome={orc.cliente}
+              onSent={(res) => {
+                if (res?.status === "enviado") setOrc((o) => ({ ...o, status: "enviado" }));
+                load();
+              }}
+            />
+          )}
           {orc.encomenda_id && (
             <Link to={`/encomendas/${orc.encomenda_id}`} data-testid="goto-encomenda-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
               <ClipboardList size={16} /> {orc.encomenda_numero}
@@ -261,8 +283,8 @@ export default function OrcamentoDetail() {
           <input data-testid="orc-descricao-input" value={orc.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} placeholder="Descrição do orçamento" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Nº da Encomenda</label>
-          <input data-testid="orc-encomenda-input" value={orc.numero_encomenda || ""} onChange={(e) => upd({ numero_encomenda: e.target.value })} placeholder="Nº de encomenda no software" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Referência cliente</label>
+          <input data-testid="orc-encomenda-input" value={orc.numero_encomenda || ""} onChange={(e) => upd({ numero_encomenda: e.target.value })} placeholder="Referência do cliente" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
         </div>
       </div>
 
@@ -270,7 +292,14 @@ export default function OrcamentoDetail() {
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
-          <ClienteSelector value={orc.cliente_id} onChange={(id, nome) => upd({ cliente_id: id, cliente: nome })} testid="orc-cliente-select" />
+          <ClienteSelector
+            value={orc.cliente_id}
+            onChange={(id, nome, cli) => {
+              upd({ cliente_id: id, cliente: nome });
+              setClienteEmail(cli?.email || "");
+            }}
+            testid="orc-cliente-select"
+          />
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>

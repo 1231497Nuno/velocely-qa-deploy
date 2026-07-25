@@ -78,6 +78,30 @@ yarn start
 
 A aplicação fica disponível em `http://localhost:3000`.
 
+## URLs locais (o que é cada uma)
+
+| URL | O que é |
+|-----|---------|
+| http://localhost:3000 | **App** — interface web (React) |
+| http://localhost:3000/login | Ecrã de login |
+| http://localhost:8000/docs | **Swagger UI** — documentação interativa da API (explorar e testar endpoints) |
+| http://localhost:8000/redoc | **ReDoc** — documentação da API em formato de leitura |
+| http://localhost:8000/openapi.json | **OpenAPI** — especificação formal da API em JSON |
+| http://localhost:8000/api | Prefixo dos endpoints de dados (JSON), **não** é documentação |
+
+Login de desenvolvimento (ver `backend/.env`): tipicamente `admin@velocely.local` / `Admin123!`.
+
+### Dados de teste
+
+```bash
+./scripts/seed-dev.sh              # catálogo + clientes/orçamentos/encomendas/OFs
+./scripts/seed-dev.sh --reset      # limpar e recriar
+```
+
+Detalhe: [`docs/guides/getting-started.md`](docs/guides/getting-started.md).
+
+Detalhe da API e autenticação: [`docs/api/overview.md`](docs/api/overview.md).
+
 ## Variáveis de ambiente
 
 Ver ficheiros de exemplo:
@@ -96,7 +120,11 @@ pytest tests/ -n 0
 
 ## Documentação
 
-A documentação detalhada vive em [`docs/`](docs/). Alguns ficheiros estão preparados como estrutura vazia para preenchimento pela equipa.
+Documentação do projeto em [`docs/`](docs/):
+
+- [Getting started](docs/guides/getting-started.md) — arranque e URLs
+- [API / Swagger](docs/api/overview.md) — o que é Swagger, ReDoc e OpenAPI
+- [Arquitectura](docs/architecture/overview.md)
 
 ## Licença
 

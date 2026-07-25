@@ -4,10 +4,11 @@ import { api, fmtDate, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Trash2, Factory, Copy, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Copy, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -50,45 +51,64 @@ export default function Encomendas() {
   };
 
   const ql = q.trim().toLowerCase();
-  const byEstado = items.filter((e) => {
-    if (estadoFilter === "pendentes") return e.estado !== "concluida" && e.estado !== "cancelada";
-    if (estadoFilter === "concluidas") return e.estado === "concluida";
-    return true;
-  });
-  const items_f = ql ? byEstado.filter((e) => [e.numero, e.cliente, e.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql))) : byEstado;
-  const items_alert = soSemOf ? items_f.filter((e) => e.tem_artigos_sem_of) : items_f;
+  const matchQ = (e) =>
+    !ql || [e.numero, e.cliente, e.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql));
+  const base = items.filter(matchQ);
+  const pendentes = base.filter((e) => e.estado !== "concluida" && e.estado !== "cancelada");
+  const concluidas = base.filter((e) => e.estado === "concluida");
+  const byTab =
+    estadoFilter === "pendentes" ? pendentes :
+    estadoFilter === "concluidas" ? concluidas :
+    base;
+  const items_alert = soSemOf ? byTab.filter((e) => e.tem_artigos_sem_of) : byTab;
   const rows = apply(items_alert);
   const numSemOf = items.filter((e) => e.tem_artigos_sem_of).length;
   const payBadge = { pendente: "pendente", parcial: "parcial", pago: "pago" };
   const hoje = new Date().toISOString().slice(0, 10);
-  const filtros = [["pendentes", "Pendentes"], ["concluidas", "Concluídas"], ["todas", "Todas"]];
+
+  const Tab = ({ id, label, count }) => (
+    <button
+      data-testid={`enc-filtro-${id}`}
+      onClick={() => setEstadoFilter(id)}
+      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${estadoFilter === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+    >
+      {label}
+      <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${estadoFilter === id ? "bg-white/20" : "bg-gray-100 text-gray-500"}`}>{count}</span>
+    </button>
+  );
 
   return (
     <div>
       <PageHeader
         title="Encomendas"
         subtitle="Encomendas de clientes e respetivas ordens de fabrico"
-        actions={can("encomendas", "create") && (
-          <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
-        )}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportExcelButton entity="encomendas" ids={items_alert.map((e) => e.id)} />
+            {can("encomendas", "create") && (
+              <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
+            )}
+          </div>
+        }
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-sm p-1 w-fit">
-          {filtros.map(([k, l]) => (
-            <button key={k} data-testid={`enc-filtro-${k}`} onClick={() => setEstadoFilter(k)} className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${estadoFilter === k ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>{l}</button>
-          ))}
-        </div>
-        <div className="flex-1">
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou orçamento..." testid="encomendas-search" />
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou orçamento..." testid="encomendas-search" />
+
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tab id="pendentes" label="Pendentes" count={pendentes.length} />
+          <Tab id="concluidas" label="Concluídas" count={concluidas.length} />
+          <Tab id="todas" label="Todas" count={base.length} />
         </div>
         <button
           data-testid="enc-filtro-sem-of"
           onClick={() => setSoSemOf((v) => !v)}
-          className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-sm border transition-colors w-fit ${soSemOf ? "bg-red-50 border-red-300 text-red-700" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"}`}
+          className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
         >
-          <AlertTriangle size={15} className={soSemOf ? "text-red-600" : "text-red-500"} /> Artigos por produzir
-          {numSemOf > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full tabular-nums ${soSemOf ? "bg-red-600 text-white" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>}
+          <AlertTriangle size={15} className={soSemOf ? "text-white" : "text-red-500"} /> Artigos por produzir
+          {numSemOf > 0 && (
+            <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${soSemOf ? "bg-white/20" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>
+          )}
         </button>
       </div>
 

@@ -4,6 +4,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -18,7 +19,7 @@ import {
 import { ArtigoForm } from "@/features/artigos/ArtigoForm";
 import ImagemUpload from "@/components/ImagemUpload";
 
-const empty = { nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30, materiais: [], roteiro: [] };
+const empty = { nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30, categoria_id: "", categoria_nome: "", subcategoria_id: "", subcategoria_nome: "", materiais: [], roteiro: [] };
 
 export default function Artigos() {
   const { can } = useAuth();
@@ -28,6 +29,8 @@ export default function Artigos() {
   const [maquinas, setMaquinas] = useState([]);
   const [consumiveis, setConsumiveis] = useState([]);
   const [maoObra, setMaoObra] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [subcategorias, setSubcategorias] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -38,6 +41,13 @@ export default function Artigos() {
     setMaquinas(await api.get("/maquinas"));
     setConsumiveis(await api.get("/consumiveis"));
     setMaoObra(await api.get("/mao-obra"));
+    try {
+      setCategorias(await api.get("/categorias"));
+      setSubcategorias(await api.get("/subcategorias"));
+    } catch {
+      setCategorias([]);
+      setSubcategorias([]);
+    }
   }, []);
   useEffect(() => {
     load();
@@ -56,6 +66,10 @@ export default function Artigos() {
       imagem: a.imagem || "",
       custo_artigo: a.custo_artigo ?? 0,
       margem: a.margem ?? 30,
+      categoria_id: a.categoria_id || "",
+      categoria_nome: a.categoria_nome || "",
+      subcategoria_id: a.subcategoria_id || "",
+      subcategoria_nome: a.subcategoria_nome || "",
       materiais: a.materiais || [],
       roteiro: a.roteiro || [],
     });
@@ -72,6 +86,10 @@ export default function Artigos() {
       imagem: form.imagem || "",
       custo_artigo: Number(form.custo_artigo) || 0,
       margem: Number(form.margem) || 0,
+      categoria_id: form.categoria_id || null,
+      categoria_nome: form.categoria_nome || "",
+      subcategoria_id: form.subcategoria_id || null,
+      subcategoria_nome: form.subcategoria_nome || "",
       materiais: form.materiais.filter((m) => m.material_id).map((m) => ({
         ...m,
         quantidade: Number(m.quantidade) || 0,
@@ -103,7 +121,7 @@ export default function Artigos() {
   };
 
   const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((a) => [a.nome, a.descricao].some((v) => (v || "").toLowerCase().includes(ql))) : items;
+  const items_f = ql ? items.filter((a) => [a.codigo, a.nome, a.descricao, a.categoria_nome, a.subcategoria_nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
   const rows = apply(items_f);
 
   return (
@@ -112,19 +130,27 @@ export default function Artigos() {
         title="Artigos"
         subtitle="Receita de materiais, roteiro de operações, custo e preço de venda"
         actions={
-          can("artigos","create") && (<button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Plus size={16} /> Novo Artigo
-          </button>)
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportExcelButton entity="artigos" ids={items_f.map((a) => a.id)} />
+            {can("artigos", "create") && (
+              <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <Plus size={16} /> Novo Artigo
+              </button>
+            )}
+          </div>
         }
       />
 
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome do artigo..." testid="artigos-search" />
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar artigos por código ou nome..." testid="artigos-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              <SortTh label="Código" sortKey="codigo" sort={sort} onSort={toggle} />
               <SortTh label="Artigo" sortKey="nome" sort={sort} onSort={toggle} />
+              <SortTh label="Categoria" sortKey="categoria_nome" sort={sort} onSort={toggle} />
+              <SortTh label="Subcategoria" sortKey="subcategoria_nome" sort={sort} onSort={toggle} />
               <SortTh label="Materiais" sortKey="custo_materiais" sort={sort} onSort={toggle} align="right" />
               <SortTh label="Máquinas" sortKey="custo_maquinas" sort={sort} onSort={toggle} align="right" />
               <SortTh label="Mão de Obra" sortKey="custo_mao_obra" sort={sort} onSort={toggle} align="right" />
@@ -137,6 +163,7 @@ export default function Artigos() {
           <tbody data-testid="artigos-table">
             {rows.map((a) => (
               <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{a.codigo || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
@@ -147,6 +174,8 @@ export default function Artigos() {
                     </div>
                   </div>
                 </td>
+                <td className="px-4 py-3 text-gray-600 text-sm">{a.categoria_nome || "—"}</td>
+                <td className="px-4 py-3 text-gray-600 text-sm">{a.subcategoria_nome || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_materiais)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_maquinas)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_mao_obra)}</td>
@@ -163,7 +192,7 @@ export default function Artigos() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
+              <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
             )}
           </tbody>
         </table>
@@ -176,7 +205,7 @@ export default function Artigos() {
             <DialogDescription>Defina a receita de materiais e o roteiro de operações. O custo e o preço de venda são calculados automaticamente.</DialogDescription>
           </DialogHeader>
 
-          <ArtigoForm form={form} setForm={setForm} maquinas={maquinas} consumiveis={consumiveis} maoObra={maoObra} />
+          <ArtigoForm form={form} setForm={setForm} maquinas={maquinas} consumiveis={consumiveis} maoObra={maoObra} categorias={categorias} subcategorias={subcategorias} />
 
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>

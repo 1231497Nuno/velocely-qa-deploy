@@ -4,6 +4,7 @@ import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, Star, LayoutGrid, List, UserCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -126,9 +127,14 @@ export default function OrdensFabrico() {
         title="Ordens de Fabrico"
         subtitle="Produção com roteiro de operações para o operador"
         actions={
-          can("ordens_fabrico","create") && (<button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Plus size={16} /> Nova OF
-          </button>)
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportExcelButton entity="ordens_fabrico" ids={(view === "kanban" ? base : rows).map((o) => o.id)} />
+            {can("ordens_fabrico", "create") && (
+              <button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <Plus size={16} /> Nova OF
+              </button>
+            )}
+          </div>
         }
       />
 

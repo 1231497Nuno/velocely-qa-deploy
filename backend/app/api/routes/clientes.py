@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_perm
 from app.domain.models import Cliente, ClienteInput
 from app.repositories import clientes_repo, orcamentos_repo, encomendas_repo, ordens_repo
 from app.services.costing import compute_orcamento_totais, compute_encomenda, recompute_of_status
+from app.services.numeracao import next_codigo
 from app.services import audit
 from app.core.database import round2
 
@@ -13,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("/clientes/{cid}/historico-precos")
-async def cliente_historico_precos(cid: str, _u: dict = Depends(get_current_user)):
+async def cliente_historico_precos(cid: str, _u: dict = Depends(require_perm("clientes", "view"))):
     """Preços praticados por artigo em encomendas anteriores deste cliente."""
     encs = await encomendas_repo.find({"cliente_id": cid}, sort=("data", -1), limit=500)
     agg: dict = {}
@@ -41,7 +42,7 @@ async def cliente_historico_precos(cid: str, _u: dict = Depends(get_current_user
 
 
 @router.get("/clientes/{cid}/resumo")
-async def cliente_resumo(cid: str, _u: dict = Depends(get_current_user)):
+async def cliente_resumo(cid: str, _u: dict = Depends(require_perm("clientes", "view"))):
     c = await clientes_repo.get(cid)
     if not c:
         raise HTTPException(404, "Cliente não encontrado")
@@ -94,20 +95,21 @@ async def cliente_resumo(cid: str, _u: dict = Depends(get_current_user)):
 
 
 @router.get("/clientes")
-async def list_clientes(_u: dict = Depends(get_current_user)):
+async def list_clientes(_u: dict = Depends(require_perm("clientes", "view"))):
     return await clientes_repo.find(sort=("nome", 1), limit=5000)
 
 
 @router.post("/clientes")
-async def create_cliente(data: ClienteInput, user: dict = Depends(get_current_user)):
+async def create_cliente(data: ClienteInput, user: dict = Depends(require_perm("clientes", "create"))):
     c = Cliente(**data.model_dump())
+    c.codigo = await next_codigo("cliente")
     await clientes_repo.insert(c.model_dump())
-    await audit.registar("cliente", c.id, "criado", user, f"Cliente «{c.nome}» criado", c.nome)
+    await audit.registar("cliente", c.id, "criado", user, f"Cliente «{c.nome}» criado", c.codigo or c.nome)
     return c.model_dump()
 
 
 @router.put("/clientes/{cid}")
-async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(get_current_user)):
+async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(require_perm("clientes", "edit"))):
     existing = await clientes_repo.get(cid)
     if not existing:
         raise HTTPException(404, "Cliente não encontrado")
@@ -121,7 +123,7 @@ async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(get_
 
 
 @router.delete("/clientes/{cid}")
-async def delete_cliente(cid: str, user: dict = Depends(get_current_user)):
+async def delete_cliente(cid: str, user: dict = Depends(require_perm("clientes", "delete"))):
     existing = await clientes_repo.get(cid)
     await clientes_repo.delete({"id": cid})
     if existing:

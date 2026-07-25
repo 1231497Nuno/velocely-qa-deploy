@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.database import now_iso, next_sequence
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_perm
 from app.domain.models import OrdemFabricoInput, OrdemFabrico, STATUS_PT
 from app.repositories import ordens_repo, encomendas_repo, artigos_repo
 from app.services.costing import (
@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 @router.get("/ordens-fabrico")
-async def list_ofs():
+async def list_ofs(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
     ofs = await ordens_repo.find()
     ofs = [recompute_of_status(o) for o in ofs]
     enc_ids = list({o.get("encomenda_id") for o in ofs if o.get("encomenda_id")})
@@ -41,7 +41,7 @@ async def list_ofs():
 
 
 @router.get("/ordens-fabrico/{ofid}")
-async def get_of(ofid: str):
+async def get_of(ofid: str, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
     o = await ordens_repo.get(ofid)
     if not o:
         raise HTTPException(404, "OF não encontrada")
@@ -66,7 +66,7 @@ class PrioridadeBody(BaseModel):
 
 
 @router.post("/ordens-fabrico/{ofid}/prioridade")
-async def set_of_prioridade(ofid: str, body: PrioridadeBody, user: dict = Depends(get_current_user)):
+async def set_of_prioridade(ofid: str, body: PrioridadeBody, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     existing = await ordens_repo.get(ofid)
     if not existing:
         raise HTTPException(404, "OF não encontrada")
@@ -79,7 +79,7 @@ async def set_of_prioridade(ofid: str, body: PrioridadeBody, user: dict = Depend
 
 
 @router.get("/ordens-fabrico/{ofid}/pdf")
-async def of_pdf(ofid: str, template_id: Optional[str] = None):
+async def of_pdf(ofid: str, template_id: Optional[str] = None, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
     o = await ordens_repo.get(ofid)
     if not o:
         raise HTTPException(404, "OF não encontrada")
@@ -97,7 +97,7 @@ async def of_pdf(ofid: str, template_id: Optional[str] = None):
 
 
 @router.post("/ordens-fabrico")
-async def create_of(data: OrdemFabricoInput, user: dict = Depends(get_current_user)):
+async def create_of(data: OrdemFabricoInput, user: dict = Depends(require_perm("ordens_fabrico", "create"))):
     of = OrdemFabrico(**data.model_dump())
     of.numero = await next_sequence("OF")
     if of.encomenda_id:
@@ -115,7 +115,7 @@ async def create_of(data: OrdemFabricoInput, user: dict = Depends(get_current_us
 
 
 @router.put("/ordens-fabrico/{ofid}")
-async def update_of(ofid: str, data: OrdemFabricoInput, user: dict = Depends(get_current_user)):
+async def update_of(ofid: str, data: OrdemFabricoInput, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     existing = await ordens_repo.get(ofid)
     if not existing:
         raise HTTPException(404, "OF não encontrada")
@@ -162,7 +162,7 @@ class TimerBody(BaseModel):
 
 
 @router.post("/ordens-fabrico/{ofid}/operacao/iniciar")
-async def iniciar_operacao(ofid: str, body: TimerBody):
+async def iniciar_operacao(ofid: str, body: TimerBody, _u: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
@@ -192,7 +192,7 @@ def _stop_op(op: dict):
 
 
 @router.post("/ordens-fabrico/{ofid}/operacao/parar")
-async def parar_operacao(ofid: str, body: TimerBody):
+async def parar_operacao(ofid: str, body: TimerBody, _u: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
@@ -204,7 +204,7 @@ async def parar_operacao(ofid: str, body: TimerBody):
 
 
 @router.post("/ordens-fabrico/{ofid}/finalizar")
-async def finalizar_of(ofid: str, user: dict = Depends(get_current_user)):
+async def finalizar_of(ofid: str, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
@@ -219,7 +219,7 @@ async def finalizar_of(ofid: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/ordens-fabrico/{ofid}/toggle-operacao")
-async def toggle_operacao(ofid: str, body: ToggleOp):
+async def toggle_operacao(ofid: str, body: ToggleOp, _u: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
@@ -238,7 +238,7 @@ class NotaBody(BaseModel):
 
 
 @router.post("/ordens-fabrico/{ofid}/operacao/nota")
-async def nota_operacao(ofid: str, body: NotaBody):
+async def nota_operacao(ofid: str, body: NotaBody, _u: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
@@ -250,7 +250,7 @@ async def nota_operacao(ofid: str, body: NotaBody):
 
 
 @router.delete("/ordens-fabrico/{ofid}")
-async def delete_of(ofid: str, user: dict = Depends(get_current_user)):
+async def delete_of(ofid: str, user: dict = Depends(require_perm("ordens_fabrico", "delete"))):
     existing = await ordens_repo.get(ofid)
     await ordens_repo.delete({"id": ofid})
     if existing:

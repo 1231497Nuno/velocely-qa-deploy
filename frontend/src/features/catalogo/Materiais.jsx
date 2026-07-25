@@ -3,6 +3,7 @@ import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -60,7 +61,7 @@ export default function Materiais() {
   };
 
   const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((c) => (c.nome || "").toLowerCase().includes(ql)) : items;
+  const items_f = ql ? items.filter((c) => [c.codigo, c.nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
 
   return (
     <div>
@@ -68,18 +69,24 @@ export default function Materiais() {
         title="Materiais"
         subtitle="Consumíveis e respetivo custo unitário usados nas receitas dos artigos"
         actions={
-          can("materiais","create") && (<button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Plus size={16} /> Novo Material
-          </button>)
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportExcelButton entity="materiais" ids={items_f.map((c) => c.id)} />
+            {can("materiais", "create") && (
+              <button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <Plus size={16} /> Novo Material
+              </button>
+            )}
+          </div>
         }
       />
 
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome do material..." testid="materiais-search" />
+      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar materiais por código ou nome..." testid="materiais-search" />
 
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Unidade</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Unitário</th>
@@ -89,6 +96,7 @@ export default function Materiais() {
           <tbody data-testid="materiais-table">
             {items_f.map((c) => (
               <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{c.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
                 <td className="px-4 py-3 text-gray-600">{c.unidade}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(c.custo_unitario)}</td>
@@ -102,7 +110,7 @@ export default function Materiais() {
               </tr>
             ))}
             {items_f.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem materiais. Crie o primeiro.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem materiais. Crie o primeiro.</td></tr>
             )}
           </tbody>
         </table>

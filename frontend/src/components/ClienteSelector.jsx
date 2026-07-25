@@ -29,7 +29,7 @@ export default function ClienteSelector({ value, onChange, testid = "cliente-sel
     try {
       const c = await api.post("/clientes", form);
       await load();
-      onChange(c.id, c.nome);
+      onChange(c.id, c.nome, c);
       setOpen(false);
       setForm(emptyCliente);
       toast.success("Cliente criado");
@@ -44,7 +44,7 @@ export default function ClienteSelector({ value, onChange, testid = "cliente-sel
         <Combobox
           options={options}
           value={value || ""}
-          onChange={(id) => { const c = clientes.find((x) => x.id === id); onChange(id, c ? c.nome : ""); }}
+          onChange={(id) => { const c = clientes.find((x) => x.id === id); onChange(id, c ? c.nome : "", c || null); }}
           placeholder="— Selecionar cliente —"
           searchPlaceholder="Pesquisar cliente..."
           emptyText="Nenhum cliente encontrado."
