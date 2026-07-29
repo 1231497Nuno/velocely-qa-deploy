@@ -13,6 +13,7 @@ TIPO_LABELS = {
     "orcamento": "Orçamento",
     "encomenda": "Encomenda",
     "ordem_fabrico": "Ordem de Fabrico",
+    "documento_financeiro": "Documento financeiro",
     "cliente": "Cliente",
     "artigo": "Artigo",
     "consumivel": "Material",

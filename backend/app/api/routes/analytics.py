@@ -9,6 +9,7 @@ from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.repositories import (
     ordens_repo, orcamentos_repo, artigos_repo, encomendas_repo,
     maquinas_repo, tipos_repo, consumiveis_repo, clientes_repo,
+    documentos_financeiros_repo,
 )
 from app.services.costing import (
     recompute_of_status, op_custo_real, compute_orcamento_totais,
@@ -319,6 +320,17 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
     for a in await artigos_repo.find({"$or": [{"nome": rx}, {"descricao": rx}]}, limit=6):
         resultados.append({"tipo": "Artigo", "id": a["id"], "titulo": a.get("nome") or "—",
                            "subtitulo": a.get("descricao") or "", "url": "/artigos"})
+    for d in await documentos_financeiros_repo.find(
+        {"$or": [{"numero": rx}, {"cliente": rx}, {"encomenda_numero": rx}]}, limit=6,
+    ):
+        from app.domain.models import DOC_TIPO_PT
+        resultados.append({
+            "tipo": DOC_TIPO_PT.get(d.get("tipo"), "Documento"),
+            "id": d["id"],
+            "titulo": d.get("numero") or "—",
+            "subtitulo": d.get("cliente") or "",
+            "url": f"/financeiro/{d['id']}",
+        })
     return {"resultados": resultados}
 
 

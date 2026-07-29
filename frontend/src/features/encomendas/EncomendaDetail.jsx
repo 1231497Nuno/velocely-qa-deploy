@@ -11,10 +11,11 @@ import PdfExportButton from "@/components/PdfExportButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import {
   ArrowLeft, Plus, Save, Trash2, X,
-  Wallet, ShieldCheck, ShieldAlert, Package, Pencil, Receipt,
+  Wallet, ShieldCheck, ShieldAlert, Package, Pencil, Receipt, FileOutput,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EncAlertas, EncKPIs, ClientePanel, OFsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
+import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 const METODO_PT = { transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY", cheque: "Cheque", cartao: "Cartão", outro: "Outro" };
@@ -34,6 +35,7 @@ export default function EncomendaDetail() {
   const [pagNota, setPagNota] = useState("");
   const [ofOpen, setOfOpen] = useState(false);
   const [ofQtys, setOfQtys] = useState({});
+  const [emitOpen, setEmitOpen] = useState(false);
 
   const addPagamento = async (valorOverride, notaOverride) => {
     const v = Number(valorOverride ?? pagValor);
@@ -210,6 +212,15 @@ export default function EncomendaDetail() {
               disabled={enc.estado === "cancelada"}
               onSent={() => load()}
             />
+          )}
+          {can("financeiro", "create") && enc.estado !== "cancelada" && (
+            <button
+              data-testid="enc-emitir-doc-btn"
+              onClick={() => setEmitOpen(true)}
+              className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+            >
+              <FileOutput size={16} /> Emitir fatura
+            </button>
           )}
           {can("encomendas", "edit") && (
             <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Save size={16} /> Guardar</button>
@@ -443,6 +454,14 @@ export default function EncomendaDetail() {
         remaining={remaining}
         artUnidade={artUnidade}
         onCriar={criarOF}
+      />
+
+      <EmitirDocumentoDialog
+        open={emitOpen}
+        onOpenChange={setEmitOpen}
+        encomendaId={id}
+        enc={enc}
+        onEmitted={() => load()}
       />
     </div>
   );

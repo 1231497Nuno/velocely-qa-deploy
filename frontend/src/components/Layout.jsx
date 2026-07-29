@@ -29,6 +29,7 @@ import {
   History,
   Layers,
   ChevronDown,
+  Wallet,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -61,6 +62,13 @@ const NAV_GROUPS = [
     items: [
       { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
       { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade" },
+    ],
+  },
+  {
+    id: "financeiro",
+    label: "Financeiro",
+    items: [
+      { to: "/financeiro", label: "Faturas", icon: Wallet, tid: "nav-financeiro", modulo: "financeiro" },
     ],
   },
   {

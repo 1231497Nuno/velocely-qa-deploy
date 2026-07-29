@@ -13,6 +13,9 @@ export const STATUS_META = {
   // Pagamento
   parcial: { label: "Pago parcial", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   pago: { label: "Pago total", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  // Documentos financeiros
+  emitida: { label: "Emitida", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  anulada: { label: "Anulada", cls: "bg-red-50 text-red-700 border-red-200" },
 };
 
 export default function StatusBadge({ status, testid }) {

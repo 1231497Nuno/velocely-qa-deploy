@@ -118,6 +118,30 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "digitos": 4,
         "exemplo": "REC-2026-0001",
     },
+    "fatura": {
+        "label": "Faturas",
+        "grupo": "documentos",
+        "prefix": "FAT",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "FAT-2026-0001",
+    },
+    "proforma": {
+        "label": "Faturas Pro Forma",
+        "grupo": "documentos",
+        "prefix": "FP",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "FP-2026-0001",
+    },
+    "fatura_recibo": {
+        "label": "Faturas-Recibo",
+        "grupo": "documentos",
+        "prefix": "FR",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "FR-2026-0001",
+    },
 }
 
 _PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,11}$")

@@ -8,7 +8,7 @@ from app.core.database import new_id, now_iso
 RBAC_MODULES = [
     "dashboard", "clientes", "encomendas", "artigos", "categorias", "materiais", "maquinas", "mao_obra",
     "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "rentabilidade",
-    "calendario", "historico", "definicoes", "utilizadores",
+    "financeiro", "calendario", "historico", "definicoes", "utilizadores",
 ]
 RBAC_ACTIONS = ["view", "create", "edit", "delete"]
 
@@ -25,7 +25,7 @@ def perms_colaborador() -> dict:
     for m in ("orcamentos", "ordens_fabrico"):
         p[m]["create"] = True
         p[m]["edit"] = True
-    for m in ("clientes", "encomendas"):
+    for m in ("clientes", "encomendas", "financeiro"):
         p[m]["create"] = True
         p[m]["edit"] = True
     return p
@@ -433,6 +433,50 @@ class Encomenda(EncomendaInput):
     created_at: str = Field(default_factory=now_iso)
 
 
+DOC_TIPOS = ("fatura", "proforma", "recibo", "fatura_recibo")
+DOC_TIPOS_PRINCIPAIS = ("fatura", "proforma", "fatura_recibo")  # listáveis no financeiro (recibos vivem na fatura)
+DOC_TIPOS_COM_RECIBOS = ("fatura", "fatura_recibo")  # podem ter recibos associados
+
+
+class DocumentoLinha(BaseModel):
+    artigo_id: Optional[str] = None
+    encomenda_artigo_id: Optional[str] = None  # linha da encomenda de origem (faturação parcial)
+    descricao: str = ""
+    quantidade: float = 1
+    preco_unit: float = 0.0
+    desconto: float = 0.0
+    desconto_tipo: str = "pct"
+    personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
+    subtotal: float = 0.0
+
+
+class DocumentoFinanceiroInput(BaseModel):
+    tipo: str  # fatura | proforma | recibo | fatura_recibo
+    cliente: str = ""
+    cliente_id: Optional[str] = None
+    encomenda_id: Optional[str] = None
+    encomenda_numero: Optional[str] = None
+    fatura_id: Optional[str] = None  # recibo → fatura mãe
+    fatura_numero: Optional[str] = None
+    data: Optional[str] = None
+    linhas: List[DocumentoLinha] = Field(default_factory=list)
+    subtotal: float = 0.0
+    desconto_total: float = 0.0
+    iva_taxa: float = 0.0
+    iva_valor: float = 0.0
+    total: float = 0.0
+    valor_pago: float = 0.0
+    metodo_pagamento: str = ""
+    notas: str = ""
+    estado: str = "emitida"  # emitida | anulada
+
+
+class DocumentoFinanceiro(DocumentoFinanceiroInput):
+    id: str = Field(default_factory=new_id)
+    numero: str = ""
+    created_at: str = Field(default_factory=now_iso)
+
+
 class EmpresaSettings(BaseModel):
     nome: str = "Gestão Produção"
     morada: str = ""
@@ -472,6 +516,13 @@ STATUS_PT = {
 }
 PAY_PT = {"pendente": "Pendente", "parcial": "Pago parcial", "pago": "Pago total"}
 ENC_ESTADO_PT = {"aberta": "Aberta", "em_producao": "Em Produção", "concluida": "Concluída", "cancelada": "Cancelada"}
+DOC_TIPO_PT = {
+    "fatura": "Fatura",
+    "proforma": "Fatura Pro Forma",
+    "recibo": "Recibo",
+    "fatura_recibo": "Fatura-Recibo",
+}
+DOC_ESTADO_PT = {"emitida": "Emitida", "anulada": "Anulada"}
 
 _CLIENTE_CAMPOS = [
     {"key": "cliente_nome", "label": "Nome"},

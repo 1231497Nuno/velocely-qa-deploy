@@ -642,6 +642,138 @@ def build_recibo_pdf(enc: dict, pag: dict, settings: dict = None, cliente: dict 
     return buf.getvalue()
 
 
+DOC_TITULO_PDF = {
+    "fatura": "FATURA",
+    "proforma": "FATURA PRO FORMA",
+    "recibo": "RECIBO",
+    "fatura_recibo": "FATURA-RECIBO",
+}
+
+
+def build_documento_financeiro_pdf(
+    documento: dict,
+    settings: dict = None,
+    cliente: dict = None,
+    show_branding: bool = True,
+) -> bytes:
+    """PDF para fatura, proforma, recibo ou fatura-recibo."""
+    from app.domain.models import DOC_ESTADO_PT
+
+    _set_currency(settings)
+    st = _pdf_styles()
+    buf = BytesIO()
+    pdf_doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm,
+    )
+    elems = []
+    tipo = documento.get("tipo") or "fatura"
+    titulo = DOC_TITULO_PDF.get(tipo, "DOCUMENTO")
+    nome_cli = (cliente or {}).get("nome") or documento.get("cliente") or "—"
+    nif = (cliente or {}).get("nif") or ""
+    meta_pairs = [
+        ("Cliente", nome_cli),
+        ("NIF", nif),
+        ("Data", documento.get("data")),
+        ("Estado", DOC_ESTADO_PT.get(documento.get("estado"), documento.get("estado"))),
+    ]
+    if documento.get("encomenda_numero"):
+        meta_pairs.append(("Encomenda", documento.get("encomenda_numero")))
+    if documento.get("fatura_numero"):
+        meta_pairs.append(("Fatura", documento.get("fatura_numero")))
+    _header(elems, st, titulo, documento.get("numero", ""), meta_pairs, settings, show_branding)
+
+    linhas = documento.get("linhas") or []
+    if linhas and tipo != "recibo":
+        header = _th_row(st, ["Descrição", "Qtd", "Preço Unit.", "Subtotal"])
+        data = [header]
+        for l in linhas:
+            pers = ", ".join(p.get("nome", "") for p in (l.get("personalizacoes") or []))
+            desc = l.get("descricao") or "—"
+            if pers:
+                desc = f"{desc} ({pers})"
+            data.append([
+                Paragraph(desc, st["cell"]),
+                Paragraph(f"{(l.get('quantidade') or 0):g}", st["cell"]),
+                Paragraph(fmt_eur(l.get("preco_unit")), st["cell"]),
+                Paragraph(fmt_eur(l.get("subtotal")), st["cellb"]),
+            ])
+        tbl = _data_table(data, [90 * mm, 20 * mm, 30 * mm, 30 * mm], align=[
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ])
+        elems.append(tbl)
+        elems.append(Spacer(1, 14))
+    elif tipo == "recibo":
+        valor = documento.get("valor_pago") or documento.get("total") or 0
+        ref = documento.get("fatura_numero") or documento.get("encomenda_numero") or ""
+        data = [
+            _th_row(st, ["Descrição", "Valor"]),
+            [
+                Paragraph(
+                    f"Pagamento referente à fatura {ref}" if documento.get("fatura_numero")
+                    else f"Pagamento referente à encomenda {ref}",
+                    st["cell"],
+                ),
+                Paragraph(fmt_eur(valor), st["cellb"]),
+            ],
+        ]
+        elems.append(_data_table(data, [130 * mm, 40 * mm], align=[("ALIGN", (-1, 0), (-1, -1), "RIGHT")]))
+        elems.append(Spacer(1, 12))
+        elems.append(Paragraph(
+            f"Recebemos de <b>{nome_cli}</b> a quantia de <b>{fmt_eur(valor)}</b>.",
+            st["val"],
+        ))
+        if documento.get("metodo_pagamento"):
+            elems.append(Spacer(1, 4))
+            _metodos = {
+                "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
+                "cheque": "Cheque", "cartao": "Cartão", "outro": "Outro",
+            }
+            metodo = documento.get("metodo_pagamento")
+            elems.append(Paragraph(
+                f"Método de pagamento: {_metodos.get(metodo, metodo)}",
+                st["small"],
+            ))
+        elems.append(Spacer(1, 14))
+
+    tot_rows = []
+    if tipo != "recibo":
+        if (documento.get("desconto_total") or 0) > 0:
+            tot_rows.append(["Desconto", "- " + fmt_eur(documento.get("desconto_total"))])
+        if (documento.get("iva_taxa") or 0) > 0:
+            tot_rows.append(["Subtotal", fmt_eur(documento.get("subtotal"))])
+            tot_rows.append([f"IVA ({documento.get('iva_taxa'):g}%)", fmt_eur(documento.get("iva_valor"))])
+            tot_rows.append(["TOTAL C/ IVA", fmt_eur(documento.get("total"))])
+        else:
+            tot_rows.append(["VALOR TOTAL", fmt_eur(documento.get("total") or documento.get("subtotal"))])
+        if tipo == "fatura_recibo" and (documento.get("valor_pago") or 0) > 0:
+            tot_rows.append(["Valor liquidado", fmt_eur(documento.get("valor_pago"))])
+            if documento.get("metodo_pagamento"):
+                _metodos = {
+                    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
+                    "cheque": "Cheque", "cartao": "Cartão", "outro": "Outro",
+                }
+                m = documento.get("metodo_pagamento")
+                tot_rows.append([f"Pagamento: {_metodos.get(m, m)}", ""])
+    if tot_rows:
+        elems.append(_totais_table(tot_rows, True))
+
+    if documento.get("notas"):
+        elems.append(Spacer(1, 10))
+        elems.append(Paragraph(f"<b>Notas:</b> {documento.get('notas')}", st["small"]))
+
+    if tipo == "proforma":
+        elems.append(Spacer(1, 12))
+        elems.append(Paragraph(
+            "<i>Documento sem valor fiscal — fatura pro forma.</i>",
+            st["small"],
+        ))
+
+    _pdf_footer(elems, st, settings)
+    pdf_doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
+    return buf.getvalue()
+
 
 async def load_pdf_config(template_id: Optional[str]):
     settings = await empresa_repo.find_one({"id": "empresa"}) or {}

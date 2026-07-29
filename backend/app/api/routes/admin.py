@@ -204,6 +204,7 @@ async def rbac_modulos(admin: dict = Depends(require_admin)):
         "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
         "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",
         "analise_producao": "Análise da Produção", "rentabilidade": "Rentabilidade por Cliente",
+        "financeiro": "Financeiro",
         "calendario": "Calendário", "historico": "Histórico", "definicoes": "Definições",
         "utilizadores": "Gestão de Utilizadores",
     }

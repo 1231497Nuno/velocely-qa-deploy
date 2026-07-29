@@ -23,6 +23,8 @@ import Clientes from "@/features/clientes/Clientes";
 import ClienteDetail from "@/features/clientes/ClienteDetail";
 import Encomendas from "@/features/encomendas/Encomendas";
 import EncomendaDetail from "@/features/encomendas/EncomendaDetail";
+import Financeiro from "@/features/financeiro/Financeiro";
+import DocumentoFinanceiroDetail from "@/features/financeiro/DocumentoFinanceiroDetail";
 import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
@@ -48,6 +50,8 @@ function AppRoutes() {
       <Route path="/clientes/:id" element={<Protected modulo="clientes"><ClienteDetail /></Protected>} />
       <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
       <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
+      <Route path="/financeiro" element={<Protected modulo="financeiro"><Financeiro /></Protected>} />
+      <Route path="/financeiro/:id" element={<Protected modulo="financeiro"><DocumentoFinanceiroDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
       <Route path="/artigos/:id" element={<Protected modulo="artigos"><ArtigoDetail /></Protected>} />
       <Route path="/categorias" element={<Protected modulo="artigos"><Categorias /></Protected>} />

@@ -24,6 +24,7 @@ from app.api.routes.orcamentos import router as orcamentos_router
 from app.api.routes.ordens_fabrico import router as ordens_router
 from app.api.routes.clientes import router as clientes_router
 from app.api.routes.encomendas import router as encomendas_router
+from app.api.routes.financeiro import router as financeiro_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.admin import router as admin_router
@@ -68,7 +69,7 @@ app = FastAPI(
 api_router = APIRouter(prefix="/api")
 for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router,
-    encomendas_router, settings_router, analytics_router, admin_router,
+    encomendas_router, financeiro_router, settings_router, analytics_router, admin_router,
     historico_router, uploads_router, referencias_router, io_excel_router,
 ):
     api_router.include_router(r)

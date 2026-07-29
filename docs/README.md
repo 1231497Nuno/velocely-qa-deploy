@@ -10,6 +10,7 @@
 | [guides/deployment.md](guides/deployment.md) | Deploy e ambientes |
 | [guides/contributing.md](guides/contributing.md) | Convenções de contribuição |
 | [design-system.md](design-system.md) | Tipografia, cores e UI |
+| [comercial/README.md](comercial/README.md) | Propostas de planos e subscrições (venda SaaS) |
 
 ## Acesso rápido em desenvolvimento
 
