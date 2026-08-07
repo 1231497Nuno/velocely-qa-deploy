@@ -1,0 +1,64 @@
+# Velocely — ambiente de desenvolvimento / staging (Docker)
+# Stack completa: Mongo + API + UI
+#
+#   cp .env.staging.example .env.staging
+#   docker compose --env-file .env.staging up -d --build
+#   ./scripts/seed-staging.sh
+#   http://localhost:3080
+#
+# Para MongoDB Atlas (remoto), usa em vez deste ficheiro:
+#   docker compose -f docker-compose.remote.yml --env-file .env.staging up -d --build
+
+name: velocely
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PUBLISH_PORT:-27018}:27017"
+    volumes:
+      - velocely_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017}
+      DB_NAME: ${DB_NAME:-velocely_staging}
+      JWT_SECRET: ${JWT_SECRET:-change-me-staging-use-openssl-rand}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3080,http://127.0.0.1:3080}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@velocely.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin123!}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - velocely_uploads:/app/uploads
+    ports:
+      - "${API_PUBLISH_PORT:-8000}:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PUBLISH_PORT:-3080}:80"
+    depends_on:
+      - api
+
+volumes:
+  velocely_mongo_data:
+  velocely_uploads:

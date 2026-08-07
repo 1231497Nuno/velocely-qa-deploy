@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, Star, LayoutGrid, List, UserCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -57,18 +59,29 @@ const TimerDot = ({ estado, liveSec }) => {
 
 export default function OrdensFabrico() {
   const { can, user } = useAuth();
-  const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ativas");
   const [view, setView] = useState("lista");
   const [mine, setMine] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [q, setQ] = useState("");
   const nav = useNavigate();
 
-  const load = useCallback(async () => setItems(await api.get("/ordens-fabrico")), []);
-  useEffect(() => {
-    load();
-  }, [load]);
+  const extra = useMemo(() => {
+    const p = {};
+    if (view === "lista") {
+      if (tab === "ativas") p.status = "ne:concluido";
+      else p.status = "concluido";
+    }
+    if (mine && user?.id) p.responsavel_id = user.id;
+    return p;
+  }, [tab, view, mine, user?.id]);
+
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/ordens-fabrico", {
+    extraParams: extra,
+    paginate: view === "lista",
+  });
 
   const hasRunning = items.some((o) => o.timer_estado === "em_curso");
   useEffect(() => {
@@ -86,22 +99,16 @@ export default function OrdensFabrico() {
     e.stopPropagation();
     await api.del(`/ordens-fabrico/${id}`);
     toast.success("OF eliminada");
-    load();
+    reload();
   };
 
   const togglePrioridade = async (e, o) => {
     e.stopPropagation();
     await api.post(`/ordens-fabrico/${o.id}/prioridade`, { prioritaria: !o.prioritaria });
-    load();
+    reload();
   };
 
-  const ql = q.trim().toLowerCase();
-  const matchQ = (o) => !ql || [o.numero, o.cliente, o.numero_encomenda, o.orcamento_numero, o.responsavel_nome].some((v) => (v || "").toLowerCase().includes(ql));
-  const matchMine = (o) => !mine || o.responsavel_id === user?.id;
-  const base = items.filter((o) => matchQ(o) && matchMine(o));
-  const ativas = base.filter((o) => o.status !== "concluido");
-  const concluidas = base.filter((o) => o.status === "concluido");
-  const rows = tab === "ativas" ? ativas : concluidas;
+  const rows = items;
   const hoje = new Date().toISOString().slice(0, 10);
 
   const KANBAN_COLS = [
@@ -110,62 +117,95 @@ export default function OrdensFabrico() {
     { key: "concluido", label: "Concluída", dot: "bg-emerald-500" },
   ];
 
-  const Tab = ({ id, label, count }) => (
-    <button
-      data-testid={`of-tab-${id}`}
-      onClick={() => setTab(id)}
-      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${tab === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-    >
-      {label}
-      <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${tab === id ? "bg-white/20" : "bg-gray-100 text-gray-500"}`}>{count}</span>
-    </button>
-  );
+  const Tab = ({ id, label }) => {
+    const active = tab === id;
+    return (
+      <button
+        data-testid={`of-tab-${id}`}
+        onClick={() => setTab(id)}
+        className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+      >
+        {label}
+        {active && (
+          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <div>
-      <PageHeader
-        title="Ordens de Fabrico"
-        subtitle="Produção com roteiro de operações para o operador"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportExcelButton entity="ordens_fabrico" ids={(view === "kanban" ? base : rows).map((o) => o.id)} />
-            {can("ordens_fabrico", "create") && (
-              <button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-                <Plus size={16} /> Nova OF
+    <ListPage
+      header={
+        <PageHeader
+          title="Ordens de Fabrico"
+          subtitle="Produção com roteiro de operações para o operador"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExportExcelButton entity="ordens_fabrico" ids={rows.map((o) => o.id)} />
+              {can("ordens_fabrico", "create") && (
+                <button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                  <Plus size={16} /> Nova OF
+                </button>
+              )}
+            </div>
+          }
+        />
+      }
+      toolbar={
+        <>
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código, cliente ou nº encomenda..." testid="ofs-search" />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              {view === "lista" && <>
+                <Tab id="ativas" label="Ativas" />
+                <Tab id="concluidas" label="Concluídas" />
+              </>}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                data-testid="of-filter-minhas"
+                onClick={() => setMine((m) => !m)}
+                className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+              >
+                <UserCheck size={15} /> As minhas tarefas
               </button>
+              <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden">
+                <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
+                <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
+              </div>
+            </div>
+          </div>
+        </>
+      }
+      footer={
+        view === "lista" ? (
+          <>
+            <ListPagination
+              page={page}
+              pages={pages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              rangeLabel={rangeLabel}
+              testid="ofs-pagination"
+            />
+            {tab === "ativas" && (
+              <div className="flex items-center gap-5 mt-3 text-xs text-gray-500">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> Por iniciar</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Em curso</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Em pausa</span>
+              </div>
             )}
-          </div>
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código, cliente ou nº encomenda..." testid="ofs-search" />
-
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          {view === "lista" && <>
-            <Tab id="ativas" label="Ativas" count={ativas.length} />
-            <Tab id="concluidas" label="Concluídas" count={concluidas.length} />
-          </>}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            data-testid="of-filter-minhas"
-            onClick={() => setMine((m) => !m)}
-            className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-          >
-            <UserCheck size={15} /> As minhas tarefas
-          </button>
-          <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden">
-            <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
-            <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
-          </div>
-        </div>
-      </div>
-
+          </>
+        ) : null
+      }
+    >
       {view === "kanban" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="of-kanban">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="of-kanban">
           {KANBAN_COLS.map((col) => {
-            const cards = base.filter((o) => o.status === col.key);
+            const cards = items.filter((o) => o.status === col.key);
             return (
               <div key={col.key} data-testid={`kanban-col-${col.key}`} className="bg-gray-50 border border-gray-200 rounded-sm p-3">
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -192,15 +232,16 @@ export default function OrdensFabrico() {
               </div>
             );
           })}
+          </div>
         </div>
       )}
 
       {view === "lista" && (<>
-      <div className="hidden md:block bg-white border border-gray-200 rounded-sm overflow-x-auto">
+      <ScrollableTable className="hidden md:block">
         <table className="w-full text-sm min-w-[760px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-2 py-3 w-10"></th>
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
+              <th className="px-2 py-3 w-10 bg-gray-50"></th>
               {tab === "ativas" && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cronómetro</th>}
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
@@ -210,13 +251,13 @@ export default function OrdensFabrico() {
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Origem</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Progresso</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
-              <th className="px-4 py-3 w-12"></th>
+              <th className="px-4 py-3 w-12 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="ofs-table">
             {rows.map((o) => (
               <tr key={o.id} data-testid={`of-row-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${o.prioritaria ? "bg-amber-50/60" : ""}`}>
-                <td className="px-2 py-3 text-center">
+                <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                   <button data-testid={`of-prioridade-${o.id}`} onClick={(e) => togglePrioridade(e, o)} title={o.prioritaria ? "Prioritária" : "Marcar como prioritária"} className="p-1 rounded-sm hover:bg-amber-100">
                     <Star size={16} className={o.prioritaria ? "text-amber-500 fill-amber-400" : "text-gray-300"} />
                   </button>
@@ -232,7 +273,7 @@ export default function OrdensFabrico() {
                 <td className="px-4 py-3 mono text-gray-500 text-xs">{o.orcamento_numero || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-600">{Math.round(o.progresso || 0)}%</td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   {can("ordens_fabrico","delete") && (<button data-testid={`delete-of-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
                 </td>
               </tr>
@@ -242,10 +283,9 @@ export default function OrdensFabrico() {
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
 
-      {/* Mobile: cartões */}
-      <div className="md:hidden space-y-3" data-testid="ofs-cards">
+      <div className="md:hidden flex-1 min-h-0 overflow-auto space-y-3" data-testid="ofs-cards">
         {rows.map((o) => (
           <div key={o.id} data-testid={`of-card-${o.id}`} onClick={() => nav(`/ordens-fabrico/${o.id}`)} className={`bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50 ${o.prioritaria ? "border-amber-300 bg-amber-50/40" : ""}`}>
             <div className="flex items-start justify-between gap-3">
@@ -273,15 +313,7 @@ export default function OrdensFabrico() {
           <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">{tab === "ativas" ? "Sem ordens de fabrico ativas." : "Sem ordens de fabrico concluídas."}</div>
         )}
       </div>
-
-      {tab === "ativas" && view === "lista" && (
-        <div className="flex items-center gap-5 mt-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> Por iniciar</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Em curso</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Em pausa</span>
-        </div>
-      )}
       </>)}
-    </div>
+    </ListPage>
   );
 }

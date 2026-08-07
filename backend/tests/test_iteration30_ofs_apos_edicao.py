@@ -120,42 +120,29 @@ class TestPutEncomendaDevolveOfs:
         requests.put(f"{API}/encomendas/{eid}", json=payload, headers=hdr, timeout=20)
 
 
-# --------- 3) Regressão: adicionar/remover pagamento devolve ordens_fabrico ---------
-class TestPagamentoDevolveOfs:
-    def test_add_e_delete_pagamento_devolve_ordens_fabrico(self, hdr):
+# --------- 3) Pagamentos informais desactivados (fluxo fiscal) ---------
+class TestPagamentoInformalBloqueado:
+    def test_post_e_delete_pagamento_informal_bloqueados(self, hdr):
         enc = _find_encomenda(hdr, "ENC-2026-0046")
         assert enc is not None
         eid = enc["id"]
         full = _get_enc(hdr, eid)
-        ofs_before = sorted(o["id"] for o in (full.get("ordens_fabrico") or []))
-        assert ofs_before, "pré-condição: encomenda tem OFs"
+        assert full.get("ordens_fabrico"), "pré-condição: encomenda tem OFs"
 
-        # POST pagamento
-        r = requests.post(f"{API}/encomendas/{eid}/pagamentos",
-                          json={"valor": 1.0, "metodo": "transferencia", "nota": "teste-iter30"},
-                          headers=hdr, timeout=20)
-        assert r.status_code == 200, f"POST pag falhou: {r.status_code} {r.text}"
-        after_add = r.json()
-        assert "ordens_fabrico" in after_add, "POST pagamento deve incluir ordens_fabrico"
-        assert sorted(o["id"] for o in after_add["ordens_fabrico"]) == ofs_before, \
-            "OFs desapareceram após adicionar pagamento"
+        r = requests.post(
+            f"{API}/encomendas/{eid}/pagamentos",
+            json={"valor": 1.0, "metodo": "transferencia", "nota": "teste-iter30"},
+            headers=hdr,
+            timeout=20,
+        )
+        assert r.status_code == 400, f"esperado 400, obteve {r.status_code}: {r.text}"
+        detail = (r.json() or {}).get("detail") or ""
+        assert "fatura" in detail.lower() or "pagamento" in detail.lower()
 
-        # localizar o pagamento acabado de criar
-        pags = after_add.get("pagamentos") or []
-        pid = None
-        for p in reversed(pags):
-            if p.get("nota") == "teste-iter30":
-                pid = p.get("id")
-                break
-        assert pid, "pagamento teste não encontrado"
+        # DELETE também bloqueado (mesmo com id inventado — a regra é global)
+        r2 = requests.delete(f"{API}/encomendas/{eid}/pagamentos/nao-existe", headers=hdr, timeout=20)
+        assert r2.status_code == 400
 
-        # DELETE pagamento
-        r2 = requests.delete(f"{API}/encomendas/{eid}/pagamentos/{pid}", headers=hdr, timeout=20)
-        assert r2.status_code == 200
-        after_del = r2.json()
-        assert "ordens_fabrico" in after_del, "DELETE pagamento deve incluir ordens_fabrico"
-        assert sorted(o["id"] for o in after_del["ordens_fabrico"]) == ofs_before, \
-            "OFs desapareceram após remover pagamento"
 
 
 # --------- 4) POST /encomendas devolve ordens_fabrico (mesmo que vazio) ---------

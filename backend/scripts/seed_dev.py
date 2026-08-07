@@ -31,8 +31,8 @@ if str(BACKEND_ROOT) not in sys.path:
 os.chdir(BACKEND_ROOT)
 
 
-def _load_dotenv() -> None:
-    env_path = BACKEND_ROOT / ".env"
+def _load_dotenv(path: Path | None = None) -> None:
+    env_path = path or (BACKEND_ROOT / ".env")
     if not env_path.exists():
         return
     for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -41,7 +41,10 @@ def _load_dotenv() -> None:
             continue
         key, _, val = line.partition("=")
         key, val = key.strip(), val.strip().strip('"').strip("'")
-        os.environ.setdefault(key, val)
+        if path is not None:
+            os.environ[key] = val  # ficheiro explícito sobrescreve
+        else:
+            os.environ.setdefault(key, val)
 
 
 COLLECTIONS_RESET = (
@@ -140,9 +143,17 @@ def main() -> int:
         default=os.environ.get("SEED_API_URL", "http://localhost:8000"),
         help="Base URL da API (com --api). Default: http://localhost:8000",
     )
+    parser.add_argument(
+        "--env-file",
+        default="",
+        help="Ficheiro .env a carregar (ex.: ../.env.staging). Sobrescreve variáveis.",
+    )
     args = parser.parse_args()
 
-    _load_dotenv()
+    if args.env_file:
+        _load_dotenv(Path(args.env_file).expanduser().resolve())
+    else:
+        _load_dotenv()
 
     if args.api:
         result = seed_via_api(base_url=args.url, reset=args.reset)
@@ -159,7 +170,7 @@ def main() -> int:
         "\nResumo típico após seed:\n"
         "  · 4 clientes  · orçamentos em rascunho/enviado/aceite/rejeitado\n"
         "  · encomendas + OFs (pendente / em produção / concluída)\n"
-        "Login: valor de ADMIN_EMAIL / ADMIN_PASSWORD no backend/.env"
+        "Login: valor de ADMIN_EMAIL / ADMIN_PASSWORD no .env"
     )
     return 0
 

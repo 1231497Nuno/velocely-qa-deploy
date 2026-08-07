@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -20,17 +22,14 @@ const empty = { nome: "", custo_hora: 0, responsavel_personalizacoes: false };
 
 export default function MaoObra() {
   const { can } = useAuth();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/mao-obra");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
-
-  const load = useCallback(async () => setItems(await api.get("/mao-obra")), []);
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const openNew = () => {
     setForm(empty);
@@ -50,50 +49,61 @@ export default function MaoObra() {
     else await api.post("/mao-obra", body);
     toast.success("Mão de obra guardada");
     setOpen(false);
-    load();
+    reload();
   };
 
   const remove = async (id) => {
     await api.del(`/mao-obra/${id}`);
     toast.success("Eliminado");
-    load();
+    reload();
   };
 
-  const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((m) => [m.codigo, m.nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
-
   return (
-    <div>
-      <PageHeader
-        title="Mão de Obra"
-        subtitle="Funções e custo/hora alocados às operações dos artigos"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportExcelButton entity="mao_obra" ids={items_f.map((m) => m.id)} />
-            {can("mao_obra", "create") && (
-              <button data-testid="new-maoobra-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-                <Plus size={16} /> Nova Função
-              </button>
-            )}
-          </div>
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="mao-obra-search" />
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Mão de Obra"
+          subtitle="Funções e custo/hora alocados às operações dos artigos"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExportExcelButton entity="mao_obra" ids={items.map((m) => m.id)} />
+              {can("mao_obra", "create") && (
+                <button data-testid="new-maoobra-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                  <Plus size={16} /> Nova Função
+                </button>
+              )}
+            </div>
+          }
+        />
+      }
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="mao-obra-search" />}
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="mao-obra-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[560px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Função</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo / Hora</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Personalizações</th>
-              <th className="px-4 py-3 w-24"></th>
+              <th className="px-4 py-3 w-24 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="maoobra-table">
-            {items_f.map((m) => (
+            {items.map((m) => (
               <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{m.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{m.nome}</td>
@@ -112,12 +122,13 @@ export default function MaoObra() {
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && (
+            {items.length === 0 && (
               <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem funções. Crie a primeira.</td></tr>
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
+    </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -150,6 +161,6 @@ export default function MaoObra() {
       </Dialog>
 
       <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
-    </div>
+    </>
   );
 }

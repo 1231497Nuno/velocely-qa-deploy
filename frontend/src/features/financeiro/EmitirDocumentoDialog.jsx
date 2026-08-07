@@ -12,17 +12,34 @@ const METODO_PT = {
   cheque: "Cheque", cartao: "Cartão", outro: "Outro",
 };
 
-export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId, enc, onEmitted }) {
+export default function EmitirDocumentoDialog({
+  open,
+  onOpenChange,
+  encomendaId,
+  enc,
+  onEmitted,
+  defaultTipo = "fatura",
+}) {
   const nav = useNavigate();
-  const [tipo, setTipo] = useState("fatura");
+  const [tipo, setTipo] = useState(defaultTipo);
   const [metodo, setMetodo] = useState("transferencia");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
   const [resumo, setResumo] = useState(null);
-  const [qtys, setQtys] = useState({}); // encomenda_artigo_id → qty a faturar
+  const [qtys, setQtys] = useState({});
+  const [adiantamento, setAdiantamento] = useState(false);
 
   const needsPagamento = tipo === "fatura_recibo";
   const consomeQtd = tipo === "fatura" || tipo === "fatura_recibo";
+  const pronta = enc?.estado === "concluida";
+  const precisaAdiantamento = consomeQtd && !pronta;
+
+  useEffect(() => {
+    if (!open) return;
+    setTipo(defaultTipo || "fatura");
+    setAdiantamento(false);
+    setNotas("");
+  }, [open, defaultTipo]);
 
   useEffect(() => {
     if (!open || !encomendaId) return;
@@ -48,13 +65,9 @@ export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId,
       const q = Number(qtys[a.encomenda_artigo_id]) || 0;
       if (q > 0) sub += q * (Number(a.preco_unit) || 0);
     });
-    const taxa = Number(enc?.iva_taxa) || 23;
-    const isento = !!enc?.iva_isento || taxa <= 0;
-    // Usar IVA da encomenda se disponível
     const ivaTaxa = enc?.iva_taxa != null ? Number(enc.iva_taxa) : 23;
-    const iva = isento || (enc?.iva_valor === 0 && enc?.iva_taxa === 0) ? 0 : (sub * ivaTaxa) / 100;
-    // Prefer total_com_iva ratio if full order
-    const ivaFinal = enc?.iva_taxa != null ? (sub * Number(enc.iva_taxa || 0)) / 100 : iva;
+    const isento = !!enc?.iva_isento || ivaTaxa <= 0;
+    const ivaFinal = isento ? 0 : (sub * ivaTaxa) / 100;
     return { subtotal: sub, total: sub + ivaFinal };
   }, [artigos, qtys, enc]);
 
@@ -79,6 +92,9 @@ export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId,
 
   const emitir = async () => {
     if (!tipo) return toast.error("Escolhe o tipo de fatura");
+    if (precisaAdiantamento && !adiantamento) {
+      return toast.error("Confirma adiantamento ou escolhe proforma até a encomenda estar concluída");
+    }
     const linhas = artigos
       .map((a) => ({
         encomenda_artigo_id: a.encomenda_artigo_id,
@@ -94,10 +110,12 @@ export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId,
         metodo_pagamento: metodo,
         notas,
         linhas,
+        adiantamento: precisaAdiantamento ? adiantamento : false,
       });
       toast.success(`${DOC_TIPO_PT[tipo] || "Fatura"} ${doc.numero} emitida`);
       onOpenChange(false);
       setNotas("");
+      setAdiantamento(false);
       if (onEmitted) onEmitted(doc);
       nav(`/financeiro/${doc.id}`);
     } catch (e) {
@@ -111,9 +129,9 @@ export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto" data-testid="emitir-doc-dialog">
         <DialogHeader>
-          <DialogTitle>Emitir fatura</DialogTitle>
+          <DialogTitle>{defaultTipo === "fatura_recibo" ? "Emitir pagamento" : "Emitir fatura"}</DialogTitle>
           <DialogDescription>
-            A partir da encomenda {enc?.numero}. Podes faturar só parte dos artigos (fatura parcial).
+            A partir da encomenda {enc?.numero}. Pagamentos ficam associados a fatura ou fatura-recibo (não se registam à mão na encomenda).
           </DialogDescription>
         </DialogHeader>
 
@@ -134,14 +152,40 @@ export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId,
                   {DOC_TIPO_PT[t.id]}
                 </div>
                 <p className="text-xs text-gray-500 mt-1 leading-snug">
-                  {t.id === "fatura" && "Faturação parcial ou total."}
-                  {t.id === "proforma" && "Proposta formal sem valor fiscal."}
-                  {t.id === "fatura_recibo" && "Fatura liquidada (cria o 1.º recibo)."}
+                  {t.id === "fatura" && "Após material pronto; depois regista o pagamento."}
+                  {t.id === "proforma" && "Sem valor fiscal — ok em qualquer altura."}
+                  {t.id === "fatura_recibo" && "Fatura + pagamento no mesmo passo."}
                 </p>
               </button>
             );
           })}
         </div>
+
+        {precisaAdiantamento && (
+          <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2" data-testid="emitir-adiantamento-aviso">
+            <p className="text-xs text-amber-900 leading-snug">
+              A encomenda ainda não está <strong>concluída</strong> (produção / material pronto).
+              A fatura fiscal costuma emitir-se nessa altura. Usa <strong>proforma</strong> entretanto,
+              ou confirma adiantamento (sinal / pagamento antecipado).
+            </p>
+            <label className="flex items-start gap-2 text-sm text-amber-950 cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="emitir-adiantamento-check"
+                checked={adiantamento}
+                onChange={(e) => setAdiantamento(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-amber-700"
+              />
+              <span>Emitir como <strong>adiantamento</strong> antes da conclusão</span>
+            </label>
+          </div>
+        )}
+
+        {pronta && consomeQtd && (
+          <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-sm px-3 py-2">
+            Encomenda concluída — pronta para faturação fiscal.
+          </p>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -236,7 +280,7 @@ export default function EmitirDocumentoDialog({ open, onOpenChange, encomendaId,
           <button
             type="button"
             data-testid="emitir-doc-confirm"
-            disabled={busy}
+            disabled={busy || (precisaAdiantamento && !adiantamento)}
             onClick={emitir}
             className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-50"
           >

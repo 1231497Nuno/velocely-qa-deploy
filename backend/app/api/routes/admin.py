@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.database import new_id, now_iso
 from app.core.security import (
@@ -37,11 +37,26 @@ async def utilizadores_lista(_u: dict = Depends(get_current_user)):
 
 
 @router.get("/users")
-async def list_users(admin: dict = Depends(require_admin)):
-    users = await users_repo.find(
-        sort=("created_at", 1),
-        projection={"password_hash": 0, "invite_code_hash": 0},
-    )
+async def list_users(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    admin: dict = Depends(require_admin),
+):
+    from app.core.pagination import parse_page, page_payload, text_search
+    query = {}
+    ts = text_search(["name", "email", "login", "cargo"], q)
+    if ts:
+        query.update(ts)
+    proj = {"password_hash": 0, "invite_code_hash": 0}
+    if page is None:
+        users = await users_repo.find(query, sort=("created_at", 1), projection=proj, limit=5000)
+        total = len(users)
+        p = ps = skip = None
+    else:
+        p, ps, skip = parse_page(page, page_size)
+        total = await users_repo.count(query)
+        users = await users_repo.find(query, sort=("created_at", 1), projection=proj, limit=ps, skip=skip)
     out = []
     for u in users:
         perfil = await resolve_perfil(u)
@@ -59,7 +74,9 @@ async def list_users(admin: dict = Depends(require_admin)):
             "invite_expires_at": u.get("invite_expires_at"),
             "created_at": u.get("created_at"),
         })
-    return out
+    if page is None:
+        return out
+    return page_payload(out, total, p, ps)
 
 
 async def _resolve_perfil_id(perfil_id: Optional[str], role: Optional[str]) -> str:
@@ -199,7 +216,9 @@ async def list_perfis(admin: dict = Depends(require_admin)):
 @router.get("/rbac/modulos")
 async def rbac_modulos(admin: dict = Depends(require_admin)):
     labels = {
-        "dashboard": "Dashboard", "clientes": "Clientes", "encomendas": "Encomendas",
+        "dashboard": "Dashboard", "clientes": "Clientes", "fornecedores": "Fornecedores", "encomendas": "Encomendas",
+        "ordens_compra": "Ordens de Compra",
+        "pedidos_cotacao": "Pedidos de Cotação",
         "artigos": "Artigos", "categorias": "Categorias", "materiais": "Materiais",
         "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
         "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",

@@ -2,12 +2,13 @@ from io import BytesIO
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.database import now_iso, next_sequence
 from app.core.security import get_current_user, require_perm
+from app.core.pagination import parse_page, page_payload, text_search, apply_status_filter
 from app.domain.models import OrdemFabricoInput, OrdemFabrico, STATUS_PT
 from app.repositories import ordens_repo, encomendas_repo, artigos_repo
 from app.services.costing import (
@@ -19,9 +20,7 @@ from app.services import audit
 router = APIRouter()
 
 
-@router.get("/ordens-fabrico")
-async def list_ofs(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
-    ofs = await ordens_repo.find()
+async def _enrich_ofs(ofs: list) -> list:
     ofs = [recompute_of_status(o) for o in ofs]
     enc_ids = list({o.get("encomenda_id") for o in ofs if o.get("encomenda_id")})
     enc_map = {}
@@ -38,6 +37,33 @@ async def list_ofs(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
         o.get("created_at") or "",
     ))
     return ofs
+
+
+@router.get("/ordens-fabrico")
+async def list_ofs(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    status: Optional[str] = Query(None),
+    responsavel_id: Optional[str] = Query(None),
+    _u: dict = Depends(require_perm("ordens_fabrico", "view")),
+):
+    query = {}
+    apply_status_filter(query, status)
+    if responsavel_id:
+        query["responsavel_id"] = responsavel_id
+    ts = text_search(["numero", "cliente", "encomenda_numero"], q)
+    if ts:
+        query.update(ts)
+    if page is None:
+        ofs = await ordens_repo.find(query, limit=5000)
+        return await _enrich_ofs(ofs)
+    p, ps, skip = parse_page(page, page_size)
+    total = await ordens_repo.count(query)
+    # Ordenação estável por created_at; prioridade/prazo aplicados após enrich na página
+    ofs = await ordens_repo.find(query, sort=("created_at", -1), limit=ps, skip=skip)
+    items = await _enrich_ofs(ofs)
+    return page_payload(items, total, p, ps)
 
 
 @router.get("/ordens-fabrico/{ofid}")

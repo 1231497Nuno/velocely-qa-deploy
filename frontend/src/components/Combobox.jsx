@@ -15,9 +15,21 @@ export default function Combobox({
   testid,
   optionTestidPrefix = "option",
   className = "",
+  /** Se true, só mostra opções cujo label *começa* pelo texto (primeiro nome). */
+  matchPrefix = false,
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
+
+  const filter = matchPrefix
+    ? (itemValue, search) => {
+        const s = (search || "").trim().toLowerCase();
+        if (!s) return 1;
+        // itemValue = "label hint" — comparar só o início do label (primeira palavra / nome)
+        const label = (itemValue || "").toLowerCase();
+        return label.startsWith(s) ? 1 : 0;
+      }
+    : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -34,7 +46,7 @@ export default function Combobox({
         </button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width] min-w-[240px]" align="start">
-        <Command>
+        <Command filter={filter}>
           <CommandInput placeholder={searchPlaceholder} data-testid={testid ? `${testid}-search` : undefined} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
@@ -42,7 +54,7 @@ export default function Combobox({
               {options.map((o) => (
                 <CommandItem
                   key={o.value}
-                  value={`${o.label} ${o.hint || ""}`}
+                  value={matchPrefix ? (o.label || "") : `${o.label} ${o.hint || ""}`}
                   data-testid={`${optionTestidPrefix}-${o.value}`}
                   onSelect={() => { onChange(o.value, o); setOpen(false); }}
                   className="flex items-center justify-between gap-2"

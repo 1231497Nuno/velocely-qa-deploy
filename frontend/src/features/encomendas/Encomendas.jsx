@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
@@ -16,8 +18,6 @@ import {
 
 export default function Encomendas() {
   const { can } = useAuth();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState("pendentes");
   const [soSemOf, setSoSemOf] = useState(false);
@@ -26,8 +26,18 @@ export default function Encomendas() {
   const nav = useNavigate();
   const { sort, toggle, apply } = useSort();
 
-  const load = useCallback(async () => setItems(await api.get("/encomendas")), []);
-  useEffect(() => { load(); }, [load]);
+  const extraParams = useMemo(() => {
+    const p = {};
+    if (estadoFilter === "pendentes") p.estado_grupo = "pendentes";
+    if (estadoFilter === "concluidas") p.estado_grupo = "concluidas";
+    return p;
+  }, [estadoFilter]);
+
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/encomendas", { extraParams });
+
   useEffect(() => { if (searchParams.get("semof") === "1") { setSoSemOf(true); setEstadoFilter("todas"); } }, [searchParams]);
 
   const create = async () => {
@@ -47,75 +57,87 @@ export default function Encomendas() {
     e.stopPropagation();
     await api.del(`/encomendas/${id}`);
     toast.success("Encomenda eliminada");
-    load();
+    reload();
   };
 
-  const ql = q.trim().toLowerCase();
-  const matchQ = (e) =>
-    !ql || [e.numero, e.cliente, e.orcamento_numero].some((v) => (v || "").toLowerCase().includes(ql));
-  const base = items.filter(matchQ);
-  const pendentes = base.filter((e) => e.estado !== "concluida" && e.estado !== "cancelada");
-  const concluidas = base.filter((e) => e.estado === "concluida");
-  const byTab =
-    estadoFilter === "pendentes" ? pendentes :
-    estadoFilter === "concluidas" ? concluidas :
-    base;
-  const items_alert = soSemOf ? byTab.filter((e) => e.tem_artigos_sem_of) : byTab;
-  const rows = apply(items_alert);
+  const pageItems = soSemOf ? items.filter((e) => e.tem_artigos_sem_of) : items;
+  const rows = apply(pageItems);
   const numSemOf = items.filter((e) => e.tem_artigos_sem_of).length;
   const payBadge = { pendente: "pendente", parcial: "parcial", pago: "pago" };
   const hoje = new Date().toISOString().slice(0, 10);
 
-  const Tab = ({ id, label, count }) => (
-    <button
-      data-testid={`enc-filtro-${id}`}
-      onClick={() => setEstadoFilter(id)}
-      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${estadoFilter === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-    >
-      {label}
-      <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${estadoFilter === id ? "bg-white/20" : "bg-gray-100 text-gray-500"}`}>{count}</span>
-    </button>
-  );
+  const Tab = ({ id, label }) => {
+    const active = estadoFilter === id;
+    return (
+      <button
+        data-testid={`enc-filtro-${id}`}
+        onClick={() => setEstadoFilter(id)}
+        className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+      >
+        {label}
+        {active && (
+          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <div>
-      <PageHeader
-        title="Encomendas"
-        subtitle="Encomendas de clientes e respetivas ordens de fabrico"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportExcelButton entity="encomendas" ids={items_alert.map((e) => e.id)} />
-            {can("encomendas", "create") && (
-              <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
-            )}
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Encomendas"
+          subtitle="Encomendas de clientes e respetivas ordens de fabrico"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExportExcelButton entity="encomendas" ids={pageItems.map((e) => e.id)} />
+              {can("encomendas", "create") && (
+                <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
+              )}
+            </div>
+          }
+        />
+      }
+      toolbar={
+        <>
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou orçamento..." testid="encomendas-search" />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Tab id="pendentes" label="Pendentes" />
+              <Tab id="concluidas" label="Concluídas" />
+              <Tab id="todas" label="Todas" />
+            </div>
+            <button
+              data-testid="enc-filtro-sem-of"
+              onClick={() => setSoSemOf((v) => !v)}
+              className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+            >
+              <AlertTriangle size={15} className={soSemOf ? "text-white" : "text-red-500"} /> Artigos por produzir
+              {numSemOf > 0 && (
+                <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${soSemOf ? "bg-white/20" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>
+              )}
+            </button>
           </div>
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou orçamento..." testid="encomendas-search" />
-
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Tab id="pendentes" label="Pendentes" count={pendentes.length} />
-          <Tab id="concluidas" label="Concluídas" count={concluidas.length} />
-          <Tab id="todas" label="Todas" count={base.length} />
-        </div>
-        <button
-          data-testid="enc-filtro-sem-of"
-          onClick={() => setSoSemOf((v) => !v)}
-          className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-        >
-          <AlertTriangle size={15} className={soSemOf ? "text-white" : "text-red-500"} /> Artigos por produzir
-          {numSemOf > 0 && (
-            <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${soSemOf ? "bg-white/20" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>
-          )}
-        </button>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+        </>
+      }
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="encomendas-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[680px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <SortTh label="Nº" sortKey="numero" sort={sort} onSort={toggle} />
               <SortTh label="Cliente" sortKey="cliente" sort={sort} onSort={toggle} />
               <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} />
@@ -125,7 +147,7 @@ export default function Encomendas() {
               <SortTh label="OFs" sortKey="num_ofs" sort={sort} onSort={toggle} align="center" />
               <SortTh label="Produção" sortKey="progresso_producao" sort={sort} onSort={toggle} align="center" />
               <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="center" />
-              <th className="px-4 py-3 w-20"></th>
+              <th className="px-4 py-3 w-20 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="encomendas-table">
@@ -158,7 +180,7 @@ export default function Encomendas() {
                 </td>
                 <td className="px-4 py-3 text-center"><StatusBadge status={e.estado} /></td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
+                  <div className="flex items-center justify-end gap-1" onClick={(ev) => ev.stopPropagation()}>
                     {can("encomendas", "create") && <button data-testid={`duplicate-encomenda-${e.id}`} onClick={(ev) => duplicar(ev, e.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>}
                     {can("encomendas", "delete") && <button data-testid={`delete-encomenda-${e.id}`} onClick={(ev) => remove(ev, e.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
                   </div>
@@ -168,7 +190,8 @@ export default function Encomendas() {
             {rows.length === 0 && <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
+    </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -196,6 +219,6 @@ export default function Encomendas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

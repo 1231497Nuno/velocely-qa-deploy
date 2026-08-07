@@ -97,6 +97,14 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra, cate
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Valor de Compra (€)</label>
             <input data-testid="artigo-valor-input" type="number" step="0.01" value={form.custo_artigo} onChange={(e) => setForm({ ...form, custo_artigo: e.target.value })} placeholder="custo de aquisição" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
           </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Fabricante</label>
+            <input data-testid="artigo-fabricante-input" value={form.fabricante || ""} onChange={(e) => setForm({ ...form, fabricante: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Fornecedor</label>
+            <input data-testid="artigo-fornecedor-input" value={form.fornecedor_nome || ""} onChange={(e) => setForm({ ...form, fornecedor_nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+          </div>
         </div>
         </div>
       </section>

@@ -1,12 +1,12 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel, Field, model_validator
+from typing import List, Optional, Literal
 
 from app.core.database import new_id, now_iso
 
 
 # ----------------------- RBAC -----------------------
 RBAC_MODULES = [
-    "dashboard", "clientes", "encomendas", "artigos", "categorias", "materiais", "maquinas", "mao_obra",
+    "dashboard", "clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "artigos", "categorias", "materiais", "maquinas", "mao_obra",
     "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "rentabilidade",
     "financeiro", "calendario", "historico", "definicoes", "utilizadores",
 ]
@@ -25,7 +25,7 @@ def perms_colaborador() -> dict:
     for m in ("orcamentos", "ordens_fabrico"):
         p[m]["create"] = True
         p[m]["edit"] = True
-    for m in ("clientes", "encomendas", "financeiro"):
+    for m in ("clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "financeiro"):
         p[m]["create"] = True
         p[m]["edit"] = True
     return p
@@ -166,6 +166,7 @@ class Operacao(BaseModel):
 class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     codigo: str = ""
+    codigo_origem: str = ""
     nome: str
     descricao: str = ""
     unidade: str = "un"
@@ -176,6 +177,17 @@ class Artigo(BaseModel):
     subcategoria_nome: str = ""
     custo_artigo: float = 0.0
     margem: float = 30.0
+    ativo: bool = True
+    fabricante: str = ""
+    cod_fabricante: str = ""
+    fornecedor_id: Optional[str] = None
+    fornecedor_nome: str = ""
+    cod_fornecedor: str = ""
+    website: str = ""
+    comprimento_mm: float = 0.0
+    largura_mm: float = 0.0
+    espessura_mm: float = 0.0
+    responsavel: str = ""
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
@@ -192,6 +204,18 @@ class ArtigoInput(BaseModel):
     subcategoria_nome: str = ""
     custo_artigo: float = 0.0
     margem: float = 30.0
+    ativo: bool = True
+    fabricante: str = ""
+    cod_fabricante: str = ""
+    fornecedor_id: Optional[str] = None
+    fornecedor_nome: str = ""
+    cod_fornecedor: str = ""
+    website: str = ""
+    comprimento_mm: float = 0.0
+    largura_mm: float = 0.0
+    espessura_mm: float = 0.0
+    responsavel: str = ""
+    codigo_origem: str = ""
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
 
@@ -278,6 +302,7 @@ class MaterialLinha(BaseModel):
 
 class ClienteInput(BaseModel):
     nome: str
+    tipo: Literal["empresa", "particular"] = "empresa"
     morada: str = ""
     codigo_postal: str = ""
     cidade: str = ""
@@ -286,9 +311,213 @@ class ClienteInput(BaseModel):
     email: str = ""
     nif: str = ""
     notas: str = ""
+    responsavel: str = ""
+
+    @model_validator(mode="after")
+    def _validar_nome_e_nif(self):
+        nome = (self.nome or "").strip()
+        if not nome:
+            raise ValueError("Nome obrigatório")
+        self.nome = nome
+        self.morada = (self.morada or "").strip()
+        self.codigo_postal = (self.codigo_postal or "").strip()
+        self.cidade = (self.cidade or "").strip()
+        self.pais = (self.pais or "").strip() or "Portugal"
+        self.contacto = (self.contacto or "").strip()
+        self.email = (self.email or "").strip()
+        self.nif = "".join((self.nif or "").split())
+        self.notas = (self.notas or "").strip()
+        self.responsavel = (self.responsavel or "").strip()
+
+        if self.tipo == "empresa":
+            faltam = []
+            if not self.nif:
+                faltam.append("NIF")
+            if not self.morada:
+                faltam.append("morada")
+            if not self.codigo_postal:
+                faltam.append("código postal")
+            if not self.cidade:
+                faltam.append("cidade")
+            if not self.contacto:
+                faltam.append("contacto")
+            if not self.email:
+                faltam.append("email")
+            if faltam:
+                raise ValueError(
+                    "Para empresas são obrigatórios: " + ", ".join(faltam)
+                )
+        return self
 
 
 class Cliente(ClienteInput):
+    id: str = Field(default_factory=new_id)
+    codigo: str = ""
+    codigo_origem: str = ""
+    created_at: str = Field(default_factory=now_iso)
+
+
+class FornecedorInput(BaseModel):
+    nome: str
+    tipo: Literal["empresa", "particular"] = "empresa"
+    morada: str = ""
+    codigo_postal: str = ""
+    cidade: str = ""
+    pais: str = "Portugal"
+    contacto: str = ""
+    email: str = ""
+    nif: str = ""
+    website: str = ""
+    categoria: str = ""
+    notas: str = ""
+    responsavel: str = ""
+
+    @model_validator(mode="after")
+    def _validar_fornecedor(self):
+        nome = (self.nome or "").strip()
+        if not nome:
+            raise ValueError("Nome obrigatório")
+        self.nome = nome
+        self.morada = (self.morada or "").strip()
+        self.codigo_postal = (self.codigo_postal or "").strip()
+        self.cidade = (self.cidade or "").strip()
+        self.pais = (self.pais or "").strip() or "Portugal"
+        self.contacto = (self.contacto or "").strip()
+        self.email = (self.email or "").strip()
+        self.nif = "".join((self.nif or "").split())
+        self.website = (self.website or "").strip()
+        self.categoria = (self.categoria or "").strip()
+        self.notas = (self.notas or "").strip()
+        self.responsavel = (self.responsavel or "").strip()
+
+        if self.tipo == "empresa":
+            faltam = []
+            if not self.nif:
+                faltam.append("NIF")
+            if not self.morada:
+                faltam.append("morada")
+            if not self.codigo_postal:
+                faltam.append("código postal")
+            if not self.cidade:
+                faltam.append("cidade")
+            if not self.contacto:
+                faltam.append("contacto")
+            if not self.email:
+                faltam.append("email")
+            if faltam:
+                raise ValueError(
+                    "Para empresas são obrigatórios: " + ", ".join(faltam)
+                )
+        return self
+
+
+class Fornecedor(FornecedorInput):
+    id: str = Field(default_factory=new_id)
+    codigo: str = ""
+    codigo_origem: str = ""
+    created_at: str = Field(default_factory=now_iso)
+
+
+# ----------------------- Ordens de compra / despesas -----------------------
+# compra = matéria-prima/stock para vender; despesa_normal = operacional;
+# despesa_diversa = extraordinário (hotéis, anúncios, portes…)
+TIPO_DESPESA_PT = {
+    "compra": "Compra",
+    "despesa_normal": "Despesa",
+    "despesa_diversa": "Despesa diversa",
+}
+TIPO_DESPESA_DESC = {
+    "compra": "Matéria-prima e stock para vender ou transformar",
+    "despesa_normal": "Custos operacionais (água, luz, telecom, gasóleo, renda…)",
+    "despesa_diversa": "Extras pontuais (hotéis, anúncios, rifas, portes…)",
+}
+OC_ESTADO_PT = {
+    "criada": "Criada",
+    "recebida": "Recebida",
+    "cancelada": "Cancelada",
+}
+
+
+class OrdemCompraLinha(BaseModel):
+    id: str = Field(default_factory=new_id)
+    nome: str = ""
+    quantidade: float = 1.0
+    preco_unit: float = 0.0
+    desconto: float = 0.0
+    comentario: str = ""
+    artigo_id: Optional[str] = None
+    artigo_nome: str = ""
+
+
+class OrdemCompraInput(BaseModel):
+    assunto: str = ""
+    fornecedor_id: Optional[str] = None
+    fornecedor_nome: str = ""
+    tipo_compra: str = ""  # Consumiveis | Produtos | Outros | Manutenção | Portes (CRM)
+    tipo_despesa: Literal["compra", "despesa_normal", "despesa_diversa"] = "despesa_diversa"
+    estado: Literal["criada", "recebida", "cancelada"] = "criada"
+    data: str = ""
+    vencimento: str = ""
+    data_pagamento: str = ""
+    subtotal: float = 0.0
+    total: float = 0.0
+    valor_pago: float = 0.0
+    desconto_percentual: float = 0.0
+    valor_desconto: float = 0.0
+    valor_taxa: float = 0.0
+    moeda: str = "EUR"
+    responsavel: str = ""
+    tipologia: str = ""
+    transportadora: str = ""
+    notas: str = ""
+    linhas: List[OrdemCompraLinha] = Field(default_factory=list)
+
+
+class OrdemCompra(OrdemCompraInput):
+    id: str = Field(default_factory=new_id)
+    codigo: str = ""
+    codigo_origem: str = ""
+    created_at: str = Field(default_factory=now_iso)
+
+
+# ----------------------- Pedidos de cotação (RFQ) -----------------------
+PC_ESTADO_PT = {
+    "rascunho": "Rascunho",
+    "enviado": "Enviado",
+    "respondido": "Respondido",
+    "cancelado": "Cancelado",
+    "adjudicado": "Adjudicado",
+}
+
+
+class PedidoCotacaoLinha(BaseModel):
+    id: str = Field(default_factory=new_id)
+    nome: str = ""
+    quantidade: float = 1.0
+    unidade: str = "un"
+    notas: str = ""
+    artigo_id: Optional[str] = None
+    artigo_nome: str = ""
+    preco_unit_cotado: Optional[float] = None
+
+
+class PedidoCotacaoInput(BaseModel):
+    assunto: str = ""
+    fornecedor_id: Optional[str] = None
+    fornecedor_nome: str = ""
+    estado: Literal["rascunho", "enviado", "respondido", "cancelado", "adjudicado"] = "rascunho"
+    data: str = ""
+    prazo_resposta: str = ""
+    valor_cotado: Optional[float] = None
+    moeda: str = "EUR"
+    responsavel: str = ""
+    notas: str = ""
+    linhas: List[PedidoCotacaoLinha] = Field(default_factory=list)
+    ordem_compra_id: Optional[str] = None
+    ordem_compra_codigo: str = ""
+
+
+class PedidoCotacao(PedidoCotacaoInput):
     id: str = Field(default_factory=new_id)
     codigo: str = ""
     created_at: str = Field(default_factory=now_iso)

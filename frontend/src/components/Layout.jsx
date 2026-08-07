@@ -22,6 +22,7 @@ import {
   Shield,
   LogOut,
   Contact,
+  Truck,
   ClipboardList,
   Settings,
   CalendarClock,
@@ -30,6 +31,8 @@ import {
   Layers,
   ChevronDown,
   Wallet,
+  ShoppingCart,
+  FileQuestion,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -39,6 +42,8 @@ const NAV_GROUPS = [
     items: [
       { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos", modulo: "orcamentos" },
       { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
+      { to: "/pedidos-cotacao", label: "Pedidos de Cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
+      { to: "/ordens-compra", label: "Ordens de Compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
       { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
       { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" },
       { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
@@ -61,6 +66,7 @@ const NAV_GROUPS = [
     label: "Comercial",
     items: [
       { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
+      { to: "/fornecedores", label: "Fornecedores", icon: Truck, tid: "nav-fornecedores", modulo: "fornecedores" },
       { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade" },
     ],
   },
@@ -323,9 +329,9 @@ export default function Layout({ children }) {
   );
 }
 
-export function PageHeader({ title, subtitle, actions }) {
+export function PageHeader({ title, subtitle, actions, className = "" }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
+    <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 ${className}`}>
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 font-display">
           {title}

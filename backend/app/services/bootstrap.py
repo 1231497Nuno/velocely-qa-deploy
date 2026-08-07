@@ -229,10 +229,10 @@ async def seed_demo_negocio() -> bool:
     hoje = date.today()
 
     clientes_specs = [
-        {"nome": "PrintShop Lisboa", "cidade": "Lisboa", "email": "encomendas@printshop.pt", "nif": "501234567", "contacto": "912 345 678"},
-        {"nome": "Merchandising Norte", "cidade": "Porto", "email": "compras@merchnorte.pt", "nif": "508765432", "contacto": "913 222 111"},
-        {"nome": "Eventos & Brindes Lda", "cidade": "Braga", "email": "geral@eventosbrindes.pt", "nif": "509998877", "contacto": "914 555 000"},
-        {"nome": "Café Central", "cidade": "Coimbra", "email": "cafe@central.pt", "nif": "510112233", "contacto": "239 111 222"},
+        {"nome": "PrintShop Lisboa", "tipo": "empresa", "cidade": "Lisboa", "email": "encomendas@printshop.pt", "nif": "501234567", "contacto": "912 345 678"},
+        {"nome": "Merchandising Norte", "tipo": "empresa", "cidade": "Porto", "email": "compras@merchnorte.pt", "nif": "508765432", "contacto": "913 222 111"},
+        {"nome": "Eventos & Brindes Lda", "tipo": "empresa", "cidade": "Braga", "email": "geral@eventosbrindes.pt", "nif": "509998877", "contacto": "914 555 000"},
+        {"nome": "Café Central", "tipo": "empresa", "cidade": "Coimbra", "email": "cafe@central.pt", "nif": "510112233", "contacto": "239 111 222"},
     ]
     clientes = []
     for spec in clientes_specs:

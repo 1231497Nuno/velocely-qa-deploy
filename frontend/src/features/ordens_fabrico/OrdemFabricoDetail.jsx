@@ -29,12 +29,20 @@ export default function OrdemFabricoDetail() {
   const [, setTick] = useState(0);
 
   const load = useCallback(async () => {
-    setOf(await api.get(`/ordens-fabrico/${id}`));
-    setArtigos(await api.get("/artigos"));
-    setTipos(await api.get("/tipos-personalizacao"));
-    setMaquinas(await api.get("/maquinas"));
-    setMaoObra(await api.get("/mao-obra"));
-    setUtilizadores(await api.get("/utilizadores-lista").catch(() => []));
+    const [ofData, arts, tipos, maqs, mos, users] = await Promise.all([
+      api.get(`/ordens-fabrico/${id}`),
+      api.get("/artigos?lite=1"),
+      api.get("/tipos-personalizacao"),
+      api.get("/maquinas"),
+      api.get("/mao-obra"),
+      api.get("/utilizadores-lista").catch(() => []),
+    ]);
+    setOf(ofData);
+    setArtigos(arts);
+    setTipos(tipos);
+    setMaquinas(maqs);
+    setMaoObra(mos);
+    setUtilizadores(users);
   }, [id]);
   useEffect(() => {
     load();

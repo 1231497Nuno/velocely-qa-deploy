@@ -1,6 +1,6 @@
 """Serviço de custeio e regras de produção (Orçamentos, OFs, Encomendas)."""
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from app.core.database import round2, new_id
 from app.domain.models import OFOperacao
@@ -44,37 +44,15 @@ def op_minutos_mao_obra(op: dict) -> float:
 
 
 async def artigo_breakdown(artigo: dict) -> dict:
-    custo_materiais = 0.0
-    cons_cache = {}
-    for mat in artigo.get("materiais", []):
-        cid = mat.get("material_id")
-        custo_unit = mat.get("custo_unitario") or 0
-        if cid:
-            if cid not in cons_cache:
-                c = await consumiveis_repo.get(cid)
-                cons_cache[cid] = c.get("custo_unitario") if c else None
-            if cons_cache[cid] is not None:
-                custo_unit = cons_cache[cid]
-        custo_materiais += (mat.get("quantidade") or 0) * custo_unit
+    """Custo/preço do artigo. Sem materiais/roteiro → cálculo síncrono (sem I/O)."""
+    mats = artigo.get("materiais") or []
+    roteiro = artigo.get("roteiro") or []
+    if not mats and not roteiro:
+        return _artigo_breakdown_from_parts(artigo, 0.0, 0.0, 0.0)
+    return await _artigo_breakdown_with_lookups(artigo, mats, roteiro)
 
-    custo_maquinas = 0.0
-    custo_mao_obra = 0.0
-    maq_cache = {}
-    mo_cache = {}
-    for op in artigo.get("roteiro", []):
-        mid = op.get("maquina_id")
-        if mid:
-            if mid not in maq_cache:
-                m = await maquinas_repo.get(mid)
-                maq_cache[mid] = maquina_custo_hora(m)
-            custo_maquinas += (op_minutos_maquina(op) / 60.0) * maq_cache[mid]
-        moid = op.get("mao_obra_id")
-        if moid:
-            if moid not in mo_cache:
-                mo = await mao_obra_repo.get(moid)
-                mo_cache[moid] = (mo or {}).get("custo_hora", 0.0)
-            custo_mao_obra += (op_minutos_mao_obra(op) / 60.0) * mo_cache[moid]
 
+def _artigo_breakdown_from_parts(artigo: dict, custo_materiais: float, custo_maquinas: float, custo_mao_obra: float) -> dict:
     custo_materiais = round2(custo_materiais)
     custo_maquinas = round2(custo_maquinas)
     custo_mao_obra = round2(custo_mao_obra)
@@ -90,6 +68,109 @@ async def artigo_breakdown(artigo: dict) -> dict:
         "custo_mao_obra": custo_mao_obra,
         "custo_producao_total": custo_total,
         "preco_venda": round2(custo_total * (1 + margem / 100.0)),
+    }
+
+
+def artigo_breakdown_with_caches(
+    artigo: dict,
+    cons_by_id: Optional[dict] = None,
+    maq_by_id: Optional[dict] = None,
+    mo_by_id: Optional[dict] = None,
+) -> dict:
+    """Breakdown síncrono com mapas pré-carregados (listagens em lote)."""
+    cons_by_id = cons_by_id or {}
+    maq_by_id = maq_by_id or {}
+    mo_by_id = mo_by_id or {}
+    custo_materiais = 0.0
+    for mat in artigo.get("materiais") or []:
+        cid = mat.get("material_id")
+        custo_unit = mat.get("custo_unitario") or 0
+        if cid and cid in cons_by_id and cons_by_id[cid] is not None:
+            custo_unit = cons_by_id[cid]
+        custo_materiais += (mat.get("quantidade") or 0) * custo_unit
+    custo_maquinas = 0.0
+    custo_mao_obra = 0.0
+    for op in artigo.get("roteiro") or []:
+        mid = op.get("maquina_id")
+        if mid and mid in maq_by_id:
+            custo_maquinas += (op_minutos_maquina(op) / 60.0) * maq_by_id[mid]
+        moid = op.get("mao_obra_id")
+        if moid and moid in mo_by_id:
+            custo_mao_obra += (op_minutos_mao_obra(op) / 60.0) * mo_by_id[moid]
+    return _artigo_breakdown_from_parts(artigo, custo_materiais, custo_maquinas, custo_mao_obra)
+
+
+async def _artigo_breakdown_with_lookups(artigo: dict, mats: list, roteiro: list) -> dict:
+    cons_ids = {m.get("material_id") for m in mats if m.get("material_id")}
+    maq_ids = {op.get("maquina_id") for op in roteiro if op.get("maquina_id")}
+    mo_ids = {op.get("mao_obra_id") for op in roteiro if op.get("mao_obra_id")}
+    cons_by_id, maq_by_id, mo_by_id = {}, {}, {}
+    if cons_ids:
+        for c in await consumiveis_repo.find({"id": {"$in": list(cons_ids)}}, limit=len(cons_ids) + 5):
+            cons_by_id[c["id"]] = c.get("custo_unitario")
+    if maq_ids:
+        for m in await maquinas_repo.find({"id": {"$in": list(maq_ids)}}, limit=len(maq_ids) + 5):
+            maq_by_id[m["id"]] = maquina_custo_hora(m)
+    if mo_ids:
+        for mo in await mao_obra_repo.find({"id": {"$in": list(mo_ids)}}, limit=len(mo_ids) + 5):
+            mo_by_id[mo["id"]] = mo.get("custo_hora", 0.0)
+    return artigo_breakdown_with_caches(artigo, cons_by_id, maq_by_id, mo_by_id)
+
+
+async def enrich_artigos_list(rows: list) -> list:
+    """Enriquece uma página de artigos com 0–3 queries extra (nunca N+1)."""
+    if not rows:
+        return []
+    cons_ids, maq_ids, mo_ids = set(), set(), set()
+    needs_lookup = False
+    for a in rows:
+        mats = a.get("materiais") or []
+        roteiro = a.get("roteiro") or []
+        if mats or roteiro:
+            needs_lookup = True
+        for mat in mats:
+            if mat.get("material_id"):
+                cons_ids.add(mat["material_id"])
+        for op in roteiro:
+            if op.get("maquina_id"):
+                maq_ids.add(op["maquina_id"])
+            if op.get("mao_obra_id"):
+                mo_ids.add(op["mao_obra_id"])
+    cons_by_id, maq_by_id, mo_by_id = {}, {}, {}
+    if needs_lookup:
+        if cons_ids:
+            for c in await consumiveis_repo.find({"id": {"$in": list(cons_ids)}}, limit=len(cons_ids) + 5):
+                cons_by_id[c["id"]] = c.get("custo_unitario")
+        if maq_ids:
+            for m in await maquinas_repo.find({"id": {"$in": list(maq_ids)}}, limit=len(maq_ids) + 5):
+                maq_by_id[m["id"]] = maquina_custo_hora(m)
+        if mo_ids:
+            for mo in await mao_obra_repo.find({"id": {"$in": list(mo_ids)}}, limit=len(mo_ids) + 5):
+                mo_by_id[mo["id"]] = mo.get("custo_hora", 0.0)
+    return [
+        enrich_artigo(a, artigo_breakdown_with_caches(a, cons_by_id, maq_by_id, mo_by_id))
+        for a in rows
+    ]
+
+
+def artigo_lite(artigo: dict) -> dict:
+    """Payload mínimo para selectors (sem BOM/roteiro/descrição longa)."""
+    custo = round2(artigo.get("custo_artigo") or 0)
+    margem = artigo.get("margem")
+    if margem is None:
+        margem = 30.0
+    return {
+        "id": artigo.get("id"),
+        "codigo": artigo.get("codigo") or "",
+        "nome": artigo.get("nome") or "",
+        "unidade": artigo.get("unidade") or "un",
+        "custo_artigo": custo,
+        "margem": margem,
+        "categoria_id": artigo.get("categoria_id"),
+        "categoria_nome": artigo.get("categoria_nome") or "",
+        "subcategoria_id": artigo.get("subcategoria_id"),
+        "subcategoria_nome": artigo.get("subcategoria_nome") or "",
+        "preco_venda": round2(custo * (1 + float(margem) / 100.0)),
     }
 
 
@@ -447,8 +528,37 @@ def encomenda_artigos_total(enc: dict) -> float:
 
 
 async def compute_encomenda(enc: dict) -> dict:
-    enc = {**enc}
     ofs = await ordens_repo.find({"encomenda_id": enc["id"]})
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    orc = None
+    if enc.get("orcamento_id"):
+        orc = await orcamentos_repo.get(enc["orcamento_id"])
+    return _compute_encomenda_core(enc, ofs, settings, orc)
+
+
+async def compute_encomendas_many(encs: list) -> list:
+    """Enriquece várias encomendas com lookups em lote (OFs, orçamentos, empresa)."""
+    if not encs:
+        return []
+    ids = [e["id"] for e in encs if e.get("id")]
+    ofs_all = await ordens_repo.find({"encomenda_id": {"$in": ids}}, limit=max(5000, len(ids) * 20)) if ids else []
+    ofs_by: dict = {}
+    for o in ofs_all:
+        ofs_by.setdefault(o.get("encomenda_id"), []).append(o)
+    orc_ids = list({e["orcamento_id"] for e in encs if e.get("orcamento_id")})
+    orc_by = {}
+    if orc_ids:
+        for o in await orcamentos_repo.find({"id": {"$in": orc_ids}}, limit=len(orc_ids) + 10):
+            orc_by[o["id"]] = o
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    return [
+        _compute_encomenda_core(e, ofs_by.get(e.get("id"), []), settings, orc_by.get(e.get("orcamento_id")))
+        for e in encs
+    ]
+
+
+def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[dict] = None) -> dict:
+    enc = {**enc}
     ofs = [recompute_of_status(o) for o in ofs]
     enc["num_ofs"] = len(ofs)
 
@@ -494,9 +604,10 @@ async def compute_encomenda(enc: dict) -> dict:
 
     if enc.get("valor_total_manual") and enc.get("valor_total") is not None:
         valor = enc.get("valor_total") or 0
+    elif enc.get("orcamento_id") and orc:
+        valor = compute_orcamento_totais(orc)["total"]
     elif enc.get("orcamento_id"):
-        orc = await orcamentos_repo.get(enc["orcamento_id"])
-        valor = compute_orcamento_totais(orc)["total"] if orc else encomenda_artigos_total(enc)
+        valor = encomenda_artigos_total(enc)
     else:
         valor = encomenda_artigos_total(enc)
     enc["valor_total"] = round2(valor)
@@ -505,8 +616,7 @@ async def compute_encomenda(enc: dict) -> dict:
     enc["desconto_linhas"] = bd["desconto_linhas"]
     enc["desconto_total_valor"] = bd["desconto_total_valor"]
 
-    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
-    enc.update(iva_calc(enc["valor_total"], settings))
+    enc.update(iva_calc(enc["valor_total"], settings or {}))
     base_pagamento = enc["total_com_iva"]
 
     pago = enc.get("valor_pago") or 0

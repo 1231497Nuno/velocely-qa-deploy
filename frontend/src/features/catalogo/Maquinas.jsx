@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -20,17 +22,14 @@ const empty = { nome: "", custo_amortizacao_hora: 0, custo_energia_hora: 0 };
 
 export default function Maquinas() {
   const { can } = useAuth();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/maquinas");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
-
-  const load = useCallback(async () => setItems(await api.get("/maquinas")), []);
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const openNew = () => {
     setForm(empty);
@@ -58,53 +57,64 @@ export default function Maquinas() {
     else await api.post("/maquinas", body);
     toast.success("Máquina guardada");
     setOpen(false);
-    load();
+    reload();
   };
 
   const remove = async (id) => {
     await api.del(`/maquinas/${id}`);
     toast.success("Máquina eliminada");
-    load();
+    reload();
   };
 
   const totalHora = (Number(form.custo_amortizacao_hora) || 0) + (Number(form.custo_energia_hora) || 0);
 
-  const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((m) => [m.codigo, m.nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
-
   return (
-    <div>
-      <PageHeader
-        title="Máquinas"
-        subtitle="Custo de amortização/desgaste e energia por hora"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportExcelButton entity="maquinas" ids={items_f.map((m) => m.id)} />
-            {can("maquinas", "create") && (
-              <button data-testid="new-maquina-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-                <Plus size={16} /> Nova Máquina
-              </button>
-            )}
-          </div>
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar máquinas por código ou nome..." testid="maquinas-search" />
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Máquinas"
+          subtitle="Custo de amortização/desgaste e energia por hora"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExportExcelButton entity="maquinas" ids={items.map((m) => m.id)} />
+              {can("maquinas", "create") && (
+                <button data-testid="new-maquina-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                  <Plus size={16} /> Nova Máquina
+                </button>
+              )}
+            </div>
+          }
+        />
+      }
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar máquinas por código ou nome..." testid="maquinas-search" />}
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="maquinas-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[560px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Amortização / h</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Energia / h</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Total / h</th>
-              <th className="px-4 py-3 w-24"></th>
+              <th className="px-4 py-3 w-24 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="maquinas-table">
-            {items_f.map((m) => (
+            {items.map((m) => (
               <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{m.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{m.nome}</td>
@@ -120,12 +130,13 @@ export default function Maquinas() {
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && (
+            {items.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem máquinas. Crie a primeira.</td></tr>
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
+    </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -161,6 +172,6 @@ export default function Maquinas() {
       </Dialog>
 
       <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
-    </div>
+    </>
   );
 }

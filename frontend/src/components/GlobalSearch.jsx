@@ -23,15 +23,16 @@ export default function GlobalSearch({ onNavigate }) {
   }, []);
 
   useEffect(() => {
-    if (q.trim().length < 2) { setRes([]); return; }
+    const ql = q.trim();
+    if (!ql) { setRes([]); setOpen(false); setLoading(false); return; }
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const d = await api.get(`/search?q=${encodeURIComponent(q.trim())}`);
+        const d = await api.get(`/search?q=${encodeURIComponent(ql)}`);
         setRes(d.resultados || []);
         setOpen(true);
       } finally { setLoading(false); }
-    }, 250);
+    }, 150);
     return () => clearTimeout(t);
   }, [q]);
 

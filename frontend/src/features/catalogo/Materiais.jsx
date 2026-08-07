@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -21,17 +23,14 @@ const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", 
 
 export default function Materiais() {
   const { can } = useAuth();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/consumiveis");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
-
-  const load = useCallback(async () => setItems(await api.get("/consumiveis")), []);
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const openNew = () => {
     setForm(empty);
@@ -51,50 +50,61 @@ export default function Materiais() {
     else await api.post("/consumiveis", body);
     toast.success("Material guardado");
     setOpen(false);
-    load();
+    reload();
   };
 
   const remove = async (id) => {
     await api.del(`/consumiveis/${id}`);
     toast.success("Material eliminado");
-    load();
+    reload();
   };
 
-  const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((c) => [c.codigo, c.nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
-
   return (
-    <div>
-      <PageHeader
-        title="Materiais"
-        subtitle="Consumíveis e respetivo custo unitário usados nas receitas dos artigos"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportExcelButton entity="materiais" ids={items_f.map((c) => c.id)} />
-            {can("materiais", "create") && (
-              <button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-                <Plus size={16} /> Novo Material
-              </button>
-            )}
-          </div>
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar materiais por código ou nome..." testid="materiais-search" />
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Materiais"
+          subtitle="Consumíveis e respetivo custo unitário usados nas receitas dos artigos"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExportExcelButton entity="materiais" ids={items.map((c) => c.id)} />
+              {can("materiais", "create") && (
+                <button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                  <Plus size={16} /> Novo Material
+                </button>
+              )}
+            </div>
+          }
+        />
+      }
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar materiais por código ou nome..." testid="materiais-search" />}
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="materiais-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[560px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Unidade</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Custo Unitário</th>
-              <th className="px-4 py-3 w-24"></th>
+              <th className="px-4 py-3 w-24 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="materiais-table">
-            {items_f.map((c) => (
+            {items.map((c) => (
               <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{c.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
@@ -109,12 +119,13 @@ export default function Materiais() {
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && (
+            {items.length === 0 && (
               <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Sem materiais. Crie o primeiro.</td></tr>
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
+    </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -148,6 +159,6 @@ export default function Materiais() {
       </Dialog>
 
       <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
-    </div>
+    </>
   );
 }

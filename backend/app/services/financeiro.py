@@ -74,23 +74,44 @@ async def list_recibos_fatura(fatura_id: str) -> list:
 
 async def enrich_documento(doc: dict) -> dict:
     """Acrescenta recibos, valor liquidado/pendente e status de pagamento às faturas."""
-    doc = {**doc}
-    if doc.get("tipo") in DOC_TIPOS_COM_RECIBOS:
-        recibos = await list_recibos_fatura(doc["id"])
-        doc["recibos"] = recibos
-        total_pago = round2(sum((r.get("valor_pago") or 0) for r in recibos))
-        if not recibos and doc.get("tipo") == "fatura_recibo":
-            total_pago = round2(doc.get("valor_pago") or 0)
-        total = round2(doc.get("total") or 0)
-        doc["valor_liquidado"] = total_pago
-        doc["valor_pendente"] = round2(max(0.0, total - total_pago))
-        if total_pago <= 0:
-            doc["status_pagamento"] = "pendente"
-        elif total_pago < total - 0.009:
-            doc["status_pagamento"] = "parcial"
-        else:
-            doc["status_pagamento"] = "pago"
-    return doc
+    return (await enrich_documentos_many([doc]))[0]
+
+
+async def enrich_documentos_many(docs: list) -> list:
+    """Enriquece documentos em lote (1 query de recibos para a página)."""
+    if not docs:
+        return []
+    fatura_ids = [d["id"] for d in docs if d.get("tipo") in DOC_TIPOS_COM_RECIBOS and d.get("id")]
+    recibos_by: dict = {fid: [] for fid in fatura_ids}
+    if fatura_ids:
+        recibos = await documentos_financeiros_repo.find(
+            {"tipo": "recibo", "fatura_id": {"$in": fatura_ids}, "estado": {"$ne": "anulada"}},
+            sort=("created_at", 1),
+            limit=max(500, len(fatura_ids) * 20),
+        )
+        for r in recibos:
+            recibos_by.setdefault(r.get("fatura_id"), []).append(r)
+
+    out = []
+    for doc in docs:
+        d = {**doc}
+        if d.get("tipo") in DOC_TIPOS_COM_RECIBOS:
+            recibos = recibos_by.get(d.get("id"), [])
+            d["recibos"] = recibos
+            total_pago = round2(sum((r.get("valor_pago") or 0) for r in recibos))
+            if not recibos and d.get("tipo") == "fatura_recibo":
+                total_pago = round2(d.get("valor_pago") or 0)
+            total = round2(d.get("total") or 0)
+            d["valor_liquidado"] = total_pago
+            d["valor_pendente"] = round2(max(0.0, total - total_pago))
+            if total_pago <= 0:
+                d["status_pagamento"] = "pendente"
+            elif total_pago < total - 0.009:
+                d["status_pagamento"] = "parcial"
+            else:
+                d["status_pagamento"] = "pago"
+        out.append(d)
+    return out
 
 
 async def _registar_pagamento_encomenda(enc_id: Optional[str], valor: float, metodo: str, recibo_numero: str, data: str):
@@ -162,6 +183,7 @@ async def build_doc_from_encomenda(
     metodo_pagamento: str = "transferencia",
     notas: str = "",
     linhas_parcial: Optional[List[LinhaParcialInput]] = None,
+    adiantamento: bool = False,
 ) -> dict:
     if tipo not in DOC_TIPOS_PRINCIPAIS:
         raise HTTPException(
@@ -173,6 +195,16 @@ async def build_doc_from_encomenda(
         raise HTTPException(400, "Não é possível emitir faturas de uma encomenda cancelada")
 
     enc_c = await compute_encomenda(enc)
+
+    # Proforma: livre (sem valor fiscal). Fatura / fatura-recibo: preferir após
+    # produção concluída; adiantamento explícito permite emitir antes.
+    if tipo in TIPOS_CONSUMAM_QTD and enc_c.get("estado") != "concluida" and not adiantamento:
+        raise HTTPException(
+            400,
+            "A fatura fiscal emite-se normalmente quando a encomenda está concluída "
+            "(material pronto). Confirma «adiantamento» para emitir antes, "
+            "ou usa proforma enquanto a produção não termina.",
+        )
     settings = await empresa_repo.find_one({"id": "empresa"}) or {}
     artigos_by_id = {a.get("id"): a for a in (enc_c.get("artigos") or []) if a.get("id")}
 
@@ -269,16 +301,28 @@ async def emitir_from_encomenda(
     notas: str = "",
     valor: Optional[float] = None,  # noqa: ARG001
     linhas: Optional[List[LinhaParcialInput]] = None,
+    adiantamento: bool = False,
 ) -> dict:
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
 
+    enc_c = await compute_encomenda(enc)
+    notas_finais = notas or ""
+    if (
+        adiantamento
+        and tipo in TIPOS_CONSUMAM_QTD
+        and enc_c.get("estado") != "concluida"
+    ):
+        if "adiantamento" not in notas_finais.lower():
+            notas_finais = f"Adiantamento. {notas_finais}".strip() if notas_finais else "Adiantamento"
+
     doc = await build_doc_from_encomenda(
-        enc, tipo,
+        enc_c, tipo,
         metodo_pagamento=metodo_pagamento,
-        notas=notas,
+        notas=notas_finais,
         linhas_parcial=linhas,
+        adiantamento=adiantamento,
     )
     await documentos_financeiros_repo.insert(doc)
 

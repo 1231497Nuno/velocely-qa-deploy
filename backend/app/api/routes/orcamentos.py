@@ -1,12 +1,13 @@
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core.database import now_iso, new_id, next_sequence, round2
 from app.core.security import get_current_user, require_perm
+from app.core.pagination import parse_page, page_payload, text_search, apply_status_filter
 from app.domain.models import OrcamentoInput, Orcamento, Encomenda, STATUS_PT
 from app.repositories import orcamentos_repo, encomendas_repo
 from app.services.costing import (
@@ -28,9 +29,25 @@ class EnviarEmailBody(BaseModel):
 
 
 @router.get("/orcamentos")
-async def list_orcamentos(_u: dict = Depends(require_perm("orcamentos", "view"))):
-    orcs = await orcamentos_repo.find(sort=("created_at", -1))
-    return [compute_orcamento_totais(o) for o in orcs]
+async def list_orcamentos(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    status: Optional[str] = Query(None),
+    _u: dict = Depends(require_perm("orcamentos", "view")),
+):
+    query = {}
+    apply_status_filter(query, status)
+    ts = text_search(["numero", "cliente", "descricao", "numero_encomenda"], q)
+    if ts:
+        query.update(ts)
+    if page is None:
+        orcs = await orcamentos_repo.find(query, sort=("created_at", -1), limit=5000)
+        return [compute_orcamento_totais(o) for o in orcs]
+    p, ps, skip = parse_page(page, page_size)
+    total = await orcamentos_repo.count(query)
+    orcs = await orcamentos_repo.find(query, sort=("created_at", -1), limit=ps, skip=skip)
+    return page_payload([compute_orcamento_totais(o) for o in orcs], total, p, ps)
 
 
 @router.get("/orcamentos/{oid}")

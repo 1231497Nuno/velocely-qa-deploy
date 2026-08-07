@@ -18,10 +18,19 @@ class Repository:
             p.update(projection)
         return p
 
-    async def find(self, query: Optional[dict] = None, sort=None, limit: int = 1000, projection: Optional[dict] = None):
+    async def find(
+        self,
+        query: Optional[dict] = None,
+        sort=None,
+        limit: int = 1000,
+        skip: int = 0,
+        projection: Optional[dict] = None,
+    ):
         cur = self.col.find(query or {}, self._proj(projection))
         if sort:
             cur = cur.sort(sort[0], sort[1])
+        if skip:
+            cur = cur.skip(int(skip))
         return await cur.to_list(limit)
 
     async def find_one(self, query: dict, projection: Optional[dict] = None):
@@ -70,6 +79,9 @@ tipos_repo = Repository("tipos_personalizacao")
 orcamentos_repo = Repository("orcamentos")
 ordens_repo = Repository("ordens_fabrico")
 clientes_repo = Repository("clientes")
+fornecedores_repo = Repository("fornecedores")
+ordens_compra_repo = Repository("ordens_compra")
+pedidos_cotacao_repo = Repository("pedidos_cotacao")
 encomendas_repo = Repository("encomendas")
 documentos_financeiros_repo = Repository("documentos_financeiros")
 empresa_repo = Repository("empresa_settings")

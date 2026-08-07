@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -19,17 +21,14 @@ const empty = { nome: "", descricao: "", valor: 0, tempo: 0 };
 
 export default function TiposPersonalizacao() {
   const { can } = useAuth();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/tipos-personalizacao");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
-
-  const load = useCallback(async () => setItems(await api.get("/tipos-personalizacao")), []);
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const openNew = () => {
     setForm(empty);
@@ -49,46 +48,57 @@ export default function TiposPersonalizacao() {
     else await api.post("/tipos-personalizacao", body);
     toast.success("Tipo guardado");
     setOpen(false);
-    load();
+    reload();
   };
 
   const remove = async (id) => {
     await api.del(`/tipos-personalizacao/${id}`);
     toast.success("Tipo eliminado");
-    load();
+    reload();
   };
 
-  const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((t) => [t.codigo, t.nome, t.descricao].some((v) => (v || "").toLowerCase().includes(ql))) : items;
-
   return (
-    <div>
-      <PageHeader
-        title="Tipos de Personalização"
-        subtitle="Catálogo de técnicas de personalização disponíveis"
-        actions={
-          can("personalizacao","create") && (<button data-testid="new-tipo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-            <Plus size={16} /> Novo Tipo
-          </button>)
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="personalizacao-search" />
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Tipos de Personalização"
+          subtitle="Catálogo de técnicas de personalização disponíveis"
+          actions={
+            can("personalizacao","create") && (<button data-testid="new-tipo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+              <Plus size={16} /> Novo Tipo
+            </button>)
+          }
+        />
+      }
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="personalizacao-search" />}
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="tipos-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[560px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tempo M.O.</th>
-              <th className="px-4 py-3 w-24"></th>
+              <th className="px-4 py-3 w-24 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="tipos-table">
-            {items_f.map((t) => (
+            {items.map((t) => (
               <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{t.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{t.nome}</td>
@@ -104,12 +114,13 @@ export default function TiposPersonalizacao() {
                 </td>
               </tr>
             ))}
-            {items_f.length === 0 && (
+            {items.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem tipos de personalização.</td></tr>
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
+    </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -145,6 +156,6 @@ export default function TiposPersonalizacao() {
       </Dialog>
 
       <UtilizacoesDialog open={!!uso} onOpenChange={(v) => !v && setUso(null)} endpoint={uso?.endpoint} titulo={uso?.titulo} subtitulo={uso?.subtitulo} />
-    </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 from typing import List, Optional
+import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.domain.models import (
     Maquina, MaquinaInput, Consumivel, ConsumivelInput, MaoObra, MaoObraInput,
@@ -9,15 +10,62 @@ from app.domain.models import (
 )
 from app.core.database import new_id, now_iso, round2
 from app.core.security import get_current_user, require_perm
+from app.core.pagination import parse_page, page_payload, text_search
 from app.repositories import (
     maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo,
     orcamentos_repo, encomendas_repo, ordens_repo, categorias_repo, subcategorias_repo,
 )
-from app.services.costing import artigo_breakdown, enrich_artigo, compute_orcamento_totais, compute_encomenda, recompute_of_status
+from app.services.costing import (
+    artigo_breakdown, enrich_artigo, enrich_artigos_list, artigo_lite,
+    compute_orcamento_totais, compute_encomenda, recompute_of_status,
+)
 from app.services.numeracao import next_codigo
 from app.services import audit
 
 router = APIRouter()
+
+
+async def _list_or_page(repo, query, sort, page, page_size, map_fn=None):
+    if page is None:
+        items = await repo.find(query, sort=sort, limit=5000)
+        return [map_fn(i) if map_fn else i for i in items] if map_fn else items
+    p, ps, skip = parse_page(page, page_size)
+    total, items = await asyncio.gather(
+        repo.count(query),
+        repo.find(query, sort=sort, limit=ps, skip=skip),
+    )
+    if map_fn:
+        items = [map_fn(i) for i in items]
+    return page_payload(items, total, p, ps)
+
+
+async def _subcategoria_counts(categoria_ids: list) -> dict:
+    """Conta subcategorias por categoria numa única agregação (evita N+1)."""
+    if not categoria_ids:
+        return {}
+    from app.core.database import db
+    pipeline = [
+        {"$match": {"categoria_id": {"$in": list(categoria_ids)}}},
+        {"$group": {"_id": "$categoria_id", "n": {"$sum": 1}}},
+    ]
+    rows = await db.subcategorias.aggregate(pipeline).to_list(length=len(categoria_ids) + 10)
+    return {r["_id"]: int(r.get("n") or 0) for r in rows if r.get("_id")}
+
+
+async def _list_categorias_page(page, page_size, query):
+    """Lista categorias com contagem de subcategorias na página."""
+    if page is None:
+        items = await categorias_repo.find(query, sort=("nome", 1), limit=5000)
+        return items
+    p, ps, skip = parse_page(page, page_size)
+    total, items = await asyncio.gather(
+        categorias_repo.count(query),
+        categorias_repo.find(query, sort=("nome", 1), limit=ps, skip=skip),
+    )
+    counts = await _subcategoria_counts([c["id"] for c in items if c.get("id")])
+    for c in items:
+        c["num_subcategorias"] = counts.get(c["id"], 0)
+    return page_payload(items, total, p, ps)
 
 
 async def _resolve_categorias(data: dict) -> dict:
@@ -48,9 +96,18 @@ async def _resolve_categorias(data: dict) -> dict:
 
 
 # ----------------------- Máquinas -----------------------
-@router.get("/maquinas", response_model=List[Maquina])
-async def list_maquinas(_u: dict = Depends(require_perm("maquinas", "view"))):
-    return await maquinas_repo.find(sort=("nome", 1))
+@router.get("/maquinas")
+async def list_maquinas(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    _u: dict = Depends(require_perm("maquinas", "view")),
+):
+    query = {}
+    ts = text_search(["nome", "codigo", "descricao"], q)
+    if ts:
+        query.update(ts)
+    return await _list_or_page(maquinas_repo, query, ("nome", 1), page, page_size)
 
 
 @router.post("/maquinas", response_model=Maquina)
@@ -86,9 +143,18 @@ async def delete_maquina(mid: str, user: dict = Depends(require_perm("maquinas",
 
 
 # ----------------------- Consumíveis (Materiais) -----------------------
-@router.get("/consumiveis", response_model=List[Consumivel])
-async def list_consumiveis(_u: dict = Depends(require_perm("materiais", "view"))):
-    return await consumiveis_repo.find(sort=("nome", 1))
+@router.get("/consumiveis")
+async def list_consumiveis(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    _u: dict = Depends(require_perm("materiais", "view")),
+):
+    query = {}
+    ts = text_search(["nome", "codigo", "unidade"], q)
+    if ts:
+        query.update(ts)
+    return await _list_or_page(consumiveis_repo, query, ("nome", 1), page, page_size)
 
 
 @router.post("/consumiveis", response_model=Consumivel)
@@ -124,9 +190,18 @@ async def delete_consumivel(cid: str, user: dict = Depends(require_perm("materia
 
 
 # ----------------------- Mão de Obra -----------------------
-@router.get("/mao-obra", response_model=List[MaoObra])
-async def list_mao_obra(_u: dict = Depends(require_perm("mao_obra", "view"))):
-    return await mao_obra_repo.find(sort=("nome", 1))
+@router.get("/mao-obra")
+async def list_mao_obra(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    _u: dict = Depends(require_perm("mao_obra", "view")),
+):
+    query = {}
+    ts = text_search(["nome", "codigo"], q)
+    if ts:
+        query.update(ts)
+    return await _list_or_page(mao_obra_repo, query, ("nome", 1), page, page_size)
 
 
 @router.post("/mao-obra", response_model=MaoObra)
@@ -163,12 +238,33 @@ async def delete_mao_obra(mid: str, user: dict = Depends(require_perm("mao_obra"
 
 # ----------------------- Artigos -----------------------
 @router.get("/artigos")
-async def list_artigos(_u: dict = Depends(require_perm("artigos", "view"))):
-    artigos = await artigos_repo.find(sort=("nome", 1))
-    result = []
-    for a in artigos:
-        result.append(enrich_artigo(a, await artigo_breakdown(a)))
-    return result
+async def list_artigos(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    lite: bool = Query(False, description="Payload mínimo para selectors (sem BOM/custeio pesado)"),
+    _u: dict = Depends(require_perm("artigos", "view")),
+):
+    query = {}
+    ts = text_search(["nome", "codigo", "descricao", "categoria_nome", "subcategoria_nome"], q)
+    if ts:
+        query.update(ts)
+
+    if page is None:
+        artigos = await artigos_repo.find(query, sort=("nome", 1), limit=5000)
+        if lite:
+            return [artigo_lite(a) for a in artigos]
+        return await enrich_artigos_list(artigos)
+    p, ps, skip = parse_page(page, page_size)
+    total, artigos = await asyncio.gather(
+        artigos_repo.count(query),
+        artigos_repo.find(query, sort=("nome", 1), limit=ps, skip=skip),
+    )
+    if lite:
+        items = [artigo_lite(a) for a in artigos]
+    else:
+        items = await enrich_artigos_list(artigos)
+    return page_payload(items, total, p, ps)
 
 
 @router.get("/artigos/{aid}")
@@ -303,9 +399,18 @@ async def duplicar_artigo(aid: str, user: dict = Depends(require_perm("artigos",
 
 
 # ----------------------- Tipos de Personalização -----------------------
-@router.get("/tipos-personalizacao", response_model=List[TipoPersonalizacao])
-async def list_tipos(_u: dict = Depends(require_perm("personalizacao", "view"))):
-    return await tipos_repo.find(sort=("nome", 1))
+@router.get("/tipos-personalizacao")
+async def list_tipos(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    _u: dict = Depends(require_perm("personalizacao", "view")),
+):
+    query = {}
+    ts = text_search(["nome", "codigo"], q)
+    if ts:
+        query.update(ts)
+    return await _list_or_page(tipos_repo, query, ("nome", 1), page, page_size)
 
 
 @router.post("/tipos-personalizacao", response_model=TipoPersonalizacao)
@@ -341,9 +446,18 @@ async def delete_tipo(tid: str, user: dict = Depends(require_perm("personalizaca
 
 
 # ----------------------- Categorias -----------------------
-@router.get("/categorias", response_model=List[Categoria])
-async def list_categorias(_u: dict = Depends(require_perm("artigos", "view"))):
-    return await categorias_repo.find(sort=("nome", 1))
+@router.get("/categorias")
+async def list_categorias(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    _u: dict = Depends(require_perm("artigos", "view")),
+):
+    query = {}
+    ts = text_search(["nome", "codigo"], q)
+    if ts:
+        query.update(ts)
+    return await _list_categorias_page(page, page_size, query)
 
 
 @router.post("/categorias", response_model=Categoria)
@@ -387,10 +501,19 @@ async def delete_categoria(cid: str, user: dict = Depends(require_perm("artigos"
 
 
 # ----------------------- Subcategorias -----------------------
-@router.get("/subcategorias", response_model=List[Subcategoria])
-async def list_subcategorias(categoria_id: Optional[str] = None, _u: dict = Depends(require_perm("artigos", "view"))):
-    q = {"categoria_id": categoria_id} if categoria_id else {}
-    return await subcategorias_repo.find(q, sort=("nome", 1))
+@router.get("/subcategorias")
+async def list_subcategorias(
+    categoria_id: Optional[str] = None,
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    _u: dict = Depends(require_perm("artigos", "view")),
+):
+    query = {"categoria_id": categoria_id} if categoria_id else {}
+    ts = text_search(["nome", "codigo", "categoria_nome"], q)
+    if ts:
+        query = {"$and": [query, ts]} if query else ts
+    return await _list_or_page(subcategorias_repo, query, ("nome", 1), page, page_size)
 
 
 @router.post("/subcategorias", response_model=Subcategoria)

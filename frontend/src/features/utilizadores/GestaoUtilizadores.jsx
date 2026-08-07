@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
+import SearchBar from "@/components/SearchBar";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Shield, User, Users as UsersIcon, Lock, KeyRound, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -11,7 +14,10 @@ const emptyUser = { login: "", email: "", name: "", cargo: "", perfil_id: "" };
 
 export default function GestaoUtilizadores() {
   const [tab, setTab] = useState("users");
-  const [users, setUsers] = useState([]);
+  const {
+    items: users, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload: reloadUsers, rangeLabel,
+  } = useServerPagedList("/users", { enabled: tab === "users" });
   const [perfis, setPerfis] = useState([]);
   const [meta, setMeta] = useState({ modulos: [], acoes: [] });
 
@@ -26,12 +32,11 @@ export default function GestaoUtilizadores() {
   const [pForm, setPForm] = useState(null);
   const [pEditId, setPEditId] = useState(null);
 
-  const load = useCallback(async () => {
-    setUsers(await api.get("/users"));
+  const loadMeta = useCallback(async () => {
     setPerfis(await api.get("/perfis"));
     setMeta(await api.get("/rbac/modulos"));
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadMeta(); }, [loadMeta]);
 
   // ---- users ----
   const openNewUser = () => { setUForm({ ...emptyUser, perfil_id: perfis.find((p) => !p.admin)?.id || perfis[0]?.id || "" }); setUEditId(null); setUOpen(true); };
@@ -69,7 +74,7 @@ export default function GestaoUtilizadores() {
         showInvite(res);
       }
       setUOpen(false);
-      load();
+      reloadUsers();
     } catch (e) { toast.error(errMsg(e)); }
   };
   const reinvitar = async (u) => {
@@ -77,7 +82,7 @@ export default function GestaoUtilizadores() {
       const res = await api.post(`/users/${u.id}/reinvitar`);
       toast.success("Novo código gerado");
       showInvite(res);
-      load();
+      reloadUsers();
     } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao gerar código"); }
   };
   const copyInvite = async () => {
@@ -91,7 +96,7 @@ export default function GestaoUtilizadores() {
     }
   };
   const removeUser = async (id) => {
-    try { await api.del(`/users/${id}`); toast.success("Utilizador eliminado"); load(); }
+    try { await api.del(`/users/${id}`); toast.success("Utilizador eliminado"); reloadUsers(); }
     catch (e) { toast.error(e?.response?.data?.detail || "Erro ao eliminar"); }
   };
 
@@ -119,11 +124,11 @@ export default function GestaoUtilizadores() {
       else await api.post("/perfis", body);
       toast.success("Perfil guardado");
       setPOpen(false);
-      load();
+      loadMeta();
     } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao guardar"); }
   };
   const removePerfil = async (id) => {
-    try { await api.del(`/perfis/${id}`); toast.success("Perfil eliminado"); load(); }
+    try { await api.del(`/perfis/${id}`); toast.success("Perfil eliminado"); loadMeta(); }
     catch (e) { toast.error(e?.response?.data?.detail || "Erro ao eliminar"); }
   };
 
@@ -137,35 +142,58 @@ export default function GestaoUtilizadores() {
   );
 
   return (
-    <div>
-      <PageHeader
-        title="Gestão de Utilizadores"
-        subtitle="Faça a gestão de logins e defina perfis de acesso por módulo e ação"
-        actions={
-          tab === "users" ? (
-            <button data-testid="new-user-btn" onClick={openNewUser} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Utilizador</button>
-          ) : (
-            <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Perfil</button>
-          )
-        }
-      />
-
-      <div className="flex items-center gap-2 mb-4">
-        <Tab id="users" icon={UsersIcon} label="Utilizadores" />
-        <Tab id="perfis" icon={Shield} label="Perfis & Acessos" />
-      </div>
-
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Gestão de Utilizadores"
+          subtitle="Faça a gestão de logins e defina perfis de acesso por módulo e ação"
+          actions={
+            tab === "users" ? (
+              <button data-testid="new-user-btn" onClick={openNewUser} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Utilizador</button>
+            ) : (
+              <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Perfil</button>
+            )
+          }
+        />
+      }
+      toolbar={
+        <>
+          <div className="flex items-center gap-2">
+            <Tab id="users" icon={UsersIcon} label="Utilizadores" />
+            <Tab id="perfis" icon={Shield} label="Perfis & Acessos" />
+          </div>
+          {tab === "users" && (
+            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por login, nome ou email..." testid="users-search" />
+          )}
+        </>
+      }
+      footer={
+        tab === "users" ? (
+          <ListPagination
+            page={page}
+            pages={pages}
+            total={total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            rangeLabel={rangeLabel}
+            testid="users-pagination"
+          />
+        ) : null
+      }
+    >
       {tab === "users" && (
-        <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+        <ScrollableTable>
           <table className="w-full text-sm min-w-[560px]">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
+            <thead className={TABLE_HEAD_STICKY}>
+              <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Login</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Email</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Perfil</th>
-                <th className="px-4 py-3 w-32"></th>
+                <th className="px-4 py-3 w-32 bg-gray-50"></th>
               </tr>
             </thead>
             <tbody data-testid="users-table">
@@ -198,11 +226,11 @@ export default function GestaoUtilizadores() {
               {users.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Sem utilizadores.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
       )}
 
       {tab === "perfis" && (
-        <div className="space-y-3" data-testid="perfis-list">
+        <div className="flex-1 min-h-0 overflow-auto space-y-3" data-testid="perfis-list">
           {perfis.map((p) => (
             <div key={p.id} data-testid={`perfil-card-${p.id}`} className="bg-white border border-gray-200 rounded-sm p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -228,6 +256,7 @@ export default function GestaoUtilizadores() {
           ))}
         </div>
       )}
+    </ListPage>
 
       {/* User dialog */}
       <Dialog open={uOpen} onOpenChange={setUOpen}>
@@ -355,6 +384,6 @@ export default function GestaoUtilizadores() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

@@ -11,7 +11,7 @@ from openpyxl.utils import get_column_letter
 from app.core.database import new_id, now_iso
 from app.repositories import (
     artigos_repo, categorias_repo, clientes_repo, consumiveis_repo,
-    encomendas_repo, mao_obra_repo, maquinas_repo, orcamentos_repo,
+    encomendas_repo, fornecedores_repo, mao_obra_repo, maquinas_repo, orcamentos_repo,
     ordens_repo, subcategorias_repo,
 )
 from app.services.numeracao import next_codigo
@@ -21,6 +21,7 @@ MAX_ROWS = 5000
 # entity_key → módulo RBAC
 ENTITY_PERM = {
     "clientes": "clientes",
+    "fornecedores": "fornecedores",
     "artigos": "artigos",
     "materiais": "materiais",
     "maquinas": "maquinas",
@@ -43,15 +44,22 @@ SHEETS: Dict[str, Dict[str, Any]] = {
     "clientes": {
         "title": "Clientes",
         "columns": [
-            "codigo", "nome", "morada", "codigo_postal", "cidade", "pais",
+            "codigo", "nome", "tipo", "morada", "codigo_postal", "cidade", "pais",
             "contacto", "email", "nif", "notas",
+        ],
+    },
+    "fornecedores": {
+        "title": "Fornecedores",
+        "columns": [
+            "codigo", "nome", "tipo", "morada", "codigo_postal", "cidade", "pais",
+            "contacto", "email", "nif", "website", "categoria", "notas",
         ],
     },
     "artigos": {
         "title": "Artigos",
         "columns": [
             "codigo", "nome", "descricao", "unidade", "categoria", "subcategoria",
-            "custo_artigo", "margem",
+            "custo_artigo", "margem", "fabricante", "fornecedor", "cod_fornecedor",
         ],
     },
     "materiais": {
@@ -140,6 +148,7 @@ def _row_dict(headers: List[str], values: tuple) -> Dict[str, Any]:
 async def _load_docs(entity: str, ids: Optional[List[str]] = None) -> List[dict]:
     repo_map = {
         "clientes": clientes_repo,
+        "fornecedores": fornecedores_repo,
         "artigos": artigos_repo,
         "materiais": consumiveis_repo,
         "maquinas": maquinas_repo,
@@ -165,6 +174,7 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
         m = {
             "codigo": doc.get("codigo"),
             "nome": doc.get("nome"),
+            "tipo": doc.get("tipo") or ("empresa" if doc.get("nif") else "particular"),
             "morada": doc.get("morada"),
             "codigo_postal": doc.get("codigo_postal"),
             "cidade": doc.get("cidade"),
@@ -172,6 +182,22 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "contacto": doc.get("contacto"),
             "email": doc.get("email"),
             "nif": doc.get("nif"),
+            "notas": doc.get("notas"),
+        }
+    elif entity == "fornecedores":
+        m = {
+            "codigo": doc.get("codigo"),
+            "nome": doc.get("nome"),
+            "tipo": doc.get("tipo") or ("empresa" if doc.get("nif") else "particular"),
+            "morada": doc.get("morada"),
+            "codigo_postal": doc.get("codigo_postal"),
+            "cidade": doc.get("cidade"),
+            "pais": doc.get("pais"),
+            "contacto": doc.get("contacto"),
+            "email": doc.get("email"),
+            "nif": doc.get("nif"),
+            "website": doc.get("website"),
+            "categoria": doc.get("categoria"),
             "notas": doc.get("notas"),
         }
     elif entity == "artigos":
@@ -184,6 +210,9 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "subcategoria": doc.get("subcategoria_nome"),
             "custo_artigo": doc.get("custo_artigo"),
             "margem": doc.get("margem"),
+            "fabricante": doc.get("fabricante"),
+            "fornecedor": doc.get("fornecedor_nome"),
+            "cod_fornecedor": doc.get("cod_fornecedor"),
         }
     elif entity == "materiais":
         m = {
@@ -512,6 +541,24 @@ async def _upsert_row(entity: str, row: Dict[str, Any], *, dry_run: bool) -> Tup
             "nif": str(row.get("nif") or "").strip(),
             "notas": str(row.get("notas") or "").strip(),
         }
+        tipo_raw = str(row.get("tipo") or "").strip().lower().replace(" ", "_")
+        if tipo_raw in ("cliente_final", "cliente final"):
+            tipo_raw = "particular"
+        if tipo_raw in ("empresa", "particular"):
+            patch["tipo"] = tipo_raw
+        else:
+            patch["tipo"] = "empresa" if patch["nif"] else "particular"
+        if patch["tipo"] == "empresa":
+            faltam = [k for k, v in (
+                ("NIF", patch["nif"]),
+                ("morada", patch["morada"]),
+                ("código postal", patch["codigo_postal"]),
+                ("cidade", patch["cidade"]),
+                ("contacto", patch["contacto"]),
+                ("email", patch["email"]),
+            ) if not v]
+            if faltam:
+                return "error", "Para empresas são obrigatórios: " + ", ".join(faltam)
         existing = await clientes_repo.find_one({"codigo": codigo}) if codigo else None
         if not existing and patch["nif"]:
             existing = await clientes_repo.find_one({"nif": patch["nif"]})

@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user, require_perm
+from app.core.pagination import parse_page, page_payload, text_search_cliente
 from app.domain.models import Cliente, ClienteInput
 from app.repositories import clientes_repo, orcamentos_repo, encomendas_repo, ordens_repo
 from app.services.costing import compute_orcamento_totais, compute_encomenda, recompute_of_status
@@ -8,7 +11,10 @@ from app.services.numeracao import next_codigo
 from app.services import audit
 from app.core.database import round2
 
-_CLIENTE_CAMPOS = ["nome", "morada", "codigo_postal", "cidade", "pais", "contacto", "email", "nif", "notas"]
+_CLIENTE_CAMPOS = [
+    "nome", "tipo", "morada", "codigo_postal", "cidade", "pais",
+    "contacto", "email", "nif", "notas", "responsavel",
+]
 
 router = APIRouter()
 
@@ -95,8 +101,30 @@ async def cliente_resumo(cid: str, _u: dict = Depends(require_perm("clientes", "
 
 
 @router.get("/clientes")
-async def list_clientes(_u: dict = Depends(require_perm("clientes", "view"))):
-    return await clientes_repo.find(sort=("nome", 1), limit=5000)
+async def list_clientes(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    sort: str = Query("nome", description="Campo: nome | codigo"),
+    order: str = Query("asc", description="asc | desc"),
+    _u: dict = Depends(require_perm("clientes", "view")),
+):
+    query = {}
+    ts = text_search_cliente(q)
+    if ts:
+        query.update(ts)
+    sort_field = sort if sort in ("nome", "codigo") else "nome"
+    sort_dir = -1 if (order or "").lower() == "desc" else 1
+    sort_spec = (sort_field, sort_dir)
+    if page is None:
+        return await clientes_repo.find(query, sort=sort_spec, limit=5000)
+    import asyncio
+    p, ps, skip = parse_page(page, page_size)
+    total, items = await asyncio.gather(
+        clientes_repo.count(query),
+        clientes_repo.find(query, sort=sort_spec, limit=ps, skip=skip),
+    )
+    return page_payload(items, total, p, ps)
 
 
 @router.post("/clientes")

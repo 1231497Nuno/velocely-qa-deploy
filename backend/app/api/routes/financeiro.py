@@ -7,10 +7,11 @@ from pydantic import BaseModel
 from io import BytesIO
 
 from app.core.security import require_perm
+from app.core.pagination import parse_page, page_payload, text_search
 from app.domain.models import DOC_TIPOS_PRINCIPAIS, DOC_TIPO_PT
 from app.repositories import documentos_financeiros_repo, encomendas_repo
 from app.services.financeiro import (
-    emitir_from_encomenda, emitir_recibo_from_fatura, enrich_documento,
+    emitir_from_encomenda, emitir_recibo_from_fatura, enrich_documento, enrich_documentos_many,
     resumo_faturacao_encomenda, LinhaParcialInput,
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, build_documento_financeiro_pdf
@@ -30,6 +31,8 @@ class EmitirDocBody(BaseModel):
     notas: str = ""
     valor: Optional[float] = None
     linhas: Optional[List[EmitirLinhaBody]] = None
+    # Fatura / fatura-recibo antes da encomenda concluída (produção pronta)
+    adiantamento: bool = False
 
 
 class EmitirReciboBody(BaseModel):
@@ -41,6 +44,9 @@ class EmitirReciboBody(BaseModel):
 @router.get("/financeiro/documentos")
 async def list_documentos(
     tipo: Optional[str] = Query(None),
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
     _u: dict = Depends(require_perm("financeiro", "view")),
 ):
     query = {"tipo": {"$ne": "recibo"}}  # recibos vivem dentro da fatura
@@ -48,8 +54,19 @@ async def list_documentos(
         if tipo not in DOC_TIPOS_PRINCIPAIS:
             raise HTTPException(400, f"Tipo inválido. Use: {', '.join(DOC_TIPOS_PRINCIPAIS)}")
         query = {"tipo": tipo}
-    docs = await documentos_financeiros_repo.find(query, sort=("created_at", -1), limit=2000)
-    return [await enrich_documento(d) for d in docs]
+    ts = text_search(["numero", "cliente", "encomenda_numero"], q)
+    if ts:
+        query = {"$and": [query, ts]}
+    if page is None:
+        docs = await documentos_financeiros_repo.find(query, sort=("created_at", -1), limit=2000)
+        return await enrich_documentos_many(docs)
+    p, ps, skip = parse_page(page, page_size)
+    import asyncio
+    total, docs = await asyncio.gather(
+        documentos_financeiros_repo.count(query),
+        documentos_financeiros_repo.find(query, sort=("created_at", -1), limit=ps, skip=skip),
+    )
+    return page_payload(await enrich_documentos_many(docs), total, p, ps)
 
 
 @router.get("/financeiro/documentos/{did}")
@@ -166,6 +183,7 @@ async def emitir_documento_encomenda(
         notas=body.notas or "",
         valor=body.valor,
         linhas=linhas,
+        adiantamento=bool(body.adiantamento),
     )
 
 

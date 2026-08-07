@@ -21,6 +21,12 @@ import AnaliseProducao from "@/features/producao/AnaliseProducao";
 import GestaoUtilizadores from "@/features/utilizadores/GestaoUtilizadores";
 import Clientes from "@/features/clientes/Clientes";
 import ClienteDetail from "@/features/clientes/ClienteDetail";
+import Fornecedores from "@/features/fornecedores/Fornecedores";
+import FornecedorDetail from "@/features/fornecedores/FornecedorDetail";
+import OrdensCompra from "@/features/ordens_compra/OrdensCompra";
+import OrdemCompraDetail from "@/features/ordens_compra/OrdemCompraDetail";
+import PedidosCotacao from "@/features/pedidos_cotacao/PedidosCotacao";
+import PedidoCotacaoDetail from "@/features/pedidos_cotacao/PedidoCotacaoDetail";
 import Encomendas from "@/features/encomendas/Encomendas";
 import EncomendaDetail from "@/features/encomendas/EncomendaDetail";
 import Financeiro from "@/features/financeiro/Financeiro";
@@ -48,6 +54,12 @@ function AppRoutes() {
       <Route path="/calendario" element={<Protected modulo="calendario"><Calendario /></Protected>} />
       <Route path="/clientes" element={<Protected modulo="clientes"><Clientes /></Protected>} />
       <Route path="/clientes/:id" element={<Protected modulo="clientes"><ClienteDetail /></Protected>} />
+      <Route path="/fornecedores" element={<Protected modulo="fornecedores"><Fornecedores /></Protected>} />
+      <Route path="/fornecedores/:id" element={<Protected modulo="fornecedores"><FornecedorDetail /></Protected>} />
+      <Route path="/ordens-compra" element={<Protected modulo="ordens_compra"><OrdensCompra /></Protected>} />
+      <Route path="/ordens-compra/:id" element={<Protected modulo="ordens_compra"><OrdemCompraDetail /></Protected>} />
+      <Route path="/pedidos-cotacao" element={<Protected modulo="pedidos_cotacao"><PedidosCotacao /></Protected>} />
+      <Route path="/pedidos-cotacao/:id" element={<Protected modulo="pedidos_cotacao"><PedidoCotacaoDetail /></Protected>} />
       <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
       <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
       <Route path="/financeiro" element={<Protected modulo="financeiro"><Financeiro /></Protected>} />

@@ -1,10 +1,13 @@
 /**
  * Cliente HTTP — camada infrastructure.
+ *
+ * REACT_APP_BACKEND_URL definido → API absoluta (ex. http://localhost:8000/api).
+ * Vazio/omitido → /api no mesmo origin (nginx / proxy em staging).
  */
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
+export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 const client = axios.create({ baseURL: API });
 

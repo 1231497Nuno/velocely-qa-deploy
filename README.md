@@ -2,6 +2,8 @@
 
 Plataforma de **gestão de produção** — orçamentos, encomendas e ordens de fabrico.
 
+**Correr sem programar (Mac / Windows):** ver [`COMO-CORRER.md`](./COMO-CORRER.md) e a pasta [`iniciar/`](./iniciar/).
+
 ## Visão geral
 
 | Módulo | Descrição |
@@ -22,22 +24,11 @@ Plataforma de **gestão de produção** — orçamentos, encomendas e ordens de 
 ## Estrutura do repositório
 
 ```
+├── iniciar/           # Duplo-clique Mac / Windows (não-programador)
+├── COMO-CORRER.md     # Instruções simples
 ├── backend/           # API FastAPI
-│   ├── app/
-│   │   ├── api/       # Rotas HTTP
-│   │   ├── core/      # Config, DB, segurança
-│   │   ├── domain/    # Modelos
-│   │   ├── repositories/
-│   │   └── services/  # Custeio, PDF, storage, audit
-│   ├── tests/
-│   └── requirements.txt
 ├── frontend/          # Aplicação React
-│   └── src/
-│       ├── domain/           # formatadores / UI-domínio
-│       ├── infrastructure/   # cliente HTTP
-│       ├── features/         # módulos por domínio
-│       ├── components/       # UI partilhada
-│       └── lib/              # fachadas de compatibilidade
+├── scripts/           # Utilitários (seed, staging)
 ├── docs/              # Documentação do projeto
 └── README.md
 ```

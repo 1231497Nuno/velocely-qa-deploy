@@ -18,11 +18,17 @@ from app.core.database import client
 from app.core.security import auth_router
 from app.services.bootstrap import seed_perfis, seed_admin, seed_user_logins, seed_categorias
 from app.services.numeracao import backfill_codigos
-from app.repositories import users_repo
+from app.repositories import (
+    users_repo, artigos_repo, subcategorias_repo, clientes_repo, fornecedores_repo,
+    encomendas_repo, orcamentos_repo, ordens_repo, documentos_financeiros_repo, historico_repo,
+)
 from app.api.routes.catalog import router as catalog_router
 from app.api.routes.orcamentos import router as orcamentos_router
 from app.api.routes.ordens_fabrico import router as ordens_router
 from app.api.routes.clientes import router as clientes_router
+from app.api.routes.fornecedores import router as fornecedores_router
+from app.api.routes.ordens_compra import router as ordens_compra_router
+from app.api.routes.pedidos_cotacao import router as pedidos_cotacao_router
 from app.api.routes.encomendas import router as encomendas_router
 from app.api.routes.financeiro import router as financeiro_router
 from app.api.routes.settings import router as settings_router
@@ -68,9 +74,9 @@ app = FastAPI(
 
 api_router = APIRouter(prefix="/api")
 for r in (
-    catalog_router, orcamentos_router, ordens_router, clientes_router,
-    encomendas_router, financeiro_router, settings_router, analytics_router, admin_router,
-    historico_router, uploads_router, referencias_router, io_excel_router,
+    catalog_router, orcamentos_router, ordens_router, clientes_router, fornecedores_router,
+    ordens_compra_router, pedidos_cotacao_router, encomendas_router, financeiro_router, settings_router, analytics_router,
+    admin_router, historico_router, uploads_router, referencias_router, io_excel_router,
 ):
     api_router.include_router(r)
 
@@ -119,6 +125,36 @@ async def _startup_seed_admin() -> None:
     except Exception as e:
         logger.error(f"Storage init falhou: {e}")
     await users_repo.create_index("email", unique=True)
+    try:
+        # Índices para listagens / pesquisa / joins
+        await subcategorias_repo.create_index("categoria_id")
+        await artigos_repo.create_index("categoria_id")
+        await artigos_repo.create_index("codigo")
+        await artigos_repo.create_index("nome")
+        await clientes_repo.create_index("nome")
+        await clientes_repo.create_index("codigo")
+        await fornecedores_repo.create_index("nome")
+        await fornecedores_repo.create_index("codigo")
+        await encomendas_repo.create_index("cliente_id")
+        await encomendas_repo.create_index("estado")
+        await encomendas_repo.create_index("created_at")
+        await encomendas_repo.create_index("numero")
+        await orcamentos_repo.create_index("cliente_id")
+        await orcamentos_repo.create_index("status")
+        await orcamentos_repo.create_index("created_at")
+        await orcamentos_repo.create_index("numero")
+        await ordens_repo.create_index("encomenda_id")
+        await ordens_repo.create_index("status")
+        await ordens_repo.create_index("created_at")
+        await ordens_repo.create_index("numero")
+        await documentos_financeiros_repo.create_index("tipo")
+        await documentos_financeiros_repo.create_index("fatura_id")
+        await documentos_financeiros_repo.create_index("created_at")
+        await documentos_financeiros_repo.create_index("numero")
+        await historico_repo.create_index("timestamp")
+        await historico_repo.create_index("entidade_tipo")
+    except Exception as e:
+        logger.error(f"Índices catálogo falharam: {e}")
     await seed_perfis()
     await seed_admin()
     await seed_user_logins()

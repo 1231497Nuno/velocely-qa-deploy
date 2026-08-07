@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -19,13 +21,21 @@ import {
 import { ArtigoForm } from "@/features/artigos/ArtigoForm";
 import ImagemUpload from "@/components/ImagemUpload";
 
-const empty = { nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30, categoria_id: "", categoria_nome: "", subcategoria_id: "", subcategoria_nome: "", materiais: [], roteiro: [] };
+const empty = {
+  nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30,
+  categoria_id: "", categoria_nome: "", subcategoria_id: "", subcategoria_nome: "",
+  ativo: true, fabricante: "", cod_fabricante: "", fornecedor_id: "", fornecedor_nome: "",
+  cod_fornecedor: "", website: "", comprimento_mm: 0, largura_mm: 0, espessura_mm: 0,
+  responsavel: "", materiais: [], roteiro: [],
+};
 
 export default function Artigos() {
   const { can } = useAuth();
   const nav = useNavigate();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel, loading,
+  } = useServerPagedList("/artigos");
   const [maquinas, setMaquinas] = useState([]);
   const [consumiveis, setConsumiveis] = useState([]);
   const [maoObra, setMaoObra] = useState([]);
@@ -36,29 +46,37 @@ export default function Artigos() {
   const [editId, setEditId] = useState(null);
   const { sort, toggle, apply } = useSort();
 
-  const load = useCallback(async () => {
-    setItems(await api.get("/artigos"));
-    setMaquinas(await api.get("/maquinas"));
-    setConsumiveis(await api.get("/consumiveis"));
-    setMaoObra(await api.get("/mao-obra"));
+  const [formDataReady, setFormDataReady] = useState(false);
+
+  const loadFormData = useCallback(async () => {
+    if (formDataReady) return;
     try {
-      setCategorias(await api.get("/categorias"));
-      setSubcategorias(await api.get("/subcategorias"));
+      const [maq, cons, mo, cats, subs] = await Promise.all([
+        api.get("/maquinas"),
+        api.get("/consumiveis"),
+        api.get("/mao-obra"),
+        api.get("/categorias"),
+        api.get("/subcategorias"),
+      ]);
+      setMaquinas(maq);
+      setConsumiveis(cons);
+      setMaoObra(mo);
+      setCategorias(cats);
+      setSubcategorias(subs);
+      setFormDataReady(true);
     } catch {
       setCategorias([]);
       setSubcategorias([]);
     }
-  }, []);
-  useEffect(() => {
-    load();
-  }, [load]);
+  }, [formDataReady]);
 
-  const openNew = () => {
+  const openNew = async () => {
     setForm(empty);
     setEditId(null);
     setOpen(true);
+    await loadFormData();
   };
-  const openEdit = (a) => {
+  const openEdit = async (a) => {
     setForm({
       nome: a.nome,
       descricao: a.descricao || "",
@@ -70,11 +88,23 @@ export default function Artigos() {
       categoria_nome: a.categoria_nome || "",
       subcategoria_id: a.subcategoria_id || "",
       subcategoria_nome: a.subcategoria_nome || "",
+      ativo: a.ativo !== false,
+      fabricante: a.fabricante || "",
+      cod_fabricante: a.cod_fabricante || "",
+      fornecedor_id: a.fornecedor_id || "",
+      fornecedor_nome: a.fornecedor_nome || "",
+      cod_fornecedor: a.cod_fornecedor || "",
+      website: a.website || "",
+      comprimento_mm: a.comprimento_mm ?? 0,
+      largura_mm: a.largura_mm ?? 0,
+      espessura_mm: a.espessura_mm ?? 0,
+      responsavel: a.responsavel || "",
       materiais: a.materiais || [],
       roteiro: a.roteiro || [],
     });
     setEditId(a.id);
     setOpen(true);
+    await loadFormData();
   };
 
   const save = async () => {
@@ -105,48 +135,60 @@ export default function Artigos() {
     else await api.post("/artigos", body);
     toast.success("Artigo guardado");
     setOpen(false);
-    load();
+    reload();
   };
 
   const remove = async (id) => {
     await api.del(`/artigos/${id}`);
     toast.success("Artigo eliminado");
-    load();
+    reload();
   };
 
   const duplicar = async (id) => {
     await api.post(`/artigos/${id}/duplicar`);
     toast.success("Artigo duplicado");
-    load();
+    reload();
   };
 
-  const ql = q.trim().toLowerCase();
-  const items_f = ql ? items.filter((a) => [a.codigo, a.nome, a.descricao, a.categoria_nome, a.subcategoria_nome].some((v) => (v || "").toLowerCase().includes(ql))) : items;
-  const rows = apply(items_f);
+  const rows = apply(items);
 
   return (
-    <div>
-      <PageHeader
-        title="Artigos"
-        subtitle="Receita de materiais, roteiro de operações, custo e preço de venda"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportExcelButton entity="artigos" ids={items_f.map((a) => a.id)} />
-            {can("artigos", "create") && (
-              <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-                <Plus size={16} /> Novo Artigo
-              </button>
-            )}
-          </div>
-        }
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar artigos por código ou nome..." testid="artigos-search" />
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Artigos"
+          subtitle="Receita de materiais, roteiro de operações, custo e preço de venda"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExportExcelButton entity="artigos" ids={items.map((a) => a.id)} />
+              {can("artigos", "create") && (
+                <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                  <Plus size={16} /> Novo Artigo
+                </button>
+              )}
+            </div>
+          }
+        />
+      }
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar artigos por código ou nome..." testid="artigos-search" />}
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="artigos-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[720px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <SortTh label="Código" sortKey="codigo" sort={sort} onSort={toggle} />
               <SortTh label="Artigo" sortKey="nome" sort={sort} onSort={toggle} />
               <SortTh label="Categoria" sortKey="categoria_nome" sort={sort} onSort={toggle} />
@@ -157,21 +199,22 @@ export default function Artigos() {
               <SortTh label="Custo Total" sortKey="custo_producao_total" sort={sort} onSort={toggle} align="right" />
               <SortTh label="Margem" sortKey="margem" sort={sort} onSort={toggle} align="right" />
               <SortTh label="Preço Venda" sortKey="preco_venda" sort={sort} onSort={toggle} align="right" />
-              <th className="px-4 py-3 w-32"></th>
+              <th className="px-4 py-3 w-32 bg-gray-50"></th>
             </tr>
           </thead>
           <tbody data-testid="artigos-table">
             {rows.map((a) => (
-              <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <tr
+                key={a.id}
+                data-testid={`artigo-row-${a.id}`}
+                onClick={() => nav(`/artigos/${a.id}`)}
+                className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
                 <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{a.codigo || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
-                    <div className="min-w-0">
-                      <button data-testid={`artigo-nome-link-${a.id}`} onClick={() => nav(`/artigos/${a.id}`)} className="font-medium text-gray-900 hover:text-blue-600 hover:underline text-left">{a.nome}</button>
-                      {a.descricao && <div className="text-xs text-gray-500">{a.descricao}</div>}
-                      <div className="text-xs text-gray-400 mt-0.5">{(a.materiais || []).length} materiais · {(a.roteiro || []).length} operações</div>
-                    </div>
+                    <span data-testid={`artigo-nome-link-${a.id}`} className="font-medium text-gray-900 truncate">{a.nome}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-sm">{a.categoria_nome || "—"}</td>
@@ -182,7 +225,7 @@ export default function Artigos() {
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(a.custo_producao_total)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-500">{a.margem ?? 0}%</td>
                 <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">
                     {can("artigos","create") && (<button data-testid={`duplicate-artigo-${a.id}`} onClick={() => duplicar(a.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>)}
                     {can("artigos","edit") && (<button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
@@ -192,11 +235,12 @@ export default function Artigos() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-400 text-sm">Sem artigos.</td></tr>
+              <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem artigos."}</td></tr>
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
+    </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
@@ -213,6 +257,6 @@ export default function Artigos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

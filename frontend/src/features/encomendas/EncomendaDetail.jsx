@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, fmtDate, eur, API, getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { EncAlertas, EncKPIs, ClientePanel, OFsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
 import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
+import { DOC_TIPO_PT } from "@/features/financeiro/Financeiro";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 const METODO_PT = { transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY", cheque: "Cheque", cartao: "Cartão", outro: "Outro" };
@@ -30,35 +31,30 @@ export default function EncomendaDetail() {
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
   const [editValor, setEditValor] = useState(false);
-  const [pagValor, setPagValor] = useState("");
-  const [pagMetodo, setPagMetodo] = useState("transferencia");
-  const [pagNota, setPagNota] = useState("");
+  const [docs, setDocs] = useState([]);
   const [ofOpen, setOfOpen] = useState(false);
   const [ofQtys, setOfQtys] = useState({});
   const [emitOpen, setEmitOpen] = useState(false);
+  const [emitDefaultTipo, setEmitDefaultTipo] = useState("fatura");
 
-  const addPagamento = async (valorOverride, notaOverride) => {
-    const v = Number(valorOverride ?? pagValor);
-    if (!v || v <= 0) return toast.error("Indica um valor positivo");
-    const updated = await api.post(`/encomendas/${id}/pagamentos`, { valor: v, metodo: pagMetodo, nota: notaOverride ?? pagNota });
-    setEnc(updated); setPagValor(""); setPagNota("");
-    toast.success("Pagamento registado");
-  };
-  const delPagamento = async (pid) => {
-    const updated = await api.del(`/encomendas/${id}/pagamentos/${pid}`);
-    setEnc(updated); toast.success("Pagamento removido");
-  };
   const reciboUrl = (pid) => `${API}/encomendas/${id}/pagamentos/${pid}/recibo?auth=${getToken()}`;
 
   const load = useCallback(async () => {
     const e = await api.get(`/encomendas/${id}`);
     setEnc(e);
-    setArtigos(await api.get("/artigos"));
-    setTipos(await api.get("/tipos-personalizacao"));
+    const [arts, tiposData, cs, hist, docsData] = await Promise.all([
+      api.get("/artigos?lite=1"),
+      api.get("/tipos-personalizacao"),
+      e.cliente_id ? api.get("/clientes").catch(() => []) : Promise.resolve([]),
+      e.cliente_id ? api.get(`/clientes/${e.cliente_id}/historico-precos`).catch(() => []) : Promise.resolve([]),
+      api.get(`/encomendas/${id}/documentos`).catch(() => []),
+    ]);
+    setArtigos(arts);
+    setTipos(tiposData);
+    setDocs(Array.isArray(docsData) ? docsData : []);
     if (e.cliente_id) {
-      const cs = await api.get("/clientes");
-      setCliente(cs.find((c) => c.id === e.cliente_id) || null);
-      const hist = await api.get(`/clientes/${e.cliente_id}/historico-precos`).catch(() => []);
+      const clientes = Array.isArray(cs) ? cs : (cs.items || []);
+      setCliente(clientes.find((c) => c.id === e.cliente_id) || null);
       setPrecoHist(Object.fromEntries((hist || []).map((h) => [h.artigo_id, h])));
     }
   }, [id]);
@@ -68,6 +64,27 @@ export default function EncomendaDetail() {
     () => [cliente?.morada, cliente?.codigo_postal, cliente?.cidade, cliente?.pais].filter(Boolean).join(", "),
     [cliente]
   );
+
+  const faturaPendente = useMemo(() => {
+    return (docs || []).find((d) => {
+      if (d.estado === "anulada") return false;
+      if (d.tipo !== "fatura" && d.tipo !== "fatura_recibo") return false;
+      return (Number(d.valor_pendente) || 0) > 0.009;
+    }) || null;
+  }, [docs]);
+
+  const openEmitir = (tipo = "fatura") => {
+    setEmitDefaultTipo(tipo);
+    setEmitOpen(true);
+  };
+
+  const registarPagamento = () => {
+    if (faturaPendente) {
+      nav(`/financeiro/${faturaPendente.id}`);
+      return;
+    }
+    openEmitir("fatura_recibo");
+  };
 
   if (!enc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
@@ -214,13 +231,24 @@ export default function EncomendaDetail() {
             />
           )}
           {can("financeiro", "create") && enc.estado !== "cancelada" && (
-            <button
-              data-testid="enc-emitir-doc-btn"
-              onClick={() => setEmitOpen(true)}
-              className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
-            >
-              <FileOutput size={16} /> Emitir fatura
-            </button>
+            <>
+              <button
+                data-testid="enc-emitir-doc-btn"
+                onClick={() => openEmitir("fatura")}
+                className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+              >
+                <FileOutput size={16} /> Emitir fatura
+              </button>
+              {(enc.valor_pendente || 0) > 0 && (
+                <button
+                  data-testid="enc-registar-pagamento-btn"
+                  onClick={registarPagamento}
+                  className="border border-emerald-700 text-emerald-800 hover:bg-emerald-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Receipt size={16} /> Registar pagamento
+                </button>
+              )}
+            </>
           )}
           {can("encomendas", "edit") && (
             <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Save size={16} /> Guardar</button>
@@ -290,31 +318,51 @@ export default function EncomendaDetail() {
                       <span className="text-xs text-gray-400 ml-2">{METODO_PT[p.metodo] || p.metodo} · {fmtDate(p.data)}{p.recibo_numero ? ` · ${p.recibo_numero}` : ""}</span>
                       {p.nota && <span className="text-xs text-gray-400 ml-1">· {p.nota}</span>}
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <a href={reciboUrl(p.id)} target="_blank" rel="noreferrer" data-testid={`enc-recibo-${p.id}`} title="Recibo (PDF)" className="p-1 text-gray-400 hover:text-gray-900"><Receipt size={15} /></a>
-                      {can("encomendas", "edit") && <button onClick={() => delPagamento(p.id)} data-testid={`enc-pagamento-del-${p.id}`} title="Remover" className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>}
-                    </div>
+                    <a href={reciboUrl(p.id)} target="_blank" rel="noreferrer" data-testid={`enc-recibo-${p.id}`} title="Recibo (PDF)" className="p-1 text-gray-400 hover:text-gray-900 shrink-0"><Receipt size={15} /></a>
                   </div>
                 ))}
               </div>
-            ) : <p className="text-xs text-gray-400 mb-2">Sem pagamentos registados.</p>}
-
-            {can("encomendas", "edit") && (
-              <>
-                <div className="flex items-center gap-1.5" data-testid="enc-pagamento-form">
-                  <input data-testid="enc-pagamento-valor" type="number" step="0.01" placeholder="Valor" value={pagValor} onChange={(e) => setPagValor(e.target.value)} className="w-24 border border-gray-300 rounded-sm px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
-                  <select data-testid="enc-pagamento-metodo" value={pagMetodo} onChange={(e) => setPagMetodo(e.target.value)} className="border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                    {Object.entries(METODO_PT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  <input data-testid="enc-pagamento-nota" placeholder="Nota (opcional)" value={pagNota} onChange={(e) => setPagNota(e.target.value)} className="flex-1 min-w-0 border border-gray-300 rounded-sm px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-black/20" />
-                  <button data-testid="enc-pagamento-add" onClick={() => addPagamento()} className="shrink-0 bg-gray-900 text-white rounded-sm px-2.5 py-1.5 text-sm hover:bg-gray-800"><Plus size={15} /></button>
-                </div>
-                {(enc.valor_pendente || 0) > 0 && (
-                  <button data-testid="enc-marcar-pago-btn" onClick={() => addPagamento(enc.valor_pendente, "Pagamento total")} className="mt-1.5 text-xs border border-gray-300 rounded-sm px-2.5 py-1.5 hover:bg-gray-50 text-gray-700">Registar pagamento total ({eur(enc.valor_pendente)})</button>
-                )}
-              </>
+            ) : (
+              <p className="text-xs text-gray-400 mb-2">Sem pagamentos registados.</p>
+            )}
+            <p className="text-[11px] text-gray-500 leading-snug mb-2">
+              Os pagamentos fazem-se em <strong>Emitir fatura</strong> (fatura-recibo) ou <strong>Registar pagamento</strong> na fatura — não se adicionam aqui.
+            </p>
+            {can("financeiro", "create") && enc.estado !== "cancelada" && (enc.valor_pendente || 0) > 0 && (
+              <button
+                type="button"
+                data-testid="enc-pagamentos-cta"
+                onClick={registarPagamento}
+                className="w-full text-xs border border-gray-300 rounded-sm px-2.5 py-1.5 hover:bg-gray-50 text-gray-700"
+              >
+                {faturaPendente
+                  ? `Continuar pagamento em ${faturaPendente.numero}`
+                  : `Registar pagamento (${eur(enc.valor_pendente)})`}
+              </button>
             )}
           </div>
+
+          {docs.length > 0 && (
+            <div data-testid="enc-documentos">
+              <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Faturas / documentos</label>
+              <div className="space-y-1">
+                {docs.map((d) => (
+                  <Link
+                    key={d.id}
+                    to={`/financeiro/${d.id}`}
+                    data-testid={`enc-doc-${d.id}`}
+                    className="flex items-center justify-between gap-2 border border-gray-200 rounded-sm px-2.5 py-1.5 hover:bg-gray-50 text-sm"
+                  >
+                    <span className="min-w-0 truncate">
+                      <span className="font-medium mono text-gray-900">{d.numero}</span>
+                      <span className="text-xs text-gray-400 ml-2">{DOC_TIPO_PT[d.tipo] || d.tipo}</span>
+                    </span>
+                    <span className="text-xs tabular-nums text-gray-500 shrink-0">{eur(d.total)}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className={`rounded-sm border p-3 flex items-center gap-2.5 ${podeProduzir ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`} data-testid="enc-producao-status">
             {podeProduzir ? <ShieldCheck size={18} className="text-emerald-600 shrink-0" /> : <ShieldAlert size={18} className="text-amber-600 shrink-0" />}
@@ -461,6 +509,7 @@ export default function EncomendaDetail() {
         onOpenChange={setEmitOpen}
         encomendaId={id}
         enc={enc}
+        defaultTipo={emitDefaultTipo}
         onEmitted={() => load()}
       />
     </div>

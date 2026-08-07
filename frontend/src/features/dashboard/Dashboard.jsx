@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, CalendarClock, ClipboardList, AlertTriangle } from "lucide-react";
+import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, CalendarClock, AlertTriangle } from "lucide-react";
 import {
   Stat, PrazosBanner, EncValorCustoChart, PagamentoPie, MensalArea,
   OFEstadoChart, TempoChart, TempoCustoTotais, TopArtigosChart,
   Greeting, QuickActions, AttentionCenter, PorProduzirCard, RecentActivity, QuickAnalysis,
+  FluxoMensalChart,
 } from "@/features/dashboard/widgets";
 
 export default function Dashboard() {
@@ -32,6 +32,8 @@ export default function Dashboard() {
   const canAnalise = isAdmin || can("analise_producao", "view");
   const canCal = isAdmin || can("calendario", "view");
   const canHist = isAdmin || can("historico", "view");
+  const canOc = isAdmin || can("ordens_compra", "view");
+  const canFluxo = canEnc || canOc;
 
   const derived = useMemo(() => {
     if (!d) return null;
@@ -42,8 +44,10 @@ export default function Dashboard() {
       pay: (d.encomendas_por_pagamento || []).filter((x) => x.count > 0),
       encValorCusto: d.enc_valor_vs_custo || [],
       ofData: d.ofs_por_estado || [],
-      mensal: (d.valor_mensal || []).map((m) => ({ ...m, label: m.mes.slice(5) + "/" + m.mes.slice(2, 4) })),
+      mensal: d.valor_mensal || [],
       top: d.top_artigos || [],
+      fluxo: d.fluxo_mensal || null,
+      ytd: d.ytd || null,
       tempo, tEst, tReal,
       desvioTempo: tReal - tEst,
       desvioCusto: Math.round(((d.custo_real_encomendas || 0) - (d.custo_estimado_encomendas || 0)) * 100) / 100,
@@ -82,35 +86,62 @@ export default function Dashboard() {
 
       <QuickActions />
 
+      {canFluxo && <FluxoMensalChart fluxo={derived.fluxo} />}
+
       <AttentionCenter items={attentionItems} />
+
+      {canCal && <PrazosBanner atrasadas={d.prazos_atrasadas || 0} proximos7={d.prazos_proximos_7 || 0} />}
 
       {canEnc && <PorProduzirCard />}
 
-      {/* Análise rápida + Atividade recente */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {canEnc && <QuickAnalysis d={d} />}
-        {canHist && <RecentActivity />}
-      </div>
-
-      {/* Encomendas KPIs */}
+      {/* KPIs principais (desde Janeiro) */}
       {canEnc && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <Stat icon={Wallet} label="Valor Encomendas" value={eur(d.valor_encomendas)} sub={`${d.total_encomendas} encomendas`} tid="stat-valor-encomendas" />
-          <Stat icon={Coins} label="Recebido / Pendente" value={eur(d.valor_pago_total)} sub={`Pendente ${eur(d.valor_pendente_total)}`} accent="text-emerald-600" tid="stat-pago" />
-          <Stat icon={Factory} label="Custo Produção (real)" value={eur(d.custo_real_encomendas)} sub={`Estimado ${eur(d.custo_estimado_encomendas)}`} tid="stat-custo-real" />
-          <Stat icon={TrendingUp} label="Margem Encomendas" value={eur(d.margem_encomendas)} sub="Valor − custo real" accent={d.margem_encomendas >= 0 ? "text-emerald-600" : "text-red-600"} tid="stat-margem" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
+          <Stat
+            icon={Wallet}
+            label={`Vendas ${derived.ytd?.ano || ""}`}
+            value={eur(derived.ytd?.vendas ?? d.valor_encomendas)}
+            sub={`${derived.ytd?.encomendas ?? d.total_encomendas} encomendas · desde Jan`}
+            tid="stat-valor-encomendas"
+          />
+          <Stat
+            icon={Coins}
+            label="Recebido / Pendente"
+            value={eur(derived.ytd?.valor_pago ?? d.valor_pago_total)}
+            sub={`Pendente ${eur(derived.ytd?.valor_pendente ?? d.valor_pendente_total)} · desde Jan`}
+            accent="text-emerald-600"
+            tid="stat-pago"
+          />
+          <Stat
+            icon={Factory}
+            label="Compras / despesas"
+            value={eur(derived.ytd?.gastos ?? 0)}
+            sub={`Resultado ${eur(derived.ytd?.resultado ?? 0)} · desde Jan`}
+            tid="stat-custo-real"
+          />
+          <Stat
+            icon={TrendingUp}
+            label="Margem produção"
+            value={eur(derived.ytd?.margem ?? d.margem_encomendas)}
+            sub="Vendas − custo real · desde Jan"
+            accent={(derived.ytd?.margem ?? d.margem_encomendas) >= 0 ? "text-emerald-600" : "text-red-600"}
+            tid="stat-margem"
+          />
         </div>
       )}
 
-      {/* Secondary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
         {canOF && <Stat icon={Factory} label="Ordens de Fabrico" value={d.total_ofs} sub={`${d.ofs_em_producao} em produção · ${d.ofs_concluidas} concluídas`} tid="stat-ofs" />}
         {canEnc && <Stat icon={ShieldAlert} label="Por Autorizar" value={d.encomendas_por_autorizar} sub="Encomendas sem produção autorizada" accent={d.encomendas_por_autorizar > 0 ? "text-amber-600" : "text-gray-900"} tid="stat-autorizar" />}
         {canOrc && <Stat icon={FileText} label="Orçamentos" value={d.total_orcamentos} sub={`${d.orcamentos_aceites} aceites · ${eur(d.valor_aceites)}`} tid="stat-orcamentos" />}
         {canArt && <Stat icon={Boxes} label="Artigos" value={d.total_artigos} sub={`Custo médio ${eur(d.custo_medio)}`} tid="stat-artigos" />}
       </div>
 
-      {canCal && <PrazosBanner atrasadas={d.prazos_atrasadas || 0} proximos7={d.prazos_proximos_7 || 0} />}
+      {/* Análise rápida + Atividade */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        {canEnc && <QuickAnalysis d={d} />}
+        {canHist && <RecentActivity />}
+      </div>
 
       {canEnc && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">

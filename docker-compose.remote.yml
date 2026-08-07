@@ -1,0 +1,45 @@
+# Velocely — API + UI ligadas a MongoDB na cloud (Atlas)
+#
+# Arranque fácil (não-programador):
+#   Mac:     iniciar/Mac/INICIAR.command
+#   Windows: iniciar/Windows/INICIAR.bat
+#   Guia:    COMO-CORRER.md
+#
+# Manual:
+#   docker compose -f docker-compose.remote.yml --env-file .env.shared up -d --build
+
+name: velocely-remote
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MONGO_URL: ${MONGO_URL:?Define MONGO_URL no .env.shared}
+      DB_NAME: ${DB_NAME:-velocely}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET no .env.shared}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3080,http://127.0.0.1:3080}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@velocely.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin123!}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - velocely_uploads:/app/uploads
+    ports:
+      - "${API_PUBLISH_PORT:-8000}:8000"
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PUBLISH_PORT:-3080}:80"
+    depends_on:
+      - api
+
+volumes:
+  velocely_uploads:

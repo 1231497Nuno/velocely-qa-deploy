@@ -3,6 +3,8 @@ import { api, eur } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import StatusBadge from "@/components/StatusBadge";
 import SearchBar from "@/components/SearchBar";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import {
   ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from "recharts";
@@ -35,19 +37,15 @@ const Desvio = ({ v, money, testid }) => {
 
 // ---------- Vista por Ordem de Fabrico ----------
 function PorOF() {
-  const [rows, setRows] = useState([]);
   const [open, setOpen] = useState({});
   const [view, setView] = useState("tempo");
-  const [q, setQ] = useState("");
-
-  useEffect(() => {
-    api.get("/producao/tempos").then(setRows);
-  }, []);
+  const {
+    items: rows, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, rangeLabel,
+  } = useServerPagedList("/producao/tempos");
 
   const toggle = (id) => setOpen((o) => ({ ...o, [id]: !o[id] }));
   const isCusto = view === "custo";
-  const ql = q.trim().toLowerCase();
-  const rows_f = ql ? rows.filter((r) => [r.numero, r.cliente].some((v) => (v || "").toLowerCase().includes(ql))) : rows;
 
   const Tab = ({ id, icon: Icon, label }) => (
     <button
@@ -60,19 +58,36 @@ function PorOF() {
   );
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-4">
-        <Tab id="tempo" icon={Timer} label="Tempos" />
-        <Tab id="custo" icon={Coins} label="Custos" />
-      </div>
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por OF ou cliente..." testid="analise-search" />
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <ListPage className="flex-1 min-h-0 h-auto" toolbar={
+      <>
+        <div className="flex items-center gap-2">
+          <Tab id="tempo" icon={Timer} label="Tempos" />
+          <Tab id="custo" icon={Coins} label="Custos" />
+        </div>
+        <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por OF ou cliente..." testid="analise-search" />
+      </>
+    } footer={
+      <>
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="analise-of-pagination"
+        />
+        <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
+          <Timer size={13} /> O tempo de máquina é totalizado pela estimativa; o tempo cronometrado regista a mão de obra real do colaborador. O custo real = custo de máquina (estimado) + mão de obra (tempo real). Desvio +/vermelho = acima do estimado.
+        </p>
+      </>
+    }>
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[680px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-3 py-3 w-8"></th>
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
+              <th className="px-3 py-3 w-8 bg-gray-50"></th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">OF</th>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
@@ -94,7 +109,7 @@ function PorOF() {
             </tr>
           </thead>
           <tbody data-testid="tempos-table">
-            {rows_f.map((r) => (
+            {rows.map((r) => (
               <Fragment key={r.id}>
                 <tr data-testid={`tempo-row-${r.id}`} onClick={() => toggle(r.id)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-3 py-3 text-gray-400">{open[r.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
@@ -121,7 +136,7 @@ function PorOF() {
                   <tr className="bg-gray-50/60">
                     <td></td>
                     <td colSpan={isCusto ? 6 : 7} className="px-4 py-3">
-                      {r.operacoes.length === 0 ? (
+                      {(r.operacoes || []).length === 0 ? (
                         <p className="text-xs text-gray-400 py-2">Sem operações nesta OF.</p>
                       ) : (
                         <table className="w-full text-xs border border-gray-200 rounded-sm overflow-hidden bg-white">
@@ -164,16 +179,13 @@ function PorOF() {
                 )}
               </Fragment>
             ))}
-            {rows_f.length === 0 && (
+            {rows.length === 0 && (
               <tr><td colSpan={isCusto ? 7 : 9} className="px-4 py-10 text-center text-gray-400 text-sm">Sem ordens de fabrico para analisar.</td></tr>
             )}
           </tbody>
         </table>
-      </div>
-      <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
-        <Timer size={13} /> O tempo de máquina é totalizado pela estimativa; o tempo cronometrado regista a mão de obra real do colaborador. O custo real = custo de máquina (estimado) + mão de obra (tempo real). Desvio +/vermelho = acima do estimado.
-      </p>
-    </div>
+      </ScrollableTable>
+    </ListPage>
   );
 }
 
@@ -181,6 +193,8 @@ function PorOF() {
 function Mensal() {
   const [data, setData] = useState([]);
   const [metric, setMetric] = useState("tempo");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     api.get("/producao/analise").then(setData);
@@ -188,6 +202,14 @@ function Mensal() {
 
   const chartData = data.map((d) => ({ ...d, label: fmtMes(d.mes) }));
   const isCusto = metric === "custo";
+  const total = data.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, pages);
+  const pageRows = data.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const rangeLabel =
+    total === 0
+      ? "0 resultados"
+      : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, total)} de ${total}`;
 
   const Tab = ({ id, icon: Icon, label }) => (
     <button
@@ -201,41 +223,58 @@ function Mensal() {
 
   if (data.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-sm py-16 text-center text-gray-400 text-sm" data-testid="mensal-empty">
+      <div className="flex-1 min-h-0 flex items-center justify-center bg-white border border-gray-200 rounded-sm py-16 text-center text-gray-400 text-sm" data-testid="mensal-empty">
         Sem dados mensais de produção ainda.
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-4">
-        <Tab id="tempo" icon={Timer} label="Tempos" />
-        <Tab id="custo" icon={Coins} label="Custos" />
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-          {isCusto ? <Coins size={15} /> : <Timer size={15} />}
-          {isCusto ? "Custo estimado vs real por mês (€)" : "Tempo estimado vs real por mês (min)"}
-        </h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} width={50} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [isCusto ? eur(v) : `${v} min`, n === "estimado" ? "Estimado" : "Real"]} cursor={{ fill: "#F9FAFB" }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => (v === "estimado" ? "Estimado" : "Real")} />
-            <Bar name="estimado" dataKey={isCusto ? "custo_estimado" : "tempo_estimado"} fill="#9CA3AF" radius={[2, 2, 0, 0]} />
-            <Bar name="real" dataKey={isCusto ? "custo_real" : "tempo_real"} fill={INK} radius={[2, 2, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <ListPage className="flex-1 min-h-0 h-auto" toolbar={
+      <>
+        <div className="flex items-center gap-2">
+          <Tab id="tempo" icon={Timer} label="Tempos" />
+          <Tab id="custo" icon={Coins} label="Custos" />
+        </div>
+        <div className="bg-white border border-gray-200 rounded-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            {isCusto ? <Coins size={15} /> : <Timer size={15} />}
+            {isCusto ? "Custo estimado vs real por mês (€)" : "Tempo estimado vs real por mês (min)"}
+          </h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [isCusto ? eur(v) : `${v} min`, n === "estimado" ? "Estimado" : "Real"]} cursor={{ fill: "#F9FAFB" }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => (v === "estimado" ? "Estimado" : "Real")} />
+              <Bar name="estimado" dataKey={isCusto ? "custo_estimado" : "tempo_estimado"} fill="#9CA3AF" radius={[2, 2, 0, 0]} />
+              <Bar name="real" dataKey={isCusto ? "custo_real" : "tempo_real"} fill={INK} radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </>
+    } footer={
+      <>
+        <ListPagination
+          page={safePage}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="analise-mensal-pagination"
+        />
+        <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
+          <CalendarRange size={13} /> Agregado por mês de criação da OF. Desvio positivo (vermelho) = acima do estimado; negativo (verde) = abaixo.
+        </p>
+      </>
+    }>
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[680px]">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Mês</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 flex items-center justify-center gap-1"><Factory size={13} /> OFs</th>
               <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Concluídas</th>
@@ -255,7 +294,7 @@ function Mensal() {
             </tr>
           </thead>
           <tbody data-testid="mensal-table">
-            {data.map((m) => (
+            {pageRows.map((m) => (
               <tr key={m.mes} data-testid={`mensal-row-${m.mes}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900">{fmtMes(m.mes)}</td>
                 <td className="px-4 py-3 text-center tabular-nums text-gray-700">{m.ofs_criadas}</td>
@@ -277,11 +316,8 @@ function Mensal() {
             ))}
           </tbody>
         </table>
-      </div>
-      <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
-        <CalendarRange size={13} /> Agregado por mês de criação da OF. Desvio positivo (vermelho) = acima do estimado; negativo (verde) = abaixo.
-      </p>
-    </div>
+      </ScrollableTable>
+    </ListPage>
   );
 }
 
@@ -299,18 +335,21 @@ export default function AnaliseProducao() {
   );
 
   return (
-    <div>
-      <PageHeader
-        title="Análise da Produção"
-        subtitle="Desvios entre estimado e real — por ordem de fabrico e por mês"
-        actions={
-          <div className="flex items-center gap-2">
-            <ModeTab id="of" icon={Factory} label="Por Ordem de Fabrico" />
-            <ModeTab id="mensal" icon={CalendarRange} label="Análise Mensal" />
-          </div>
-        }
-      />
+    <ListPage
+      header={
+        <PageHeader
+          title="Análise da Produção"
+          subtitle="Desvios entre estimado e real — por ordem de fabrico e por mês"
+          actions={
+            <div className="flex items-center gap-2">
+              <ModeTab id="of" icon={Factory} label="Por Ordem de Fabrico" />
+              <ModeTab id="mensal" icon={CalendarRange} label="Análise Mensal" />
+            </div>
+          }
+        />
+      }
+    >
       {mode === "of" ? <PorOF /> : <Mensal />}
-    </div>
+    </ListPage>
   );
 }

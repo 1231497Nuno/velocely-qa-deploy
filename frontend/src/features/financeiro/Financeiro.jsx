@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur, API, getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
 import { FileText, FileSpreadsheet, ScrollText, Trash2, ExternalLink, ChevronRight, ChevronDown } from "lucide-react";
@@ -40,26 +42,30 @@ function PayDot({ status }) {
 
 export default function Financeiro() {
   const { can } = useAuth();
-  const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
   const [expanded, setExpanded] = useState({});
   const [searchParams, setSearchParams] = useSearchParams();
   const filtro = searchParams.get("tipo") || "todas";
   const nav = useNavigate();
   const { sort, toggle, apply } = useSort("data", "desc");
 
-  const load = useCallback(async () => {
-    const docs = await api.get("/financeiro/documentos");
-    setItems(docs);
+  const extraParams = useMemo(
+    () => (filtro !== "todas" ? { tipo: filtro } : {}),
+    [filtro],
+  );
+  const {
+    items, total, pages, page, setPage, pageSize, setPageSize,
+    q, setQ, reload, rangeLabel,
+  } = useServerPagedList("/financeiro/documentos", { extraParams });
+
+  useEffect(() => {
     setExpanded((prev) => {
       const next = { ...prev };
-      docs.forEach((d) => {
+      items.forEach((d) => {
         if ((d.recibos || []).length > 0 && next[d.id] === undefined) next[d.id] = true;
       });
       return next;
     });
-  }, []);
-  useEffect(() => { load(); }, [load]);
+  }, [items]);
 
   const setFiltro = (id) => {
     const next = new URLSearchParams(searchParams);
@@ -77,7 +83,7 @@ export default function Financeiro() {
     if (!window.confirm("Eliminar esta fatura e os recibos associados?")) return;
     await api.del(`/financeiro/documentos/${id}`);
     toast.success("Fatura eliminada");
-    load();
+    reload();
   };
 
   const toggleExpand = (e, id) => {
@@ -85,56 +91,57 @@ export default function Financeiro() {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const ql = q.trim().toLowerCase();
-  const matchQ = (d) =>
-    !ql ||
-    [d.numero, d.cliente, d.encomenda_numero].some((v) => (v || "").toLowerCase().includes(ql)) ||
-    (d.recibos || []).some((r) => (r.numero || "").toLowerCase().includes(ql));
-
-  const filtered = useMemo(() => {
-    const base = items.filter(matchQ);
-    if (filtro === "todas") return base;
-    return base.filter((d) => d.tipo === filtro);
-  }, [items, q, filtro]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const counts = useMemo(() => ({
-    todas: items.filter(matchQ).length,
-    ...Object.fromEntries(DOC_TIPOS.map((t) => [t.id, items.filter((d) => d.tipo === t.id && matchQ(d)).length])),
-  }), [items, q]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const rows = apply(filtered);
+  const rows = apply(items);
 
   return (
-    <div>
-      <PageHeader
-        title="Faturas"
-        subtitle="Lista de faturas. Expande cada linha para ver os recibos associados."
-      />
-
-      <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente, encomenda ou recibo..." testid="financeiro-search" />
-
-      <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="financeiro-tabs">
-        {FILTROS.map((t) => {
-          const active = filtro === t.id;
-          return (
-            <button
-              key={t.id}
-              data-testid={`fin-tab-${t.id}`}
-              onClick={() => setFiltro(t.id)}
-              className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-            >
-              {t.label}
-              <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${active ? "bg-white/20" : "bg-gray-100 text-gray-500"}`}>{counts[t.id] ?? 0}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+    <ListPage
+      header={
+        <PageHeader
+          title="Faturas"
+          subtitle="Lista de faturas. Expande cada linha para ver os recibos associados."
+        />
+      }
+      toolbar={
+        <>
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente, encomenda ou recibo..." testid="financeiro-search" />
+          <div className="flex items-center gap-2 flex-wrap" data-testid="financeiro-tabs">
+            {FILTROS.map((t) => {
+              const active = filtro === t.id;
+              return (
+                <button
+                  key={t.id}
+                  data-testid={`fin-tab-${t.id}`}
+                  onClick={() => setFiltro(t.id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+                >
+                  {t.label}
+                  {active && (
+                    <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      }
+      footer={
+        <ListPagination
+          page={page}
+          pages={pages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="financeiro-pagination"
+        />
+      }
+    >
+      <ScrollableTable>
         <table className="w-full text-sm min-w-[820px]" data-testid="financeiro-table">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="w-10 px-2 py-3" />
+          <thead className={TABLE_HEAD_STICKY}>
+            <tr>
+              <th className="w-10 px-2 py-3 bg-gray-50" />
               <SortTh label="Nº" sortKey="numero" sort={sort} onSort={toggle} />
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
               <SortTh label="Cliente" sortKey="cliente" sort={sort} onSort={toggle} />
@@ -142,7 +149,7 @@ export default function Financeiro() {
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pagamento</th>
               <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pendente</th>
               <SortTh label="Total" sortKey="total" sort={sort} onSort={toggle} align="right" />
-              <th className="px-4 py-3 w-20" />
+              <th className="px-4 py-3 w-20 bg-gray-50" />
             </tr>
           </thead>
           <tbody>
@@ -177,8 +184,8 @@ export default function Financeiro() {
             )}
           </tbody>
         </table>
-      </div>
-    </div>
+      </ScrollableTable>
+    </ListPage>
   );
 }
 

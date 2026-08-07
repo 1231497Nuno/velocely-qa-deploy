@@ -9,9 +9,10 @@ from pydantic import BaseModel
 from app.core import config
 from app.core.database import now_iso, next_sequence, new_id, round2
 from app.core.security import get_current_user, require_perm
-from app.domain.models import EncomendaInput, Encomenda, OrdemFabricoInput, OrdemFabrico, ENC_ESTADO_PT, Pagamento
+from app.core.pagination import parse_page, page_payload, text_search
+from app.domain.models import EncomendaInput, Encomenda, OrdemFabricoInput, OrdemFabrico, ENC_ESTADO_PT
 from app.repositories import encomendas_repo, ordens_repo
-from app.services.costing import compute_encomenda, recompute_of_status, build_of_itens
+from app.services.costing import compute_encomenda, compute_encomendas_many, recompute_of_status, build_of_itens
 from app.services.pdf import load_pdf_config, fetch_cliente, fetch_orcamento, build_encomenda_pdf, build_recibo_pdf
 from app.services import audit
 from app.services import email as email_service
@@ -52,35 +53,23 @@ async def _attach_ofs(enc: dict) -> dict:
 
 @router.post("/encomendas/{eid}/pagamentos")
 async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(require_perm("encomendas", "edit"))):
-    enc = await encomendas_repo.get(eid)
-    if not enc:
-        raise HTTPException(404, "Encomenda não encontrada")
-    if (body.valor or 0) <= 0:
-        raise HTTPException(400, "O valor do pagamento deve ser positivo")
-    pag = Pagamento(valor=round2(body.valor), metodo=body.metodo, nota=body.nota or "", data=body.data or now_iso()[:10])
-    pag.recibo_numero = await next_sequence("REC")
-    pagamentos = (enc.get("pagamentos") or []) + [pag.model_dump()]
-    total = round2(sum((p.get("valor") or 0) for p in pagamentos))
-    await encomendas_repo.update(eid, {"pagamentos": pagamentos, "valor_pago": total})
-    enc["pagamentos"] = pagamentos
-    enc["valor_pago"] = total
-    await audit.registar("encomenda", eid, "pagamento", user,
-                         f"Pagamento de {pag.valor:.2f}€ ({PAG_METODO_PT.get(pag.metodo, pag.metodo)}) na encomenda {enc.get('numero')} · recibo {pag.recibo_numero}", enc.get("numero"))
-    return await _attach_ofs(await compute_encomenda(enc))
+    """Desactivado: pagamentos só via Emitir fatura / Registar pagamento (recibo fiscal)."""
+    raise HTTPException(
+        400,
+        "Os pagamentos registam-se apenas através de Emitir fatura "
+        "(fatura-recibo) ou Registar pagamento na fatura. "
+        "Na encomenda podes consultar o histórico, mas não criar pagamentos informais.",
+    )
 
 
 @router.delete("/encomendas/{eid}/pagamentos/{pid}")
 async def delete_pagamento(eid: str, pid: str, user: dict = Depends(require_perm("encomendas", "edit"))):
-    enc = await encomendas_repo.get(eid)
-    if not enc:
-        raise HTTPException(404, "Encomenda não encontrada")
-    pagamentos = [p for p in (enc.get("pagamentos") or []) if p.get("id") != pid]
-    total = round2(sum((p.get("valor") or 0) for p in pagamentos))
-    await encomendas_repo.update(eid, {"pagamentos": pagamentos, "valor_pago": total})
-    enc["pagamentos"] = pagamentos
-    enc["valor_pago"] = total
-    await audit.registar("encomenda", eid, "pagamento", user, f"Pagamento removido da encomenda {enc.get('numero')}", enc.get("numero"))
-    return await _attach_ofs(await compute_encomenda(enc))
+    """Desactivado: remoção só via anulação/eliminação do recibo no módulo Financeiro."""
+    raise HTTPException(
+        400,
+        "Não é possível remover pagamentos directamente na encomenda. "
+        "Anula ou elimina o recibo correspondente no Financeiro.",
+    )
 
 
 def _valid_token(authorization: Optional[str], auth: Optional[str]) -> bool:
@@ -113,9 +102,31 @@ async def recibo_pdf(eid: str, pid: str, authorization: str = Header(None), auth
 
 
 @router.get("/encomendas")
-async def list_encomendas(_u: dict = Depends(require_perm("encomendas", "view"))):
-    encs = await encomendas_repo.find(sort=("created_at", -1), limit=5000)
-    return [await compute_encomenda(e) for e in encs]
+async def list_encomendas(
+    page: Optional[int] = Query(None, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str = Query(""),
+    estado_grupo: Optional[str] = Query(None, description="pendentes|concluidas"),
+    _u: dict = Depends(require_perm("encomendas", "view")),
+):
+    query = {}
+    if estado_grupo == "pendentes":
+        query["estado"] = {"$nin": ["concluida", "cancelada"]}
+    elif estado_grupo == "concluidas":
+        query["estado"] = "concluida"
+    ts = text_search(["numero", "cliente", "orcamento_numero", "descricao"], q)
+    if ts:
+        query.update(ts)
+    if page is None:
+        encs = await encomendas_repo.find(query, sort=("created_at", -1), limit=5000)
+        return await compute_encomendas_many(encs)
+    p, ps, skip = parse_page(page, page_size)
+    import asyncio
+    total, encs = await asyncio.gather(
+        encomendas_repo.count(query),
+        encomendas_repo.find(query, sort=("created_at", -1), limit=ps, skip=skip),
+    )
+    return page_payload(await compute_encomendas_many(encs), total, p, ps)
 
 
 @router.get("/encomendas/{eid}")

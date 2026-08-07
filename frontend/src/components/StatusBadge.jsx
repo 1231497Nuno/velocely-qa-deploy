@@ -10,6 +10,13 @@ export const STATUS_META = {
   aberta: { label: "Aberta", cls: "bg-gray-100 text-gray-700 border-gray-300" },
   concluida: { label: "Concluída", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   cancelada: { label: "Cancelada", cls: "bg-red-50 text-red-700 border-red-200" },
+  // Ordens de compra
+  criada: { label: "Criada", cls: "bg-gray-100 text-gray-700 border-gray-300" },
+  recebida: { label: "Recebida", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  // Pedidos de cotação
+  respondido: { label: "Respondido", cls: "bg-amber-50 text-amber-800 border-amber-200" },
+  adjudicado: { label: "Adjudicado", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  cancelado: { label: "Cancelado", cls: "bg-red-50 text-red-700 border-red-200" },
   // Pagamento
   parcial: { label: "Pago parcial", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   pago: { label: "Pago total", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },

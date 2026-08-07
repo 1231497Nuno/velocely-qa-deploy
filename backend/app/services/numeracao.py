@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database import db
 from app.repositories import (
     artigos_repo, maquinas_repo, consumiveis_repo, mao_obra_repo,
-    tipos_repo, clientes_repo, empresa_repo, categorias_repo, subcategorias_repo,
+    tipos_repo, clientes_repo, fornecedores_repo, empresa_repo, categorias_repo, subcategorias_repo,
 )
 
 NUMERACAO_DOC_ID = "numeracao"
@@ -85,6 +85,30 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "incluir_ano": False,
         "digitos": 4,
         "exemplo": "CLI-0001",
+    },
+    "fornecedor": {
+        "label": "Fornecedores",
+        "grupo": "negocio",
+        "prefix": "FOR",
+        "incluir_ano": False,
+        "digitos": 4,
+        "exemplo": "FOR-0001",
+    },
+    "ordem_compra": {
+        "label": "Ordens de compra",
+        "grupo": "documentos",
+        "prefix": "OC",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "OC-2026-0001",
+    },
+    "pedido_cotacao": {
+        "label": "Pedidos de cotação",
+        "grupo": "documentos",
+        "prefix": "PC",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "PC-2026-0001",
     },
     "orcamento": {
         "label": "Orçamentos",
@@ -246,6 +270,7 @@ _BACKFILL = [
     ("mao_obra", mao_obra_repo, "codigo"),
     ("tipo_personalizacao", tipos_repo, "codigo"),
     ("cliente", clientes_repo, "codigo"),
+    ("fornecedor", fornecedores_repo, "codigo"),
 ]
 
 

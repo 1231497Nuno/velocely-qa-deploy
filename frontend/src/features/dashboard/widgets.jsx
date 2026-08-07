@@ -1,8 +1,9 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import ListPagination from "@/components/ListPagination";
 import {
   Wallet, Coins, Factory, ClipboardList, Boxes, Clock, Gauge, CalendarClock,
   FileText, TrendingUp, ShieldAlert, AlertTriangle, Contact, History, User,
@@ -10,7 +11,8 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
-  XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  XAxis, YAxis, Tooltip, CartesianGrid, Legend, ComposedChart, Line,
+  ReferenceLine,
 } from "recharts";
 
 export const INK = "#111827";
@@ -33,14 +35,14 @@ export const Stat = ({ icon: Icon, label, value, sub, tid, accent = "text-gray-9
   </div>
 );
 
-export const Card = ({ title, icon: Icon, children, className = "" }) => (
-  <div className={`bg-white border border-gray-200 rounded-sm p-5 ${className}`}>
-    <div className="flex items-center justify-between mb-4">
+export const Card = ({ title, icon: Icon, children, className = "", bodyClassName = "" }) => (
+  <div className={`bg-white border border-gray-200 rounded-sm flex flex-col min-h-0 overflow-hidden ${className}`}>
+    <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-3">
       <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 uppercase tracking-[0.08em]">
         {Icon && <Icon size={16} className="text-gray-400" />} {title}
       </h2>
     </div>
-    {children}
+    <div className={`px-5 pb-5 flex-1 min-h-0 flex flex-col ${bodyClassName}`}>{children}</div>
   </div>
 );
 
@@ -69,7 +71,7 @@ export const PrazosBanner = ({ atrasadas = 0, proximos7 = 0 }) => (
 );
 
 export const EncValorCustoChart = ({ data }) => (
-  <Card title="Valor da Encomenda vs Custo de Produção" icon={ClipboardList} className="lg:col-span-2">
+  <Card title="Top encomendas · valor vs custo (desde Jan)" icon={ClipboardList} className="lg:col-span-2">
     {data.length === 0 ? <Empty msg="Sem encomendas ainda." /> : (
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ left: -10, right: 8, top: 8 }}>
@@ -104,7 +106,7 @@ export const PagamentoPie = ({ data }) => (
 );
 
 export const MensalArea = ({ data }) => (
-  <Card title="Valor de Orçamentos / mês" icon={Coins} className="lg:col-span-2">
+  <Card title="Valor de Orçamentos / mês (desde Jan)" icon={Coins} className="lg:col-span-2">
     {data.length === 0 ? <Empty /> : (
       <ResponsiveContainer width="100%" height={240}>
         <AreaChart data={data} margin={{ left: -10, right: 8, top: 8 }}>
@@ -124,6 +126,171 @@ export const MensalArea = ({ data }) => (
     )}
   </Card>
 );
+
+const FLUXO_COLORS = {
+  vendas: "#0D9488",
+  gastos: "#E11D48",
+  resultado: "#374151",
+};
+
+function FluxoTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload || {};
+  return (
+    <div className="bg-white border border-gray-200 shadow-sm rounded-sm px-3 py-2.5 text-xs min-w-[200px]">
+      <div className="font-semibold text-gray-900 mb-2">{label} · acumulado</div>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5 text-gray-600">
+            <span className="h-2 w-2 rounded-full" style={{ background: FLUXO_COLORS.vendas }} />
+            Vendas
+          </span>
+          <span className="tabular-nums font-medium text-teal-700">{eur(row.vendas)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5 text-gray-600">
+            <span className="h-2 w-2 rounded-full" style={{ background: FLUXO_COLORS.gastos }} />
+            Compras / despesas
+          </span>
+          <span className="tabular-nums font-medium text-rose-700">{eur(row.gastos)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-4 border-t border-gray-100 pt-1.5">
+          <span className="flex items-center gap-1.5 text-gray-600">
+            <span className="h-2 w-2 rounded-sm" style={{ background: FLUXO_COLORS.resultado }} />
+            Resultado
+          </span>
+          <span className={`tabular-nums font-semibold ${(row.resultado || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+            {eur(row.resultado)}
+          </span>
+        </div>
+        {((row.vendas_mes || 0) !== 0 || (row.gastos_mes || 0) !== 0) && (
+          <div className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400 space-y-0.5">
+            <div className="flex justify-between gap-3">
+              <span>Neste mês (vendas)</span>
+              <span className="tabular-nums">{eur(row.vendas_mes)}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span>Neste mês (compras)</span>
+              <span className="tabular-nums">{eur(row.gastos_mes)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export const FluxoMensalChart = ({ fluxo }) => {
+  const serie = fluxo?.serie || [];
+  const totais = fluxo?.totais || { vendas: 0, gastos: 0, resultado: 0 };
+  const hasData = serie.some((p) => (p.vendas || 0) !== 0 || (p.gastos_abs || 0) !== 0);
+
+  return (
+    <section className="mb-6" data-testid="dash-fluxo-mensal">
+      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 px-5 pt-5 pb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-[0.08em] flex items-center gap-2">
+              <TrendingUp size={16} className="text-gray-400" />
+              Crescimento acumulado
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Desde Janeiro {fluxo?.ano || new Date().getFullYear()} · acumulado · vendas (encomendas) − compras/despesas (OC)
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-4 sm:gap-6">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-teal-700/80 font-semibold">Vendas acumuladas</div>
+              <div className="text-lg font-bold tabular-nums font-display text-teal-800" data-testid="fluxo-tot-vendas">{eur(totais.vendas)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-rose-700/80 font-semibold">Compras acumuladas</div>
+              <div className="text-lg font-bold tabular-nums font-display text-rose-800" data-testid="fluxo-tot-gastos">{eur(totais.gastos)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Resultado acumulado</div>
+              <div className={`text-lg font-bold tabular-nums font-display ${totais.resultado >= 0 ? "text-emerald-700" : "text-red-600"}`} data-testid="fluxo-tot-resultado">
+                {eur(totais.resultado)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {!hasData ? (
+          <div className="h-[280px] flex items-center justify-center text-sm text-gray-400 px-5 pb-5">
+            Ainda sem movimentos mensais para mostrar.
+          </div>
+        ) : (
+          <div className="px-2 sm:px-4 pb-4">
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart data={serie} margin={{ left: 4, right: 12, top: 12, bottom: 4 }}>
+                <defs>
+                  <linearGradient id="gradVendas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={FLUXO_COLORS.vendas} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={FLUXO_COLORS.vendas} stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="gradGastos" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor={FLUXO_COLORS.gastos} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={FLUXO_COLORS.gastos} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={56}
+                  tickFormatter={(v) => {
+                    const a = Math.abs(v);
+                    if (a >= 1000) return `${v < 0 ? "-" : ""}${Math.round(a / 1000)}k`;
+                    return `${v}`;
+                  }}
+                />
+                <ReferenceLine y={0} stroke="#D1D5DB" strokeWidth={1} />
+                <Tooltip content={<FluxoTooltip />} cursor={{ stroke: "#E5E7EB", strokeWidth: 1 }} />
+                <Area
+                  type="monotone"
+                  dataKey="vendas"
+                  stroke={FLUXO_COLORS.vendas}
+                  strokeWidth={2.5}
+                  fill="url(#gradVendas)"
+                  dot={{ r: 3.5, fill: FLUXO_COLORS.vendas, strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="gastos"
+                  stroke={FLUXO_COLORS.gastos}
+                  strokeWidth={2.5}
+                  fill="url(#gradGastos)"
+                  dot={{ r: 3.5, fill: FLUXO_COLORS.gastos, strokeWidth: 0, stroke: FLUXO_COLORS.gastos }}
+                  activeDot={{ r: 5 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="resultado"
+                  stroke={FLUXO_COLORS.resultado}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: FLUXO_COLORS.resultado, strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  height={28}
+                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                  formatter={(v) =>
+                    v === "vendas" ? "Vendas" : v === "gastos" ? "Compras / despesas" : "Resultado"
+                  }
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
 
 export const OFEstadoChart = ({ data, totalOfs }) => (
   <Card title="Ordens de Fabrico por estado" icon={Factory}>
@@ -306,48 +473,79 @@ const _diasAte = (prazo) => {
 
 export const PorProduzirCard = () => {
   const [encs, setEncs] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   useEffect(() => {
-    api.get("/encomendas")
-      .then((d) => setEncs((d || []).filter((e) => e.tem_artigos_sem_of)
-        .sort((a, b) => (a.prazo_entrega || "9999").localeCompare(b.prazo_entrega || "9999"))))
+    api.get("/encomendas?page=1&page_size=100&estado_grupo=pendentes")
+      .then((d) => {
+        const items = Array.isArray(d) ? d : (d.items || []);
+        setEncs(items.filter((e) => e.tem_artigos_sem_of)
+          .sort((a, b) => (a.prazo_entrega || "9999").localeCompare(b.prazo_entrega || "9999")));
+        setPage(1);
+      })
       .catch(() => setEncs([]));
   }, []);
+
+  const total = encs?.length || 0;
+  const pages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, pages);
+  const pageItems = (encs || []).slice((safePage - 1) * pageSize, safePage * pageSize);
+  const rangeLabel =
+    total === 0 ? "0 resultados" : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, total)} de ${total}`;
+
   return (
-    <Card title="O que está por produzir" icon={AlertTriangle} className="mb-4">
-      <div data-testid="dash-por-produzir">
+    <Card title="O que está por produzir" icon={AlertTriangle} className="mb-4 h-[420px]">
+      <div data-testid="dash-por-produzir" className="flex flex-col min-h-0 flex-1">
         {encs === null ? (
           <div className="text-sm text-gray-400 py-6 text-center">A carregar...</div>
         ) : encs.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-emerald-700 py-4"><CheckCircle2 size={16} className="shrink-0" /> Tudo com produção lançada — nada por esquecer.</div>
         ) : (
-          <ul className="space-y-2.5">
-            {encs.map((e) => {
-              const dias = _diasAte(e.prazo_entrega);
-              const urgente = dias !== null && dias <= 7;
-              return (
-                <li key={e.id} data-testid={`por-produzir-${e.id}`}>
-                  <Link to={`/encomendas/${e.id}`} className="block border border-gray-100 hover:border-gray-300 hover:bg-gray-50 rounded-sm p-3 transition-colors">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div className="min-w-0">
-                        <span className="text-sm font-semibold text-gray-900 mono">{e.numero}</span>
-                        <span className="text-sm text-gray-500"> · {e.cliente}</span>
+          <>
+            <ul className="space-y-2.5 flex-1 min-h-0 overflow-auto pr-1">
+              {pageItems.map((e) => {
+                const dias = _diasAte(e.prazo_entrega);
+                const urgente = dias !== null && dias <= 7;
+                return (
+                  <li key={e.id} data-testid={`por-produzir-${e.id}`}>
+                    <Link to={`/encomendas/${e.id}`} className="block border border-gray-100 hover:border-gray-300 hover:bg-gray-50 rounded-sm p-3 transition-colors">
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-gray-900 mono">{e.numero}</span>
+                          <span className="text-sm text-gray-500"> · {e.cliente}</span>
+                        </div>
+                        {e.prazo_entrega ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${dias < 0 ? "bg-red-100 text-red-700" : urgente ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                            {dias < 0 ? `atrasada ${Math.abs(dias)}d` : dias === 0 ? "entrega hoje" : `${dias}d p/ entrega`}
+                          </span>
+                        ) : <span className="text-xs text-gray-400 shrink-0">sem prazo</span>}
                       </div>
-                      {e.prazo_entrega ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${dias < 0 ? "bg-red-100 text-red-700" : urgente ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
-                          {dias < 0 ? `atrasada ${Math.abs(dias)}d` : dias === 0 ? "entrega hoje" : `${dias}d p/ entrega`}
-                        </span>
-                      ) : <span className="text-xs text-gray-400 shrink-0">sem prazo</span>}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {(e.artigos_sem_of || []).map((nome, idx) => (
-                        <span key={`${e.id}-${idx}`} className="text-xs bg-red-50 text-red-700 border border-red-100 rounded-sm px-2 py-0.5 break-words">{nome}</span>
-                      ))}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {(e.artigos_sem_of || []).map((nome, idx) => (
+                          <span key={`${e.id}-${idx}`} className="text-xs bg-red-50 text-red-700 border border-red-100 rounded-sm px-2 py-0.5 break-words">{nome}</span>
+                        ))}
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="shrink-0 border-t border-gray-100 mt-2 -mx-1 px-1">
+              <ListPagination
+                compact
+                page={safePage}
+                pages={pages}
+                total={total}
+                pageSize={pageSize}
+                pageSizeOptions={[10, 25, 50]}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+                rangeLabel={rangeLabel}
+                testid="dash-por-produzir-pagination"
+              />
+            </div>
+          </>
         )}
       </div>
     </Card>
@@ -373,59 +571,96 @@ const ACT_LINK = {
 
 export const RecentActivity = () => {
   const [eventos, setEventos] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   useEffect(() => {
-    api.get("/historico?limit=8").then(setEventos).catch(() => setEventos([]));
+    api.get("/historico?page=1&page_size=100")
+      .then((d) => {
+        const items = Array.isArray(d) ? d : (d.items || []);
+        setEventos(items);
+        setPage(1);
+      })
+      .catch(() => setEventos([]));
   }, []);
+
+  const total = eventos?.length || 0;
+  const pages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, pages);
+  const pageItems = (eventos || []).slice((safePage - 1) * pageSize, safePage * pageSize);
+  const rangeLabel =
+    total === 0 ? "0 resultados" : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, total)} de ${total}`;
+
   return (
-    <Card title="Atividade recente" icon={History}>
-      <div data-testid="dash-recent-activity">
+    <Card title="Atividade recente" icon={History} className="h-[420px]">
+      <div data-testid="dash-recent-activity" className="flex flex-col min-h-0 flex-1">
         {eventos === null ? (
           <div className="text-sm text-gray-400 py-6 text-center">A carregar...</div>
         ) : eventos.length === 0 ? (
           <div className="text-sm text-gray-400 py-6 text-center">Sem atividade ainda.</div>
         ) : (
-          <ul className="space-y-3">
-            {eventos.map((ev) => {
-              const Icon = ACT_ICON[ev.acao] || History;
-              const href = ACT_LINK[ev.entidade_tipo]?.(ev.entidade_id);
-              const body = (
-                <div className="flex items-start gap-3">
-                  <span className="shrink-0 h-7 w-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mt-0.5"><Icon size={13} /></span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-gray-800 truncate">{ev.descricao || ev.acao_label}</div>
-                    <div className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
-                      <span className="flex items-center gap-1"><User size={10} /> {ev.utilizador_nome}</span>
-                      <span>· {relTime(ev.timestamp)}</span>
+          <>
+            <ul className="space-y-3 flex-1 min-h-0 overflow-auto pr-1">
+              {pageItems.map((ev) => {
+                const Icon = ACT_ICON[ev.acao] || History;
+                const href = ACT_LINK[ev.entidade_tipo]?.(ev.entidade_id);
+                const body = (
+                  <div className="flex items-start gap-3">
+                    <span className="shrink-0 h-7 w-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mt-0.5"><Icon size={13} /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-gray-800 truncate">{ev.descricao || ev.acao_label}</div>
+                      <div className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
+                        <span className="flex items-center gap-1"><User size={10} /> {ev.utilizador_nome}</span>
+                        <span>· {relTime(ev.timestamp)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-              return (
-                <li key={ev.id} data-testid={`dash-activity-${ev.id}`}>
-                  {href ? <Link to={href} className="block hover:bg-gray-50 -mx-2 px-2 py-1 rounded-sm transition-colors">{body}</Link> : <div className="py-1">{body}</div>}
-                </li>
-              );
-            })}
-          </ul>
+                );
+                return (
+                  <li key={ev.id} data-testid={`dash-activity-${ev.id}`}>
+                    {href ? <Link to={href} className="block hover:bg-gray-50 -mx-2 px-2 py-1 rounded-sm transition-colors">{body}</Link> : <div className="py-1">{body}</div>}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="shrink-0 border-t border-gray-100 mt-2 -mx-1 px-1">
+              <ListPagination
+                compact
+                page={safePage}
+                pages={pages}
+                total={total}
+                pageSize={pageSize}
+                pageSizeOptions={[10, 25, 50]}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+                rangeLabel={rangeLabel}
+                testid="dash-activity-pagination"
+              />
+            </div>
+          </>
         )}
+        <Link to="/historico" className="mt-2 shrink-0 inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900">
+          Ver histórico completo <ArrowRight size={12} />
+        </Link>
       </div>
-      <Link to="/historico" className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900">Ver histórico completo <ArrowRight size={12} /></Link>
     </Card>
   );
 };
 
 export const QuickAnalysis = ({ d }) => {
+  const ytd = d?.ytd;
+  const ano = ytd?.ano || new Date().getFullYear();
   const data = [
-    { name: "Faturado", valor: d.valor_encomendas || 0, fill: INK },
-    { name: "Recebido", valor: d.valor_pago_total || 0, fill: "#059669" },
-    { name: "Pendente", valor: d.valor_pendente_total || 0, fill: "#D97706" },
-    { name: "Custo real", valor: d.custo_real_encomendas || 0, fill: "#2563EB" },
-    { name: "Margem", valor: d.margem_encomendas || 0, fill: (d.margem_encomendas || 0) >= 0 ? "#059669" : "#DC2626" },
+    { name: "Vendas", valor: ytd?.vendas ?? d?.valor_encomendas ?? 0, fill: INK },
+    { name: "Recebido", valor: ytd?.valor_pago ?? d?.valor_pago_total ?? 0, fill: "#059669" },
+    { name: "Pendente", valor: ytd?.valor_pendente ?? d?.valor_pendente_total ?? 0, fill: "#D97706" },
+    { name: "Compras", valor: ytd?.gastos ?? 0, fill: "#E11D48" },
+    { name: "Resultado", valor: ytd?.resultado ?? 0, fill: (ytd?.resultado ?? 0) >= 0 ? "#059669" : "#DC2626" },
   ];
   const temDados = data.some((x) => x.valor !== 0);
   return (
-    <Card title="Análise rápida · financeiro" icon={Gauge} className="lg:col-span-2">
-      {!temDados ? <Empty msg="Sem encomendas ainda." /> : (
+    <Card title={`Análise rápida · desde Jan ${ano}`} icon={Gauge} className="lg:col-span-2">
+      {!temDados ? <Empty msg="Sem dados desde Janeiro." /> : (
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data} layout="vertical" margin={{ left: 24, right: 24, top: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />

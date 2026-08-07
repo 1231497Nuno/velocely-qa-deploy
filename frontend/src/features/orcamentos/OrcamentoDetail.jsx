@@ -40,14 +40,6 @@ export default function OrcamentoDetail() {
 
   const load = useCallback(async () => {
     const o = await api.get(`/orcamentos/${id}`);
-    setOrc(o);
-    if (o.cliente_id) {
-      const cs = await api.get("/clientes").catch(() => []);
-      const c = (cs || []).find((x) => x.id === o.cliente_id);
-      setClienteEmail(c?.email || "");
-    } else {
-      setClienteEmail("");
-    }
     // migrar personalização única (legado) para lista
     o.linhas = (o.linhas || []).map((l) => {
       if ((!l.personalizacoes || l.personalizacoes.length === 0) && l.tipo_personalizacao_id) {
@@ -59,12 +51,24 @@ export default function OrcamentoDetail() {
     });
     o.materiais = o.materiais || [];
     setOrc(o);
-    setArtigos(await api.get("/artigos"));
-    setTipos(await api.get("/tipos-personalizacao"));
-    setMaquinas(await api.get("/maquinas"));
-    setMaoObra(await api.get("/mao-obra"));
-    setConsumiveis(await api.get("/consumiveis"));
-    setEmpresa(await api.get("/settings/empresa").catch(() => ({})));
+
+    const [arts, tipos, maqs, mos, cons, empresa, cs] = await Promise.all([
+      api.get("/artigos?lite=1"),
+      api.get("/tipos-personalizacao"),
+      api.get("/maquinas"),
+      api.get("/mao-obra"),
+      api.get("/consumiveis"),
+      api.get("/settings/empresa").catch(() => ({})),
+      o.cliente_id ? api.get("/clientes").catch(() => []) : Promise.resolve([]),
+    ]);
+    setArtigos(arts);
+    setTipos(tipos);
+    setMaquinas(maqs);
+    setMaoObra(mos);
+    setConsumiveis(cons);
+    setEmpresa(empresa);
+    const clientes = Array.isArray(cs) ? cs : (cs.items || []);
+    setClienteEmail(o.cliente_id ? (clientes.find((x) => x.id === o.cliente_id)?.email || "") : "");
   }, [id]);
   useEffect(() => {
     load();

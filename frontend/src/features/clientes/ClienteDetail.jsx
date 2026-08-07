@@ -8,7 +8,7 @@ import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { toast } from "sonner";
 import {
   ArrowLeft, FileText, ClipboardList, Factory, Coins, Wallet, TrendingUp,
-  Mail, Phone, MapPin, Hash, ChevronRight, Plus,
+  Mail, Phone, MapPin, Hash, ChevronRight, Plus, User,
 } from "lucide-react";
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
@@ -91,10 +91,15 @@ export default function ClienteDetail() {
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 font-display" data-testid="cliente-nome">{c.nome}</h1>
+          <p className="text-xs uppercase tracking-[0.1em] text-gray-500 mt-1" data-testid="cliente-tipo">
+            {(c.tipo === "empresa" || (!c.tipo && c.nif)) ? "Empresa" : "Particular"}
+          </p>
           <div className="mt-4 space-y-2">
-            <InfoLine icon={Hash} value={c.nif && `NIF ${c.nif}`} />
+            <InfoLine icon={Hash} value={c.codigo && `Código ${c.codigo}`} />
+            <InfoLine icon={Hash} value={c.nif ? `NIF ${c.nif}` : ((c.tipo || "particular") !== "empresa" ? "Sem NIF" : null)} />
             <InfoLine icon={Phone} value={c.contacto} />
             <InfoLine icon={Mail} value={c.email} />
+            <InfoLine icon={User} value={c.responsavel && `Responsável: ${c.responsavel}`} />
             <InfoLine icon={MapPin} value={morada} />
           </div>
           {c.notas && <p className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500 whitespace-pre-wrap">{c.notas}</p>}
@@ -190,30 +195,39 @@ export default function ClienteDetail() {
         )}
       </SeccaoPesquisavel>
 
-      <section className="mt-6" data-testid="cliente-historico-precos">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Coins size={15} /> Histórico de preços por artigo</h2>
-        <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
-          {precos.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-gray-400">Sem preços registados em encomendas anteriores.</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr><Th>Artigo</Th><Th align="right">Último preço</Th><Th align="right">Nº vezes</Th><Th align="right">Última encomenda</Th></tr>
-              </thead>
-              <tbody>
-                {precos.map((p) => (
-                  <tr key={p.artigo_id} data-testid={`preco-hist-${p.artigo_id}`} className="border-b border-gray-100 last:border-0">
-                    <td className="px-4 py-2.5 text-gray-900">{p.artigo_nome}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(p.ultimo_preco)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{p.ocorrencias}</td>
-                    <td className="px-4 py-2.5 text-right text-gray-500">{fmtDate(p.ultima_data)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
+      <SeccaoPesquisavel
+        title="Histórico de preços por artigo"
+        icon={Coins}
+        rows={precos}
+        searchKeys={["artigo_nome"]}
+        placeholder="Pesquisar artigo..."
+        testid="cliente-historico-precos"
+        className="mt-6"
+      >
+        {(rows) => (
+          <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
+            {rows.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-gray-400">Sem preços registados em encomendas anteriores.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr><Th>Artigo</Th><Th align="right">Último preço</Th><Th align="right">Nº vezes</Th><Th align="right">Última encomenda</Th></tr>
+                </thead>
+                <tbody>
+                  {rows.map((p) => (
+                    <tr key={p.artigo_id} data-testid={`preco-hist-${p.artigo_id}`} className="border-b border-gray-100 last:border-0">
+                      <td className="px-4 py-2.5 text-gray-900">{p.artigo_nome}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(p.ultimo_preco)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{p.ocorrencias}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-500">{fmtDate(p.ultima_data)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </SeccaoPesquisavel>
 
       <HistoricoTimeline tipo="cliente" id={id} />
     </div>

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ListPagination, { useServerPagedList } from "@/components/ListPagination";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Layers, FolderTree } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -33,10 +35,8 @@ function TabBtn({ id, active, onClick, icon: Icon, label, count }) {
 export default function Categorias() {
   const { can } = useAuth();
   const [tab, setTab] = useState("categorias");
-  const [categorias, setCategorias] = useState([]);
-  const [subcategorias, setSubcategorias] = useState([]);
-  const [q, setQ] = useState("");
   const [filtroCat, setFiltroCat] = useState("");
+  const [catsSelect, setCatsSelect] = useState([]);
   const [openCat, setOpenCat] = useState(false);
   const [openSub, setOpenSub] = useState(false);
   const [catNome, setCatNome] = useState("");
@@ -44,16 +44,21 @@ export default function Categorias() {
   const [subForm, setSubForm] = useState({ nome: "", categoria_id: "" });
   const [subEditId, setSubEditId] = useState(null);
 
-  const load = useCallback(async () => {
+  const cats = useServerPagedList("/categorias", { enabled: tab === "categorias" });
+  const subExtra = useMemo(() => (filtroCat ? { categoria_id: filtroCat } : {}), [filtroCat]);
+  const subs = useServerPagedList("/subcategorias", {
+    enabled: tab === "subcategorias",
+    extraParams: subExtra,
+  });
+
+  const loadCatsSelect = useCallback(async () => {
     try {
-      const [cats, subs] = await Promise.all([api.get("/categorias"), api.get("/subcategorias")]);
-      setCategorias(cats || []);
-      setSubcategorias(subs || []);
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Erro ao carregar categorias");
+      setCatsSelect(await api.get("/categorias"));
+    } catch {
+      setCatsSelect([]);
     }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadCatsSelect(); }, [loadCatsSelect]);
 
   const openNewCat = () => { setCatNome(""); setCatEditId(null); setOpenCat(true); };
   const openEditCat = (c) => { setCatNome(c.nome || ""); setCatEditId(c.id); setOpenCat(true); };
@@ -64,7 +69,8 @@ export default function Categorias() {
       else await api.post("/categorias", { nome: catNome.trim() });
       toast.success("Categoria guardada");
       setOpenCat(false);
-      load();
+      cats.reload();
+      loadCatsSelect();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
     }
@@ -73,14 +79,15 @@ export default function Categorias() {
     try {
       await api.del(`/categorias/${id}`);
       toast.success("Categoria eliminada");
-      load();
+      cats.reload();
+      loadCatsSelect();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Não foi possível eliminar");
     }
   };
 
   const openNewSub = () => {
-    setSubForm({ nome: "", categoria_id: filtroCat || categorias[0]?.id || "" });
+    setSubForm({ nome: "", categoria_id: filtroCat || catsSelect[0]?.id || "" });
     setSubEditId(null);
     setOpenSub(true);
   };
@@ -98,7 +105,8 @@ export default function Categorias() {
       else await api.post("/subcategorias", body);
       toast.success("Subcategoria guardada");
       setOpenSub(false);
-      load();
+      subs.reload();
+      if (tab === "categorias") cats.reload();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
     }
@@ -107,140 +115,158 @@ export default function Categorias() {
     try {
       await api.del(`/subcategorias/${id}`);
       toast.success("Subcategoria eliminada");
-      load();
+      subs.reload();
+      if (tab === "categorias") cats.reload();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Não foi possível eliminar");
     }
   };
 
-  const ql = q.trim().toLowerCase();
-  const cats_f = ql
-    ? categorias.filter((c) => [c.codigo, c.nome].some((v) => (v || "").toLowerCase().includes(ql)))
-    : categorias;
-  const subsBase = filtroCat ? subcategorias.filter((s) => s.categoria_id === filtroCat) : subcategorias;
-  const subs_f = ql
-    ? subsBase.filter((s) => [s.codigo, s.nome, s.categoria_nome].some((v) => (v || "").toLowerCase().includes(ql)))
-    : subsBase;
+  const active = tab === "categorias" ? cats : subs;
 
   return (
-    <div>
-      <PageHeader
-        title="Categorias e subcategorias"
-        subtitle="Organização dos artigos — ex.: Têxtil → T-shirt"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            {tab === "categorias" ? (
-              <ExportExcelButton entity="categorias" ids={cats_f.map((c) => c.id)} />
-            ) : (
-              <ExportExcelButton entity="subcategorias" ids={subs_f.map((s) => s.id)} />
-            )}
-            {tab === "categorias"
-              ? (can("artigos", "create") && (
-                <button data-testid="new-categoria-btn" onClick={openNewCat} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
-                  <Plus size={16} /> Nova categoria
-                </button>
-              ))
-              : (can("artigos", "create") && (
-                <button data-testid="new-subcategoria-btn" onClick={openNewSub} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
-                  <Plus size={16} /> Nova subcategoria
-                </button>
-              ))}
-          </div>
-        }
-      />
-
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <TabBtn id="categorias" active={tab === "categorias"} onClick={setTab} icon={Layers} label="Categorias" count={categorias.length} />
-        <TabBtn id="subcategorias" active={tab === "subcategorias"} onClick={setTab} icon={FolderTree} label="Subcategorias" count={subcategorias.length} />
-      </div>
-
-      {tab === "categorias" && (
+    <>
+    <ListPage
+      header={
+        <PageHeader
+          title="Categorias e subcategorias"
+          subtitle="Organização dos artigos — ex.: Têxtil → T-shirt"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              {tab === "categorias" ? (
+                <ExportExcelButton entity="categorias" ids={cats.items.map((c) => c.id)} />
+              ) : (
+                <ExportExcelButton entity="subcategorias" ids={subs.items.map((s) => s.id)} />
+              )}
+              {tab === "categorias"
+                ? (can("artigos", "create") && (
+                  <button data-testid="new-categoria-btn" onClick={openNewCat} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+                    <Plus size={16} /> Nova categoria
+                  </button>
+                ))
+                : (can("artigos", "create") && (
+                  <button data-testid="new-subcategoria-btn" onClick={openNewSub} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+                    <Plus size={16} /> Nova subcategoria
+                  </button>
+                ))}
+            </div>
+          }
+        />
+      }
+      toolbar={
         <>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar categorias por código ou nome..." testid="categorias-search" />
-          <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
-            <table className="w-full text-sm min-w-[420px]">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subcats.</th>
-                  <th className="px-4 py-3 w-24"></th>
-                </tr>
-              </thead>
-              <tbody data-testid="categorias-table">
-                {cats_f.map((c) => {
-                  const nSubs = subcategorias.filter((s) => s.categoria_id === c.id).length;
-                  return (
-                    <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{c.codigo || "—"}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-500">{nSubs}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          {can("artigos", "edit") && <button data-testid={`edit-categoria-${c.id}`} onClick={() => openEditCat(c)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>}
-                          {can("artigos", "delete") && <button data-testid={`delete-categoria-${c.id}`} onClick={() => removeCat(c.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {cats_f.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem categorias. Cria a primeira (ex.: Têxtil).</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-2 flex-wrap">
+            <TabBtn id="categorias" active={tab === "categorias"} onClick={setTab} icon={Layers} label="Categorias" count={tab === "categorias" ? cats.total : undefined} />
+            <TabBtn id="subcategorias" active={tab === "subcategorias"} onClick={setTab} icon={FolderTree} label="Subcategorias" count={tab === "subcategorias" ? subs.total : undefined} />
           </div>
+          {tab === "categorias" && (
+            <SearchBar value={cats.q} onChange={cats.setQ} placeholder="Pesquisar categorias por código ou nome..." testid="categorias-search" />
+          )}
+          {tab === "subcategorias" && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                data-testid="sub-filtro-categoria"
+                value={filtroCat}
+                onChange={(e) => setFiltroCat(e.target.value)}
+                className="border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white w-full sm:w-56 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+              >
+                <option value="">Todas as categorias</option>
+                {catsSelect.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+              <div className="flex-1">
+                <SearchBar value={subs.q} onChange={subs.setQ} placeholder="Pesquisar subcategorias..." testid="subcategorias-search" />
+              </div>
+            </div>
+          )}
         </>
+      }
+      footer={
+        <ListPagination
+          page={active.page}
+          pages={active.pages}
+          total={active.total}
+          pageSize={active.pageSize}
+          onPageChange={active.setPage}
+          onPageSizeChange={active.setPageSize}
+          rangeLabel={active.rangeLabel}
+          testid={tab === "categorias" ? "categorias-pagination" : "subcategorias-pagination"}
+        />
+      }
+    >
+      {tab === "categorias" && (
+        <ScrollableTable>
+          <table className="w-full text-sm min-w-[420px]">
+            <thead className={TABLE_HEAD_STICKY}>
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subcats.</th>
+                <th className="px-4 py-3 w-24 bg-gray-50"></th>
+              </tr>
+            </thead>
+            <tbody data-testid="categorias-table">
+              {cats.items.map((c) => (
+                <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{c.codigo || "—"}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-500">{c.num_subcategorias ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {can("artigos", "edit") && <button data-testid={`edit-categoria-${c.id}`} onClick={() => openEditCat(c)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>}
+                      {can("artigos", "delete") && <button data-testid={`delete-categoria-${c.id}`} onClick={() => removeCat(c.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {cats.items.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">
+                    {cats.loading ? "A carregar categorias…" : "Sem categorias. Cria a primeira (ex.: Têxtil)."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </ScrollableTable>
       )}
 
       {tab === "subcategorias" && (
-        <>
-          <div className="flex flex-col sm:flex-row gap-3 mb-3">
-            <select
-              data-testid="sub-filtro-categoria"
-              value={filtroCat}
-              onChange={(e) => setFiltroCat(e.target.value)}
-              className="border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white w-full sm:w-56 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-            >
-              <option value="">Todas as categorias</option>
-              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-            <div className="flex-1">
-              <SearchBar value={q} onChange={setQ} placeholder="Pesquisar subcategorias..." testid="subcategorias-search" />
-            </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
-            <table className="w-full text-sm min-w-[520px]">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Categoria</th>
-                  <th className="px-4 py-3 w-24"></th>
+        <ScrollableTable>
+          <table className="w-full text-sm min-w-[520px]">
+            <thead className={TABLE_HEAD_STICKY}>
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nome</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Categoria</th>
+                <th className="px-4 py-3 w-24 bg-gray-50"></th>
+              </tr>
+            </thead>
+            <tbody data-testid="subcategorias-table">
+              {subs.items.map((s) => (
+                <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{s.codigo || "—"}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{s.nome}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.categoria_nome || "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {can("artigos", "edit") && <button data-testid={`edit-subcategoria-${s.id}`} onClick={() => openEditSub(s)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>}
+                      {can("artigos", "delete") && <button data-testid={`delete-subcategoria-${s.id}`} onClick={() => removeSub(s.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody data-testid="subcategorias-table">
-                {subs_f.map((s) => (
-                  <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{s.codigo || "—"}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{s.nome}</td>
-                    <td className="px-4 py-3 text-gray-600">{s.categoria_nome || "—"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {can("artigos", "edit") && <button data-testid={`edit-subcategoria-${s.id}`} onClick={() => openEditSub(s)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>}
-                        {can("artigos", "delete") && <button data-testid={`delete-subcategoria-${s.id}`} onClick={() => removeSub(s.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {subs_f.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Sem subcategorias. Cria a primeira (ex.: T-shirt).</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
+              ))}
+              {subs.items.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">
+                    {subs.loading ? "A carregar subcategorias…" : "Sem subcategorias. Cria a primeira (ex.: T-shirt)."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </ScrollableTable>
       )}
+    </ListPage>
 
       <Dialog open={openCat} onOpenChange={setOpenCat}>
         <DialogContent>
@@ -275,7 +301,7 @@ export default function Categorias() {
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
               >
                 <option value="">— Selecionar —</option>
-                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                {catsSelect.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
             </div>
             <div>
@@ -289,6 +315,6 @@ export default function Categorias() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
