@@ -103,7 +103,7 @@ export default function Financeiro() {
       }
       toolbar={
         <>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente, encomenda ou recibo..." testid="financeiro-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou encomenda..." testid="financeiro-search" />
           <div className="flex items-center gap-2 flex-wrap" data-testid="financeiro-tabs">
             {FILTROS.map((t) => {
               const active = filtro === t.id;

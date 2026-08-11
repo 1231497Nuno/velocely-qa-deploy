@@ -171,7 +171,7 @@ export default function Artigos() {
           }
         />
       }
-      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar artigos por código ou nome..." testid="artigos-search" />}
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nome ou código..." testid="artigos-search" />}
       footer={
         <ListPagination
           page={page}

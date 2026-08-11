@@ -116,7 +116,7 @@ export default function ClienteDetail() {
       </div>
 
       {/* Encomendas */}
-      <SeccaoPesquisavel title="Encomendas" icon={ClipboardList} rows={encomendas} searchKeys={["numero", "estado", "status_pagamento"]} placeholder="Pesquisar encomenda..." testid="cliente-encomendas">
+      <SeccaoPesquisavel title="Encomendas" icon={ClipboardList} rows={encomendas} searchKeys={["numero", "estado", "status_pagamento"]} placeholder="Pesquisar pelo início do nº ou cliente..." testid="cliente-encomendas">
         {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
@@ -145,7 +145,7 @@ export default function ClienteDetail() {
       </SeccaoPesquisavel>
 
       {/* Orçamentos */}
-      <SeccaoPesquisavel title="Orçamentos" icon={FileText} rows={orcamentos} searchKeys={["numero", "status", "of_numero"]} placeholder="Pesquisar orçamento..." testid="cliente-orcamentos">
+      <SeccaoPesquisavel title="Orçamentos" icon={FileText} rows={orcamentos} searchKeys={["numero", "status", "of_numero"]} placeholder="Pesquisar pelo início do nº ou estado..." testid="cliente-orcamentos">
         {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
@@ -171,7 +171,7 @@ export default function ClienteDetail() {
       </SeccaoPesquisavel>
 
       {/* Ordens de Fabrico */}
-      <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "status"]} placeholder="Pesquisar OF..." testid="cliente-ofs" className="mb-2">
+      <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "status"]} placeholder="Pesquisar pelo início do nº ou estado..." testid="cliente-ofs" className="mb-2">
         {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
@@ -200,7 +200,7 @@ export default function ClienteDetail() {
         icon={Coins}
         rows={precos}
         searchKeys={["artigo_nome"]}
-        placeholder="Pesquisar artigo..."
+        placeholder="Pesquisar pelo início do nome..."
         testid="cliente-historico-precos"
         className="mt-6"
       >

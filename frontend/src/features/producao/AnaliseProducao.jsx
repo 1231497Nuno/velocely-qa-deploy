@@ -64,7 +64,7 @@ function PorOF() {
           <Tab id="tempo" icon={Timer} label="Tempos" />
           <Tab id="custo" icon={Coins} label="Custos" />
         </div>
-        <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por OF ou cliente..." testid="analise-search" />
+        <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº OF ou cliente..." testid="analise-search" />
       </>
     } footer={
       <>

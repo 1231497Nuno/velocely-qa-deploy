@@ -153,7 +153,7 @@ export default function OrdensFabrico() {
       }
       toolbar={
         <>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código, cliente ou nº encomenda..." testid="ofs-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou encomenda..." testid="ofs-search" />
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               {view === "lista" && <>

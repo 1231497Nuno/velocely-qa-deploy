@@ -108,7 +108,7 @@ export default function Orcamentos() {
       }
       toolbar={
         <>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar orçamentos por número, cliente ou referência..." testid="orcamentos-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou referência..." testid="orcamentos-search" />
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               {view === "lista" && (

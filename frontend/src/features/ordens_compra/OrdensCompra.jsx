@@ -110,7 +110,7 @@ export default function OrdensCompra() {
               <option value="cancelada">Cancelada</option>
             </select>
           </div>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar código, assunto, fornecedor..." testid="ordens-compra-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código, assunto ou fornecedor..." testid="ordens-compra-search" />
         </div>
       }
       footer={

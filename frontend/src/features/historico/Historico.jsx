@@ -76,7 +76,7 @@ export default function Historico() {
               data-testid="historico-search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Pesquisar por descrição, número, utilizador..."
+              placeholder="Pesquisar pelo início da descrição, nº ou utilizador..."
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
             />
           </div>

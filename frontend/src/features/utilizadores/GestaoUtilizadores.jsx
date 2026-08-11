@@ -164,7 +164,7 @@ export default function GestaoUtilizadores() {
             <Tab id="perfis" icon={Shield} label="Perfis & Acessos" />
           </div>
           {tab === "users" && (
-            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por login, nome ou email..." testid="users-search" />
+            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do login, nome ou email..." testid="users-search" />
           )}
         </>
       }

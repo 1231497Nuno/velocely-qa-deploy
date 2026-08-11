@@ -10,13 +10,13 @@ export default function Combobox({
   value,
   onChange,
   placeholder = "Selecionar...",
-  searchPlaceholder = "Escrever para pesquisar...",
+  searchPlaceholder = "Pesquisar pelo início do nome...",
   emptyText = "Sem resultados.",
   testid,
   optionTestidPrefix = "option",
   className = "",
-  /** Se true, só mostra opções cujo label *começa* pelo texto (primeiro nome). */
-  matchPrefix = false,
+  /** Prefixo no label (igual a clientes/fornecedores). Default: true. */
+  matchPrefix = true,
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
@@ -25,7 +25,6 @@ export default function Combobox({
     ? (itemValue, search) => {
         const s = (search || "").trim().toLowerCase();
         if (!s) return 1;
-        // itemValue = "label hint" — comparar só o início do label (primeira palavra / nome)
         const label = (itemValue || "").toLowerCase();
         return label.startsWith(s) ? 1 : 0;
       }

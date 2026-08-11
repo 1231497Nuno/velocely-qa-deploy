@@ -148,7 +148,7 @@ export default function FornecedorDetail() {
         icon={ShoppingCart}
         rows={ordens}
         searchKeys={["codigo", "codigo_origem", "assunto", "tipo_compra", "tipo_despesa", "estado"]}
-        placeholder="Pesquisar ordem..."
+        placeholder="Pesquisar pelo início do código ou assunto..."
         testid="fornecedor-ocs"
         className="mb-2"
       >

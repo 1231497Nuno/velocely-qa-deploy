@@ -77,7 +77,7 @@ export default function MaoObra() {
           }
         />
       }
-      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="mao-obra-search" />}
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="mao-obra-search" />}
       footer={
         <ListPagination
           page={page}

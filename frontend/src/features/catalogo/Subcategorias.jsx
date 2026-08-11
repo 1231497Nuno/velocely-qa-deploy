@@ -64,7 +64,9 @@ export default function Subcategorias() {
 
   const ql = q.trim().toLowerCase();
   const items_f = ql
-    ? items.filter((s) => [s.codigo, s.nome, s.categoria_nome].some((v) => (v || "").toLowerCase().includes(ql)))
+    ? items.filter((s) =>
+        [s.codigo, s.nome, s.categoria_nome].some((v) => (v || "").toLowerCase().startsWith(ql)),
+      )
     : items;
 
   return (
@@ -90,7 +92,7 @@ export default function Subcategorias() {
           {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </select>
         <div className="flex-1">
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar subcategorias por código ou nome..." testid="subcategorias-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="subcategorias-search" />
         </div>
       </div>
 

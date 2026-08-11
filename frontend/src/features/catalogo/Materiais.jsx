@@ -78,7 +78,7 @@ export default function Materiais() {
           }
         />
       }
-      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar materiais por código ou nome..." testid="materiais-search" />}
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="materiais-search" />}
       footer={
         <ListPagination
           page={page}

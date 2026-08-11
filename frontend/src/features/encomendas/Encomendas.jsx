@@ -101,7 +101,7 @@ export default function Encomendas() {
       }
       toolbar={
         <>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por número, cliente ou orçamento..." testid="encomendas-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou orçamento..." testid="encomendas-search" />
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <Tab id="pendentes" label="Pendentes" />

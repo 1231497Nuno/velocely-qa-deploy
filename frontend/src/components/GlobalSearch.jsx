@@ -46,7 +46,7 @@ export default function GlobalSearch({ onNavigate }) {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => res.length && setOpen(true)}
-        placeholder="Pesquisar clientes, orçamentos, encomendas, OFs, artigos..."
+        placeholder="Pesquisar pelo início do nome, nº ou código..."
         className="w-full pl-9 pr-8 py-2 text-sm bg-gray-100 border border-transparent rounded-sm focus:bg-white focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-900"
       />
       {q && <button onClick={() => { setQ(""); setRes([]); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"><X size={15} /></button>}

@@ -87,7 +87,7 @@ export default function Maquinas() {
           }
         />
       }
-      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar máquinas por código ou nome..." testid="maquinas-search" />}
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="maquinas-search" />}
       footer={
         <ListPagination
           page={page}

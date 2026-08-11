@@ -21,12 +21,9 @@ export default function SeccaoPesquisavel({
   const filtered = useMemo(() => {
     const all = rows || [];
     if (!ql) return all;
-    const prefixKeys = new Set(["nome", "cliente", "cliente_nome", "artigo_nome"]);
+    // Mesma lógica que clientes/fornecedores: começa pelo texto (prefixo).
     return all.filter((r) =>
-      searchKeys.some((k) => {
-        const val = String(r[k] ?? "").toLowerCase();
-        return prefixKeys.has(k) ? val.startsWith(ql) : val.includes(ql);
-      }),
+      searchKeys.some((k) => String(r[k] ?? "").toLowerCase().startsWith(ql)),
     );
   }, [rows, ql, searchKeys]);
 

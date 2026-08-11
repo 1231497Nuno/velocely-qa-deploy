@@ -89,7 +89,7 @@ export default function ClienteSelector({ value, onChange, testid = "cliente-sel
           value={value || ""}
           onChange={(id) => { const c = clientes.find((x) => x.id === id); onChange(id, c ? c.nome : "", c || null); }}
           placeholder="— Selecionar cliente —"
-          searchPlaceholder="Pesquisar cliente..."
+          searchPlaceholder="Pesquisar pelo início do nome..."
           emptyText="Nenhum cliente encontrado."
           testid={testid}
           optionTestidPrefix="cliente-option"

@@ -83,7 +83,7 @@ export default function PedidosCotacao() {
       toolbar={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="flex-1 min-w-0">
-            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar código, assunto, fornecedor..." testid="pedidos-cotacao-search" />
+            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código, assunto ou fornecedor..." testid="pedidos-cotacao-search" />
           </div>
           <select
             data-testid="pc-filtro-estado"

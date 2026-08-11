@@ -160,7 +160,7 @@ export default function Categorias() {
             <TabBtn id="subcategorias" active={tab === "subcategorias"} onClick={setTab} icon={FolderTree} label="Subcategorias" count={tab === "subcategorias" ? subs.total : undefined} />
           </div>
           {tab === "categorias" && (
-            <SearchBar value={cats.q} onChange={cats.setQ} placeholder="Pesquisar categorias por código ou nome..." testid="categorias-search" />
+            <SearchBar value={cats.q} onChange={cats.setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="categorias-search" />
           )}
           {tab === "subcategorias" && (
             <div className="flex flex-col sm:flex-row gap-3">
@@ -174,7 +174,7 @@ export default function Categorias() {
                 {catsSelect.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
               <div className="flex-1">
-                <SearchBar value={subs.q} onChange={subs.setQ} placeholder="Pesquisar subcategorias..." testid="subcategorias-search" />
+                <SearchBar value={subs.q} onChange={subs.setQ} placeholder="Pesquisar pelo início do nome..." testid="subcategorias-search" />
               </div>
             </div>
           )}

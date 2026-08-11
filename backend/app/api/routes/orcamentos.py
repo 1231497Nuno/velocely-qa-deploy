@@ -38,7 +38,7 @@ async def list_orcamentos(
 ):
     query = {}
     apply_status_filter(query, status)
-    ts = text_search(["numero", "cliente", "descricao", "numero_encomenda"], q)
+    ts = text_search(["numero", "cliente", "numero_encomenda"], q)
     if ts:
         query.update(ts)
     if page is None:

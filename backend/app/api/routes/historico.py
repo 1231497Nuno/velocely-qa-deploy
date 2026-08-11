@@ -26,12 +26,13 @@ async def historico_global(
         query["entidade_tipo"] = tipo
     ql = (q or "").strip()
     if ql:
-        import re
-        rx = {"$regex": re.escape(ql), "$options": "i"}
-        query["$or"] = [
-            {"descricao": rx}, {"entidade_numero": rx}, {"acao_label": rx},
-            {"utilizador_nome": rx}, {"utilizador_login": rx}, {"tipo_label": rx},
-        ]
+        from app.core.pagination import text_search
+        ts = text_search(
+            ["descricao", "entidade_numero", "acao_label", "utilizador_nome", "utilizador_login", "tipo_label"],
+            ql,
+        )
+        if ts:
+            query.update(ts)
     p, ps, skip = parse_page(page, page_size)
     total = await historico_repo.count(query)
     items = await historico_repo.find(query, sort=("timestamp", -1), limit=ps, skip=skip)

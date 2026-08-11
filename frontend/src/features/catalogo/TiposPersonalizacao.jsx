@@ -71,7 +71,7 @@ export default function TiposPersonalizacao() {
           }
         />
       }
-      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar por código ou nome..." testid="personalizacao-search" />}
+      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="personalizacao-search" />}
       footer={
         <ListPagination
           page={page}

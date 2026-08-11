@@ -17,7 +17,7 @@ from app.repositories import (
 )
 from app.services.costing import (
     artigo_breakdown, enrich_artigo, enrich_artigos_list, artigo_lite,
-    compute_orcamento_totais, compute_encomenda, recompute_of_status,
+    compute_orcamento_totais, compute_encomendas_many, recompute_of_status,
 )
 from app.services.numeracao import next_codigo
 from app.services import audit
@@ -104,7 +104,7 @@ async def list_maquinas(
     _u: dict = Depends(require_perm("maquinas", "view")),
 ):
     query = {}
-    ts = text_search(["nome", "codigo", "descricao"], q)
+    ts = text_search(["nome", "codigo"], q)
     if ts:
         query.update(ts)
     return await _list_or_page(maquinas_repo, query, ("nome", 1), page, page_size)
@@ -246,7 +246,7 @@ async def list_artigos(
     _u: dict = Depends(require_perm("artigos", "view")),
 ):
     query = {}
-    ts = text_search(["nome", "codigo", "descricao", "categoria_nome", "subcategoria_nome"], q)
+    ts = text_search(["nome", "codigo"], q)
     if ts:
         query.update(ts)
 
@@ -280,10 +280,18 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
-    artigo = enrich_artigo(a, await artigo_breakdown(a))
+
+    # Só documentos que referenciam o artigo (evita varrer 1000+ encomendas).
+    artigo_bd, orcs_raw, encs_raw, ofs_raw = await asyncio.gather(
+        artigo_breakdown(a),
+        orcamentos_repo.find({"linhas.artigo_id": aid}, sort=("data", -1), limit=5000),
+        encomendas_repo.find({"artigos.artigo_id": aid}, sort=("data", -1), limit=5000),
+        ordens_repo.find({"itens.artigo_id": aid}, sort=("data", -1), limit=5000),
+    )
+    artigo = enrich_artigo(a, artigo_bd)
 
     orcamentos = []
-    for o in await orcamentos_repo.find(limit=5000):
+    for o in orcs_raw:
         linhas = [l for l in (o.get("linhas") or []) if l.get("artigo_id") == aid]
         if not linhas:
             continue
@@ -294,13 +302,14 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
             "total": oc.get("total"),
         })
 
+    # Batch: 1 lookup de OFs/orçamentos/empresa em vez de N×compute_encomenda.
+    encs_computed = await compute_encomendas_many(encs_raw)
     encomendas = []
     receita = 0.0
-    for e in await encomendas_repo.find(limit=5000):
+    for e, ec in zip(encs_raw, encs_computed):
         arts = [x for x in (e.get("artigos") or []) if x.get("artigo_id") == aid]
         if not arts:
             continue
-        ec = await compute_encomenda(e)
         for x in arts:
             pers = sum((p.get("valor") or 0) for p in (x.get("personalizacoes") or []))
             bruto = ((x.get("preco_unit") or 0) + pers) * (x.get("quantidade") or 0)
@@ -314,7 +323,7 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
         })
 
     ordens_fabrico = []
-    for f in await ordens_repo.find(limit=5000):
+    for f in ofs_raw:
         its = [x for x in (f.get("itens") or []) if x.get("artigo_id") == aid]
         if not its:
             continue
@@ -324,11 +333,6 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
             "status": fc.get("status"), "progresso": fc.get("progresso"),
             "quantidade": round2(sum(x.get("quantidade") or 0 for x in its)),
         })
-
-    _key = lambda x: x.get("data") or ""
-    orcamentos.sort(key=_key, reverse=True)
-    encomendas.sort(key=_key, reverse=True)
-    ordens_fabrico.sort(key=_key, reverse=True)
 
     qtd_encomendada = round2(sum(x["quantidade"] for x in encomendas))
     custo_prod = round2((artigo.get("custo_producao_total") or 0) * qtd_encomendada)

@@ -15,6 +15,13 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid }) {
   const [open, setOpen] = useState(false);
   const selected = artigos.find((a) => a.id === value);
 
+  // Mesma lógica que clientes/fornecedores: começa pelo nome *ou* pelo código.
+  const filter = (itemValue, search) => {
+    const s = (search || "").trim().toLowerCase();
+    if (!s) return 1;
+    return itemValue.split("|||").some((part) => part.toLowerCase().startsWith(s)) ? 1 : 0;
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -30,15 +37,15 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid }) {
         </button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width] min-w-[280px]" align="start">
-        <Command>
-          <CommandInput placeholder="Escrever para pesquisar..." data-testid="artigo-search-input" />
+        <Command filter={filter}>
+          <CommandInput placeholder="Pesquisar pelo início do nome ou código..." data-testid="artigo-search-input" />
           <CommandList>
             <CommandEmpty>Nenhum artigo encontrado.</CommandEmpty>
             <CommandGroup>
               {artigos.map((a) => (
                 <CommandItem
                   key={a.id}
-                  value={a.nome}
+                  value={`${a.nome || ""}|||${a.codigo || ""}`}
                   data-testid={`artigo-option-${a.id}`}
                   onSelect={() => {
                     onChange(a);
@@ -46,15 +53,15 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid }) {
                   }}
                   className="flex items-center justify-between gap-2"
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 min-w-0">
                     <Check
                       size={15}
-                      className={value === a.id ? "opacity-100" : "opacity-0"}
+                      className={value === a.id ? "opacity-100 shrink-0" : "opacity-0 shrink-0"}
                     />
-                    {a.nome}
+                    <span className="truncate">{a.nome}</span>
                   </span>
-                  <span className="text-xs text-gray-500 tabular-nums">
-                    {eur(a.preco_venda)}
+                  <span className="text-xs text-gray-500 tabular-nums shrink-0">
+                    {a.codigo ? `${a.codigo} · ` : ""}{eur(a.preco_venda)}
                   </span>
                 </CommandItem>
               ))}

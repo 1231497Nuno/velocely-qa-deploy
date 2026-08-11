@@ -28,14 +28,37 @@ export default function ArtigoDetail() {
   const nav = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [descAberta, setDescAberta] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      setData(await api.get(`/artigos/${id}/resumo`));
-    } finally {
+    setData(null);
+    setDescAberta(false);
+    // Cabeçalho rápido; listas/KPIs vêm do resumo (já filtrado na BD).
+    const quickP = api.get(`/artigos/${id}`).then((artigo) => {
+      setData((prev) => prev || {
+        artigo,
+        orcamentos: [],
+        encomendas: [],
+        ordens_fabrico: [],
+        stats: {
+          num_orcamentos: "…", num_encomendas: "…", num_ofs: "…",
+          qtd_orcada: "…", qtd_encomendada: "…", qtd_produzida: "…",
+          receita: null, custo: null, ganho: null,
+        },
+        _parcial: true,
+      });
       setLoading(false);
-    }
+    }).catch(() => null);
+
+    const fullP = api.get(`/artigos/${id}/resumo`).then((resumo) => {
+      setData({ ...resumo, _parcial: false });
+      setLoading(false);
+      return resumo;
+    }).catch(() => null);
+
+    const [, full] = await Promise.all([quickP, fullP]);
+    if (full == null) setLoading(false);
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -43,6 +66,14 @@ export default function ArtigoDetail() {
   if (!data) return <div className="text-sm text-gray-500">Artigo não encontrado.</div>;
 
   const { artigo: a, orcamentos, encomendas, ordens_fabrico, stats } = data;
+  const parcial = Boolean(data._parcial);
+  const desc = (a.descricao || "").trim();
+  const descLonga = desc.length > 280;
+
+  const kpiVal = (v, money = false) => {
+    if (v === "…" || v == null) return parcial ? "…" : (money ? eur(0) : 0);
+    return money ? eur(v) : v;
+  };
 
   return (
     <div>
@@ -64,7 +95,22 @@ export default function ArtigoDetail() {
                   {[a.categoria_nome, a.subcategoria_nome].filter(Boolean).join(" · ")}
                 </p>
               )}
-              {a.descricao && <p className="text-sm text-gray-500 mt-0.5">{a.descricao}</p>}
+              {desc && (
+                <div className="mt-1">
+                  <p className={`text-sm text-gray-500 whitespace-pre-wrap ${!descAberta && descLonga ? "line-clamp-4" : ""}`}>
+                    {desc}
+                  </p>
+                  {descLonga && (
+                    <button
+                      type="button"
+                      onClick={() => setDescAberta((v) => !v)}
+                      className="text-xs text-gray-600 hover:text-gray-900 mt-1 underline-offset-2 hover:underline"
+                    >
+                      {descAberta ? "Ver menos" : "Ver mais"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-2 text-sm">
@@ -76,17 +122,21 @@ export default function ArtigoDetail() {
         </div>
 
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-3">
-          <KPI icon={FileText} label="Orçamentos" value={stats.num_orcamentos} sub={`${stats.qtd_orcada} un orçadas`} testid="artigo-kpi-orcamentos" />
-          <KPI icon={ClipboardList} label="Encomendas" value={stats.num_encomendas} sub={`${stats.qtd_encomendada} un encomendadas`} testid="artigo-kpi-encomendas" />
-          <KPI icon={Factory} label="Ordens de Fabrico" value={stats.num_ofs} sub={`${stats.qtd_produzida} un em produção`} testid="artigo-kpi-ofs" />
-          <KPI icon={Package} label="Un. Encomendadas" value={stats.qtd_encomendada} testid="artigo-kpi-qtd-enc" />
-          <KPI icon={Coins} label="Receita" value={eur(stats.receita)} sub={`Custo ${eur(stats.custo)}`} testid="artigo-kpi-receita" />
-          <KPI icon={TrendingUp} label="Ganho estimado" value={eur(stats.ganho)} sub="Receita − custo de produção" testid="artigo-kpi-ganho" />
+          <KPI icon={FileText} label="Orçamentos" value={kpiVal(stats.num_orcamentos)} sub={`${kpiVal(stats.qtd_orcada)} un orçadas`} testid="artigo-kpi-orcamentos" />
+          <KPI icon={ClipboardList} label="Encomendas" value={kpiVal(stats.num_encomendas)} sub={`${kpiVal(stats.qtd_encomendada)} un encomendadas`} testid="artigo-kpi-encomendas" />
+          <KPI icon={Factory} label="Ordens de Fabrico" value={kpiVal(stats.num_ofs)} sub={`${kpiVal(stats.qtd_produzida)} un em produção`} testid="artigo-kpi-ofs" />
+          <KPI icon={Package} label="Un. Encomendadas" value={kpiVal(stats.qtd_encomendada)} testid="artigo-kpi-qtd-enc" />
+          <KPI icon={Coins} label="Receita" value={kpiVal(stats.receita, true)} sub={`Custo ${kpiVal(stats.custo, true)}`} testid="artigo-kpi-receita" />
+          <KPI icon={TrendingUp} label="Ganho estimado" value={kpiVal(stats.ganho, true)} sub="Receita − custo de produção" testid="artigo-kpi-ganho" />
         </div>
       </div>
 
+      {parcial && (
+        <div className="text-sm text-gray-400 mb-4">A carregar encomendas e histórico…</div>
+      )}
+
       {/* Encomendas */}
-      <SeccaoPesquisavel title="Encomendas" icon={ClipboardList} rows={encomendas} searchKeys={["numero", "cliente", "estado"]} placeholder="Pesquisar encomenda..." testid="artigo-encomendas">
+      <SeccaoPesquisavel title="Encomendas" icon={ClipboardList} rows={encomendas} searchKeys={["numero", "cliente", "estado"]} placeholder="Pesquisar pelo início do nº ou cliente..." testid="artigo-encomendas">
         {(rows) => (
           <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
@@ -106,7 +156,7 @@ export default function ArtigoDetail() {
                     <td className="px-4 py-3 text-gray-400"><ChevronRight size={16} /></td>
                   </tr>
                 ))}
-                {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">Sem encomendas.</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">{parcial ? "A carregar…" : "Sem encomendas."}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -114,7 +164,7 @@ export default function ArtigoDetail() {
       </SeccaoPesquisavel>
 
       {/* Orçamentos */}
-      <SeccaoPesquisavel title="Orçamentos" icon={FileText} rows={orcamentos} searchKeys={["numero", "cliente", "status"]} placeholder="Pesquisar orçamento..." testid="artigo-orcamentos">
+      <SeccaoPesquisavel title="Orçamentos" icon={FileText} rows={orcamentos} searchKeys={["numero", "cliente", "status"]} placeholder="Pesquisar pelo início do nº ou estado..." testid="artigo-orcamentos">
         {(rows) => (
           <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
@@ -141,7 +191,7 @@ export default function ArtigoDetail() {
       </SeccaoPesquisavel>
 
       {/* Ordens de Fabrico */}
-      <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "cliente", "status"]} placeholder="Pesquisar OF..." testid="artigo-ofs" className="mb-2">
+      <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "cliente", "status"]} placeholder="Pesquisar pelo início do nº ou estado..." testid="artigo-ofs" className="mb-2">
         {(rows) => (
           <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
             <table className="w-full text-sm min-w-[560px]">

@@ -49,24 +49,20 @@ def page_payload(items: List[Any], total: int, page: int, page_size: int) -> Dic
 
 
 def text_search(fields: List[str], q: str, *, prefix_fields: Optional[List[str]] = None) -> Optional[dict]:
-    """Filtro Mongo `$or` case-insensitive.
+    """Filtro Mongo `$or` case-insensitive — *sempre* pelo início do texto (`^`).
 
-    Por defeito `nome` / `cliente` / `cliente_nome` usam *início do texto* (`^`).
-    Os restantes campos usam *contém*. `prefix_fields` acrescenta mais campos a esse modo.
+    Mesma lógica que clientes/fornecedores: o que escreves tem de ser o prefixo do
+    campo (ex.: «div» → Diversos…; «art-00» → ART-0044). Não pesquisa no meio.
+
+    `prefix_fields` fica só por compatibilidade (ignorado — todos os campos são prefixo).
     """
     ql = (q or "").strip()
     if not ql:
         return None
     import re
     esc = re.escape(ql)
-    prefix_set = {"nome", "cliente", "cliente_nome"} | set(prefix_fields or [])
-    clauses = []
-    for f in fields:
-        if f in prefix_set:
-            clauses.append({f: {"$regex": rf"^{esc}", "$options": "i"}})
-        else:
-            clauses.append({f: {"$regex": esc, "$options": "i"}})
-    return {"$or": clauses}
+    _ = prefix_fields  # compat
+    return {"$or": [{f: {"$regex": rf"^{esc}", "$options": "i"}} for f in fields]}
 
 
 def text_search_cliente(q: str) -> Optional[dict]:
@@ -104,25 +100,17 @@ def apply_status_filter(query: dict, status: Optional[str], field: str = "status
 
 
 def filter_by_q(items: List[Any], q: str, fields: List[str]) -> List[Any]:
-    """Filtro em memória. `nome` / `cliente` / `cliente_nome` → começa por; resto → contém."""
+    """Filtro em memória — começa por (prefixo), igual a clientes/fornecedores."""
     ql = (q or "").strip().lower()
     if not ql:
         return items
-    prefix_fields = {"nome", "cliente", "cliente_nome"}
     out = []
     for it in items:
-        ok = False
         for f in fields:
             val = str((it or {}).get(f) or "").lower()
-            if f in prefix_fields:
-                if val.startswith(ql):
-                    ok = True
-                    break
-            elif ql in val:
-                ok = True
+            if val.startswith(ql):
+                out.append(it)
                 break
-        if ok:
-            out.append(it)
     return out
 
 

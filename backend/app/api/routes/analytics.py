@@ -1,5 +1,4 @@
 from collections import defaultdict
-import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -336,37 +335,44 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
     ql = (q or "").strip()
     if not ql:
         return {"resultados": []}
-    from app.core.pagination import text_search_cliente
-    rx = {"$regex": re.escape(ql), "$options": "i"}
-    nome_cli = {"$regex": rf"^{re.escape(ql)}", "$options": "i"}
+    from app.core.pagination import text_search, text_search_cliente
+    # Mesma lógica que clientes/fornecedores: sempre prefixo (início do texto).
     resultados = []
     cli_q = text_search_cliente(ql) or {}
     for c in await clientes_repo.find(cli_q, limit=6):
         resultados.append({"tipo": "Cliente", "id": c["id"], "titulo": c.get("nome") or "—",
                            "subtitulo": c.get("codigo") or c.get("cidade") or c.get("nif") or "", "url": f"/clientes/{c['id']}"})
-    for o in await orcamentos_repo.find({"$or": [{"numero": rx}, {"cliente": nome_cli}, {"descricao": rx}]}, limit=6):
-        resultados.append({"tipo": "Orçamento", "id": o["id"], "titulo": o.get("numero") or "—",
-                           "subtitulo": o.get("cliente") or "", "url": f"/orcamentos/{o['id']}"})
-    for e in await encomendas_repo.find({"$or": [{"numero": rx}, {"cliente": nome_cli}, {"descricao": rx}]}, limit=6):
-        resultados.append({"tipo": "Encomenda", "id": e["id"], "titulo": e.get("numero") or "—",
-                           "subtitulo": e.get("cliente") or "", "url": f"/encomendas/{e['id']}"})
-    for o in await ordens_repo.find({"$or": [{"numero": rx}, {"cliente": nome_cli}]}, limit=6):
-        resultados.append({"tipo": "Ordem de Fabrico", "id": o["id"], "titulo": o.get("numero") or "—",
-                           "subtitulo": o.get("cliente") or "", "url": f"/ordens-fabrico/{o['id']}"})
-    for a in await artigos_repo.find({"$or": [{"nome": nome_cli}, {"descricao": rx}]}, limit=6):
-        resultados.append({"tipo": "Artigo", "id": a["id"], "titulo": a.get("nome") or "—",
-                           "subtitulo": a.get("descricao") or "", "url": "/artigos"})
-    for d in await documentos_financeiros_repo.find(
-        {"$or": [{"numero": rx}, {"cliente": nome_cli}, {"encomenda_numero": rx}]}, limit=6,
-    ):
-        from app.domain.models import DOC_TIPO_PT
-        resultados.append({
-            "tipo": DOC_TIPO_PT.get(d.get("tipo"), "Documento"),
-            "id": d["id"],
-            "titulo": d.get("numero") or "—",
-            "subtitulo": d.get("cliente") or "",
-            "url": f"/financeiro/{d['id']}",
-        })
+    orc_q = text_search(["numero", "cliente"], ql)
+    if orc_q:
+        for o in await orcamentos_repo.find(orc_q, limit=6):
+            resultados.append({"tipo": "Orçamento", "id": o["id"], "titulo": o.get("numero") or "—",
+                               "subtitulo": o.get("cliente") or "", "url": f"/orcamentos/{o['id']}"})
+    enc_q = text_search(["numero", "cliente"], ql)
+    if enc_q:
+        for e in await encomendas_repo.find(enc_q, limit=6):
+            resultados.append({"tipo": "Encomenda", "id": e["id"], "titulo": e.get("numero") or "—",
+                               "subtitulo": e.get("cliente") or "", "url": f"/encomendas/{e['id']}"})
+    of_q = text_search(["numero", "cliente"], ql)
+    if of_q:
+        for o in await ordens_repo.find(of_q, limit=6):
+            resultados.append({"tipo": "Ordem de Fabrico", "id": o["id"], "titulo": o.get("numero") or "—",
+                               "subtitulo": o.get("cliente") or "", "url": f"/ordens-fabrico/{o['id']}"})
+    art_q = text_search(["nome", "codigo"], ql)
+    if art_q:
+        for a in await artigos_repo.find(art_q, limit=6):
+            resultados.append({"tipo": "Artigo", "id": a["id"], "titulo": a.get("nome") or "—",
+                               "subtitulo": a.get("codigo") or "", "url": f"/artigos/{a['id']}"})
+    doc_q = text_search(["numero", "cliente", "encomenda_numero"], ql)
+    if doc_q:
+        for d in await documentos_financeiros_repo.find(doc_q, limit=6):
+            from app.domain.models import DOC_TIPO_PT
+            resultados.append({
+                "tipo": DOC_TIPO_PT.get(d.get("tipo"), "Documento"),
+                "id": d["id"],
+                "titulo": d.get("numero") or "—",
+                "subtitulo": d.get("cliente") or "",
+                "url": f"/financeiro/{d['id']}",
+            })
     return {"resultados": resultados}
 
 

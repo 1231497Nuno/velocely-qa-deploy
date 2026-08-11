@@ -114,7 +114,7 @@ async def list_encomendas(
         query["estado"] = {"$nin": ["concluida", "cancelada"]}
     elif estado_grupo == "concluidas":
         query["estado"] = "concluida"
-    ts = text_search(["numero", "cliente", "orcamento_numero", "descricao"], q)
+    ts = text_search(["numero", "cliente", "orcamento_numero"], q)
     if ts:
         query.update(ts)
     if page is None:

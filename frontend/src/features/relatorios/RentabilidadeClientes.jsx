@@ -62,7 +62,7 @@ export default function RentabilidadeClientes() {
             <KPI icon={Wallet} label="Custo Real" value={eur(summary.custo)} sub={`Pendente: ${eur(summary.pendente)}`} testid="kpi-custo" />
             <KPI icon={TrendingUp} label="Margem Total" value={eur(totMargem)} sub={totFaturado > 0 ? `${((totMargem / totFaturado) * 100).toFixed(1)}%` : "—"} testid="kpi-margem" />
           </div>
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por cliente..." testid="rentabilidade-search" />
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nome do cliente..." testid="rentabilidade-search" />
           {chartData.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-sm p-5" data-testid="rentabilidade-chart">
               <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
