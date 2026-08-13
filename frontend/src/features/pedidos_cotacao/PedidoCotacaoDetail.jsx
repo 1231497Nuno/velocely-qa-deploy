@@ -4,9 +4,10 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Plus, Trash2, Save, Pencil, X, Send, CheckCircle2, Ban, ShoppingCart,
+  Plus, Trash2, Save, Pencil, X, Send, CheckCircle2, Ban, ShoppingCart,
 } from "lucide-react";
 
 const ESTADO_LABEL = {
@@ -226,121 +227,65 @@ export default function PedidoCotacaoDetail() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <button onClick={() => nav("/pedidos-cotacao")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors" data-testid="pc-back-btn">
-          <ArrowLeft size={16} /> Voltar aos pedidos
-        </button>
-        <div className="flex items-center gap-2 flex-wrap">
-          {podeEditar && !editing && form.estado === "rascunho" && (
-            <button
-              type="button"
-              data-testid="pc-enviar-btn"
-              disabled={saving}
-              onClick={() => setEstado("enviado", "Marcado como enviado")}
-              className="border border-indigo-300 text-indigo-800 hover:bg-indigo-50 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2"
-            >
-              <Send size={15} /> Marcar enviado
-            </button>
-          )}
-          {podeEditar && !editing && (form.estado === "enviado" || form.estado === "rascunho") && (
-            <button
-              type="button"
-              data-testid="pc-responder-btn"
-              disabled={saving}
-              onClick={() => { startEdit(); toast.message("Preenche os preços cotados e guarda como Respondido"); }}
-              className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2"
-            >
-              <CheckCircle2 size={15} /> Registar resposta
-            </button>
-          )}
-          {podeEditar && !editing && form.estado === "respondido" && temPrecos && (
-            <button
-              type="button"
-              data-testid="pc-adjudicar-btn"
-              disabled={saving}
-              onClick={adjudicar}
-              className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2"
-            >
-              <ShoppingCart size={15} /> Adjudicar → OC
-            </button>
-          )}
-          {podeEditar && !editing && form.estado !== "cancelado" && (
-            <button
-              type="button"
-              data-testid="pc-cancelar-estado-btn"
-              disabled={saving}
-              onClick={() => {
-                if (window.confirm("Cancelar este pedido?")) setEstado("cancelado", "Pedido cancelado");
-              }}
-              className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2"
-            >
-              <Ban size={15} /> Cancelar
-            </button>
-          )}
-          {podeEditar && (
-            editing ? (
-              <>
-                <button
-                  type="button"
-                  data-testid="pc-cancel-btn"
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  className="border border-gray-300 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <X size={15} /> Cancelar
-                </button>
-                {(form.estado === "enviado" || form.estado === "rascunho") && (
-                  <button
-                    type="button"
-                    data-testid="pc-save-respondido-btn"
-                    disabled={saving || !temPrecos}
-                    onClick={() => save({ estado: "respondido" }, { msg: "Resposta registada" })}
-                    className="border border-amber-400 text-amber-900 hover:bg-amber-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <CheckCircle2 size={15} /> Guardar como respondido
-                  </button>
-                )}
-                <button
-                  data-testid="pc-save-btn"
-                  onClick={() => save()}
-                  disabled={saving}
-                  className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                data-testid="pc-edit-btn"
-                onClick={startEdit}
-                className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
-              >
-                <Pencil size={15} /> Editar
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/pedidos-cotacao")} testid="pc-back-btn" label="Voltar aos pedidos" />}
+        title={<h1 className="text-lg sm:text-xl font-bold tracking-tight font-display" data-testid="pc-codigo">{form.codigo || "Pedido de cotação"}</h1>}
+        badges={<StatusBadge status={form.estado} testid="pc-estado-badge" />}
+        subtitle={form.ordem_compra_id ? (
+          <>Ordem de compra:{" "}
+            <Link to={`/ordens-compra/${form.ordem_compra_id}`} className="mono text-gray-800 hover:underline">
+              {form.ordem_compra_codigo || "ver OC"}
+            </Link>
+          </>
+        ) : (form.assunto || null)}
+        actions={
+          <>
+            {podeEditar && !editing && form.estado === "rascunho" && (
+              <button type="button" data-testid="pc-enviar-btn" disabled={saving} onClick={() => setEstado("enviado", "Marcado como enviado")} className="border border-indigo-300 text-indigo-800 hover:bg-indigo-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Send size={15} /> Marcar enviado
               </button>
-            )
-          )}
-        </div>
-      </div>
+            )}
+            {podeEditar && !editing && (form.estado === "enviado" || form.estado === "rascunho") && (
+              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => { startEdit(); toast.message("Preenche os preços cotados e guarda como Respondido"); }} className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <CheckCircle2 size={15} /> Registar resposta
+              </button>
+            )}
+            {podeEditar && !editing && form.estado === "respondido" && temPrecos && (
+              <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <ShoppingCart size={15} /> Adjudicar → OC
+              </button>
+            )}
+            {podeEditar && !editing && form.estado !== "cancelado" && (
+              <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={() => { if (window.confirm("Cancelar este pedido?")) setEstado("cancelado", "Pedido cancelado"); }} className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Ban size={15} /> Cancelar
+              </button>
+            )}
+            {podeEditar && (
+              editing ? (
+                <>
+                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
+                    <X size={15} /> Cancelar
+                  </button>
+                  {(form.estado === "enviado" || form.estado === "rascunho") && (
+                    <button type="button" data-testid="pc-save-respondido-btn" disabled={saving || !temPrecos} onClick={() => save({ estado: "respondido" }, { msg: "Resposta registada" })} className="border border-amber-400 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
+                      <CheckCircle2 size={15} /> Guardar como respondido
+                    </button>
+                  )}
+                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                    <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
+                  </button>
+                </>
+              ) : (
+                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                  <Pencil size={15} /> Editar
+                </button>
+              )
+            )}
+          </>
+        }
+      />
 
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 font-display" data-testid="pc-codigo">
-              {form.codigo || "Pedido de cotação"}
-            </h1>
-            {form.ordem_compra_id && (
-              <p className="text-sm text-gray-500 mt-1">
-                Ordem de compra:{" "}
-                <Link to={`/ordens-compra/${form.ordem_compra_id}`} className="mono text-gray-800 hover:underline">
-                  {form.ordem_compra_codigo || "ver OC"}
-                </Link>
-              </p>
-            )}
-          </div>
-          <StatusBadge status={form.estado} testid="pc-estado-badge" />
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Field label="Assunto">
             {editing ? (
@@ -438,16 +383,16 @@ export default function PedidoCotacaoDetail() {
             </button>
           )}
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">
           <table className="w-full text-sm min-w-[720px]">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
               <tr className="border-b border-gray-100">
-                <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Item</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-24">Qtd</th>
-                <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-20">Un.</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28">Preço cotado</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28">Subtotal</th>
-                {editing && <th className="w-10"></th>}
+                <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Item</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-24 bg-white">Qtd</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-20 bg-white">Un.</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28 bg-white">Preço cotado</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28 bg-white">Subtotal</th>
+                {editing && <th className="w-10 bg-white"></th>}
               </tr>
             </thead>
             <tbody>

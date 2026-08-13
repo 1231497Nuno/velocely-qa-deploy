@@ -4,8 +4,9 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Save, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Save, Pencil, X } from "lucide-react";
 
 const TIPO_DESPESA_OPTS = [
   { value: "compra", label: "Compra — stock / matéria-prima para vender" },
@@ -186,59 +187,32 @@ export default function OrdemCompraDetail() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <button onClick={() => nav("/ordens-compra")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors" data-testid="oc-back-btn">
-          <ArrowLeft size={16} /> Voltar às ordens
-        </button>
-        {podeEditar && (
-          <div className="flex items-center gap-2">
-            {editing ? (
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/ordens-compra")} testid="oc-back-btn" label="Voltar às ordens" />}
+        title={<h1 className="text-lg sm:text-xl font-bold tracking-tight font-display" data-testid="oc-codigo">{form.codigo || "Ordem de compra"}</h1>}
+        badges={<StatusBadge status={form.estado} />}
+        subtitle={form.codigo_origem ? `Origem CRM: ${form.codigo_origem}` : (form.assunto || null)}
+        actions={
+          podeEditar ? (
+            editing ? (
               <>
-                <button
-                  type="button"
-                  data-testid="oc-cancel-btn"
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  className="border border-gray-300 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 hover:bg-gray-50 disabled:opacity-50"
-                >
+                <button type="button" data-testid="oc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
                   <X size={15} /> Cancelar
                 </button>
-                <button
-                  data-testid="oc-save-btn"
-                  onClick={save}
-                  disabled={saving}
-                  className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
-                >
+                <button data-testid="oc-save-btn" onClick={save} disabled={saving} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
                   <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                data-testid="oc-edit-btn"
-                onClick={startEdit}
-                className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
-              >
+              <button type="button" data-testid="oc-edit-btn" onClick={startEdit} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <Pencil size={15} /> Editar
               </button>
-            )}
-          </div>
-        )}
-      </div>
+            )
+          ) : null
+        }
+      />
 
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 font-display" data-testid="oc-codigo">
-              {form.codigo || "Ordem de compra"}
-            </h1>
-            {form.codigo_origem && (
-              <p className="text-xs text-gray-500 mt-1 mono">Origem CRM: {form.codigo_origem}</p>
-            )}
-          </div>
-          <StatusBadge status={form.estado} />
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Field label="Assunto">
             {editing ? (
@@ -389,16 +363,16 @@ export default function OrdemCompraDetail() {
             </button>
           )}
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">
           <table className="w-full text-sm min-w-[700px]">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
               <tr className="border-b border-gray-100">
-                <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Item</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-24">Qtd</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28">Preço</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28">Desc.</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28">Subtotal</th>
-                {editing && <th className="w-10"></th>}
+                <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Item</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-24 bg-white">Qtd</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28 bg-white">Preço</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28 bg-white">Desc.</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28 bg-white">Subtotal</th>
+                {editing && <th className="w-10 bg-white"></th>}
               </tr>
             </thead>
             <tbody>

@@ -70,6 +70,73 @@ export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPr
   </div>
 );
 
+/** Bloco compacto do cliente para a barra sticky da encomenda. */
+export const ClienteStickyMeta = ({ enc, cliente, moradaCompleta, onPrazoChange, onPrazoBlur }) => (
+  <div className="rounded-sm border border-gray-200 bg-gray-50/80 px-3 py-2" data-testid="encomenda-cliente-info">
+    <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm">
+      <div className="min-w-0 flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-1.5 content-start">
+        <div className="min-w-0 col-span-2 sm:col-span-1 lg:col-span-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 flex items-center gap-1"><User size={11} /> Cliente</div>
+          <div className="text-gray-900 font-medium truncate text-xs sm:text-sm" title={enc.cliente || ""}>{enc.cliente || "—"}</div>
+        </div>
+        {cliente?.contacto && (
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 flex items-center gap-1"><Phone size={11} /> Contacto</div>
+            <div className="text-gray-800 truncate text-xs">{cliente.contacto}</div>
+          </div>
+        )}
+        {cliente?.email && (
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 flex items-center gap-1"><Mail size={11} /> Email</div>
+            <div className="text-gray-800 truncate text-xs" title={cliente.email}>{cliente.email}</div>
+          </div>
+        )}
+        {cliente?.nif && (
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 flex items-center gap-1"><Hash size={11} /> NIF</div>
+            <div className="text-gray-800 tabular-nums text-xs">{cliente.nif}</div>
+          </div>
+        )}
+        {(cliente?.morada || cliente?.cidade) && (
+          <div className="min-w-0 col-span-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 flex items-center gap-1"><MapPin size={11} /> Morada</div>
+            <div className="text-gray-700 truncate text-xs" title={moradaCompleta}>{moradaCompleta}</div>
+          </div>
+        )}
+        {enc.descricao && (
+          <div className="min-w-0 col-span-2 sm:col-span-3 lg:col-span-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">Desc.</div>
+            <div className="text-gray-700 truncate text-xs" title={enc.descricao}>{enc.descricao}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Data em cima, prazo em baixo — mesma coluna alinhada */}
+      <div className="shrink-0 w-full sm:w-[9.5rem] grid grid-rows-2 gap-y-1.5">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 leading-none">Data</div>
+          <div className="tabular-nums text-xs font-medium text-gray-900 mt-0.5 leading-none h-7 flex items-center">
+            {fmtDate(enc.data) || "—"}
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 leading-none">Prazo de entrega</div>
+          <div className="mt-0.5 h-7 flex items-center">
+            <input
+              data-testid="enc-prazo-input"
+              type="date"
+              value={enc.prazo_entrega || ""}
+              onChange={onPrazoChange}
+              onBlur={onPrazoBlur}
+              className="w-full border border-gray-300 rounded-sm px-2 py-1 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 export const OFsPanel = ({ enc }) => (
   <div className="bg-white border border-gray-200 rounded-sm p-5">
     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h3>

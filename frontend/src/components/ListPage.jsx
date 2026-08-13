@@ -20,7 +20,7 @@ export function ListPage({ header, toolbar, footer, children, className = "" }) 
       className={`flex flex-col min-h-0 h-[calc(100dvh-5.5rem)] sm:h-[calc(100dvh-6.5rem)] lg:h-[calc(100dvh-7.5rem)] ${className}`}
     >
       {header && <div className="shrink-0">{header}</div>}
-      {toolbar && <div className="shrink-0 space-y-3 mb-3">{toolbar}</div>}
+      {toolbar && <div className="shrink-0 space-y-2 mb-2">{toolbar}</div>}
       <div className="flex-1 min-h-0 flex flex-col">{children}</div>
       {footer && <div className="shrink-0">{footer}</div>}
     </div>

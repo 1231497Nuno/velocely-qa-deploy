@@ -4,11 +4,12 @@ import { api, fmtDate, eur, API, getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { DOC_TIPO_PT } from "@/features/financeiro/Financeiro";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Ban, FileDown, Trash2, Receipt, Plus, ExternalLink } from "lucide-react";
+import { Ban, FileDown, Trash2, Receipt, Plus, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 const METODO_PT = {
@@ -94,18 +95,23 @@ export default function DocumentoFinanceiroDetail() {
 
   return (
     <div>
-      <button onClick={backTo} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1.5 mb-4">
-        <ArrowLeft size={15} /> {isRecibo && doc.fatura_numero ? `Voltar à fatura ${doc.fatura_numero}` : "Voltar às faturas"}
-      </button>
-
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{doc.numero}</h1>
+      <StickyDetailHeader
+        back={
+          <StickyBackButton
+            onClick={backTo}
+            testid="doc-back-btn"
+            label={isRecibo && doc.fatura_numero ? `Voltar à fatura ${doc.fatura_numero}` : "Voltar às faturas"}
+          />
+        }
+        title={doc.numero}
+        badges={
+          <>
             <StatusBadge status={doc.estado === "anulada" ? "anulada" : "emitida"} testid="doc-estado-badge" />
             {isFatura && <StatusBadge status={doc.status_pagamento || "pendente"} testid="doc-pagamento-badge" />}
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
+          </>
+        }
+        subtitle={
+          <>
             {tipoLabel} · {doc.cliente}
             {doc.encomenda_numero ? (
               <> · origem{" "}
@@ -121,39 +127,41 @@ export default function DocumentoFinanceiroDetail() {
                 </Link>
               </>
             ) : null}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <a
-            href={`${API}/financeiro/documentos/${id}/pdf?auth=${getToken()}`}
-            target="_blank"
-            rel="noreferrer"
-            data-testid="doc-pdf-btn"
-            className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
-          >
-            <FileDown size={16} /> PDF
-          </a>
-          {can("financeiro", "create") && isFatura && doc.estado !== "anulada" && pendente > 0 && (
-            <button
-              data-testid="doc-emitir-recibo-btn"
-              onClick={openRecibo}
-              className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
+          </>
+        }
+        actions={
+          <>
+            <a
+              href={`${API}/financeiro/documentos/${id}/pdf?auth=${getToken()}`}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="doc-pdf-btn"
+              className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
             >
-              <Receipt size={16} /> Registar pagamento
-            </button>
-          )}
-          {can("financeiro", "edit") && doc.estado !== "anulada" && (
-            <button data-testid="doc-anular-btn" onClick={anular} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
-              <Ban size={16} /> Anular
-            </button>
-          )}
-          {can("financeiro", "delete") && (
-            <button data-testid="doc-del-btn" onClick={remove} className="bg-white text-red-700 border border-red-300 hover:bg-red-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
-              <Trash2 size={16} /> Eliminar
-            </button>
-          )}
-        </div>
-      </div>
+              <FileDown size={15} /> PDF
+            </a>
+            {can("financeiro", "create") && isFatura && doc.estado !== "anulada" && pendente > 0 && (
+              <button
+                data-testid="doc-emitir-recibo-btn"
+                onClick={openRecibo}
+                className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
+              >
+                <Receipt size={15} /> Registar pagamento
+              </button>
+            )}
+            {can("financeiro", "edit") && doc.estado !== "anulada" && (
+              <button data-testid="doc-anular-btn" onClick={anular} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Ban size={15} /> Anular
+              </button>
+            )}
+            {can("financeiro", "delete") && (
+              <button data-testid="doc-del-btn" onClick={remove} className="bg-white text-red-700 border border-red-300 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Trash2 size={15} /> Eliminar
+              </button>
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-3 lg:col-span-2">

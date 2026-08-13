@@ -5,8 +5,9 @@ import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
-  ArrowLeft, FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight,
+  FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight,
 } from "lucide-react";
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
@@ -77,21 +78,30 @@ export default function ArtigoDetail() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <button data-testid="artigo-back-btn" onClick={() => nav("/artigos")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
-          <ArrowLeft size={16} /> Voltar aos artigos
-        </button>
-      </div>
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/artigos")} testid="artigo-back-btn" label="Voltar aos artigos" />}
+        title={
+          <div className="min-w-0">
+            {a.codigo && <div className="mono text-xs tabular-nums text-gray-500" data-testid="artigo-codigo">{a.codigo}</div>}
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 font-display" data-testid="artigo-nome">{a.nome}</h1>
+          </div>
+        }
+        subtitle={[a.categoria_nome, a.subcategoria_nome].filter(Boolean).join(" · ") || null}
+        actions={
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-gray-500">Venda <span className="tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</span></span>
+            <span className="text-gray-400">Custo <span className="tabular-nums font-medium text-gray-700">{eur(a.custo_producao_total)}</span></span>
+          </div>
+        }
+      />
 
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
           <div className="flex items-start gap-3">
             <ImagemUpload value={a.imagem} editable={false} size={56} testid="artigo-detail-imagem" />
             <div className="min-w-0">
-              {a.codigo && <div className="mono text-xs tabular-nums text-gray-500 mb-0.5" data-testid="artigo-codigo">{a.codigo}</div>}
-              <h1 className="text-xl font-bold tracking-tight text-gray-900 font-display" data-testid="artigo-nome">{a.nome}</h1>
               {(a.categoria_nome || a.subcategoria_nome) && (
-                <p className="text-sm text-gray-500 mt-0.5" data-testid="artigo-categoria">
+                <p className="text-sm text-gray-500" data-testid="artigo-categoria">
                   {[a.categoria_nome, a.subcategoria_nome].filter(Boolean).join(" · ")}
                 </p>
               )}

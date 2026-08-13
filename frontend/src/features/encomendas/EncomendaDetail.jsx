@@ -9,12 +9,13 @@ import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
 import PdfExportButton from "@/components/PdfExportButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
-  ArrowLeft, Plus, Save, Trash2, X,
+  Plus, Save, Trash2, X,
   Wallet, ShieldCheck, ShieldAlert, Package, Pencil, Receipt, FileOutput,
 } from "lucide-react";
 import { toast } from "sonner";
-import { EncAlertas, EncKPIs, ClientePanel, OFsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
+import { EncAlertas, EncKPIs, ClienteStickyMeta, OFsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
 import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
 import { DOC_TIPO_PT } from "@/features/financeiro/Financeiro";
 
@@ -207,71 +208,73 @@ export default function EncomendaDetail() {
 
   return (
     <div>
-      <button onClick={() => nav("/encomendas")} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1.5 mb-4"><ArrowLeft size={15} /> Voltar às encomendas</button>
-
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{enc.numero}</h1>
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/encomendas")} testid="encomenda-back-btn" label="Voltar às encomendas" />}
+        title={enc.numero}
+        badges={
+          <>
             <StatusBadge status={enc.estado} testid="encomenda-estado-badge" />
             <StatusBadge status={PAY_BADGE[enc.status_pagamento]} testid="encomenda-pagamento-badge" />
-          </div>
-          <p className="text-sm text-gray-500 mt-1">Encomenda · {enc.cliente}{enc.orcamento_numero ? ` · origem ${enc.orcamento_numero}` : ""}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <PdfExportButton modulo="encomenda" recordId={id} />
-          {can("encomendas", "edit") && (
-            <EnviarEmailButton
-              variant="encomenda-pronta"
-              recordId={id}
-              defaultTo={cliente?.email || ""}
-              clienteNome={enc.cliente || cliente?.nome || ""}
-              disabled={enc.estado === "cancelada"}
-              onSent={() => load()}
-            />
-          )}
-          {can("financeiro", "create") && enc.estado !== "cancelada" && (
-            <>
-              <button
-                data-testid="enc-emitir-doc-btn"
-                onClick={() => openEmitir("fatura")}
-                className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
-              >
-                <FileOutput size={16} /> Emitir fatura
-              </button>
-              {(enc.valor_pendente || 0) > 0 && (
+          </>
+        }
+        subtitle={`Encomenda${enc.orcamento_numero ? ` · origem ${enc.orcamento_numero}` : ""}`}
+        actions={
+          <>
+            <PdfExportButton modulo="encomenda" recordId={id} />
+            {can("encomendas", "edit") && (
+              <EnviarEmailButton
+                variant="encomenda-pronta"
+                recordId={id}
+                defaultTo={cliente?.email || ""}
+                clienteNome={enc.cliente || cliente?.nome || ""}
+                disabled={enc.estado === "cancelada"}
+                onSent={() => load()}
+              />
+            )}
+            {can("financeiro", "create") && enc.estado !== "cancelada" && (
+              <>
                 <button
-                  data-testid="enc-registar-pagamento-btn"
-                  onClick={registarPagamento}
-                  className="border border-emerald-700 text-emerald-800 hover:bg-emerald-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                  data-testid="enc-emitir-doc-btn"
+                  onClick={() => openEmitir("fatura")}
+                  className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
                 >
-                  <Receipt size={16} /> Registar pagamento
+                  <FileOutput size={15} /> Emitir fatura
                 </button>
-              )}
-            </>
-          )}
-          {can("encomendas", "edit") && (
-            <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Save size={16} /> Guardar</button>
-          )}
-          {can("ordens_fabrico", "create") && (
-            <button data-testid="encomenda-criar-of-btn" onClick={openCriarOF} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Criar Ordem de Fabrico</button>
-          )}
-        </div>
-      </div>
+                {(enc.valor_pendente || 0) > 0 && (
+                  <button
+                    data-testid="enc-registar-pagamento-btn"
+                    onClick={registarPagamento}
+                    className="border border-emerald-700 text-emerald-800 hover:bg-emerald-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                  >
+                    <Receipt size={15} /> Registar pagamento
+                  </button>
+                )}
+              </>
+            )}
+            {can("encomendas", "edit") && (
+              <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Save size={15} /> Guardar</button>
+            )}
+            {can("ordens_fabrico", "create") && (
+              <button data-testid="encomenda-criar-of-btn" onClick={openCriarOF} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Plus size={15} /> Criar OF</button>
+            )}
+          </>
+        }
+        meta={
+          <ClienteStickyMeta
+            enc={enc}
+            cliente={cliente}
+            moradaCompleta={moradaCompleta}
+            onPrazoChange={(e) => upd({ prazo_entrega: e.target.value })}
+            onPrazoBlur={() => persist({}, "Prazo atualizado")}
+          />
+        }
+      />
 
       <EncAlertas enc={enc} />
 
       <EncKPIs enc={enc} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ClientePanel
-          enc={enc}
-          cliente={cliente}
-          moradaCompleta={moradaCompleta}
-          onPrazoChange={(e) => upd({ prazo_entrega: e.target.value })}
-          onPrazoBlur={() => persist({}, "Prazo atualizado")}
-        />
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Pagamento & Produção */}
         <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-4" data-testid="encomenda-financeiro">
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Wallet size={15} /> Pagamento & Produção</h3>
@@ -382,9 +385,12 @@ export default function EncomendaDetail() {
       </div>
 
       {/* Artigos da encomenda */}
-      <div className="bg-white border border-gray-200 rounded-sm p-5 mt-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Package size={15} /> Artigos da Encomenda</h3>
+      <div className="bg-white border border-gray-200 rounded-sm mt-4 overflow-hidden flex flex-col">
+        <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-5 py-3 border-b border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <Package size={15} /> Artigos da Encomenda
+            <span className="text-xs font-normal tabular-nums text-gray-400">{(enc.artigos || []).length}</span>
+          </h3>
           {can("encomendas", "edit") && (
             <div className="sm:w-72">
               <Combobox options={artigoOptions} value="" onChange={(v) => addArtigo(v)} placeholder="+ Adicionar artigo..." searchPlaceholder="Pesquisar artigo..." emptyText="Nenhum artigo." testid="enc-add-artigo" optionTestidPrefix="enc-artigo-option" />
@@ -392,20 +398,20 @@ export default function EncomendaDetail() {
           )}
         </div>
         {(enc.artigos || []).length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">Sem artigos. Adicione artigos ou converta um orçamento.</p>
+          <p className="text-sm text-gray-400 py-8 text-center px-5">Sem artigos. Adicione artigos ou converta um orçamento.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]" data-testid="enc-artigos-scroll">
             <table className="w-full text-sm min-w-[820px]" data-testid="enc-artigos-table">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-gray-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Artigo</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Personalização</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Qtd</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Unit.</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Unit. c/Pers</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Desconto</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subtotal</th>
-                  <th className="px-4 py-2.5 w-12"></th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Artigo</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Personalização</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Qtd</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Preço Unit.</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Unit. c/Pers</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Desconto</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Subtotal</th>
+                  <th className="px-4 py-2.5 w-12 bg-gray-50"></th>
                 </tr>
               </thead>
               <tbody>
@@ -485,7 +491,7 @@ export default function EncomendaDetail() {
             </table>
           </div>
         )}
-        <p className="text-xs text-gray-400 mt-3">As alterações aos artigos são guardadas automaticamente e o valor é recalculado. Encomendas com origem em orçamento usam o valor do orçamento.</p>
+        <p className="shrink-0 text-xs text-gray-400 px-5 py-3 border-t border-gray-100">As alterações aos artigos são guardadas automaticamente e o valor é recalculado. Encomendas com origem em orçamento usam o valor do orçamento.</p>
       </div>
 
       <ImagensGaleria value={enc.imagens} onChange={(imgs) => persist({ imagens: imgs })} title="Imagens da encomenda" hint="Imagens de referência de toda a encomenda. Transitam para a ordem de fabrico ao criar." />

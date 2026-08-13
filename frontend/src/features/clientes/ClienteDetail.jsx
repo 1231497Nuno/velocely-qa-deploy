@@ -5,9 +5,10 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
-  ArrowLeft, FileText, ClipboardList, Factory, Coins, Wallet, TrendingUp,
+  FileText, ClipboardList, Factory, Coins, Wallet, TrendingUp,
   Mail, Phone, MapPin, Hash, ChevronRight, Plus, User,
 } from "lucide-react";
 
@@ -70,31 +71,32 @@ export default function ClienteDetail() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <button data-testid="cliente-back-btn" onClick={() => nav("/clientes")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
-          <ArrowLeft size={16} /> Voltar aos clientes
-        </button>
-        <div className="flex items-center gap-2">
-          {can("orcamentos", "create") && (
-            <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <FileText size={15} /> Novo Orçamento
-            </button>
-          )}
-          {can("encomendas", "create") && (
-            <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <Plus size={15} /> Nova Encomenda
-            </button>
-          )}
-        </div>
-      </div>
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/clientes")} testid="cliente-back-btn" label="Voltar aos clientes" />}
+        title={<h1 className="text-lg sm:text-xl font-bold tracking-tight font-display" data-testid="cliente-nome">{c.nome}</h1>}
+        subtitle={(c.tipo === "empresa" || (!c.tipo && c.nif)) ? "Empresa" : "Particular"}
+        actions={
+          <>
+            {can("orcamentos", "create") && (
+              <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <FileText size={15} /> Novo Orçamento
+              </button>
+            )}
+            {can("encomendas", "create") && (
+              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <Plus size={15} /> Nova Encomenda
+              </button>
+            )}
+          </>
+        }
+      />
 
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 font-display" data-testid="cliente-nome">{c.nome}</h1>
-          <p className="text-xs uppercase tracking-[0.1em] text-gray-500 mt-1" data-testid="cliente-tipo">
+          <div className="text-xs uppercase tracking-[0.1em] text-gray-500" data-testid="cliente-tipo">
             {(c.tipo === "empresa" || (!c.tipo && c.nif)) ? "Empresa" : "Particular"}
-          </p>
-          <div className="mt-4 space-y-2">
+          </div>
+          <div className="mt-3 space-y-2">
             <InfoLine icon={Hash} value={c.codigo && `Código ${c.codigo}`} />
             <InfoLine icon={Hash} value={c.nif ? `NIF ${c.nif}` : ((c.tipo || "particular") !== "empresa" ? "Sem NIF" : null)} />
             <InfoLine icon={Phone} value={c.contacto} />

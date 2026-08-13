@@ -11,7 +11,8 @@ import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/Orcam
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
-import { ArrowLeft, Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList } from "lucide-react";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
+import { Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTS = [
@@ -236,49 +237,44 @@ export default function OrcamentoDetail() {
 
   return (
     <div>
-      <button onClick={() => nav("/orcamentos")} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-4">
-        <ArrowLeft size={16} /> Voltar aos orçamentos
-      </button>
-
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-display mono">{orc.numero}</h1>
-            <StatusBadge status={orc.status} testid="orcamento-status-badge" />
-          </div>
-          <p className="text-sm text-gray-500 mt-1">Orçamento · {orc.cliente}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <PdfExportButton modulo="orcamento" recordId={id} />
-          {can("orcamentos", "edit") && (
-            <EnviarEmailButton
-              variant="orcamento"
-              recordId={id}
-              defaultTo={clienteEmail}
-              clienteNome={orc.cliente}
-              onSent={(res) => {
-                if (res?.status === "enviado") setOrc((o) => ({ ...o, status: "enviado" }));
-                load();
-              }}
-            />
-          )}
-          {orc.encomenda_id && (
-            <Link to={`/encomendas/${orc.encomenda_id}`} data-testid="goto-encomenda-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
-              <ClipboardList size={16} /> {orc.encomenda_numero}
-            </Link>
-          )}
-          {!orc.encomenda_id && can("encomendas", "create") && (
-            <button data-testid="convert-quote-btn" onClick={converter} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <ClipboardList size={16} /> Criar Encomenda
-            </button>
-          )}
-          {can("orcamentos", "edit") && (
-            <button data-testid="save-orcamento-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <Save size={16} /> Guardar
-            </button>
-          )}
-        </div>
-      </div>
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/orcamentos")} testid="orcamento-back-btn" label="Voltar aos orçamentos" />}
+        title={orc.numero}
+        badges={<StatusBadge status={orc.status} testid="orcamento-status-badge" />}
+        subtitle={`Orçamento · ${orc.cliente}`}
+        actions={
+          <>
+            <PdfExportButton modulo="orcamento" recordId={id} />
+            {can("orcamentos", "edit") && (
+              <EnviarEmailButton
+                variant="orcamento"
+                recordId={id}
+                defaultTo={clienteEmail}
+                clienteNome={orc.cliente}
+                onSent={(res) => {
+                  if (res?.status === "enviado") setOrc((o) => ({ ...o, status: "enviado" }));
+                  load();
+                }}
+              />
+            )}
+            {orc.encomenda_id && (
+              <Link to={`/encomendas/${orc.encomenda_id}`} data-testid="goto-encomenda-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <ClipboardList size={15} /> {orc.encomenda_numero}
+              </Link>
+            )}
+            {!orc.encomenda_id && can("encomendas", "create") && (
+              <button data-testid="convert-quote-btn" onClick={converter} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <ClipboardList size={15} /> Criar Encomenda
+              </button>
+            )}
+            {can("orcamentos", "edit") && (
+              <button data-testid="save-orcamento-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <Save size={15} /> Guardar
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* Meta */}
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -333,19 +329,19 @@ export default function OrcamentoDetail() {
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-700"><FileText size={16} /> Linhas do Orçamento</div>
           <button data-testid="add-line-item" onClick={addLinha} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Adicionar linha</button>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">
         <table className="w-full text-sm min-w-[920px]">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
             <tr className="border-b border-gray-200">
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[24%]">Artigo</th>
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[18%]">Personalização</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pers. €/un</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Qtd</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Preço Unit.</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Unit. c/Pers</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Desconto</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Subtotal</th>
-              <th className="px-4 py-2.5 w-12"></th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[24%] bg-white">Artigo</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[18%] bg-white">Personalização</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Pers. €/un</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Qtd</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Preço Unit.</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Unit. c/Pers</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Desconto</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Subtotal</th>
+              <th className="px-4 py-2.5 w-12 bg-white"></th>
             </tr>
           </thead>
           <tbody data-testid="orc-linhas">

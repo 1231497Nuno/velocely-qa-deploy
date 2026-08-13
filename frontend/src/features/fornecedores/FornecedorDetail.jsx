@@ -5,9 +5,10 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
+import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ShoppingCart, Coins, Wallet, Package, Wrench, Layers,
+  ShoppingCart, Coins, Wallet, Package, Wrench, Layers,
   Mail, Phone, MapPin, Hash, ChevronRight, Plus, User, Globe, FileQuestion,
 } from "lucide-react";
 
@@ -96,32 +97,33 @@ export default function FornecedorDetail() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <button data-testid="fornecedor-back-btn" onClick={() => nav("/fornecedores")} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
-          <ArrowLeft size={16} /> Voltar aos fornecedores
-        </button>
-        <div className="flex items-center gap-2 flex-wrap">
-          {can("pedidos_cotacao", "create") && (
-            <button data-testid="fornecedor-nova-pc-btn" onClick={novoPedidoCotacao} className="border border-gray-300 text-gray-800 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <FileQuestion size={15} /> Novo pedido de cotação
-            </button>
-          )}
-          {can("ordens_compra", "create") && (
-            <button data-testid="fornecedor-nova-oc-btn" onClick={novaOc} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
-              <Plus size={15} /> Nova Ordem de Compra
-            </button>
-          )}
-        </div>
-      </div>
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/fornecedores")} testid="fornecedor-back-btn" label="Voltar aos fornecedores" />}
+        title={<h1 className="text-lg sm:text-xl font-bold tracking-tight font-display" data-testid="fornecedor-nome">{f.nome}</h1>}
+        subtitle={`${(f.tipo === "empresa" || (!f.tipo && f.nif)) ? "Empresa" : "Particular"}${f.categoria ? ` · ${f.categoria}` : ""}`}
+        actions={
+          <>
+            {can("pedidos_cotacao", "create") && (
+              <button data-testid="fornecedor-nova-pc-btn" onClick={novoPedidoCotacao} className="border border-gray-300 text-gray-800 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <FileQuestion size={15} /> Novo pedido de cotação
+              </button>
+            )}
+            {can("ordens_compra", "create") && (
+              <button data-testid="fornecedor-nova-oc-btn" onClick={novaOc} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <Plus size={15} /> Nova Ordem de Compra
+              </button>
+            )}
+          </>
+        }
+      />
 
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 font-display" data-testid="fornecedor-nome">{f.nome}</h1>
-          <p className="text-xs uppercase tracking-[0.1em] text-gray-500 mt-1" data-testid="fornecedor-tipo">
+          <div className="text-xs uppercase tracking-[0.1em] text-gray-500" data-testid="fornecedor-tipo">
             {(f.tipo === "empresa" || (!f.tipo && f.nif)) ? "Empresa" : "Particular"}
             {f.categoria ? ` · ${f.categoria}` : ""}
-          </p>
-          <div className="mt-4 space-y-2">
+          </div>
+          <div className="mt-3 space-y-2">
             <InfoLine icon={Hash} value={f.codigo && `Código ${f.codigo}`} />
             <InfoLine icon={Hash} value={f.nif ? `NIF ${f.nif}` : null} />
             <InfoLine icon={Phone} value={f.contacto} />
