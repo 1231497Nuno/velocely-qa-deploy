@@ -11,7 +11,7 @@ import {
 } from "./ui/command";
 import { eur } from "../lib/api";
 
-export default function ArtigoCombobox({ artigos, value, onChange, testid }) {
+export default function ArtigoCombobox({ artigos, value, onChange, testid, placeholder = "Pesquisar artigo..." }) {
   const [open, setOpen] = useState(false);
   const selected = artigos.find((a) => a.id === value);
 
@@ -31,7 +31,7 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid }) {
           className="w-full flex items-center justify-between gap-2 border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black transition-colors"
         >
           <span className={selected ? "text-gray-900 truncate" : "text-gray-400"}>
-            {selected ? selected.nome : "Pesquisar artigo..."}
+            {selected ? selected.nome : placeholder}
           </span>
           <ChevronsUpDown size={15} className="text-gray-400 shrink-0" />
         </button>

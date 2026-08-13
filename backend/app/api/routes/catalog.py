@@ -243,12 +243,17 @@ async def list_artigos(
     page_size: int = Query(25, ge=1, le=100),
     q: str = Query(""),
     lite: bool = Query(False, description="Payload mínimo para selectors (sem BOM/custeio pesado)"),
+    diversos: Optional[bool] = Query(None, description="Filtrar artigos diversos (DIV-)"),
     _u: dict = Depends(require_perm("artigos", "view")),
 ):
     query = {}
     ts = text_search(["nome", "codigo"], q)
     if ts:
         query.update(ts)
+    if diversos is True:
+        query["diversos"] = True
+    elif diversos is False:
+        query["diversos"] = {"$ne": True}
 
     if page is None:
         artigos = await artigos_repo.find(query, sort=("nome", 1), limit=5000)
@@ -355,7 +360,7 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
 async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("artigos", "create"))):
     payload = await _resolve_categorias(data.model_dump())
     a = Artigo(**payload)
-    a.codigo = await next_codigo("artigo")
+    a.codigo = await next_codigo("artigo_diversos" if a.diversos else "artigo")
     doc = a.model_dump()
     await artigos_repo.insert(doc)
     doc.pop("_id", None)
@@ -369,6 +374,8 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     if not existing:
         raise HTTPException(404, "Artigo não encontrado")
     update = await _resolve_categorias(data.model_dump())
+    # Flag «diversos» só na criação (código DIV-); updates preservam o valor.
+    update["diversos"] = bool(existing.get("diversos"))
     alteracoes = audit.diff_campos(existing, update, ["nome", "descricao", "unidade", "custo_artigo", "margem", "categoria_id", "subcategoria_id"])
     await artigos_repo.update(aid, update)
     existing.update(update)
@@ -390,11 +397,13 @@ async def duplicar_artigo(aid: str, user: dict = Depends(require_perm("artigos",
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
+    is_div = bool(a.get("diversos"))
     novo = {**a}
     novo.update({
         "id": new_id(),
-        "codigo": await next_codigo("artigo"),
+        "codigo": await next_codigo("artigo_diversos" if is_div else "artigo"),
         "nome": f"{a.get('nome', 'Artigo')} (cópia)",
+        "diversos": is_div,
         "created_at": now_iso(),
     })
     await artigos_repo.insert(novo)

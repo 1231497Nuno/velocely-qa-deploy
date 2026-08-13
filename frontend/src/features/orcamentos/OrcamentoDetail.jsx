@@ -6,7 +6,8 @@ import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
-import ArtigoCombobox from "@/components/ArtigoCombobox";
+import LinhaTipoIcon, { isDiversosArtigo } from "@/components/LinhaTipoIcon";
+import { LinhaTipoSelect, LinhaCodigoSelect, LinhaDescricaoInput } from "@/components/LinhaArtigoFields";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import ImagemUpload from "@/components/ImagemUpload";
@@ -48,6 +49,8 @@ export default function OrcamentoDetail() {
       } else if (!l.personalizacoes) {
         l.personalizacoes = [];
       }
+      if (!l.tipo_linha) l.tipo_linha = "";
+      if (l.descricao_livre == null) l.descricao_livre = false;
       return l;
     });
     o.materiais = o.materiais || [];
@@ -92,13 +95,70 @@ export default function OrcamentoDetail() {
   const linePreco = (l) => (l.preco_unit_manual ? (Number(l.preco_unit) || 0) : compPreco(l));
   const compPreco = (l) => lineCusto(l) * (1 + (Number(l.margem) || 0) / 100);
 
-  const addLinha = () =>
-    upd({
-      linhas: [
-        ...orc.linhas,
-        { artigo_id: "", artigo_nome: "", quantidade: 1, tipo_personalizacao_id: "", tipo_personalizacao_nome: "", valor_personalizacao: 0, custo_base_unit: 0, margem: 0, roteiro: [], custo_producao_unit: 0, preco_unit: 0 },
-      ],
+  const reloadArtigos = async () => {
+    const arts = await api.get("/artigos?lite=1");
+    setArtigos(arts);
+    return arts;
+  };
+
+  const emptyLinha = () => ({
+    artigo_id: "",
+    artigo_nome: "",
+    artigo_codigo: "",
+    tipo_linha: "",
+    descricao_livre: false,
+    quantidade: 1,
+    tipo_personalizacao_id: "",
+    tipo_personalizacao_nome: "",
+    valor_personalizacao: 0,
+    custo_base_unit: 0,
+    margem: 0,
+    roteiro: [],
+    custo_producao_unit: 0,
+    preco_unit: 0,
+    personalizacoes: [],
+    imagem: "",
+  });
+
+  const applyTipoLinha = (i, v) => {
+    if (v === "descritor") {
+      updLinha(i, {
+        tipo_linha: "descritor",
+        descricao_livre: true,
+        artigo_id: "",
+        artigo_codigo: "",
+        imagem: "",
+        custo_base_unit: 0,
+        margem: 0,
+        roteiro: [],
+        preco_unit_manual: true,
+      });
+    } else {
+      updLinha(i, { tipo_linha: v });
+    }
+  };
+
+  const applyArtigoLinha = (i, a, opts = {}) => {
+    const l = orc.linhas[i];
+    const livre = !!opts.descricao_livre || isDiversosArtigo(a);
+    const tipoLinha = l.tipo_linha === "servico" ? "servico" : l.tipo_linha === "produto" ? "produto" : (l.tipo_linha || "produto");
+    updLinha(i, {
+      tipo_linha: tipoLinha,
+      descricao_livre: livre,
+      artigo_id: a.id,
+      artigo_codigo: a.codigo || "",
+      artigo_nome: opts.clear_nome ? "" : a.nome,
+      imagem: l.imagem || a.imagem || "",
+      custo_base_unit: Math.round(((a.custo_artigo || 0) + (a.custo_materiais || 0)) * 100) / 100,
+      margem: a.margem ?? 30,
+      roteiro: JSON.parse(JSON.stringify(a.roteiro || [])),
+      preco_unit_manual: !!livre,
     });
+  };
+
+  const addLinha = () => {
+    upd({ linhas: [...orc.linhas, emptyLinha()] });
+  };
 
   const updLinha = (i, patch) => {
     const l = [...orc.linhas];
@@ -179,6 +239,22 @@ export default function OrcamentoDetail() {
   const lucro = total - subtotalCusto - custoMateriais;
   const linhasAbaixoCusto = orc.linhas.filter((l) => l.artigo_id && linePreco(l) < lineCusto(l)).length;
 
+  const linhaPronta = (l) => {
+    if (!l) return false;
+    if (l.artigo_id) return true;
+    if ((l.tipo_linha === "descritor" || l.descricao_livre) && (l.artigo_nome || "").trim()) return true;
+    return !!(l.artigo_nome || "").trim();
+  };
+  const requisitosEncomenda = (() => {
+    if (orc.encomenda_id) return [];
+    const faltas = [];
+    if (!(orc.cliente_id || (orc.cliente || "").trim())) faltas.push("Selecione o cliente");
+    if (!(orc.linhas || []).some(linhaPronta)) faltas.push("Adicione pelo menos uma linha (artigo, serviço ou descritor)");
+    if (orc.status !== "aceite") faltas.push("Passe o estado para Aceite");
+    return faltas;
+  })();
+  const podeCriarEncomenda = requisitosEncomenda.length === 0;
+
   const bodyFrom = (o) => ({
     cliente: o.cliente,
     cliente_id: o.cliente_id || null,
@@ -191,8 +267,14 @@ export default function OrcamentoDetail() {
     imagens: o.imagens || [],
     desconto_total: Number(o.desconto_total) || 0,
     desconto_total_tipo: o.desconto_total_tipo || "pct",
-    linhas: (o.linhas || []).filter((l) => l.artigo_id).map((l) => ({
+    linhas: (o.linhas || [])
+      .filter((l) => l.artigo_id || ((l.tipo_linha === "descritor" || l.descricao_livre) && (l.artigo_nome || "").trim()))
+      .map((l) => ({
       ...l,
+      artigo_id: l.artigo_id || "",
+      artigo_codigo: l.artigo_codigo || "",
+      tipo_linha: l.tipo_linha || "",
+      descricao_livre: !!l.descricao_livre || l.tipo_linha === "descritor",
       quantidade: Number(l.quantidade) || 0,
       desconto: Number(l.desconto) || 0,
       desconto_tipo: l.desconto_tipo || "pct",
@@ -263,7 +345,13 @@ export default function OrcamentoDetail() {
               </Link>
             )}
             {!orc.encomenda_id && can("encomendas", "create") && (
-              <button data-testid="convert-quote-btn" onClick={converter} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button
+                data-testid="convert-quote-btn"
+                onClick={converter}
+                disabled={!podeCriarEncomenda}
+                title={podeCriarEncomenda ? "Criar encomenda" : requisitosEncomenda.join(" · ")}
+                className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+              >
                 <ClipboardList size={15} /> Criar Encomenda
               </button>
             )}
@@ -287,6 +375,20 @@ export default function OrcamentoDetail() {
           <input data-testid="orc-encomenda-input" value={orc.numero_encomenda || ""} onChange={(e) => upd({ numero_encomenda: e.target.value })} placeholder="Referência do cliente" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
         </div>
       </div>
+
+      {!orc.encomenda_id && requisitosEncomenda.length > 0 && (
+        <div data-testid="orc-requisitos-encomenda" className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-sm px-4 py-2.5 mb-3 text-sm">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            <p className="font-medium">Para criar a encomenda:</p>
+            <ul className="mt-1 list-disc list-inside text-amber-800/90 space-y-0.5">
+              {requisitosEncomenda.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Meta */}
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -326,15 +428,21 @@ export default function OrcamentoDetail() {
       )}
       <div className="bg-white border border-gray-200 rounded-sm overflow-hidden mb-4">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700"><FileText size={16} /> Linhas do Orçamento</div>
-          <button data-testid="add-line-item" onClick={addLinha} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={14} /> Adicionar linha</button>
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <FileText size={16} /> Linhas do Orçamento
+            <span className="text-xs font-normal tabular-nums text-gray-400">{orc.linhas.length}</span>
+          </div>
         </div>
         <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">
         <table className="w-full text-sm min-w-[920px]">
           <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
             <tr className="border-b border-gray-200">
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[24%] bg-white">Artigo</th>
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[18%] bg-white">Personalização</th>
+              <th className="text-left px-2 py-2.5 w-12 bg-white" title="Tipo (só ecrã)">
+                <LinhaTipoIcon size={18} className="opacity-70" />
+              </th>
+              <th className="text-left px-2 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[7.5rem] bg-white">Código</th>
+              <th className="text-left px-2 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[22%] bg-white">Descrição</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[16%] bg-white">Personalização</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Pers. €/un</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Qtd</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-white">Preço Unit.</th>
@@ -348,23 +456,40 @@ export default function OrcamentoDetail() {
             {orc.linhas.map((l, i) => (
               <Fragment key={l.id || i}>
               <tr className="border-b border-gray-100">
-                <td className="px-4 py-2.5">
-                  <div className="flex items-start gap-2">
-                  <ImagemUpload value={l.imagem} onChange={(p) => updLinha(i, { imagem: p })} size={40} editable={false} testid={`line-imagem-${i}`} />
-                  <div className="flex-1 min-w-0">
-                  <ArtigoCombobox
+                <td className="px-2 py-2.5 align-top">
+                  <LinhaTipoSelect
+                    value={l.tipo_linha}
+                    testid={`line-tipo-${i}`}
+                    onChange={(v) => applyTipoLinha(i, v)}
+                  />
+                </td>
+                <td className="px-2 py-2.5 align-top">
+                  <LinhaCodigoSelect
                     artigos={artigos}
-                    value={l.artigo_id}
-                    testid={`line-artigo-${i}`}
-                    onChange={(a) => updLinha(i, { artigo_id: a.id, artigo_nome: a.nome, imagem: l.imagem || a.imagem || "", custo_base_unit: Math.round(((a.custo_artigo || 0) + (a.custo_materiais || 0)) * 100) / 100, margem: a.margem ?? 30, roteiro: JSON.parse(JSON.stringify(a.roteiro || [])) })}
+                    linha={l}
+                    testid={`line-codigo-${i}`}
+                    onArtigosRefresh={reloadArtigos}
+                    onPick={(a, opts) => applyArtigoLinha(i, a, opts)}
                   />
                   {l.artigo_id && (
-                    <button data-testid={`line-ops-toggle-${i}`} onClick={() => setOpenOps((o) => ({ ...o, [i]: !o[i] }))} className="mt-1.5 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1">
+                    <button data-testid={`line-ops-toggle-${i}`} onClick={() => setOpenOps((o) => ({ ...o, [i]: !o[i] }))} className="mt-1 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1">
                       {openOps[i] ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                      <Cog size={12} /> Operações ({(l.roteiro || []).length})
+                      <Cog size={12} /> Ops ({(l.roteiro || []).length})
                     </button>
                   )}
-                  </div>
+                </td>
+                <td className="px-2 py-2.5 align-top">
+                  <div className="flex items-start gap-2">
+                    <ImagemUpload value={l.imagem} onChange={(p) => updLinha(i, { imagem: p })} size={36} editable={false} testid={`line-imagem-${i}`} />
+                    <div className="flex-1 min-w-0">
+                      <LinhaDescricaoInput
+                        value={l.artigo_nome}
+                        codigo={l.artigo_codigo || (artigos.find((a) => a.id === l.artigo_id) || {}).codigo}
+                        showRef={!!l.descricao_livre || l.tipo_linha === "descritor" || isDiversosArtigo(artigos.find((a) => a.id === l.artigo_id))}
+                        testid={`line-descricao-${i}`}
+                        onChange={(v) => updLinha(i, { artigo_nome: v, descricao_livre: true })}
+                      />
+                    </div>
                   </div>
                 </td>
                 <td className="px-4 py-2.5 align-top">
@@ -418,7 +543,7 @@ export default function OrcamentoDetail() {
               </tr>
               {openOps[i] && l.artigo_id && (
                 <tr className="bg-gray-50/70 border-b border-gray-100">
-                  <td colSpan={9} className="px-4 py-3">
+                  <td colSpan={11} className="px-4 py-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 flex items-center gap-2"><Cog size={13} /> Operações e tempos desta linha</span>
                       <button data-testid={`line-add-op-${i}`} onClick={() => addOp(i)} className="text-xs text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={13} /> Operação</button>
@@ -450,9 +575,18 @@ export default function OrcamentoDetail() {
               )}
               </Fragment>
             ))}
-            {orc.linhas.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">Sem linhas. Adicione um artigo.</td></tr>
-            )}
+            <tr className="border-t border-dashed border-gray-200 bg-gray-50/40">
+              <td className="px-4 py-2.5" colSpan={11}>
+                <button
+                  type="button"
+                  data-testid="add-line-item"
+                  onClick={addLinha}
+                  className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
+                >
+                  <Plus size={14} /> Adicionar linha
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
         </div>

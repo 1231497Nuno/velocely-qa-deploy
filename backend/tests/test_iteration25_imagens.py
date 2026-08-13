@@ -203,9 +203,16 @@ class TestPropagacaoConverter:
 
         orc = requests.post(f"{API}/orcamentos", json={
             "cliente": "teste-cli-prop",
+            "status": "aceite",
             "linhas": [{"artigo_id": art["id"], "quantidade": 2}],
         }, headers=auth_headers, timeout=15).json()
         created_ids["orcamentos"].append(orc["id"])
+
+        # garantir aceite (create pode defaultar a rascunho)
+        if orc.get("status") != "aceite":
+            orc["status"] = "aceite"
+            put_body = {k: orc[k] for k in ("cliente", "cliente_id", "descricao", "data", "validade", "status", "notas", "linhas", "materiais") if k in orc}
+            requests.put(f"{API}/orcamentos/{orc['id']}", json=put_body, headers=auth_headers, timeout=15)
 
         of = requests.post(f"{API}/orcamentos/{orc['id']}/converter",
                            headers=auth_headers, timeout=30)

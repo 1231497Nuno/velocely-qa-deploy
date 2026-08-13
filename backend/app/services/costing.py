@@ -1,5 +1,6 @@
 """Serviço de custeio e regras de produção (Orçamentos, OFs, Encomendas)."""
 from datetime import datetime, timezone
+import re
 from typing import List, Optional, Dict
 
 from app.core.database import round2, new_id
@@ -159,13 +160,16 @@ def artigo_lite(artigo: dict) -> dict:
     margem = artigo.get("margem")
     if margem is None:
         margem = 30.0
+    codigo = artigo.get("codigo") or ""
+    diversos = bool(artigo.get("diversos")) or bool(re.match(r"^DIV[-_]?", codigo, re.I))
     return {
         "id": artigo.get("id"),
-        "codigo": artigo.get("codigo") or "",
+        "codigo": codigo,
         "nome": artigo.get("nome") or "",
         "unidade": artigo.get("unidade") or "un",
         "custo_artigo": custo,
         "margem": margem,
+        "diversos": diversos,
         "categoria_id": artigo.get("categoria_id"),
         "categoria_nome": artigo.get("categoria_nome") or "",
         "subcategoria_id": artigo.get("subcategoria_id"),
@@ -291,7 +295,13 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
     for l in linhas:
         a = await artigos_repo.get(l.get("artigo_id"))
         if a:
-            l["artigo_nome"] = a.get("nome", l.get("artigo_nome", ""))
+            # Diversos / descrição livre: manter nome custom; código de referência do catálogo
+            if not l.get("artigo_codigo"):
+                l["artigo_codigo"] = a.get("codigo") or ""
+            if not l.get("descricao_livre"):
+                l["artigo_nome"] = a.get("nome", l.get("artigo_nome", ""))
+            elif not (l.get("artigo_nome") or "").strip():
+                l["artigo_nome"] = a.get("nome", "")
             if not l.get("imagem") and a.get("imagem"):
                 l["imagem"] = a.get("imagem")
             if l.get("custo_base_unit") is None:

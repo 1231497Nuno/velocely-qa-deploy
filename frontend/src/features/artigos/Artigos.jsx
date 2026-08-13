@@ -8,7 +8,7 @@ import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Settings } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import { ArtigoForm } from "@/features/artigos/ArtigoForm";
 import ImagemUpload from "@/components/ImagemUpload";
+import ArtigosDiversosConfig from "@/components/ArtigosDiversosConfig";
+import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 
 const empty = {
   nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30,
@@ -44,6 +46,7 @@ export default function Artigos() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const [diversosOpen, setDiversosOpen] = useState(false);
   const { sort, toggle, apply } = useSort();
 
   const [formDataReady, setFormDataReady] = useState(false);
@@ -162,6 +165,16 @@ export default function Artigos() {
           actions={
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="artigos" ids={items.map((a) => a.id)} />
+              {can("artigos", "view") && (
+                <button
+                  type="button"
+                  data-testid="artigos-config-btn"
+                  onClick={() => setDiversosOpen(true)}
+                  className="border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Settings size={16} /> Configurações
+                </button>
+              )}
               {can("artigos", "create") && (
                 <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
                   <Plus size={16} /> Novo Artigo
@@ -210,7 +223,14 @@ export default function Artigos() {
                 onClick={() => nav(`/artigos/${a.id}`)}
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
               >
-                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{a.codigo || "—"}</td>
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">
+                  <span className="inline-flex items-center gap-1.5">
+                    {a.codigo || "—"}
+                    {isDiversosArtigo(a) && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 px-1 py-0.5 rounded-sm">DIV</span>
+                    )}
+                  </span>
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
@@ -257,6 +277,12 @@ export default function Artigos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ArtigosDiversosConfig
+        open={diversosOpen}
+        onOpenChange={setDiversosOpen}
+        onChanged={reload}
+      />
     </>
   );
 }

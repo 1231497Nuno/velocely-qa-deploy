@@ -185,6 +185,11 @@ def test_create_orcamento_with_cliente_id(auth):
 
 def test_conversao_orcamento_cria_encomenda(auth):
     oid = _CREATED["orcamentos"][0]
+    orc = requests.get(f"{API}/orcamentos/{oid}", headers=auth).json()
+    orc["status"] = "aceite"
+    put_body = {k: orc[k] for k in ("cliente", "cliente_id", "descricao", "data", "validade", "status", "notas", "linhas", "materiais", "desconto_total", "desconto_total_tipo") if k in orc}
+    r0 = requests.put(f"{API}/orcamentos/{oid}", json=put_body, headers=auth)
+    assert r0.status_code == 200, r0.text
     r = requests.post(f"{API}/orcamentos/{oid}/converter", headers=auth)
     assert r.status_code == 200, r.text
     of = r.json()

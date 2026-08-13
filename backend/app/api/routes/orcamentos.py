@@ -22,6 +22,29 @@ _ORC_CAMPOS = ["cliente", "descricao", "numero_encomenda", "validade", "margem",
 router = APIRouter()
 
 
+def _linha_pronta(l: dict) -> bool:
+    if not l:
+        return False
+    if l.get("artigo_id"):
+        return True
+    if (l.get("tipo_linha") == "descritor" or l.get("descricao_livre")) and (l.get("artigo_nome") or "").strip():
+        return True
+    return bool((l.get("artigo_nome") or "").strip())
+
+
+def requisitos_encomenda(orc: dict) -> list[str]:
+    """Lista de bloqueios (vazia = pode criar encomenda)."""
+    faltas = []
+    if not (orc.get("cliente_id") or (orc.get("cliente") or "").strip()):
+        faltas.append("Selecione o cliente")
+    linhas = orc.get("linhas") or []
+    if not any(_linha_pronta(l) for l in linhas):
+        faltas.append("Adicione pelo menos uma linha (artigo, serviço ou descritor)")
+    if orc.get("status") != "aceite":
+        faltas.append("O orçamento tem de estar Aceite")
+    return faltas
+
+
 class EnviarEmailBody(BaseModel):
     to: Optional[str] = None
     template_id: Optional[str] = None
@@ -219,6 +242,10 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
         await orcamentos_repo.update(oid, {"encomenda_id": ja["id"], "encomenda_numero": ja.get("numero")})
         return await compute_encomenda(ja)
 
+    faltas = requisitos_encomenda(orc)
+    if faltas:
+        raise HTTPException(400, detail="; ".join(faltas))
+
     orc_t = compute_orcamento_totais(orc)
     enc_artigos = [
         {
@@ -231,6 +258,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
             "personalizacoes": l.get("personalizacoes") or [],
         }
         for l in orc.get("linhas", [])
+        if _linha_pronta(l)
     ]
     enc = Encomenda(
         cliente=orc.get("cliente", ""),

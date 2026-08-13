@@ -251,7 +251,17 @@ class TestOrcamentoHistorico:
         assert "duplicado" in _acoes(ev_novo)
 
     def test_converter_orcamento(self, auth_headers):
-        payload = {"cliente": "teste-cli-conv", "descricao": "teste-conv", "status": "aceite", "linhas": [], "materiais": []}
+        arts = requests.get(f"{API}/artigos?lite=1", headers=auth_headers, timeout=15).json()
+        arts = arts if isinstance(arts, list) else arts.get("items") or []
+        assert arts, "sem artigos"
+        art = arts[0]
+        payload = {
+            "cliente": "teste-cli-conv",
+            "descricao": "teste-conv",
+            "status": "aceite",
+            "linhas": [{"artigo_id": art["id"], "artigo_nome": art.get("nome") or "x", "quantidade": 1}],
+            "materiais": [],
+        }
         r = requests.post(f"{API}/orcamentos", json=payload, headers=auth_headers, timeout=15)
         assert r.status_code == 200
         oid = r.json()["id"]
@@ -259,20 +269,18 @@ class TestOrcamentoHistorico:
 
         r = requests.post(f"{API}/orcamentos/{oid}/converter", headers=auth_headers, timeout=30)
         assert r.status_code == 200, r.text
-        of = r.json()
-        of_id = of["id"]
-        enc_id = of.get("encomenda_id")
-        CREATED["ordens"].append(of_id)
+        enc = r.json()
+        # Fluxo atual: converter devolve Encomenda (não OF)
+        enc_id = enc["id"] if not enc.get("encomenda_id") else enc.get("encomenda_id")
+        if enc.get("numero", "").startswith("OF"):
+            CREATED["ordens"].append(enc["id"])
+            enc_id = enc.get("encomenda_id")
         if enc_id:
             CREATED["encomendas"].append(enc_id)
 
         # orçamento: convertido
         ev_orc = _get_hist("orcamento", oid, auth_headers)
         assert "convertido" in _acoes(ev_orc), f"Esperava 'convertido' no orçamento — {_acoes(ev_orc)}"
-
-        # OF: criado
-        ev_of = _get_hist("ordem_fabrico", of_id, auth_headers)
-        assert "criado" in _acoes(ev_of)
 
         # Encomenda: criado
         if enc_id:

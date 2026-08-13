@@ -30,6 +30,14 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "digitos": 4,
         "exemplo": "ART-0001",
     },
+    "artigo_diversos": {
+        "label": "Artigos diversos",
+        "grupo": "catalogo",
+        "prefix": "DIV",
+        "incluir_ano": False,
+        "digitos": 4,
+        "exemplo": "DIV-0001",
+    },
     "categoria": {
         "label": "Categorias",
         "grupo": "catalogo",

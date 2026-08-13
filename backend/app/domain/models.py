@@ -178,6 +178,8 @@ class Artigo(BaseModel):
     custo_artigo: float = 0.0
     margem: float = 30.0
     ativo: bool = True
+    # Artigo genérico para linhas com descrição livre (código DIV-…)
+    diversos: bool = False
     fabricante: str = ""
     cod_fabricante: str = ""
     fornecedor_id: Optional[str] = None
@@ -205,6 +207,7 @@ class ArtigoInput(BaseModel):
     custo_artigo: float = 0.0
     margem: float = 30.0
     ativo: bool = True
+    diversos: bool = False
     fabricante: str = ""
     cod_fabricante: str = ""
     fornecedor_id: Optional[str] = None
@@ -268,8 +271,12 @@ class PersonalizacaoSel(BaseModel):
 
 class OrcamentoLinha(BaseModel):
     id: str = Field(default_factory=new_id)
-    artigo_id: str
+    artigo_id: str = ""
     artigo_nome: str = ""
+    artigo_codigo: str = ""
+    # produto | servico | descritor — só UI; PDF usa artigo_nome
+    tipo_linha: Optional[str] = None
+    descricao_livre: bool = False
     imagem: str = ""
     quantidade: float = 1
     tipo_personalizacao_id: Optional[str] = None
