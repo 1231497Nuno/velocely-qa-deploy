@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Building2, FileText, Plus, Pencil, Trash2, Save, Upload, Image as ImageIcon, Hash, FileSpreadsheet, Download, Loader2, Mail, RotateCcw } from "lucide-react";
+import { Building2, FileText, Plus, Pencil, Trash2, Save, Upload, Image as ImageIcon, Hash, FileSpreadsheet, Download, Loader2, Mail, RotateCcw, Layers } from "lucide-react";
 import { exportExcel, downloadImportTemplate, importExcel } from "@/lib/excelIo";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -421,17 +422,104 @@ function ReferenciasTab() {
   );
 }
 
+function ModulosTab() {
+  const { isAdmin, refresh } = useAuth();
+  const [packs, setPacks] = useState([]);
+  const [modulos, setModulos] = useState([]);
+  const [ativos, setAtivos] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    api.get("/settings/modulos").then((r) => {
+      setPacks(r.packs || []);
+      setModulos(r.modulos || []);
+      setAtivos(r.ativos || []);
+    }).catch(() => toast.error("Não foi possível carregar os módulos"));
+  };
+  useEffect(() => { load(); }, []);
+
+  const toggle = (key, core) => {
+    if (core || !isAdmin) return;
+    setAtivos((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await api.put("/settings/modulos", { modulos: ativos });
+      setAtivos(r.ativos || ativos);
+      toast.success("Módulos actualizados. Os packs aplicam-se a este cliente.");
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar módulos");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm p-5 sm:p-6 max-w-3xl">
+      <div className="flex items-center justify-between mb-2 gap-3">
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Layers size={16} className="text-gray-400" /> Packs e módulos</h2>
+        {isAdmin && (
+          <button data-testid="save-modulos-btn" onClick={save} disabled={saving} className="bg-black text-white hover:bg-gray-800 disabled:opacity-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+            <Save size={16} /> Guardar
+          </button>
+        )}
+      </div>
+      <p className="text-sm text-gray-500 mb-5">Cada cliente (instalação) tem os módulos do seu pack. Os utilizadores só vêem o que está activo aqui, com as permissões do perfil.</p>
+      <div className="space-y-5">
+        {packs.map((p) => {
+          const items = modulos.filter((m) => m.pack === p.key);
+          if (!items.length) return null;
+          return (
+            <div key={p.key} data-testid={`pack-${p.key}`}>
+              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-2">{p.label}</div>
+              <div className="border border-gray-200 rounded-sm divide-y divide-gray-100">
+                {items.map((m) => {
+                  const on = ativos.includes(m.key);
+                  return (
+                    <label
+                      key={m.key}
+                      data-testid={`modulo-row-${m.key}`}
+                      className={`flex items-center justify-between gap-3 px-3 py-2.5 ${m.core || !isAdmin ? "cursor-default" : "cursor-pointer hover:bg-gray-50"}`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900">{m.label}</div>
+                        {m.core && <div className="text-[11px] text-gray-400">Incluído na base — não se desliga</div>}
+                      </div>
+                      <input
+                        data-testid={`modulo-toggle-${m.key}`}
+                        type="checkbox"
+                        checked={on}
+                        disabled={!!m.core || !isAdmin}
+                        onChange={() => toggle(m.key, m.core)}
+                        className="h-4 w-4 accent-black"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Definicoes() {
   const [tab, setTab] = useState("empresa");
   return (
     <div>
-      <PageHeader title="Definições" subtitle="Empresa, referências, dados Excel, modelos PDF e emails" />
+      <PageHeader title="Definições" subtitle="Empresa, módulos, referências, dados Excel, modelos PDF e emails" />
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5 overflow-x-auto">
-        {[["empresa", "Empresa"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"]].map(([k, l]) => (
+        {[["empresa", "Empresa"], ["modulos", "Módulos"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"]].map(([k, l]) => (
           <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-black text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>
         ))}
       </div>
       {tab === "empresa" && <EmpresaTab />}
+      {tab === "modulos" && <ModulosTab />}
       {tab === "referencias" && <ReferenciasTab />}
       {tab === "dados" && <DadosTab />}
       {tab === "modelos" && <ModelosTab />}

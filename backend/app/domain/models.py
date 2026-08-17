@@ -2,14 +2,11 @@ from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Literal
 
 from app.core.database import new_id, now_iso
+from app.domain.modules import MODULE_KEYS
 
 
 # ----------------------- RBAC -----------------------
-RBAC_MODULES = [
-    "dashboard", "clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "artigos", "categorias", "materiais", "maquinas", "mao_obra",
-    "personalizacao", "orcamentos", "ordens_fabrico", "analise_producao", "rentabilidade",
-    "financeiro", "calendario", "historico", "definicoes", "utilizadores",
-]
+RBAC_MODULES = list(MODULE_KEYS)
 RBAC_ACTIONS = ["view", "create", "edit", "delete"]
 
 
@@ -25,7 +22,7 @@ def perms_colaborador() -> dict:
     for m in ("orcamentos", "ordens_fabrico"):
         p[m]["create"] = True
         p[m]["edit"] = True
-    for m in ("clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "financeiro"):
+    for m in ("clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "financeiro", "nao_conformidades", "contas"):
         p[m]["create"] = True
         p[m]["edit"] = True
     return p
@@ -319,6 +316,9 @@ class ClienteInput(BaseModel):
     nif: str = ""
     notas: str = ""
     responsavel: str = ""
+    # Flags de sistema (geridas pelo backend / configurações)
+    sistema: bool = False
+    is_default: bool = False
 
     @model_validator(mode="after")
     def _validar_nome_e_nif(self):
@@ -531,7 +531,7 @@ class PedidoCotacao(PedidoCotacaoInput):
 
 
 class OrcamentoInput(BaseModel):
-    cliente: str
+    cliente: str = ""
     cliente_id: Optional[str] = None
     descricao: str = ""
     numero_encomenda: str = ""
@@ -550,6 +550,8 @@ class OrcamentoInput(BaseModel):
 class Orcamento(OrcamentoInput):
     id: str = Field(default_factory=new_id)
     numero: str = ""
+    versao: int = 0
+    versoes: List[dict] = Field(default_factory=list)
     of_id: Optional[str] = None
     of_numero: Optional[str] = None
     encomenda_id: Optional[str] = None
@@ -627,6 +629,8 @@ class EncomendaArtigo(BaseModel):
     imagem: str = ""
     quantidade: float = 1
     preco_unit: float = 0.0
+    # Piso do preço cotado: na encomenda pode subir, não pode descer.
+    preco_unit_orcamento: Optional[float] = None
     desconto: float = 0.0
     desconto_tipo: str = "pct"  # pct | eur
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
@@ -639,6 +643,8 @@ class Pagamento(BaseModel):
     valor: float = 0.0
     metodo: str = "transferencia"  # transferencia | numerario | mbway | cheque | cartao | outro
     nota: str = ""
+    origem: str = "encomenda"  # encomenda | fatura
+    tipo: str = "pagamento"  # pagamento | devolucao
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -659,6 +665,8 @@ class EncomendaInput(BaseModel):
     valor_total_manual: bool = False
     valor_pago: float = 0.0
     autorizada_producao: bool = False
+    entregue: bool = False
+    data_entrega: Optional[str] = None
 
 
 class Encomenda(EncomendaInput):
@@ -747,11 +755,58 @@ class PdfTemplate(PdfTemplateInput):
 
 # ----------------------- Constantes de apresentação -----------------------
 STATUS_PT = {
-    "rascunho": "Rascunho", "enviado": "Enviado", "aceite": "Aceite", "rejeitado": "Rejeitado",
+    "rascunho": "Rascunho",
+    "criado": "Criado",
+    "finalizado": "Criado",
+    "enviado": "Enviado",
+    "negociado": "Negociação",
+    "ganho": "Ganho",
+    "perdido": "Perdido",
+    "aceite": "Ganho",
+    "rejeitado": "Perdido",
     "pendente": "Pendente", "em_producao": "Em Produção", "concluido": "Concluído",
 }
 PAY_PT = {"pendente": "Pendente", "parcial": "Pago parcial", "pago": "Pago total"}
 ENC_ESTADO_PT = {"aberta": "Aberta", "em_producao": "Em Produção", "concluida": "Concluída", "cancelada": "Cancelada"}
+NC_TIPO_PT = {
+    "defeito": "Defeito",
+    "quantidade": "Quantidade",
+    "material": "Material",
+    "prazo": "Prazo",
+    "outro": "Outro",
+}
+NC_ESTADO_PT = {
+    "aberta": "Aberta",
+    "em_analise": "Em análise",
+    "fechada": "Fechada",
+}
+
+
+class NaoConformidadeInput(BaseModel):
+    encomenda_id: Optional[str] = None
+    encomenda_artigo_id: Optional[str] = None
+    artigo_id: Optional[str] = None
+    artigo_nome: str = ""
+    artigo_codigo: str = ""
+    quantidade: float = 0
+    tipo: str = "defeito"
+    descricao: str = ""
+    acao_corretiva: str = ""
+    estado: str = "aberta"
+    notas: str = ""
+
+
+class NaoConformidade(NaoConformidadeInput):
+    id: str = Field(default_factory=new_id)
+    numero: str = ""
+    encomenda_numero: str = ""
+    cliente: str = ""
+    cliente_id: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    created_by: Optional[str] = None
+    created_by_nome: str = ""
+
+
 DOC_TIPO_PT = {
     "fatura": "Fatura",
     "proforma": "Fatura Pro Forma",
@@ -759,6 +814,47 @@ DOC_TIPO_PT = {
     "fatura_recibo": "Fatura-Recibo",
 }
 DOC_ESTADO_PT = {"emitida": "Emitida", "anulada": "Anulada"}
+
+CONTA_TIPO_PT = {"receber": "A receber", "pagar": "A pagar"}
+CONTA_ESTADO_PT = {
+    "pendente": "Pendente",
+    "parcial": "Parcial",
+    "liquidada": "Liquidada",
+    "anulada": "Anulada",
+}
+
+
+class ContaAnexo(BaseModel):
+    id: str = Field(default_factory=new_id)
+    nome: str = ""
+    path: str = ""
+    content_type: str = ""
+    size: int = 0
+    created_at: str = Field(default_factory=now_iso)
+
+
+class ContaInput(BaseModel):
+    tipo: str = "receber"  # receber | pagar
+    entidade: str = ""
+    entidade_tipo: str = ""  # cliente | fornecedor | outro
+    entidade_id: Optional[str] = None
+    descricao: str = ""
+    referencia: str = ""
+    data: Optional[str] = None
+    vencimento: Optional[str] = None
+    valor: float = 0.0
+    valor_pago: float = 0.0
+    metodo: str = ""
+    notas: str = ""
+    estado: str = "pendente"
+    anexos: List[ContaAnexo] = Field(default_factory=list)
+
+
+class Conta(ContaInput):
+    id: str = Field(default_factory=new_id)
+    numero: str = ""
+    created_at: str = Field(default_factory=now_iso)
+
 
 _CLIENTE_CAMPOS = [
     {"key": "cliente_nome", "label": "Nome"},

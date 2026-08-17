@@ -142,6 +142,14 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "digitos": 4,
         "exemplo": "OF-2026-0001",
     },
+    "nao_conformidade": {
+        "label": "Não conformidades",
+        "grupo": "documentos",
+        "prefix": "NC",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "NC-2026-0001",
+    },
     "recibo": {
         "label": "Recibos",
         "grupo": "documentos",
@@ -149,6 +157,14 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "incluir_ano": True,
         "digitos": 4,
         "exemplo": "REC-2026-0001",
+    },
+    "devolucao": {
+        "label": "Devoluções",
+        "grupo": "documentos",
+        "prefix": "DEV",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "DEV-2026-0001",
     },
     "fatura": {
         "label": "Faturas",
@@ -173,6 +189,22 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "incluir_ano": True,
         "digitos": 4,
         "exemplo": "FR-2026-0001",
+    },
+    "conta_receber": {
+        "label": "Contas a receber",
+        "grupo": "documentos",
+        "prefix": "CTR",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "CTR-2026-0001",
+    },
+    "conta_pagar": {
+        "label": "Contas a pagar",
+        "grupo": "documentos",
+        "prefix": "CTP",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "CTP-2026-0001",
     },
 }
 

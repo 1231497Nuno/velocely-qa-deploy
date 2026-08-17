@@ -67,18 +67,29 @@ export function AuthProvider({ children }) {
 
   const isAdmin = !!(user && user.perfil && user.perfil.admin);
 
-  const can = useCallback(
-    (modulo, acao = "view") => {
-      if (!user || !user.perfil) return false;
-      if (user.perfil.admin) return true;
-      return !!(user.perfil.permissoes?.[modulo]?.[acao]);
+  const moduleEnabled = useCallback(
+    (modulo) => {
+      if (!user) return false;
+      const ativos = user.modulos_ativos;
+      if (!ativos || !ativos.length) return true;
+      return ativos.includes(modulo);
     },
     [user]
   );
 
+  const can = useCallback(
+    (modulo, acao = "view") => {
+      if (!moduleEnabled(modulo)) return false;
+      if (!user || !user.perfil) return false;
+      if (user.perfil.admin) return true;
+      return !!(user.perfil.permissoes?.[modulo]?.[acao]);
+    },
+    [user, moduleEnabled]
+  );
+
   const value = useMemo(
-    () => ({ user, ready, login, setPassword, logout, isAdmin, can, refresh }),
-    [user, ready, login, setPassword, logout, isAdmin, can, refresh]
+    () => ({ user, ready, login, setPassword, logout, isAdmin, can, moduleEnabled, refresh }),
+    [user, ready, login, setPassword, logout, isAdmin, can, moduleEnabled, refresh]
   );
 
   return (

@@ -11,7 +11,7 @@ import time
 import requests
 import pytest
 import secrets
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_orcamento
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -221,7 +221,9 @@ def _create_orcamento(auth_headers):
     }
     r = requests.post(f"{API}/orcamentos", json=payload, headers=auth_headers, timeout=10)
     assert r.status_code in (200, 201), r.text
-    return r.json()["id"]
+    oid = r.json()["id"]
+    finalizar_orcamento(requests, f"{API}/orcamentos/{oid}/finalizar", headers=auth_headers, timeout=10)
+    return oid
 
 
 def _create_encomenda(auth_headers):

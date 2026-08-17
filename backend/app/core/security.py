@@ -18,7 +18,8 @@ from app.domain.models import (
     ForgotPasswordRequest, PasswordCodeVerify, PasswordResetSet,
     perms_all, perms_colaborador,
 )
-from app.repositories import users_repo, perfis_repo
+from app.repositories import users_repo, perfis_repo, empresa_repo
+from app.domain.modules import resolve_modulos_ativos, modulo_activo
 from app.services import email as email_service
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,26 @@ async def resolve_perfil(user: dict) -> dict:
     return perfil or {"nome": "Colaborador", "admin": False, "permissoes": perms_colaborador()}
 
 
+_modulos_cache: dict = {"at": 0.0, "ativos": None}
+
+
+def invalidate_modulos_cache():
+    _modulos_cache["ativos"] = None
+    _modulos_cache["at"] = 0.0
+
+
+async def get_modulos_ativos() -> list:
+    import time
+    now = time.time()
+    if _modulos_cache["ativos"] is not None and now - _modulos_cache["at"] < 20:
+        return _modulos_cache["ativos"]
+    s = await empresa_repo.find_one({"id": "empresa"}) or {}
+    ativos = resolve_modulos_ativos(s.get("modulos_ativos"))
+    _modulos_cache["ativos"] = ativos
+    _modulos_cache["at"] = now
+    return ativos
+
+
 async def user_public(u: dict) -> dict:
     perfil = await resolve_perfil(u)
     return {
@@ -153,6 +174,7 @@ async def user_public(u: dict) -> dict:
             "admin": bool(perfil.get("admin")),
             "permissoes": perfil.get("permissoes") or perms_all(False),
         },
+        "modulos_ativos": await get_modulos_ativos(),
         "must_set_password": bool(u.get("must_set_password")),
         "status": u.get("status") or ("pending_activation" if u.get("must_set_password") else "active"),
         "invite_expires_at": u.get("invite_expires_at"),
@@ -215,6 +237,9 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
 
 def require_perm(modulo: str, acao: str = "view") -> Callable:
     async def _dep(user: dict = Depends(get_current_user)) -> dict:
+        ativos = await get_modulos_ativos()
+        if not modulo_activo(ativos, modulo):
+            raise HTTPException(status_code=403, detail=f"Módulo '{modulo}' não está incluído neste pack")
         perfil = await resolve_perfil(user)
         if perfil.get("admin"):
             return user

@@ -9,7 +9,7 @@ Iteration 18 — Velocely ERP:
 
 import pytest
 import requests
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_orcamento
 
 BASE_URL = get_base_url()
 ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
@@ -154,6 +154,7 @@ class TestOrcamentoUnidade:
 
     def test_pdf_orcamento_generates(self, hdr):
         oid = CREATED["orcamentos"][-1]
+        finalizar_orcamento(requests, f"{BASE_URL}/api/orcamentos/{oid}/finalizar", headers=hdr)
         r = requests.get(f"{BASE_URL}/api/orcamentos/{oid}/pdf", headers=hdr)
         assert r.status_code == 200, r.text
         assert r.content[:4] == b"%PDF", "PDF inválido"

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Search, X, FileText, ClipboardList, Factory, Contact, Boxes } from "lucide-react";
+import { Search, X, FileText, ClipboardList, Factory, Contact, Boxes, AlertTriangle, Scale } from "lucide-react";
 
 const ICON = {
   "Cliente": Contact, "Orçamento": FileText, "Encomenda": ClipboardList,
-  "Ordem de Fabrico": Factory, "Artigo": Boxes,
+  "Ordem de Fabrico": Factory, "Artigo": Boxes, "Não conformidade": AlertTriangle,
+  "A receber": Scale, "A pagar": Scale,
 };
 
 export default function GlobalSearch({ onNavigate }) {

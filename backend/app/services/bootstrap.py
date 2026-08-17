@@ -288,6 +288,7 @@ async def seed_demo_negocio() -> bool:
                 "artigo_nome": l.get("artigo_nome", ""),
                 "quantidade": l.get("quantidade", 1),
                 "preco_unit": l.get("preco_unit") or 0,
+                "preco_unit_orcamento": l.get("preco_unit") or 0,
                 "personalizacoes": l.get("personalizacoes") or [],
             }
             for l in orc_doc.get("linhas", [])

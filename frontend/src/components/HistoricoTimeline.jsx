@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import {
   Plus, Pencil, Trash2, ArrowRightLeft, Wallet, ShieldCheck, Star,
-  CheckCircle2, GitFork, Copy, History, StickyNote, Clock, User,
+  CheckCircle2, GitFork, Copy, History, StickyNote, Clock, User, AlertTriangle,
 } from "lucide-react";
 
 const ICONS = {
@@ -11,6 +11,7 @@ const ICONS = {
   eliminado: Trash2,
   estado_alterado: ArrowRightLeft,
   pagamento: Wallet,
+  devolucao: Wallet,
   producao_autorizada: ShieldCheck,
   prioridade: Star,
   concluido: CheckCircle2,
@@ -18,6 +19,8 @@ const ICONS = {
   duplicado: Copy,
   nota: StickyNote,
   operacao: CheckCircle2,
+  anexo: Wallet,
+  nao_conformidade: AlertTriangle,
 };
 
 const COLORS = {
@@ -26,12 +29,15 @@ const COLORS = {
   eliminado: "bg-red-100 text-red-700",
   estado_alterado: "bg-violet-100 text-violet-700",
   pagamento: "bg-amber-100 text-amber-700",
+  devolucao: "bg-red-100 text-red-700",
   producao_autorizada: "bg-teal-100 text-teal-700",
   prioridade: "bg-orange-100 text-orange-700",
   concluido: "bg-emerald-100 text-emerald-700",
   convertido: "bg-indigo-100 text-indigo-700",
   duplicado: "bg-gray-100 text-gray-700",
   nota: "bg-yellow-100 text-yellow-700",
+  anexo: "bg-sky-100 text-sky-800",
+  nao_conformidade: "bg-amber-100 text-amber-800",
 };
 
 const fmtDT = (d) => {
@@ -45,7 +51,7 @@ const fmtDT = (d) => {
   }
 };
 
-export default function HistoricoTimeline({ tipo, id, refreshKey = 0 }) {
+export default function HistoricoTimeline({ tipo, id, refreshKey = 0, hideTitle = false }) {
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,10 +69,12 @@ export default function HistoricoTimeline({ tipo, id, refreshKey = 0 }) {
   useEffect(() => { if (tipo && id) load(); }, [load, refreshKey]);
 
   return (
-    <section className="mt-6" data-testid="historico-timeline">
-      <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <History size={15} /> Histórico de alterações
-      </h2>
+    <section className={hideTitle ? "" : "mt-6"} data-testid="historico-timeline">
+      {!hideTitle && (
+        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <History size={15} /> Histórico de alterações
+        </h2>
+      )}
       <div className="bg-white border border-gray-200 rounded-sm p-5">
         {loading ? (
           <div className="text-sm text-gray-400">A carregar histórico...</div>

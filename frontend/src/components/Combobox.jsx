@@ -19,7 +19,8 @@ export default function Combobox({
   matchPrefix = true,
 }) {
   const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value);
+  const ordered = [...options].sort((a, b) => Number(!!b.pin) - Number(!!a.pin));
+  const selected = ordered.find((o) => o.value === value);
 
   const filter = matchPrefix
     ? (itemValue, search) => {
@@ -50,7 +51,7 @@ export default function Combobox({
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
-              {options.map((o) => (
+              {ordered.map((o) => (
                 <CommandItem
                   key={o.value}
                   value={matchPrefix ? (o.label || "") : `${o.label} ${o.hint || ""}`}

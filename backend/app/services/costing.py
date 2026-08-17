@@ -11,6 +11,19 @@ from app.repositories import (
 )
 
 
+def pagamento_sinal(p: dict) -> int:
+    return -1 if (p.get("tipo") or "pagamento") == "devolucao" else 1
+
+
+def soma_valor_pago(pagamentos) -> float:
+    """Valor líquido pago na encomenda (pagamentos − devoluções)."""
+    return round2(sum((p.get("valor") or 0) * pagamento_sinal(p) for p in (pagamentos or [])))
+
+
+def soma_valor_devolvido(pagamentos) -> float:
+    return round2(sum((p.get("valor") or 0) for p in (pagamentos or []) if (p.get("tipo") or "") == "devolucao"))
+
+
 def iva_calc(net, settings) -> dict:
     s = settings or {}
     taxa = 0.0 if s.get("iva_isento") else float(s.get("iva_taxa") or 0)
@@ -537,6 +550,77 @@ def encomenda_artigos_total(enc: dict) -> float:
     return encomenda_artigos_breakdown(enc)["total"]
 
 
+def _piso_preco_orcamento(a: dict) -> Optional[float]:
+    v = a.get("preco_unit_orcamento")
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def encomenda_acrescimo_preco_orcamento(enc: dict) -> float:
+    """Soma dos aumentos de preço unitário vs. orçamento + linhas novas (sem piso)."""
+    extra = 0.0
+    novos = 0.0
+    for a in enc.get("artigos") or []:
+        piso = _piso_preco_orcamento(a)
+        qtd = a.get("quantidade") or 0
+        pu = a.get("preco_unit") or 0
+        if piso is None:
+            linha_bruto = round2(((pu) + pers_valor_unit(a)) * qtd)
+            novos += linha_bruto - desconto_valor(linha_bruto, a.get("desconto"), a.get("desconto_tipo"))
+        else:
+            extra += max(0.0, float(pu) - piso) * qtd
+    return round2(extra + novos)
+
+
+def backfill_pisos_preco_orcamento(enc: dict, orc: Optional[dict]) -> None:
+    """Preenche preco_unit_orcamento em linhas antigas a partir do orçamento de origem."""
+    if not orc:
+        return
+    unused = list(orc.get("linhas") or [])
+    for a in enc.get("artigos") or []:
+        if _piso_preco_orcamento(a) is not None:
+            continue
+        aid = a.get("artigo_id")
+        match_i = next((i for i, l in enumerate(unused) if aid and l.get("artigo_id") == aid), None)
+        if match_i is None:
+            nome = (a.get("artigo_nome") or "").strip()
+            match_i = next(
+                (i for i, l in enumerate(unused) if nome and (l.get("artigo_nome") or "").strip() == nome),
+                None,
+            )
+        if match_i is None:
+            continue
+        l = unused.pop(match_i)
+        a["preco_unit_orcamento"] = round2(float(l.get("preco_unit") or 0))
+
+
+def aplicar_pisos_preco_orcamento(existing: dict, novo: dict) -> list[str]:
+    """Copia o piso do orçamento e devolve erros se algum preço desceu."""
+    old_by_id = {a.get("id"): a for a in (existing.get("artigos") or []) if a.get("id")}
+    erros = []
+    for a in novo.get("artigos") or []:
+        old = old_by_id.get(a.get("id")) or {}
+        piso = _piso_preco_orcamento(old)
+        if piso is None:
+            piso = _piso_preco_orcamento(a)
+        if piso is None:
+            a.pop("preco_unit_orcamento", None)
+            continue
+        piso = round2(piso)
+        a["preco_unit_orcamento"] = piso
+        pu = round2(float(a.get("preco_unit") or 0))
+        if pu + 0.001 < piso:
+            nome = (a.get("artigo_nome") or "artigo").strip() or "artigo"
+            erros.append(
+                f"O preço de «{nome}» não pode ser inferior ao do orçamento ({piso:.2f} €)"
+            )
+    return erros
+
+
 async def compute_encomenda(enc: dict) -> dict:
     ofs = await ordens_repo.find({"encomenda_id": enc["id"]})
     settings = await empresa_repo.find_one({"id": "empresa"}) or {}
@@ -612,12 +696,16 @@ def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[
     enc["custo_producao_estimado"] = round2(custo_est)
     enc["custo_producao_real"] = round2(custo_real)
 
+    valor_orcamento = None
+    if enc.get("orcamento_id") and orc:
+        backfill_pisos_preco_orcamento(enc, orc)
+        valor_orcamento = compute_orcamento_totais(orc)["total"]
+    enc["valor_orcamento"] = round2(valor_orcamento) if valor_orcamento is not None else None
+
     if enc.get("valor_total_manual") and enc.get("valor_total") is not None:
         valor = enc.get("valor_total") or 0
-    elif enc.get("orcamento_id") and orc:
-        valor = compute_orcamento_totais(orc)["total"]
-    elif enc.get("orcamento_id"):
-        valor = encomenda_artigos_total(enc)
+    elif valor_orcamento is not None:
+        valor = round2(valor_orcamento + encomenda_acrescimo_preco_orcamento(enc))
     else:
         valor = encomenda_artigos_total(enc)
     enc["valor_total"] = round2(valor)
@@ -629,7 +717,17 @@ def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[
     enc.update(iva_calc(enc["valor_total"], settings or {}))
     base_pagamento = enc["total_com_iva"]
 
-    pago = enc.get("valor_pago") or 0
+    pags = enc.get("pagamentos") or []
+    if pags:
+        pago = soma_valor_pago(pags)
+        enc["valor_pago"] = pago
+    else:
+        pago = enc.get("valor_pago") or 0
+    enc["valor_devolvido"] = soma_valor_devolvido(pags)
+    if base_pagamento > 0.009:
+        enc["percentual_pago"] = round2(min(100.0, max(0.0, (pago / base_pagamento) * 100.0)))
+    else:
+        enc["percentual_pago"] = 0.0 if pago <= 0 else 100.0
     if pago <= 0:
         enc["status_pagamento"] = "pendente"
     elif pago < base_pagamento:

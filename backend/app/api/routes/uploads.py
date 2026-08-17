@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Header, Query
@@ -17,32 +18,64 @@ files_repo = Repository("files")
 MIME_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
 MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 
+FILE_MIME_TYPES = {
+    **MIME_TYPES,
+    "pdf": "application/pdf",
+    "txt": "text/plain",
+    "csv": "text/csv",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "zip": "application/zip",
+}
+MAX_FILE_BYTES = 15 * 1024 * 1024  # 15 MB
 
-@router.post("/upload/imagem")
-async def upload_imagem(file: UploadFile = File(...), _u: dict = Depends(get_current_user)):
-    ext = (file.filename or "img").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "png"
-    if ext not in MIME_TYPES:
-        raise HTTPException(400, "Formato inválido. Use JPG, PNG, GIF ou WEBP.")
+
+async def store_upload(file: UploadFile, *, image_only: bool = False) -> dict:
+    raw_name = file.filename or ("img.png" if image_only else "ficheiro")
+    ext = raw_name.rsplit(".", 1)[-1].lower() if "." in raw_name else ("png" if image_only else "")
+    allowed = MIME_TYPES if image_only else FILE_MIME_TYPES
+    if ext not in allowed:
+        if image_only:
+            raise HTTPException(400, "Formato inválido. Use JPG, PNG, GIF ou WEBP.")
+        raise HTTPException(400, "Formato inválido. Use PDF, imagem, Word, Excel, CSV, TXT ou ZIP.")
     data = await file.read()
-    if len(data) > MAX_BYTES:
-        raise HTTPException(400, "Imagem demasiado grande (máx. 5 MB).")
-    content_type = MIME_TYPES[ext]
+    limit = MAX_BYTES if image_only else MAX_FILE_BYTES
+    if len(data) > limit:
+        mb = limit // (1024 * 1024)
+        raise HTTPException(400, f"Ficheiro demasiado grande (máx. {mb} MB).")
+    content_type = allowed[ext]
     path = f"{storage.APP_NAME}/uploads/{uuid.uuid4()}.{ext}"
     try:
         result = storage.put_object(path, data, content_type)
     except Exception as e:
-        raise HTTPException(500, f"Falha ao carregar imagem: {e}")
+        raise HTTPException(500, f"Falha ao carregar ficheiro: {e}")
     stored_path = result.get("path", path)
+    size = result.get("size", len(data))
     await files_repo.insert({
         "id": new_id(),
         "storage_path": stored_path,
-        "original_filename": file.filename or "",
+        "original_filename": raw_name,
         "content_type": content_type,
-        "size": result.get("size", len(data)),
+        "size": size,
         "is_deleted": False,
         "created_at": now_iso(),
     })
-    return {"path": stored_path}
+    return {"path": stored_path, "nome": raw_name, "content_type": content_type, "size": size}
+
+
+@router.post("/upload/imagem")
+async def upload_imagem(file: UploadFile = File(...), _u: dict = Depends(get_current_user)):
+    stored = await store_upload(file, image_only=True)
+    return {"path": stored["path"]}
+
+
+@router.post("/upload/ficheiro")
+async def upload_ficheiro(file: UploadFile = File(...), _u: dict = Depends(get_current_user)):
+    return await store_upload(file)
 
 
 def _valid_token(auth_header):
@@ -67,4 +100,11 @@ async def download_file(path: str, authorization: str = Header(None), auth: str 
         data, content_type = storage.get_object(path)
     except Exception:
         raise HTTPException(404, "Ficheiro não encontrado")
-    return Response(content=data, media_type=record.get("content_type") or content_type)
+    media = record.get("content_type") or content_type
+    raw_name = record.get("original_filename") or path.rsplit("/", 1)[-1]
+    safe_name = re.sub(r'[\r\n"]', "", str(raw_name))[:180] or "ficheiro"
+    return Response(
+        content=data,
+        media_type=media,
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+    )

@@ -8,6 +8,7 @@ import PdfExportButton from "@/components/PdfExportButton";
 import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown } from "lucide-react";
@@ -18,6 +19,7 @@ import Combobox from "@/components/Combobox";
 export default function OrdemFabricoDetail() {
   const { can } = useAuth();
   const { id } = useParams();
+  const [tab, setTab] = useDetailTab(["of", "historico"], "of");
   const nav = useNavigate();
   const [of, setOf] = useState(null);
   const [artigos, setArtigos] = useState([]);
@@ -327,6 +329,17 @@ export default function OrdemFabricoDetail() {
         </div>
       </div>
 
+      <DetailTabs
+        testid="of-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "of", label: "Ordem de fabrico", testid: "of-tab-of" },
+          { id: "historico", label: "Histórico", testid: "of-tab-historico" },
+        ]}
+      />
+
+      {tab === "of" && (
       <div className="space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           {/* Esquerda: lista compacta de artigos (expandir para editar) */}
@@ -462,9 +475,12 @@ export default function OrdemFabricoDetail() {
         </div>
 
         <ImagensGaleria value={of.imagens} onChange={saveImagens} title="Imagens da ordem de fabrico" hint="Imagens de referência de toda a OF (herdadas do orçamento/encomenda quando aplicável)." />
-
-        <HistoricoTimeline tipo="ordem_fabrico" id={id} />
       </div>
+      )}
+
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="ordem_fabrico" id={id} hideTitle />
+      )}
     </div>
   );
 }

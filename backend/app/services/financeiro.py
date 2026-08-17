@@ -12,7 +12,7 @@ from app.domain.models import (
     DocumentoFinanceiro, DocumentoLinha, Pagamento,
 )
 from app.repositories import documentos_financeiros_repo, encomendas_repo, empresa_repo
-from app.services.costing import compute_encomenda, iva_calc, pers_valor_unit
+from app.services.costing import compute_encomenda, iva_calc, pers_valor_unit, soma_valor_pago
 from app.services.numeracao import next_codigo
 from app.services import audit
 
@@ -126,9 +126,11 @@ async def _registar_pagamento_encomenda(enc_id: Optional[str], valor: float, met
         nota=f"Recibo {recibo_numero}",
         data=data or now_iso()[:10],
         recibo_numero=recibo_numero,
+        origem="fatura",
+        tipo="pagamento",
     )
     pagamentos = (enc.get("pagamentos") or []) + [pag.model_dump()]
-    total_pago = round2(sum((p.get("valor") or 0) for p in pagamentos))
+    total_pago = soma_valor_pago(pagamentos)
     await encomendas_repo.update(enc_id, {"pagamentos": pagamentos, "valor_pago": total_pago})
 
 

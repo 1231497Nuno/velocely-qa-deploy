@@ -14,7 +14,7 @@ import time
 
 import pytest
 import requests
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -229,7 +229,9 @@ class TestOrcamentoHistorico:
         r = requests.put(f"{API}/orcamentos/{oid}", json=upd, headers=auth_headers, timeout=15)
         assert r.status_code == 200
 
-        # mudar estado
+        # finalizar (obtém número) e mudar estado
+        r = requests.post(f"{API}/orcamentos/{oid}/finalizar", headers=auth_headers, timeout=15)
+        assert r.status_code == 200, r.text
         upd2 = {**upd, "status": "enviado"}
         r = requests.put(f"{API}/orcamentos/{oid}", json=upd2, headers=auth_headers, timeout=15)
         assert r.status_code == 200
@@ -266,6 +268,8 @@ class TestOrcamentoHistorico:
         assert r.status_code == 200
         oid = r.json()["id"]
         CREATED["orcamentos"].append(oid)
+
+        finalizar_e_aceitar(requests, API, oid, headers=auth_headers, timeout=15)
 
         r = requests.post(f"{API}/orcamentos/{oid}/converter", headers=auth_headers, timeout=30)
         assert r.status_code == 200, r.text

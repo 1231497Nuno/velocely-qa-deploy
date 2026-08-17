@@ -3,6 +3,52 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any, Mapping, Optional
+
+ORC_PUT_KEYS = (
+    "cliente",
+    "cliente_id",
+    "descricao",
+    "numero_encomenda",
+    "data",
+    "validade",
+    "status",
+    "notas",
+    "linhas",
+    "materiais",
+    "desconto_total",
+    "desconto_total_tipo",
+    "imagens",
+)
+
+
+def orc_put_body(orc: Mapping[str, Any], **overrides: Any) -> dict:
+    body = {k: orc[k] for k in ORC_PUT_KEYS if k in orc}
+    body.update(overrides)
+    return body
+
+
+def first_orcamento_numerado(items) -> Optional[dict]:
+    if isinstance(items, dict):
+        items = items.get("items") or []
+    for o in items or []:
+        if str(o.get("numero") or "").strip():
+            return o
+    return None
+
+
+def finalizar_orcamento(http, url: str, **kwargs):
+    r = http.post(url, **kwargs)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def finalizar_e_aceitar(http, api_prefix: str, oid: str, **kwargs):
+    """Atribui número (finalizar) e passa a Aceite — pré-requisito de converter."""
+    orc = finalizar_orcamento(http, f"{api_prefix}/orcamentos/{oid}/finalizar", **kwargs)
+    r = http.put(f"{api_prefix}/orcamentos/{oid}", json=orc_put_body(orc, status="aceite"), **kwargs)
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
 DEFAULT_BASE_URL = "http://localhost:8000"

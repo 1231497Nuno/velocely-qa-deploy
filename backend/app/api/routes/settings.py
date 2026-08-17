@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.security import get_current_user, require_admin, require_perm
 from app.domain.models import EmpresaSettings, PdfTemplate, PdfTemplateInput, PDF_SECOES
+from app.domain.modules import PACKS, SYSTEM_MODULES, CORE_MODULE_KEYS, resolve_modulos_ativos
+from app.core.security import get_current_user, require_admin, require_perm, invalidate_modulos_cache
 from app.repositories import empresa_repo, pdf_templates_repo
 from app.services import numeracao as numeracao_svc
 from app.services import email_templates as email_tpl_svc
@@ -17,6 +18,28 @@ router = APIRouter()
 async def get_empresa(_u: dict = Depends(require_perm("definicoes", "view"))):
     s = await empresa_repo.find_one({"id": "empresa"})
     return s or {"id": "empresa", **EmpresaSettings().model_dump()}
+
+
+class ModulosBody(BaseModel):
+    modulos: List[str] = Field(default_factory=list)
+
+
+@router.get("/settings/modulos")
+async def get_modulos(_u: dict = Depends(get_current_user)):
+    s = await empresa_repo.find_one({"id": "empresa"}) or {}
+    return {
+        "packs": PACKS,
+        "modulos": SYSTEM_MODULES,
+        "ativos": resolve_modulos_ativos(s.get("modulos_ativos")),
+    }
+
+
+@router.put("/settings/modulos")
+async def update_modulos(body: ModulosBody, admin: dict = Depends(require_admin)):
+    ativos = resolve_modulos_ativos(list(body.modulos or []) + list(CORE_MODULE_KEYS))
+    await empresa_repo.update_where({"id": "empresa"}, {"id": "empresa", "modulos_ativos": ativos}, upsert=True)
+    invalidate_modulos_cache()
+    return {"packs": PACKS, "modulos": SYSTEM_MODULES, "ativos": ativos}
 
 
 @router.put("/settings/empresa")

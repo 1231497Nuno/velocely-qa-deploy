@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
@@ -27,6 +29,8 @@ const Th = ({ children, align = "left" }) => (
 export default function ArtigoDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["artigo", "historico"], "artigo");
+  const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [descAberta, setDescAberta] = useState(false);
@@ -95,6 +99,18 @@ export default function ArtigoDetail() {
         }
       />
 
+      <DetailTabs
+        testid="artigo-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "artigo", label: "Artigo", testid: "artigo-tab-artigo" },
+          { id: "historico", label: "Histórico", testid: "artigo-tab-historico" },
+        ]}
+      />
+
+      {tab === "artigo" && (
+        <>
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
           <div className="flex items-start gap-3">
@@ -134,7 +150,9 @@ export default function ArtigoDetail() {
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-3">
           <KPI icon={FileText} label="Orçamentos" value={kpiVal(stats.num_orcamentos)} sub={`${kpiVal(stats.qtd_orcada)} un orçadas`} testid="artigo-kpi-orcamentos" />
           <KPI icon={ClipboardList} label="Encomendas" value={kpiVal(stats.num_encomendas)} sub={`${kpiVal(stats.qtd_encomendada)} un encomendadas`} testid="artigo-kpi-encomendas" />
-          <KPI icon={Factory} label="Ordens de Fabrico" value={kpiVal(stats.num_ofs)} sub={`${kpiVal(stats.qtd_produzida)} un em produção`} testid="artigo-kpi-ofs" />
+          {can("ordens_fabrico", "view") && (
+            <KPI icon={Factory} label="Ordens de Fabrico" value={kpiVal(stats.num_ofs)} sub={`${kpiVal(stats.qtd_produzida)} un em produção`} testid="artigo-kpi-ofs" />
+          )}
           <KPI icon={Package} label="Un. Encomendadas" value={kpiVal(stats.qtd_encomendada)} testid="artigo-kpi-qtd-enc" />
           <KPI icon={Coins} label="Receita" value={kpiVal(stats.receita, true)} sub={`Custo ${kpiVal(stats.custo, true)}`} testid="artigo-kpi-receita" />
           <KPI icon={TrendingUp} label="Ganho estimado" value={kpiVal(stats.ganho, true)} sub="Receita − custo de produção" testid="artigo-kpi-ganho" />
@@ -184,7 +202,7 @@ export default function ArtigoDetail() {
               <tbody data-testid="artigo-orcamentos-table">
                 {rows.map((o) => (
                   <tr key={o.id} data-testid={`artigo-orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
-                    <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
+                    <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero || "Rascunho"}</td>
                     <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
                     <td className="px-4 py-3 text-gray-600">{fmtDate(o.data)}</td>
                     <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
@@ -200,7 +218,7 @@ export default function ArtigoDetail() {
         )}
       </SeccaoPesquisavel>
 
-      {/* Ordens de Fabrico */}
+      {can("ordens_fabrico", "view") && (
       <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "cliente", "status"]} placeholder="Pesquisar pelo início do nº ou estado..." testid="artigo-ofs" className="mb-2">
         {(rows) => (
           <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
@@ -226,8 +244,13 @@ export default function ArtigoDetail() {
           </div>
         )}
       </SeccaoPesquisavel>
+      )}
+        </>
+      )}
 
-      <HistoricoTimeline tipo="artigo" id={id} />
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="artigo" id={id} hideTitle />
+      )}
     </div>
   );
 }

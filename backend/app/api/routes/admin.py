@@ -215,19 +215,11 @@ async def list_perfis(admin: dict = Depends(require_admin)):
 
 @router.get("/rbac/modulos")
 async def rbac_modulos(admin: dict = Depends(require_admin)):
-    labels = {
-        "dashboard": "Dashboard", "clientes": "Clientes", "fornecedores": "Fornecedores", "encomendas": "Encomendas",
-        "ordens_compra": "Ordens de Compra",
-        "pedidos_cotacao": "Pedidos de Cotação",
-        "artigos": "Artigos", "categorias": "Categorias", "materiais": "Materiais",
-        "maquinas": "Máquinas", "mao_obra": "Mão de Obra", "personalizacao": "Tipos de Personalização",
-        "orcamentos": "Orçamentos", "ordens_fabrico": "Ordens de Fabrico",
-        "analise_producao": "Análise da Produção", "rentabilidade": "Rentabilidade por Cliente",
-        "financeiro": "Financeiro",
-        "calendario": "Calendário", "historico": "Histórico", "definicoes": "Definições",
-        "utilizadores": "Gestão de Utilizadores",
+    from app.domain.modules import SYSTEM_MODULES
+    return {
+        "modulos": [{"key": m["key"], "label": m["label"], "pack": m["pack"], "core": m["core"]} for m in SYSTEM_MODULES],
+        "acoes": RBAC_ACTIONS,
     }
-    return {"modulos": [{"key": m, "label": labels.get(m, m)} for m in RBAC_MODULES], "acoes": RBAC_ACTIONS}
 
 
 def _normalize_perms(permissoes: dict, admin_flag: bool) -> dict:

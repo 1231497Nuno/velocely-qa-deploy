@@ -6,7 +6,7 @@
 """
 import requests
 import pytest
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, first_orcamento_numerado
 
 BASE_URL = get_base_url()
 
@@ -205,7 +205,9 @@ class TestPdfGenerationModules:
         # Orçamento
         r = requests.get(f"{BASE_URL}/api/orcamentos", headers=auth, timeout=30)
         if r.status_code == 200 and r.json():
-            ids["orc"] = r.json()[0]["id"]
+            numbered = first_orcamento_numerado(r.json())
+            if numbered:
+                ids["orc"] = numbered["id"]
         # OF
         r = requests.get(f"{BASE_URL}/api/ordens-fabrico", headers=auth, timeout=30)
         if r.status_code == 200 and r.json():

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { FileText, ClipboardList, Factory, Boxes, ExternalLink } from "lucide-react";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 
 const ESTADO_PT = {
-  rascunho: "Rascunho", enviado: "Enviado", aceite: "Aceite", rejeitado: "Rejeitado",
+  rascunho: "Rascunho", criado: "Criado", finalizado: "Criado", enviado: "Enviado", negociado: "Negociação", ganho: "Ganho", aceite: "Ganho", perdido: "Perdido", rejeitado: "Perdido",
   pendente: "Pendente", em_producao: "Em Produção", concluido: "Concluído",
   aberta: "Aberta", concluida: "Concluída", cancelada: "Cancelada",
 };
@@ -49,6 +50,7 @@ function Grupo({ icon: Icon, titulo, testid, items, onGo }) {
 
 export default function UtilizacoesDialog({ open, onOpenChange, endpoint, titulo, subtitulo }) {
   const nav = useNavigate();
+  const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -61,7 +63,8 @@ export default function UtilizacoesDialog({ open, onOpenChange, endpoint, titulo
 
   const go = (base) => (r) => { onOpenChange(false); nav(`${base}/${r.id}`); };
   const d = data || {};
-  const totalDocs = (d.artigos?.length || 0) + (d.orcamentos?.length || 0) + (d.encomendas?.length || 0) + (d.ordens_fabrico?.length || 0);
+  const canOF = can("ordens_fabrico", "view");
+  const totalDocs = (d.artigos?.length || 0) + (d.orcamentos?.length || 0) + (d.encomendas?.length || 0) + (canOF ? (d.ordens_fabrico?.length || 0) : 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,7 +83,7 @@ export default function UtilizacoesDialog({ open, onOpenChange, endpoint, titulo
               <Grupo icon={Boxes} titulo="Artigos" testid="artigos" items={d.artigos} />
               <Grupo icon={FileText} titulo="Orçamentos" testid="orcamentos" items={d.orcamentos} onGo={go("/orcamentos")} />
               <Grupo icon={ClipboardList} titulo="Encomendas" testid="encomendas" items={d.encomendas} onGo={go("/encomendas")} />
-              <Grupo icon={Factory} titulo="Ordens de Fabrico" testid="ordens" items={d.ordens_fabrico} onGo={go("/ordens-fabrico")} />
+              {canOF && <Grupo icon={Factory} titulo="Ordens de Fabrico" testid="ordens" items={d.ordens_fabrico} onGo={go("/ordens-fabrico")} />}
             </>
           )}
         </div>

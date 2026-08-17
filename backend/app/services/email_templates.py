@@ -8,7 +8,7 @@ from app.core.database import now_iso
 from app.repositories import email_templates_repo
 
 # Tipos fixos — não se criam/apagam na UI, só se editam
-EMAIL_TEMPLATE_TYPES = ("password_reset", "orcamento", "encomenda_pronta")
+EMAIL_TEMPLATE_TYPES = ("password_reset", "orcamento", "encomenda_pronta", "encomenda_prazo")
 
 EMAIL_TEMPLATE_META: Dict[str, Dict[str, Any]] = {
     "password_reset": {
@@ -33,10 +33,30 @@ EMAIL_TEMPLATE_META: Dict[str, Dict[str, Any]] = {
     },
     "encomenda_pronta": {
         "nome": "Encomenda pronta",
-        "descricao": "Notificação ao cliente de que a encomenda está pronta (PDF anexo).",
+        "descricao": "Notificação ao cliente de que a encomenda está pronta, com valores a faturar (PDF anexo).",
         "placeholders": [
             {"key": "nome", "label": "Nome do cliente"},
             {"key": "numero", "label": "Número da encomenda"},
+            {"key": "total", "label": "Valor total da encomenda"},
+            {"key": "valor_pago", "label": "Já pago"},
+            {"key": "valor_a_faturar", "label": "Valor a faturar (em falta)"},
+            {"key": "valor_pendente", "label": "Valor pendente (igual a a faturar)"},
+            {"key": "valores_faturar", "label": "Bloco: total, pago e a faturar"},
+            {"key": "mensagem", "label": "Mensagem extra do envio"},
+        ],
+    },
+    "encomenda_prazo": {
+        "nome": "Data de entrega prevista",
+        "descricao": "Notificação ao cliente com a data de entrega prevista e os valores a faturar (PDF anexo).",
+        "placeholders": [
+            {"key": "nome", "label": "Nome do cliente"},
+            {"key": "numero", "label": "Número da encomenda"},
+            {"key": "prazo_entrega", "label": "Data de entrega prevista (ex.: 17/08/2026)"},
+            {"key": "total", "label": "Valor total da encomenda"},
+            {"key": "valor_pago", "label": "Já pago"},
+            {"key": "valor_a_faturar", "label": "Valor a faturar (em falta)"},
+            {"key": "valor_pendente", "label": "Valor pendente (igual a a faturar)"},
+            {"key": "valores_faturar", "label": "Bloco: total, pago e a faturar"},
             {"key": "mensagem", "label": "Mensagem extra do envio"},
         ],
     },
@@ -71,6 +91,19 @@ EMAIL_TEMPLATE_DEFAULTS: Dict[str, Dict[str, str]] = {
         "body": (
             "Olá {nome},\n\n"
             "A sua encomenda {numero} está pronta.\n\n"
+            "{valores_faturar}\n\n"
+            "{mensagem}\n\n"
+            "Segue em anexo o documento da encomenda.\n"
+            "Qualquer dúvida, estamos ao dispor.\n\n"
+            "— Equipa Velocely\n"
+        ),
+    },
+    "encomenda_prazo": {
+        "subject": "Velocely — Encomenda {numero}: data de entrega prevista",
+        "body": (
+            "Olá {nome},\n\n"
+            "A data de entrega prevista da sua encomenda {numero} é {prazo_entrega}.\n\n"
+            "{valores_faturar}\n\n"
             "{mensagem}\n\n"
             "Segue em anexo o documento da encomenda.\n"
             "Qualquer dúvida, estamos ao dispor.\n\n"
@@ -140,6 +173,26 @@ def text_to_html_fragments(text: str) -> str:
     return "\n".join(chunks)
 
 
+_LEGACY_BODIES = {
+    "encomenda_pronta": (
+        "Olá {nome},\n\n"
+        "A sua encomenda {numero} está pronta.\n\n"
+        "{mensagem}\n\n"
+        "Segue em anexo o documento da encomenda.\n"
+        "Qualquer dúvida, estamos ao dispor.\n\n"
+        "— Equipa Velocely\n"
+    ),
+    "encomenda_prazo": (
+        "Olá {nome},\n\n"
+        "A data de entrega prevista da sua encomenda {numero} é {prazo_entrega}.\n\n"
+        "{mensagem}\n\n"
+        "Segue em anexo o documento da encomenda.\n"
+        "Qualquer dúvida, estamos ao dispor.\n\n"
+        "— Equipa Velocely\n"
+    ),
+}
+
+
 async def get_template(tipo: str) -> dict:
     if tipo not in EMAIL_TEMPLATE_TYPES:
         raise ValueError(f"Tipo de template inválido: {tipo}")
@@ -147,10 +200,14 @@ async def get_template(tipo: str) -> dict:
     base = _default_doc(tipo)
     if not doc:
         return base
+    body = doc.get("body") if doc.get("body") is not None else base["body"]
+    legacy = _LEGACY_BODIES.get(tipo)
+    if legacy and (body or "").strip() == legacy.strip():
+        body = base["body"]
     return {
         **base,
         "subject": doc.get("subject") or base["subject"],
-        "body": doc.get("body") if doc.get("body") is not None else base["body"],
+        "body": body,
         "updated_at": doc.get("updated_at"),
     }
 

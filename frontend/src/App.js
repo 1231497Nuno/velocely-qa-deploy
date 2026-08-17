@@ -31,6 +31,10 @@ import Encomendas from "@/features/encomendas/Encomendas";
 import EncomendaDetail from "@/features/encomendas/EncomendaDetail";
 import Financeiro from "@/features/financeiro/Financeiro";
 import DocumentoFinanceiroDetail from "@/features/financeiro/DocumentoFinanceiroDetail";
+import NaoConformidades from "@/features/nao_conformidades/NaoConformidades";
+import NaoConformidadeDetail from "@/features/nao_conformidades/NaoConformidadeDetail";
+import Contas from "@/features/contas/Contas";
+import ContaDetail from "@/features/contas/ContaDetail";
 import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
@@ -62,8 +66,12 @@ function AppRoutes() {
       <Route path="/pedidos-cotacao/:id" element={<Protected modulo="pedidos_cotacao"><PedidoCotacaoDetail /></Protected>} />
       <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
       <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
+      <Route path="/nao-conformidades" element={<Protected modulo="nao_conformidades"><NaoConformidades /></Protected>} />
+      <Route path="/nao-conformidades/:id" element={<Protected modulo="nao_conformidades"><NaoConformidadeDetail /></Protected>} />
       <Route path="/financeiro" element={<Protected modulo="financeiro"><Financeiro /></Protected>} />
       <Route path="/financeiro/:id" element={<Protected modulo="financeiro"><DocumentoFinanceiroDetail /></Protected>} />
+      <Route path="/contas" element={<Protected modulo="contas"><Contas /></Protected>} />
+      <Route path="/contas/:id" element={<Protected modulo="contas"><ContaDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
       <Route path="/artigos/:id" element={<Protected modulo="artigos"><ArtigoDetail /></Protected>} />
       <Route path="/categorias" element={<Protected modulo="artigos"><Categorias /></Protected>} />

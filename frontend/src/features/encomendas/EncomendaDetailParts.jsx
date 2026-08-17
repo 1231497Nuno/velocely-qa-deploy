@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { eur, fmtDate } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import {
-  AlertTriangle, User, Phone, Mail, MapPin, Hash, Factory, Layers,
+  AlertTriangle, User, Phone, Mail, MapPin, Hash, Factory, Layers, Plus,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -42,14 +42,57 @@ const KpiCard = ({ testid, label, value, valueClass = "", sub }) => (
   </div>
 );
 
-export const EncKPIs = ({ enc }) => (
-  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-    <KpiCard testid="enc-kpi-valor" label="Valor da Encomenda" value={eur(enc.valor_total)} />
-    <KpiCard testid="enc-kpi-pago" label="Pago" value={eur(enc.valor_pago)} valueClass="text-emerald-600" sub={`Pendente ${eur(enc.valor_pendente)}`} />
-    <KpiCard testid="enc-kpi-custo-real" label="Custo Produção (real)" value={eur(enc.custo_producao_real)} sub={`Estimado ${eur(enc.custo_producao_estimado)}`} />
-    <KpiCard testid="enc-kpi-margem" label="Margem (valor − custo real)" value={eur(enc.margem_producao)} valueClass={enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"} />
-  </div>
-);
+export const EncKPIs = ({ enc }) => {
+  const pct = Number(enc.percentual_pago);
+  const pctLabel = Number.isFinite(pct) ? `${pct.toLocaleString("pt-PT", { maximumFractionDigits: 1 })}%` : null;
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <KpiCard testid="enc-kpi-valor" label="Valor da Encomenda" value={eur(enc.valor_total)} />
+      <KpiCard testid="enc-kpi-pago" label="Pago" value={eur(enc.valor_pago)} valueClass="text-emerald-600" sub={`${pctLabel ? `${pctLabel} · ` : ""}Pendente ${eur(enc.valor_pendente)}`} />
+      <KpiCard testid="enc-kpi-custo-real" label="Custo Produção (real)" value={eur(enc.custo_producao_real)} sub={`Estimado ${eur(enc.custo_producao_estimado)}`} />
+      <KpiCard testid="enc-kpi-margem" label="Margem (valor − custo real)" value={eur(enc.margem_producao)} valueClass={enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"} />
+    </div>
+  );
+};
+
+export const EncPagamentoResumo = ({ enc }) => {
+  const base = Number(enc.total_com_iva) || Number(enc.valor_total) || 0;
+  const pago = Number(enc.valor_pago) || 0;
+  const pct = Number.isFinite(Number(enc.percentual_pago))
+    ? Number(enc.percentual_pago)
+    : (base > 0.009 ? Math.min(100, Math.max(0, (pago / base) * 100)) : 0);
+  const pctLabel = `${pct.toLocaleString("pt-PT", { maximumFractionDigits: 1 })}%`;
+  const devolvido = Number(enc.valor_devolvido) || 0;
+  return (
+    <div className="mb-4" data-testid="enc-pagamentos-resumo">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+        <div className="bg-white border border-gray-200 rounded-sm p-4 min-w-0" data-testid="enc-pag-kpi-estado">
+          <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Estado da encomenda</div>
+          <div className="mt-2"><StatusBadge status={enc.estado} testid="enc-pag-estado-badge" /></div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-sm p-4 min-w-0" data-testid="enc-pag-kpi-status">
+          <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Estado do pagamento</div>
+          <div className="mt-2"><StatusBadge status={enc.status_pagamento} testid="enc-pag-pagamento-badge" /></div>
+        </div>
+        <KpiCard testid="enc-pag-kpi-pago" label="Pago" value={eur(pago)} valueClass="text-emerald-600" sub={`de ${eur(base)} c/ IVA`} />
+        <KpiCard testid="enc-pag-kpi-pendente" label="Pendente" value={eur(enc.valor_pendente)} valueClass={(enc.valor_pendente || 0) > 0.009 ? "text-amber-700" : "text-emerald-600"} sub={devolvido > 0.009 ? `Devolvido ${eur(devolvido)}` : undefined} />
+      </div>
+      <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-pag-percentual">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Percentual pago</span>
+          <span className="text-lg font-bold tabular-nums font-display text-gray-900" data-testid="enc-pag-percentual-valor">{pctLabel}</span>
+        </div>
+        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+          <div
+            data-testid="enc-pag-percentual-bar"
+            className={`h-full rounded-full ${pct >= 99.9 ? "bg-emerald-600" : pct > 0 ? "bg-amber-500" : "bg-gray-300"}`}
+            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPrazoBlur }) => (
   <div className="bg-white border border-gray-200 rounded-sm p-5" data-testid="encomenda-cliente-info">
@@ -71,7 +114,10 @@ export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPr
 );
 
 /** Bloco compacto do cliente para a barra sticky da encomenda. */
-export const ClienteStickyMeta = ({ enc, cliente, moradaCompleta, onPrazoChange, onPrazoBlur }) => (
+export const ClienteStickyMeta = ({
+  enc, cliente, moradaCompleta, onPrazoChange, onPrazoBlur,
+  onEntregaToggle, onDataEntregaChange, onDataEntregaBlur,
+}) => (
   <div className="rounded-sm border border-gray-200 bg-gray-50/80 px-3 py-2" data-testid="encomenda-cliente-info">
     <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm">
       <div className="min-w-0 flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-1.5 content-start">
@@ -111,8 +157,8 @@ export const ClienteStickyMeta = ({ enc, cliente, moradaCompleta, onPrazoChange,
         )}
       </div>
 
-      {/* Data em cima, prazo em baixo — mesma coluna alinhada */}
-      <div className="shrink-0 w-full sm:w-[9.5rem] grid grid-rows-2 gap-y-1.5">
+      {/* Data, prazo e entrega */}
+      <div className="shrink-0 w-full sm:w-[11.5rem] flex flex-col gap-y-1.5">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 leading-none">Data</div>
           <div className="tabular-nums text-xs font-medium text-gray-900 mt-0.5 leading-none h-7 flex items-center">
@@ -132,14 +178,50 @@ export const ClienteStickyMeta = ({ enc, cliente, moradaCompleta, onPrazoChange,
             />
           </div>
         </div>
+        <div className="min-w-0">
+          <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 cursor-pointer">
+            <input
+              data-testid="enc-entregue-check"
+              type="checkbox"
+              checked={!!enc.entregue}
+              onChange={onEntregaToggle}
+              className="w-3.5 h-3.5 accent-teal-700"
+            />
+            Material entregue
+          </label>
+          {enc.entregue && (
+            <div className="mt-0.5 h-7 flex items-center">
+              <input
+                data-testid="enc-data-entrega-input"
+                type="date"
+                value={enc.data_entrega || ""}
+                onChange={onDataEntregaChange}
+                onBlur={onDataEntregaBlur}
+                className="w-full border border-gray-300 rounded-sm px-2 py-1 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   </div>
 );
 
-export const OFsPanel = ({ enc }) => (
-  <div className="bg-white border border-gray-200 rounded-sm p-5">
-    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h3>
+export const OFsPanel = ({ enc, onCriar, canCreate }) => (
+  <div className="bg-white border border-gray-200 rounded-sm p-5" data-testid="encomenda-ofs-panel">
+    <div className="flex items-center justify-between gap-2 mb-3">
+      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h3>
+      {canCreate && (
+        <button
+          type="button"
+          data-testid="encomenda-criar-of-btn"
+          onClick={onCriar}
+          className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
+        >
+          <Plus size={15} /> Criar OF
+        </button>
+      )}
+    </div>
     <div className="mb-3" data-testid="enc-detail-progresso">
       <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
         <span>Produção lançada em OFs</span>

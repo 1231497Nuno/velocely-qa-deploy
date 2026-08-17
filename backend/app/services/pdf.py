@@ -17,7 +17,7 @@ from app.core.database import round2
 from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.services.costing import (
     compute_orcamento_totais, pers_valor_unit, pers_nomes,
-    material_custo, material_margem_factor,
+    material_custo, material_margem_factor, soma_valor_pago,
 )
 from app.repositories import empresa_repo, pdf_templates_repo, clientes_repo, orcamentos_repo
 
@@ -603,17 +603,27 @@ def build_recibo_pdf(enc: dict, pag: dict, settings: dict = None, cliente: dict 
         ("Data", pag.get("data")),
         ("Encomenda", enc.get("numero")),
     ]
-    _header(elems, st, "RECIBO", pag.get("recibo_numero", ""), meta_pairs, settings, True)
+    is_dev = (pag.get("tipo") or "") == "devolucao"
+    titulo = "DEVOLUÇÃO" if is_dev else "RECIBO"
+    _header(elems, st, titulo, pag.get("recibo_numero", ""), meta_pairs, settings, True)
 
     valor = pag.get("valor") or 0
+    desc = (
+        f"Devolução referente à encomenda {enc.get('numero') or ''}"
+        if is_dev else
+        f"Pagamento referente à encomenda {enc.get('numero') or ''}"
+    )
     data = [
         _th_row(st, ["Descrição", "Valor"]),
-        [Paragraph(f"Pagamento referente à encomenda {enc.get('numero') or ''}", st["cell"]), Paragraph(fmt_eur(valor), st["cellb"])],
+        [Paragraph(desc, st["cell"]), Paragraph(fmt_eur(valor), st["cellb"])],
     ]
     elems.append(_data_table(data, [130 * mm, 40 * mm], align=[("ALIGN", (-1, 0), (-1, -1), "RIGHT")]))
     elems.append(Spacer(1, 12))
 
-    elems.append(Paragraph(f"Recebemos de <b>{nome_cli}</b> a quantia de <b>{fmt_eur(valor)}</b>.", st["val"]))
+    if is_dev:
+        elems.append(Paragraph(f"Devolvemos a <b>{nome_cli}</b> a quantia de <b>{fmt_eur(valor)}</b>.", st["val"]))
+    else:
+        elems.append(Paragraph(f"Recebemos de <b>{nome_cli}</b> a quantia de <b>{fmt_eur(valor)}</b>.", st["val"]))
     elems.append(Spacer(1, 4))
     elems.append(Paragraph(f"Método de pagamento: {metodo_label or pag.get('metodo') or '—'}", st["small"]))
     if pag.get("nota"):
@@ -621,8 +631,8 @@ def build_recibo_pdf(enc: dict, pag: dict, settings: dict = None, cliente: dict 
     elems.append(Spacer(1, 14))
 
     total_enc = enc.get("valor_total") or 0
-    total_pago = round2(sum((p.get("valor") or 0) for p in (enc.get("pagamentos") or [])))
-    em_falta = round2((total_enc or 0) - total_pago)
+    total_pago = soma_valor_pago(enc.get("pagamentos") or [])
+    em_falta = round2((enc.get("total_com_iva") or total_enc or 0) - total_pago)
     tot_rows = [
         ("Total da encomenda", fmt_eur(total_enc)),
         ("Total pago acumulado", fmt_eur(total_pago)),

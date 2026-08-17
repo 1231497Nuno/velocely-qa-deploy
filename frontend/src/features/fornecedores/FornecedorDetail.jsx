@@ -4,6 +4,7 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
@@ -42,6 +43,7 @@ const InfoLine = ({ icon: Icon, value }) =>
 export default function FornecedorDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["fornecedor", "historico"], "fornecedor");
   const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +119,18 @@ export default function FornecedorDetail() {
         }
       />
 
+      <DetailTabs
+        testid="fornecedor-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "fornecedor", label: "Fornecedor", testid: "fornecedor-tab-fornecedor" },
+          { id: "historico", label: "Histórico", testid: "fornecedor-tab-historico" },
+        ]}
+      />
+
+      {tab === "fornecedor" && (
+        <>
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
           <div className="text-xs uppercase tracking-[0.1em] text-gray-500" data-testid="fornecedor-tipo">
@@ -182,8 +196,12 @@ export default function FornecedorDetail() {
           </div>
         )}
       </SeccaoPesquisavel>
+        </>
+      )}
 
-      <HistoricoTimeline tipo="fornecedor" id={id} />
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="fornecedor" id={id} hideTitle />
+      )}
     </div>
   );
 }

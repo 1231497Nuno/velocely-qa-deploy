@@ -8,7 +8,7 @@ Pré-requisitos: utilizador admin do seed (ver ADMIN_EMAIL / ADMIN_PASSWORD).
 
 import pytest
 import requests
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 ADMIN_EMAIL, ADMIN_PASS = get_admin_credentials()
@@ -274,10 +274,7 @@ class TestConversaoOrcamento:
             ],
         }
         orc = requests.post(f"{BASE_URL}/api/orcamentos", json=orc_payload, headers=H, timeout=15).json()
-        # marcar aceite (obrigatório para criar encomenda)
-        orc["status"] = "aceite"
-        put_body = {k: orc[k] for k in ("cliente", "cliente_id", "descricao", "data", "validade", "status", "notas", "linhas", "materiais", "desconto_total", "desconto_total_tipo") if k in orc}
-        requests.put(f"{BASE_URL}/api/orcamentos/{orc['id']}", json=put_body, headers=H, timeout=15)
+        finalizar_e_aceitar(requests, f"{BASE_URL}/api", orc["id"], headers=H, timeout=15)
         # converter
         conv = requests.post(f"{BASE_URL}/api/orcamentos/{orc['id']}/converter", headers=H, timeout=15).json()
         assert conv.get("encomenda_id"), conv

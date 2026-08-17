@@ -1,4 +1,4 @@
-"""Rotas do módulo Financeiro — faturas, proformas e faturas-recibo (recibos na fatura)."""
+"""Rotas do módulo opcional de faturas e recibos (fatura, proforma, fatura-recibo)."""
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query

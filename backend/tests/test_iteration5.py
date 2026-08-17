@@ -1,6 +1,6 @@
 """Iteration 5 tests: Análise da Produção (monthly) + Orçamento line roteiro persistence."""
 import requests
-from conftest import get_base_url
+from conftest import get_base_url, finalizar_e_aceitar
 
 BASE = get_base_url()
 
@@ -90,7 +90,7 @@ def test_orcamento_line_roteiro_persists_and_converts_to_of():
         "numero_encomenda": quote.get("numero_encomenda", ""),
         "data": quote.get("data"),
         "validade": quote.get("validade"),
-        "status": "aceite",
+        "status": "rascunho",
         "notas": quote.get("notas", ""),
         "linhas": [linha],
     }
@@ -103,6 +103,7 @@ def test_orcamento_line_roteiro_persists_and_converts_to_of():
     assert saved_op["nome"] == "TEST_IT5_OP"
     assert float(saved_op["tempo_maquina"]) == 7
     assert float(saved_op["tempo_mao_obra"]) == 11
+    finalizar_e_aceitar(requests, f"{BASE}/api", quote["id"], timeout=30)
     # convert
     r = requests.post(f"{BASE}/api/orcamentos/{quote['id']}/converter", timeout=30)
     assert r.status_code in (200, 201), r.text

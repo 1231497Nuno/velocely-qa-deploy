@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api, eur, API } from "@/lib/api";
+import { api, eur, API, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
@@ -10,18 +10,16 @@ import LinhaTipoIcon, { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { LinhaTipoSelect, LinhaCodigoSelect, LinhaDescricaoInput } from "@/components/LinhaArtigoFields";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import ImagensGaleria from "@/components/ImagensGaleria";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
-import { Plus, Trash2, Save, FileText, Factory, FileDown, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList } from "lucide-react";
+import { Plus, Trash2, Save, FileText, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Handshake, Trophy, Ban, GitBranch } from "lucide-react";
 import { toast } from "sonner";
-
-const STATUS_OPTS = [
-  { v: "rascunho", l: "Rascunho" },
-  { v: "enviado", l: "Enviado" },
-  { v: "aceite", l: "Aceite" },
-  { v: "rejeitado", l: "Rejeitado" },
-];
+import { orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta, ymdHoje, orcErroDatas } from "@/lib/orcamento";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 
 const toHours = (v, u) => (Number(v) || 0) / (u === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
@@ -30,6 +28,7 @@ export default function OrcamentoDetail() {
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["orcamento", "historico"], "orcamento");
   const [orc, setOrc] = useState(null);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -39,6 +38,12 @@ export default function OrcamentoDetail() {
   const [openOps, setOpenOps] = useState({});
   const [empresa, setEmpresa] = useState({});
   const [clienteEmail, setClienteEmail] = useState("");
+  const [showRequisitosEncomenda, setShowRequisitosEncomenda] = useState(false);
+  const [showRequisitosFinalizar, setShowRequisitosFinalizar] = useState(false);
+  const [showConverterPrecos, setShowConverterPrecos] = useState(false);
+  const [precosEncomenda, setPrecosEncomenda] = useState({});
+  const [converting, setConverting] = useState(false);
+  const [viewVersao, setViewVersao] = useState(null);
 
   const load = useCallback(async () => {
     const o = await api.get(`/orcamentos/${id}`);
@@ -245,15 +250,24 @@ export default function OrcamentoDetail() {
     if ((l.tipo_linha === "descritor" || l.descricao_livre) && (l.artigo_nome || "").trim()) return true;
     return !!(l.artigo_nome || "").trim();
   };
-  const requisitosEncomenda = (() => {
-    if (orc.encomenda_id) return [];
+  const requisitosFinalizar = (() => {
+    if (orcTemNumero(orc)) return [];
     const faltas = [];
     if (!(orc.cliente_id || (orc.cliente || "").trim())) faltas.push("Selecione o cliente");
     if (!(orc.linhas || []).some(linhaPronta)) faltas.push("Adicione pelo menos uma linha (artigo, serviço ou descritor)");
-    if (orc.status !== "aceite") faltas.push("Passe o estado para Aceite");
+    const errDatas = orcErroDatas(orc, { aoFinalizar: true });
+    if (errDatas) faltas.push(errDatas);
     return faltas;
   })();
-  const podeCriarEncomenda = requisitosEncomenda.length === 0;
+  const requisitosEncomenda = (() => {
+    if (orc.encomenda_id) return [];
+    const faltas = [];
+    if (!orcTemNumero(orc)) faltas.push("Finalize o orçamento para obter o número");
+    if (!(orc.cliente_id || (orc.cliente || "").trim())) faltas.push("Selecione o cliente");
+    if (!(orc.linhas || []).some(linhaPronta)) faltas.push("Adicione pelo menos uma linha (artigo, serviço ou descritor)");
+    if (orc.status !== "aceite" && orc.status !== "ganho") faltas.push("Passe o estado para Ganho");
+    return faltas;
+  })();
 
   const bodyFrom = (o) => ({
     cliente: o.cliente,
@@ -291,29 +305,127 @@ export default function OrcamentoDetail() {
     })),
   });
 
-  const save = async () => {
-    await api.put(`/orcamentos/${id}`, bodyFrom(orc));
+  const payloadFrom = (o) => {
+    const payload = bodyFrom(o);
+    if (!orcTemNumero(o)) payload.status = "rascunho";
+    return payload;
+  };
+
+  const save = async ({ silent = false } = {}) => {
+    const errDatas = orcErroDatas(orc);
+    if (errDatas) {
+      toast.error(errDatas);
+      return false;
+    }
+    await api.put(`/orcamentos/${id}`, payloadFrom(orc));
     await load();
-    toast.success("Orçamento guardado");
+    if (!silent) toast.success("Orçamento guardado");
+    return true;
+  };
+
+  const temNumero = orcTemNumero(orc);
+  const temCliente = !!(orc.cliente_id || (orc.cliente || "").trim());
+  const st = orcStatus(orc);
+  const editavel = orcEditavel(orc);
+  const versoes = orc.versoes || [];
+
+  const setStatus = async (status) => {
+    try {
+      await api.put(`/orcamentos/${id}`, payloadFrom({ ...orc, status }));
+      toast.success(status === "ganho" ? "Orçamento ganho" : status === "perdido" ? "Orçamento perdido" : status === "enviado" ? "Marcado como enviado" : "Estado actualizado");
+      await load();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Não foi possível alterar o estado");
+    }
+  };
+
+  const negociar = async () => {
+    try {
+      if (editavel) {
+        const ok = await save({ silent: true });
+        if (!ok) return;
+      }
+      const o = await api.post(`/orcamentos/${id}/negociar`);
+      toast.success(`Negociação ${o.numero} V${o.versao}`);
+      setViewVersao(null);
+      await load();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Não foi possível abrir a negociação");
+    }
+  };
+
+  const finalizar = async () => {
+    if (requisitosFinalizar.length > 0) {
+      setShowRequisitosFinalizar(true);
+      toast.error(requisitosFinalizar[0]);
+      return;
+    }
+    try {
+      const ok = await save({ silent: true });
+      if (!ok) return;
+      const o = await api.post(`/orcamentos/${id}/finalizar`);
+      toast.success(`Orçamento ${o.numero} criado`);
+      await load();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((x) => x.msg || x).join("; ")
+        : (typeof detail === "string" ? detail : "Não foi possível finalizar");
+      toast.error(msg);
+      setShowRequisitosFinalizar(true);
+    }
   };
 
   const saveImagens = async (imgs) => {
     const next = { ...orc, imagens: imgs };
     setOrc(next);
     try {
-      await api.put(`/orcamentos/${id}`, bodyFrom(next));
+      await api.put(`/orcamentos/${id}`, payloadFrom(next));
     } catch {
       toast.error("Falha ao guardar imagens");
     }
   };
 
   const converter = async () => {
+    if (requisitosEncomenda.length > 0) {
+      setShowRequisitosEncomenda(true);
+      toast.error(requisitosEncomenda[0]);
+      return;
+    }
+    const init = {};
+    (orc.linhas || []).filter(orcLinhaPronta).forEach((l) => {
+      init[l.id] = Number(l.preco_unit) || 0;
+    });
+    setPrecosEncomenda(init);
+    setShowConverterPrecos(true);
+  };
+
+  const confirmarConverter = async () => {
+    const linhas = (orc.linhas || []).filter(orcLinhaPronta);
+    for (const l of linhas) {
+      const piso = Number(l.preco_unit) || 0;
+      const p = Number(precosEncomenda[l.id]);
+      if (Number.isNaN(p) || p + 0.001 < piso) {
+        toast.error(`O preço de «${l.artigo_nome || "artigo"}» não pode ser inferior ao do orçamento (${eur(piso)})`);
+        return;
+      }
+    }
+    const precos = {};
+    linhas.forEach((l) => { precos[l.id] = Number(precosEncomenda[l.id]); });
+    setConverting(true);
     try {
-      const enc = await api.post(`/orcamentos/${id}/converter`);
+      const enc = await api.post(`/orcamentos/${id}/converter`, { precos });
+      setShowConverterPrecos(false);
       toast.success(`Encomenda ${enc.numero} criada`);
       nav(`/encomendas/${enc.id}`);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Erro ao converter");
+      const detail = e?.response?.data?.detail;
+      setShowRequisitosEncomenda(true);
+      toast.error(typeof detail === "string" ? detail : "Erro ao converter");
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -321,20 +433,50 @@ export default function OrcamentoDetail() {
     <div>
       <StickyDetailHeader
         back={<StickyBackButton onClick={() => nav("/orcamentos")} testid="orcamento-back-btn" label="Voltar aos orçamentos" />}
-        title={orc.numero}
-        badges={<StatusBadge status={orc.status} testid="orcamento-status-badge" />}
-        subtitle={`Orçamento · ${orc.cliente}`}
+        title={orcNumeroLabel(orc)}
+        badges={<StatusBadge status={st} testid="orcamento-status-badge" />}
+        subtitle={orc.cliente ? `Orçamento · ${orc.cliente}` : "Orçamento em rascunho"}
         actions={
           <>
-            <PdfExportButton modulo="orcamento" recordId={id} />
-            {can("orcamentos", "edit") && (
+            {!temNumero && can("orcamentos", "edit") && (
+              <button data-testid="finalizar-orcamento-btn" onClick={finalizar} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <CheckCircle2 size={15} /> Finalizar
+              </button>
+            )}
+            {temNumero && can("orcamentos", "edit") && st !== "ganho" && st !== "perdido" && (
+              <button data-testid="orc-status-enviado" onClick={() => setStatus("enviado")} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Send size={15} /> Enviado
+              </button>
+            )}
+            {temNumero && can("orcamentos", "edit") && (st === "criado" || st === "enviado" || st === "perdido") && (
+              <button data-testid="orc-negociar-btn" onClick={negociar} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Handshake size={15} /> Negociar
+              </button>
+            )}
+            {temNumero && can("orcamentos", "edit") && st === "negociado" && (
+              <button data-testid="orc-nova-versao-btn" onClick={negociar} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <GitBranch size={15} /> Nova versão
+              </button>
+            )}
+            {temNumero && can("orcamentos", "edit") && st !== "ganho" && (
+              <button data-testid="orc-status-ganho" onClick={() => setStatus("ganho")} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Trophy size={15} /> Ganho
+              </button>
+            )}
+            {temNumero && can("orcamentos", "edit") && st !== "perdido" && st !== "ganho" && (
+              <button data-testid="orc-status-perdido" onClick={() => setStatus("perdido")} className="bg-white text-red-700 border border-red-300 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Ban size={15} /> Perdido
+              </button>
+            )}
+            {temNumero && <PdfExportButton modulo="orcamento" recordId={id} />}
+            {temNumero && can("orcamentos", "edit") && (
               <EnviarEmailButton
                 variant="orcamento"
                 recordId={id}
                 defaultTo={clienteEmail}
                 clienteNome={orc.cliente}
                 onSent={(res) => {
-                  if (res?.status === "enviado") setOrc((o) => ({ ...o, status: "enviado" }));
+                  setOrc((o) => ({ ...o, status: res?.status || "enviado" }));
                   load();
                 }}
               />
@@ -344,19 +486,17 @@ export default function OrcamentoDetail() {
                 <ClipboardList size={15} /> {orc.encomenda_numero}
               </Link>
             )}
-            {!orc.encomenda_id && can("encomendas", "create") && (
+            {temNumero && !orc.encomenda_id && can("encomendas", "create") && orcIsGanho(orc) && (
               <button
                 data-testid="convert-quote-btn"
                 onClick={converter}
-                disabled={!podeCriarEncomenda}
-                title={podeCriarEncomenda ? "Criar encomenda" : requisitosEncomenda.join(" · ")}
-                className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
               >
                 <ClipboardList size={15} /> Criar Encomenda
               </button>
             )}
-            {can("orcamentos", "edit") && (
-              <button data-testid="save-orcamento-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+            {editavel && can("orcamentos", "edit") && (
+              <button data-testid="save-orcamento-btn" onClick={() => save()} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <Save size={15} /> Guardar
               </button>
             )}
@@ -364,8 +504,20 @@ export default function OrcamentoDetail() {
         }
       />
 
+      <DetailTabs
+        testid="orcamento-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "orcamento", label: "Orçamento", testid: "orc-tab-orcamento" },
+          { id: "historico", label: "Histórico", testid: "orc-tab-historico" },
+        ]}
+      />
+
+      {tab === "orcamento" && (
+        <>
       {/* Meta */}
-      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Descrição</label>
           <input data-testid="orc-descricao-input" value={orc.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} placeholder="Descrição do orçamento" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
@@ -376,7 +528,21 @@ export default function OrcamentoDetail() {
         </div>
       </div>
 
-      {!orc.encomenda_id && requisitosEncomenda.length > 0 && (
+      {showRequisitosFinalizar && !temNumero && requisitosFinalizar.length > 0 && (
+        <div data-testid="orc-requisitos-finalizar" className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-sm px-4 py-2.5 mb-3 text-sm">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            <p className="font-medium">Para finalizar o orçamento:</p>
+            <ul className="mt-1 list-disc list-inside text-amber-800/90 space-y-0.5">
+              {requisitosFinalizar.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {showRequisitosEncomenda && !orc.encomenda_id && requisitosEncomenda.length > 0 && (
         <div data-testid="orc-requisitos-encomenda" className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-sm px-4 py-2.5 mb-3 text-sm">
           <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
           <div>
@@ -391,31 +557,60 @@ export default function OrcamentoDetail() {
       )}
 
       {/* Meta */}
-      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
+      <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
+        <div className={showRequisitosFinalizar && !temCliente ? "ring-2 ring-amber-400 rounded-sm" : ""}>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
           <ClienteSelector
             value={orc.cliente_id}
-            onChange={(id, nome, cli) => {
-              upd({ cliente_id: id, cliente: nome });
+            onChange={async (cid, nome, cli) => {
+              const next = { ...orc, cliente_id: cid, cliente: nome };
+              setOrc(next);
               setClienteEmail(cli?.email || "");
+              if (cid) setShowRequisitosFinalizar(false);
+              try {
+                await api.put(`/orcamentos/${id}`, payloadFrom(next));
+              } catch {
+                toast.error("Não foi possível associar o cliente");
+              }
             }}
             testid="orc-cliente-select"
           />
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>
-          <input data-testid="orc-data-input" type="date" value={orc.data || ""} onChange={(e) => upd({ data: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+          <input
+            data-testid="orc-data-input"
+            type="date"
+            value={orc.data || ""}
+            min={st === "rascunho" ? ymdHoje() : undefined}
+            max={st === "rascunho" ? ymdHoje() : undefined}
+            onChange={(e) => {
+              const data = e.target.value;
+              const patch = { data };
+              if (orc.validade && data && orc.validade < data) patch.validade = data;
+              upd(patch);
+            }}
+            className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+          />
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Validade</label>
-          <input data-testid="orc-validade-input" type="date" value={orc.validade || ""} onChange={(e) => upd({ validade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-        </div>
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Estado</label>
-          <select data-testid="orc-status-select" value={orc.status} onChange={(e) => upd({ status: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black">
-            {STATUS_OPTS.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
-          </select>
+          <input
+            data-testid="orc-validade-input"
+            type="date"
+            value={orc.validade || ""}
+            min={orc.data || ymdHoje()}
+            onChange={(e) => {
+              const validade = e.target.value;
+              if (orc.data && validade && validade < orc.data) {
+                toast.error("A validade não pode ser anterior à data do orçamento");
+                return;
+              }
+              upd({ validade });
+            }}
+            disabled={!editavel}
+            className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-50"
+          />
         </div>
       </div>
 
@@ -426,7 +621,7 @@ export default function OrcamentoDetail() {
           <span><strong>{linhasAbaixoCusto}</strong> {linhasAbaixoCusto === 1 ? "linha está" : "linhas estão"} com preço abaixo do custo de produção — está a vender a perder.</span>
         </div>
       )}
-      <div className="bg-white border border-gray-200 rounded-sm overflow-hidden mb-4">
+      <div className={`bg-white border border-gray-200 rounded-sm overflow-hidden mb-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
             <FileText size={16} /> Linhas do Orçamento
@@ -592,13 +787,125 @@ export default function OrcamentoDetail() {
         </div>
       </div>
 
+      <div className={editavel ? "" : "pointer-events-none opacity-70"}>
       <OrcamentoMateriais materiais={orc.materiais} consumiveis={consumiveis} addMaterial={addMaterial} delMaterial={delMaterial} updMaterial={updMaterial} matValor={matValor} isM2={isM2} />
 
       <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)} ivaIsento={!!empresa.iva_isento} condicoesPagamento={empresa.condicoes_pagamento} />
 
       <ImagensGaleria value={orc.imagens} onChange={saveImagens} title="Imagens do orçamento" hint="Imagens de referência de todo o orçamento. Transitam para a encomenda e ordem de fabrico ao converter." />
+      </div>
 
-      <HistoricoTimeline tipo="orcamento" id={id} />
+      {temNumero && (
+        <section className="mt-6" data-testid="orc-versoes">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <GitBranch size={15} /> Versões do orçamento
+          </h2>
+          <div className="bg-white border border-gray-200 rounded-sm divide-y divide-gray-100">
+            {versoes.map((v) => (
+              <button
+                type="button"
+                key={`v-${v.versao}`}
+                data-testid={`orc-versao-${v.versao}`}
+                onClick={() => setViewVersao(viewVersao === v.versao ? null : v.versao)}
+                className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50 ${viewVersao === v.versao ? "bg-amber-50" : ""}`}
+              >
+                <div className="min-w-0">
+                  <div className="mono tabular-nums font-medium text-gray-900">{v.label || `${orc.numero}${v.versao > 1 ? ` V${v.versao}` : ""}`}</div>
+                  <div className="text-xs text-gray-500 truncate">{v.descricao || v.cliente || "—"}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="tabular-nums text-sm font-semibold">{eur(v.total)}</div>
+                  <div className="text-xs text-gray-400">{fmtDate((v.data || "").slice(0, 10))}</div>
+                </div>
+              </button>
+            ))}
+            <div className="px-4 py-3 flex items-center justify-between gap-3 bg-gray-50">
+              <div className="min-w-0">
+                <div className="mono tabular-nums font-medium text-gray-900">{orcNumeroLabel(orc)} <span className="text-xs font-normal text-gray-500">actual</span></div>
+                <div className="text-xs text-gray-500 truncate">{orc.descricao || orc.cliente || "—"}</div>
+              </div>
+              <div className="tabular-nums text-sm font-semibold">{eur(total)}</div>
+            </div>
+            {viewVersao != null && versoes.find((v) => v.versao === viewVersao) && (
+              <div className="px-4 py-3 bg-amber-50/60 text-sm text-amber-950" data-testid="orc-versao-detalhe">
+                <p className="font-medium mb-2">Versão arquivada {versoes.find((v) => v.versao === viewVersao).label}</p>
+                <ul className="space-y-1 text-xs">
+                  {(versoes.find((v) => v.versao === viewVersao).linhas || []).map((l, i) => (
+                    <li key={i} className="flex justify-between gap-3">
+                      <span className="truncate">{l.artigo_codigo ? `${l.artigo_codigo} · ` : ""}{l.artigo_nome}</span>
+                      <span className="tabular-nums shrink-0">{l.quantidade} × {eur(l.preco_unit)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+        </>
+      )}
+
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="orcamento" id={id} hideTitle />
+      )}
+
+      <Dialog open={showConverterPrecos} onOpenChange={setShowConverterPrecos}>
+        <DialogContent className="max-w-lg sm:rounded-sm" data-testid="converter-precos-dialog">
+          <DialogHeader>
+            <DialogTitle>Criar encomenda</DialogTitle>
+            <DialogDescription>
+              Podes aumentar os preços relativamente ao orçamento. Não é permitido diminuir.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[50vh] overflow-auto -mx-1 px-1">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">
+                  <th className="py-2 pr-2">Artigo</th>
+                  <th className="py-2 px-2 text-right">Orçamento</th>
+                  <th className="py-2 pl-2 text-right">Encomenda</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(orc.linhas || []).filter(orcLinhaPronta).map((l) => {
+                  const piso = Number(l.preco_unit) || 0;
+                  const val = precosEncomenda[l.id] ?? piso;
+                  const abaixo = Number(val) + 0.001 < piso;
+                  return (
+                    <tr key={l.id} data-testid={`converter-preco-row-${l.id}`} className="border-t border-gray-100">
+                      <td className="py-2 pr-2">
+                        <div className="font-medium text-gray-900 truncate max-w-[12rem]" title={l.artigo_nome}>{l.artigo_nome || "—"}</div>
+                        <div className="text-[11px] text-gray-400 tabular-nums">{l.quantidade || 1} un</div>
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums text-gray-600">{eur(piso)}</td>
+                      <td className="py-2 pl-2 text-right">
+                        <input
+                          data-testid={`converter-preco-input-${l.id}`}
+                          type="number"
+                          min={piso}
+                          step="0.01"
+                          value={val}
+                          onChange={(e) => setPrecosEncomenda((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                          className={`w-24 text-right border rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20 ${abaixo ? "border-red-400" : "border-gray-300"}`}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <DialogFooter className="gap-2">
+            <button type="button" data-testid="converter-precos-cancel" onClick={() => setShowConverterPrecos(false)} className="border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium">
+              Cancelar
+            </button>
+            <button type="button" data-testid="converter-precos-confirm" disabled={converting} onClick={confirmarConverter} className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 rounded-sm px-3 py-1.5 text-sm font-medium">
+              {converting ? "A criar…" : "Criar encomenda"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

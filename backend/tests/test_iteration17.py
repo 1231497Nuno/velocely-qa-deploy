@@ -5,7 +5,7 @@ Cria dados com prefixo 'teste-it17-' e elimina no fim. NÃO toca em dados reais.
 """
 import pytest
 import requests
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_orcamento
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -216,6 +216,7 @@ class TestOrcamentoDescontos:
         assert r.status_code in (200, 201)
         orc = r.json()
         created_ids["orcamentos"].append(orc["id"])
+        finalizar_orcamento(client, f"{API}/orcamentos/{orc['id']}/finalizar", timeout=15)
         pr = client.get(f"{API}/orcamentos/{orc['id']}/pdf", timeout=30)
         assert pr.status_code == 200, f"PDF status={pr.status_code}"
         assert pr.content[:4] == b"%PDF", "PDF não começa por %PDF"

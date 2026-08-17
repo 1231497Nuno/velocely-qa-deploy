@@ -97,8 +97,8 @@ export default function Financeiro() {
     <ListPage
       header={
         <PageHeader
-          title="Faturas"
-          subtitle="Lista de faturas. Expande cada linha para ver os recibos associados."
+          title="Faturas e recibos"
+          subtitle="Documentos fiscais. Este módulo é opcional e pode ser diferente em cada cliente."
         />
       }
       toolbar={

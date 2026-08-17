@@ -11,7 +11,7 @@ Cobertura:
 """
 import pytest
 import requests
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -179,17 +179,14 @@ def test_create_orcamento_with_cliente_id(auth):
     orc = r.json()
     assert orc["cliente_id"] == cid
     assert orc["cliente"] == "teste-ClienteA"
-    assert orc["numero"].startswith("ORC-2026-") or orc["numero"]  # apenas regista
+    assert not (orc.get("numero") or "").strip()
+    assert orc["status"] == "rascunho"
     _CREATED["orcamentos"].append(orc["id"])
 
 
 def test_conversao_orcamento_cria_encomenda(auth):
     oid = _CREATED["orcamentos"][0]
-    orc = requests.get(f"{API}/orcamentos/{oid}", headers=auth).json()
-    orc["status"] = "aceite"
-    put_body = {k: orc[k] for k in ("cliente", "cliente_id", "descricao", "data", "validade", "status", "notas", "linhas", "materiais", "desconto_total", "desconto_total_tipo") if k in orc}
-    r0 = requests.put(f"{API}/orcamentos/{oid}", json=put_body, headers=auth)
-    assert r0.status_code == 200, r0.text
+    finalizar_e_aceitar(requests, API, oid, headers=auth)
     r = requests.post(f"{API}/orcamentos/{oid}/converter", headers=auth)
     assert r.status_code == 200, r.text
     of = r.json()

@@ -17,7 +17,7 @@ import {
 
 export const INK = "#111827";
 export const PALETTE = {
-  rascunho: "#9CA3AF", enviado: "#6366F1", aceite: "#059669", rejeitado: "#DC2626",
+  rascunho: "#9CA3AF", criado: "#64748B", finalizado: "#64748B", enviado: "#6366F1", negociado: "#D97706", ganho: "#059669", aceite: "#059669", perdido: "#DC2626", rejeitado: "#DC2626",
   pendente: "#D97706", em_producao: "#2563EB", concluido: "#059669",
   aberta: "#9CA3AF", concluida: "#059669", cancelada: "#DC2626",
   parcial: "#D97706", pago: "#059669",
@@ -388,8 +388,8 @@ export const QuickActions = () => {
   const { can } = useAuth();
   const novoOrcamento = async () => {
     try {
-      const o = await api.post("/orcamentos", { cliente: "Novo Cliente", status: "rascunho", linhas: [] });
-      toast.success("Orçamento criado");
+      const o = await api.post("/orcamentos", { status: "rascunho", linhas: [] });
+      toast.success("Rascunho criado");
       nav(`/orcamentos/${o.id}`);
     } catch {
       toast.error("Não foi possível criar o orçamento");

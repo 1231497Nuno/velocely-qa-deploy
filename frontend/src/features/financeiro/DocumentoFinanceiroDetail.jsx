@@ -4,6 +4,7 @@ import { api, fmtDate, eur, API, getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { DOC_TIPO_PT } from "@/features/financeiro/Financeiro";
 import {
@@ -21,6 +22,7 @@ export default function DocumentoFinanceiroDetail() {
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["documento", "historico"], "documento");
   const [doc, setDoc] = useState(null);
   const [reciboOpen, setReciboOpen] = useState(false);
   const [pagValor, setPagValor] = useState("");
@@ -163,6 +165,18 @@ export default function DocumentoFinanceiroDetail() {
         }
       />
 
+      <DetailTabs
+        testid="doc-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "documento", label: "Documento", testid: "doc-tab-documento" },
+          { id: "historico", label: "Histórico", testid: "doc-tab-historico" },
+        ]}
+      />
+
+      {tab === "documento" && (
+        <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-3 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-700">Dados</h3>
@@ -308,8 +322,12 @@ export default function DocumentoFinanceiroDetail() {
           )}
         </div>
       )}
+        </>
+      )}
 
-      <HistoricoTimeline tipo="documento_financeiro" id={id} />
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="documento_financeiro" id={id} hideTitle />
+      )}
 
       <Dialog open={reciboOpen} onOpenChange={setReciboOpen}>
         <DialogContent className="sm:max-w-md" data-testid="emitir-recibo-dialog">

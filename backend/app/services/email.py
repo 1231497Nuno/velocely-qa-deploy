@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from datetime import datetime
 from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -151,25 +152,97 @@ async def orcamento_email(
     return subject, text, _branded_html(inner)
 
 
+def fmt_date_pt(iso: Optional[str]) -> str:
+    if not iso:
+        return ""
+    try:
+        return datetime.fromisoformat(str(iso)[:10]).strftime("%d/%m/%Y")
+    except Exception:
+        return str(iso)
+
+
+def fmt_money(v, simbolo: str = "€") -> str:
+    n = float(v or 0)
+    s = f"{n:,.2f}".replace(",", " ").replace(".", ",")
+    return f"{s} {simbolo}".replace("  ", " ").strip()
+
+
+def valores_encomenda_email(enc: dict, simbolo: str = "€") -> dict:
+    """Totais a comunicar ao cliente (total, pago, a faturar)."""
+    total = enc.get("total_com_iva")
+    if total is None:
+        total = enc.get("valor_total") or 0
+    pago = enc.get("valor_pago") or 0
+    pendente = enc.get("valor_pendente")
+    if pendente is None:
+        pendente = max(0.0, float(total or 0) - float(pago or 0))
+    total_s = fmt_money(total, simbolo)
+    pago_s = fmt_money(pago, simbolo)
+    pend_s = fmt_money(pendente, simbolo)
+    block = (
+        f"Valor da encomenda: {total_s}\n"
+        f"Já pago: {pago_s}\n"
+        f"Valor a faturar: {pend_s}"
+    )
+    return {
+        "total": total_s,
+        "valor_pago": pago_s,
+        "valor_pendente": pend_s,
+        "valor_a_faturar": pend_s,
+        "valores_faturar": block,
+    }
+
+
+async def _render_encomenda_cliente_email(tipo: str, variables: dict) -> Tuple[str, str, str]:
+    from app.services import email_templates as tpl
+
+    doc = await tpl.get_template(tipo)
+    subject, text, inner = await tpl.render_email(tipo, variables)
+    block = (variables.get("valores_faturar") or "").strip()
+    body_src = doc.get("body") or ""
+    if block and "{valores_faturar}" not in body_src and block not in (text or ""):
+        text = (text or "").rstrip() + "\n\n" + block + "\n"
+        inner = tpl.text_to_html_fragments(text)
+    return subject, text, _branded_html(inner)
+
+
 async def encomenda_pronta_email(
     cliente_nome: str,
     numero: str,
     *,
     mensagem: str = "",
+    valores: Optional[dict] = None,
 ) -> Tuple[str, str, str]:
-    from app.services import email_templates as tpl
-
     nome = (cliente_nome or "").strip() or "Cliente"
     num = (numero or "").strip() or "—"
-    subject, text, inner = await tpl.render_email(
-        "encomenda_pronta",
-        {
-            "nome": nome,
-            "numero": num,
-            "mensagem": (mensagem or "").strip(),
-        },
-    )
-    return subject, text, _branded_html(inner)
+    vars_ = {
+        "nome": nome,
+        "numero": num,
+        "mensagem": (mensagem or "").strip(),
+        **(valores or {}),
+    }
+    return await _render_encomenda_cliente_email("encomenda_pronta", vars_)
+
+
+async def encomenda_prazo_email(
+    cliente_nome: str,
+    numero: str,
+    prazo_entrega: str,
+    *,
+    mensagem: str = "",
+    valores: Optional[dict] = None,
+) -> Tuple[str, str, str]:
+    nome = (cliente_nome or "").strip() or "Cliente"
+    num = (numero or "").strip() or "—"
+    prazo = fmt_date_pt(prazo_entrega) or (prazo_entrega or "—")
+    vars_ = {
+        "nome": nome,
+        "numero": num,
+        "prazo_entrega": prazo,
+        "mensagem": (mensagem or "").strip(),
+        **(valores or {}),
+    }
+    return await _render_encomenda_cliente_email("encomenda_prazo", vars_)
 
 
 def send_email(

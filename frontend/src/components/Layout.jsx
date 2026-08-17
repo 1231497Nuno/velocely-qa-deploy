@@ -33,6 +33,9 @@ import {
   Wallet,
   ShoppingCart,
   FileQuestion,
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -45,6 +48,7 @@ const NAV_GROUPS = [
       { to: "/pedidos-cotacao", label: "Pedidos de Cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
       { to: "/ordens-compra", label: "Ordens de Compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
       { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
+      { to: "/nao-conformidades", label: "Não conformidades", icon: AlertTriangle, tid: "nav-nc", modulo: "nao_conformidades" },
       { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" },
       { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
     ],
@@ -72,9 +76,17 @@ const NAV_GROUPS = [
   },
   {
     id: "financeiro",
-    label: "Financeiro",
+    label: "Faturas e recibos",
     items: [
-      { to: "/financeiro", label: "Faturas", icon: Wallet, tid: "nav-financeiro", modulo: "financeiro" },
+      { to: "/financeiro", label: "Faturas / Recibos", icon: Wallet, tid: "nav-financeiro", modulo: "financeiro" },
+    ],
+  },
+  {
+    id: "contas",
+    label: "Contas a pagar e a receber",
+    items: [
+      { to: "/contas?tipo=receber", label: "A receber", icon: ArrowDownLeft, tid: "nav-contas-receber", modulo: "contas", matchTipo: "receber" },
+      { to: "/contas?tipo=pagar", label: "A pagar", icon: ArrowUpRight, tid: "nav-contas-pagar", modulo: "contas", matchTipo: "pagar" },
     ],
   },
   {
@@ -97,11 +109,27 @@ const DASHBOARD_ITEM = {
   modulo: "dashboard",
 };
 
+function navPath(to) {
+  return (to || "").split("?")[0];
+}
+
 function pathInGroup(pathname, items) {
   return items.some((n) => {
-    if (n.to === "/") return pathname === "/";
-    return pathname === n.to || pathname.startsWith(`${n.to}/`);
+    const path = navPath(n.to);
+    if (path === "/") return pathname === "/";
+    return pathname === path || pathname.startsWith(`${path}/`);
   });
+}
+
+function linkIsActive(n, location) {
+  const path = navPath(n.to);
+  if (n.end) return location.pathname === path;
+  if (n.matchTipo) {
+    if (location.pathname !== path) return false;
+    const tipo = new URLSearchParams(location.search).get("tipo") || "receber";
+    return tipo === n.matchTipo;
+  }
+  return location.pathname === path || location.pathname.startsWith(`${path}/`);
 }
 
 export default function Layout({ children }) {
@@ -170,14 +198,14 @@ export default function Layout({ children }) {
 
   const renderLink = (n) => (
     <NavLink
-      key={n.to}
+      key={n.tid || n.to}
       to={n.to}
       end={n.end}
       data-testid={n.tid}
       onClick={() => setOpen(false)}
-      className={({ isActive }) =>
+      className={() =>
         `flex items-center gap-3 px-3 py-2 rounded-sm text-sm font-medium transition-colors ${
-          isActive
+          linkIsActive(n, location)
             ? "bg-gray-900 text-white"
             : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         }`

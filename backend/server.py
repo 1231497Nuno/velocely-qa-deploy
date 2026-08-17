@@ -18,9 +18,11 @@ from app.core.database import client
 from app.core.security import auth_router
 from app.services.bootstrap import seed_perfis, seed_admin, seed_user_logins, seed_categorias
 from app.services.numeracao import backfill_codigos
+from app.services.cliente_default import ensure_consumidor_final
 from app.repositories import (
     users_repo, artigos_repo, subcategorias_repo, clientes_repo, fornecedores_repo,
     encomendas_repo, orcamentos_repo, ordens_repo, documentos_financeiros_repo, historico_repo,
+    contas_repo,
 )
 from app.api.routes.catalog import router as catalog_router
 from app.api.routes.orcamentos import router as orcamentos_router
@@ -30,7 +32,9 @@ from app.api.routes.fornecedores import router as fornecedores_router
 from app.api.routes.ordens_compra import router as ordens_compra_router
 from app.api.routes.pedidos_cotacao import router as pedidos_cotacao_router
 from app.api.routes.encomendas import router as encomendas_router
+from app.api.routes.nao_conformidades import router as nao_conformidades_router
 from app.api.routes.financeiro import router as financeiro_router
+from app.api.routes.contas import router as contas_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.admin import router as admin_router
@@ -75,7 +79,7 @@ app = FastAPI(
 api_router = APIRouter(prefix="/api")
 for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router, fornecedores_router,
-    ordens_compra_router, pedidos_cotacao_router, encomendas_router, financeiro_router, settings_router, analytics_router,
+    ordens_compra_router, pedidos_cotacao_router, encomendas_router, nao_conformidades_router, financeiro_router, contas_router, settings_router, analytics_router,
     admin_router, historico_router, uploads_router, referencias_router, io_excel_router,
 ):
     api_router.include_router(r)
@@ -154,6 +158,10 @@ async def _startup_seed_admin() -> None:
         await documentos_financeiros_repo.create_index("fatura_id")
         await documentos_financeiros_repo.create_index("created_at")
         await documentos_financeiros_repo.create_index("numero")
+        await contas_repo.create_index("tipo")
+        await contas_repo.create_index("estado")
+        await contas_repo.create_index("created_at")
+        await contas_repo.create_index("numero")
         await historico_repo.create_index("timestamp")
         await historico_repo.create_index("entidade_tipo")
     except Exception as e:
@@ -176,6 +184,10 @@ async def _startup_seed_admin() -> None:
             logger.info(f"Backfill códigos: {stats}")
     except Exception as e:
         logger.error(f"Backfill códigos falhou: {e}")
+    try:
+        await ensure_consumidor_final()
+    except Exception as e:
+        logger.error(f"Ensure Consumidor Final falhou: {e}")
 
 
 @app.on_event("shutdown")

@@ -18,7 +18,7 @@ Todos os testes num único class → pytest-xdist loadscope (default) mantém-no
 """
 import pytest
 import requests
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
@@ -161,7 +161,8 @@ class TestIteration21Refactor:
         orc = r.json()
         oid = orc["id"]
         bag["orcamentos"].append(oid)
-        assert orc.get("numero", "").startswith("ORC")
+        assert not (orc.get("numero") or "").strip()
+        assert orc["status"] == "rascunho"
         assert orc["total"] > 0
         auto_preco = orc["linhas"][0]["preco_unit"]
         assert auto_preco > 0
@@ -190,11 +191,7 @@ class TestIteration21Refactor:
         assert orc3["linhas"][0].get("preco_unit_manual") is False
         assert orc3["linhas"][0]["preco_unit"] > 0
 
-        # Aceite obrigatório para criar encomenda
-        orc3["status"] = "aceite"
-        put_body = {k: orc3[k] for k in ("cliente", "cliente_id", "descricao", "data", "validade", "status", "notas", "linhas", "materiais", "desconto_total", "desconto_total_tipo") if k in orc3}
-        r = client.put(f"{BASE_URL}/api/orcamentos/{oid}", json=put_body)
-        assert r.status_code == 200, r.text
+        finalizar_e_aceitar(client, f"{BASE_URL}/api", oid)
 
         # CONVERTER → Encomenda
         r = client.post(f"{BASE_URL}/api/orcamentos/{oid}/converter")

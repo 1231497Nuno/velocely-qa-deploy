@@ -5,7 +5,7 @@ Artigo has margem and returns preco_venda.
 """
 import pytest
 import requests
-from conftest import get_base_url
+from conftest import get_base_url, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -151,7 +151,7 @@ class TestOrcamentoRegression:
         assert orc["linhas"][0]["custo_producao_unit"] == pytest.approx(expected_unit, abs=0.01)
         assert orc["subtotal_custo"] == pytest.approx(round(expected_unit * 10, 2), abs=0.05)
         assert orc["total"] == pytest.approx(round(expected_unit * 10 * 1.5, 2), abs=0.05)
-        assert orc["numero"].startswith("ORC-")
+        assert orc["numero"] == "" or not orc["numero"].strip()
         client.delete(f"{API}/orcamentos/{orc['id']}")
 
     def test_convert_to_of_loads_roteiro(self, client):
@@ -162,6 +162,7 @@ class TestOrcamentoRegression:
             "linhas": [{"artigo_id": artigo["id"], "quantidade": 1}],
         })
         oid = r.json()["id"]
+        finalizar_e_aceitar(client, API, oid)
         rc = client.post(f"{API}/orcamentos/{oid}/converter")
         assert rc.status_code == 200, rc.text
         of = rc.json()

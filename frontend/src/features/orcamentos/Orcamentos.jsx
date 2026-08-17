@@ -11,24 +11,37 @@ import StatusBadge, { STATUS_META } from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Trash2, Copy, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
+import { orcNumeroLabel } from "@/lib/orcamento";
 
 const STATUS_COLS = [
   { key: "rascunho", label: "Rascunho", dot: "bg-gray-400" },
+  { key: "criado", label: "Criado", dot: "bg-slate-500" },
   { key: "enviado", label: "Enviado", dot: "bg-indigo-500" },
-  { key: "aceite", label: "Aceite", dot: "bg-emerald-500" },
-  { key: "rejeitado", label: "Rejeitado", dot: "bg-red-500" },
+  { key: "negociado", label: "Negociação", dot: "bg-amber-500" },
+  { key: "ganho", label: "Ganho", dot: "bg-emerald-500" },
+  { key: "perdido", label: "Perdido", dot: "bg-red-500" },
 ];
+
+function normStatus(o) {
+  const s = o?.status;
+  if (s === "finalizado") return "criado";
+  if (s === "aceite") return "ganho";
+  if (s === "rejeitado") return "perdido";
+  return s;
+}
 
 export default function Orcamentos() {
   const { can } = useAuth();
-  const [tab, setTab] = useState("abertos");
+  const [tab, setTab] = useState("todos");
   const [view, setView] = useState("lista");
   const nav = useNavigate();
   const { sort, toggle, apply } = useSort();
 
   const statusParam = useMemo(() => {
     if (view === "kanban" || tab === "todos") return {};
-    if (tab === "abertos") return { status: "rascunho,enviado" };
+    if (tab === "abertos") return { status: "rascunho,criado,finalizado,enviado,negociado" };
+    if (tab === "ganho") return { status: "ganho,aceite" };
+    if (tab === "perdido") return { status: "perdido,rejeitado" };
     return { status: tab };
   }, [tab, view]);
 
@@ -43,7 +56,6 @@ export default function Orcamentos() {
 
   const create = async () => {
     const o = await api.post("/orcamentos", {
-      cliente: "Novo Cliente",
       status: "rascunho",
       linhas: [],
     });
@@ -84,8 +96,8 @@ export default function Orcamentos() {
 
   const emptyMsg =
     tab === "abertos" ? "Sem orçamentos abertos." :
-    tab === "aceite" ? "Sem orçamentos aceites." :
-    tab === "rejeitado" ? "Sem orçamentos rejeitados." :
+    tab === "ganho" ? "Sem orçamentos ganhos." :
+    tab === "perdido" ? "Sem orçamentos perdidos." :
     "Sem orçamentos. Crie o primeiro.";
 
   return (
@@ -93,7 +105,7 @@ export default function Orcamentos() {
       header={
         <PageHeader
           title="Orçamentos"
-          subtitle="Propostas de preço com numeração sequencial automática"
+          subtitle="Rascunho sem número. Ao finalizar fica criado e pronto a enviar."
           actions={
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="orcamentos" ids={items.map((o) => o.id)} />
@@ -113,10 +125,10 @@ export default function Orcamentos() {
             <div className="flex items-center gap-2 flex-wrap">
               {view === "lista" && (
                 <>
-                  <Tab id="abertos" label="Abertos" />
-                  <Tab id="aceite" label="Aceites" />
-                  <Tab id="rejeitado" label="Rejeitados" />
                   <Tab id="todos" label="Todos" />
+                  <Tab id="abertos" label="Abertos" />
+                  <Tab id="ganho" label="Ganhos" />
+                  <Tab id="perdido" label="Perdidos" />
                 </>
               )}
             </div>
@@ -146,7 +158,7 @@ export default function Orcamentos() {
             />
             {tab === "abertos" && (
               <div className="flex items-center gap-5 mt-3 text-xs text-gray-500 flex-wrap">
-                {["rascunho", "enviado"].map((s) => (
+                {["rascunho", "criado", "enviado", "negociado"].map((s) => (
                   <span key={s} className="flex items-center gap-1.5">
                     <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COLS.find((c) => c.key === s)?.dot}`} />
                     {STATUS_META[s]?.label}
@@ -160,9 +172,9 @@ export default function Orcamentos() {
     >
       {view === "kanban" && (
         <div className="flex-1 min-h-0 overflow-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" data-testid="orc-kanban">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4" data-testid="orc-kanban">
           {STATUS_COLS.map((col) => {
-            const cards = apply(items.filter((o) => o.status === col.key));
+            const cards = apply(items.filter((o) => normStatus(o) === col.key));
             return (
               <div key={col.key} data-testid={`orc-kanban-col-${col.key}`} className="bg-gray-50 border border-gray-200 rounded-sm p-3">
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -180,9 +192,12 @@ export default function Orcamentos() {
                       className="bg-white border border-gray-200 rounded-sm p-3 cursor-pointer hover:shadow-sm transition-shadow"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="mono tabular-nums font-semibold text-gray-900 text-sm">{o.numero}</span>
+                        <span className="mono tabular-nums font-semibold text-gray-900 text-sm">{orcNumeroLabel(o)}</span>
                         <span className="tabular-nums text-sm font-semibold text-gray-800">{eur(o.total)}</span>
                       </div>
+                      {o.encomenda_numero && (
+                        <div className="text-[11px] text-blue-700 mono mt-0.5">{o.encomenda_numero}</div>
+                      )}
                       <div className="text-sm text-gray-700 truncate mt-0.5">{o.cliente}</div>
                       <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                         <span className="tabular-nums">{fmtDate(o.data)}</span>
@@ -221,7 +236,19 @@ export default function Orcamentos() {
               <tbody data-testid="orcamentos-table">
                 {rows.map((o) => (
                   <tr key={o.id} data-testid={`orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
-                    <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
+                    <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">
+                      <div>{orcNumeroLabel(o)}</div>
+                      {o.encomenda_numero && (
+                        <button
+                          type="button"
+                          data-testid={`orc-enc-link-${o.id}`}
+                          onClick={(e) => { e.stopPropagation(); nav(`/encomendas/${o.encomenda_id}`); }}
+                          className="mt-0.5 text-[11px] font-normal text-blue-700 hover:underline"
+                        >
+                          {o.encomenda_numero}
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
                     <td className="px-4 py-3 text-gray-500 mono text-xs">{o.numero_encomenda || "—"}</td>
                     <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(o.data)}</td>
@@ -256,7 +283,17 @@ export default function Orcamentos() {
               <div key={o.id} data-testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="mono tabular-nums font-semibold text-gray-900">{o.numero}</div>
+                    <div className="mono tabular-nums font-semibold text-gray-900">{orcNumeroLabel(o)}</div>
+                    {o.encomenda_numero && (
+                      <button
+                        type="button"
+                        data-testid={`orc-enc-link-mobile-${o.id}`}
+                        onClick={(e) => { e.stopPropagation(); nav(`/encomendas/${o.encomenda_id}`); }}
+                        className="text-[11px] font-normal text-blue-700 hover:underline mono"
+                      >
+                        {o.encomenda_numero}
+                      </button>
+                    )}
                     <div className="text-gray-700 truncate">{o.cliente}</div>
                   </div>
                   <StatusBadge status={o.status} />

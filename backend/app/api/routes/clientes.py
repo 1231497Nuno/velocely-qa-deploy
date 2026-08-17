@@ -9,6 +9,7 @@ from app.repositories import clientes_repo, orcamentos_repo, encomendas_repo, or
 from app.services.costing import compute_orcamento_totais, compute_encomenda, recompute_of_status
 from app.services.numeracao import next_codigo
 from app.services import audit
+from app.services import cliente_default as cliente_default_svc
 from app.core.database import round2
 
 _CLIENTE_CAMPOS = [
@@ -17,6 +18,24 @@ _CLIENTE_CAMPOS = [
 ]
 
 router = APIRouter()
+
+
+@router.get("/clientes/default")
+async def get_cliente_default(_u: dict = Depends(require_perm("clientes", "view"))):
+    """Cliente de sistema (Consumidor Final) usado quando o orçamento não indica cliente."""
+    return await cliente_default_svc.get_cliente_default()
+
+
+@router.get("/clientes/defaults")
+async def list_clientes_default(_u: dict = Depends(require_perm("clientes", "view"))):
+    """Lista só os clientes default (código + nome), como artigos diversos."""
+    return await cliente_default_svc.list_clientes_default()
+
+
+@router.post("/clientes/ensure-sistema")
+async def ensure_cliente_sistema(user: dict = Depends(require_perm("clientes", "edit"))):
+    """Garante Consumidor Final (sistema) e devolve-o."""
+    return await cliente_default_svc.ensure_consumidor_final()
 
 
 @router.get("/clientes/{cid}/historico-precos")
@@ -86,7 +105,7 @@ async def cliente_resumo(cid: str, _u: dict = Depends(require_perm("clientes", "
     custo_real = round2(sum(e.get("custo_producao_real") or 0 for e in encs_raw))
     stats = {
         "num_orcamentos": len(orcamentos),
-        "orcamentos_aceites": sum(1 for o in orcs_raw if o.get("status") == "aceite"),
+        "orcamentos_aceites": sum(1 for o in orcs_raw if o.get("status") in ("aceite", "ganho")),
         "valor_orcamentos": round2(sum(o.get("total") or 0 for o in orcs_raw)),
         "num_encomendas": len(encomendas),
         "valor_faturado": valor_faturado,
@@ -129,7 +148,10 @@ async def list_clientes(
 
 @router.post("/clientes")
 async def create_cliente(data: ClienteInput, user: dict = Depends(require_perm("clientes", "create"))):
-    c = Cliente(**data.model_dump())
+    payload = data.model_dump()
+    payload["sistema"] = False
+    # is_default=True só a partir das Configurações (cliente default extra)
+    c = Cliente(**payload)
     c.codigo = await next_codigo("cliente")
     await clientes_repo.insert(c.model_dump())
     await audit.registar("cliente", c.id, "criado", user, f"Cliente «{c.nome}» criado", c.codigo or c.nome)
@@ -142,6 +164,11 @@ async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(requ
     if not existing:
         raise HTTPException(404, "Cliente não encontrado")
     novo = data.model_dump()
+    novo["sistema"] = bool(existing.get("sistema"))
+    novo["is_default"] = bool(existing.get("is_default") or novo.get("is_default"))
+    if existing.get("sistema"):
+        novo["nome"] = existing.get("nome") or novo.get("nome")
+        novo["is_default"] = True
     alteracoes = audit.diff_campos(existing, novo, _CLIENTE_CAMPOS)
     await clientes_repo.update(cid, novo)
     if alteracoes:
@@ -153,8 +180,11 @@ async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(requ
 @router.delete("/clientes/{cid}")
 async def delete_cliente(cid: str, user: dict = Depends(require_perm("clientes", "delete"))):
     existing = await clientes_repo.get(cid)
+    if not existing:
+        raise HTTPException(404, "Cliente não encontrado")
+    if existing.get("sistema"):
+        raise HTTPException(400, "Não é possível eliminar o cliente de sistema (Consumidor Final)")
     await clientes_repo.delete({"id": cid})
-    if existing:
-        await audit.registar("cliente", cid, "eliminado", user,
-                             f"Cliente «{existing.get('nome')}» eliminado", existing.get("nome"))
+    await audit.registar("cliente", cid, "eliminado", user,
+                         f"Cliente «{existing.get('nome')}» eliminado", existing.get("nome"))
     return {"ok": True}

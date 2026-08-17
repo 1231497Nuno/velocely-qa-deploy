@@ -4,6 +4,7 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ const InfoLine = ({ icon: Icon, value }) =>
 export default function ClienteDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["cliente", "historico"], "cliente");
   const { can } = useAuth();
   const [data, setData] = useState(null);
   const [precos, setPrecos] = useState([]);
@@ -60,7 +62,7 @@ export default function ClienteDetail() {
 
   const novoOrcamento = async () => {
     const o = await api.post("/orcamentos", { cliente: c.nome, cliente_id: c.id, status: "rascunho", linhas: [] });
-    toast.success("Orçamento criado");
+    toast.success("Rascunho criado");
     nav(`/orcamentos/${o.id}`);
   };
   const novaEncomenda = async () => {
@@ -91,6 +93,18 @@ export default function ClienteDetail() {
         }
       />
 
+      <DetailTabs
+        testid="cliente-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "cliente", label: "Cliente", testid: "cliente-tab-cliente" },
+          { id: "historico", label: "Histórico", testid: "cliente-tab-historico" },
+        ]}
+      />
+
+      {tab === "cliente" && (
+        <>
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
           <div className="text-xs uppercase tracking-[0.1em] text-gray-500" data-testid="cliente-tipo">
@@ -108,8 +122,8 @@ export default function ClienteDetail() {
         </div>
 
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-3">
-          <KPI icon={FileText} label="Orçamentos" value={stats.num_orcamentos} sub={`${stats.orcamentos_aceites} aceites`} testid="kpi-orcamentos" />
-          <KPI icon={ClipboardList} label="Encomendas" value={stats.num_encomendas} sub={`${stats.num_ofs} OFs`} testid="kpi-encomendas" />
+          <KPI icon={FileText} label="Orçamentos" value={stats.num_orcamentos} sub={`${stats.orcamentos_aceites} ganhos`} testid="kpi-orcamentos" />
+          <KPI icon={ClipboardList} label="Encomendas" value={stats.num_encomendas} sub={can("ordens_fabrico", "view") ? `${stats.num_ofs} OFs` : undefined} testid="kpi-encomendas" />
           <KPI icon={Coins} label="Faturado" value={eur(stats.valor_faturado)} testid="kpi-faturado" />
           <KPI icon={Wallet} label="Pago" value={eur(stats.valor_pago)} sub={`Pendente: ${eur(stats.valor_pendente)}`} testid="kpi-pago" />
           <KPI icon={Coins} label="Custo Real" value={eur(stats.custo_real)} testid="kpi-custo" />
@@ -157,7 +171,7 @@ export default function ClienteDetail() {
             <tbody data-testid="cliente-orcamentos-table">
               {rows.map((o) => (
                 <tr key={o.id} data-testid={`cliente-orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
-                  <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero}</td>
+                  <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.numero || "Rascunho"}</td>
                   <td className="px-4 py-3 text-gray-600">{fmtDate(o.data)}</td>
                   <td className="px-4 py-3 text-center"><StatusBadge status={o.status} /></td>
                   <td className="px-4 py-3 text-right tabular-nums font-medium">{eur(o.total)}</td>
@@ -172,7 +186,7 @@ export default function ClienteDetail() {
         )}
       </SeccaoPesquisavel>
 
-      {/* Ordens de Fabrico */}
+      {can("ordens_fabrico", "view") && (
       <SeccaoPesquisavel title="Ordens de Fabrico" icon={Factory} rows={ordens_fabrico} searchKeys={["numero", "status"]} placeholder="Pesquisar pelo início do nº ou estado..." testid="cliente-ofs" className="mb-2">
         {(rows) => (
         <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
@@ -196,6 +210,7 @@ export default function ClienteDetail() {
         </div>
         )}
       </SeccaoPesquisavel>
+      )}
 
       <SeccaoPesquisavel
         title="Histórico de preços por artigo"
@@ -230,8 +245,12 @@ export default function ClienteDetail() {
           </div>
         )}
       </SeccaoPesquisavel>
+        </>
+      )}
 
-      <HistoricoTimeline tipo="cliente" id={id} />
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="cliente" id={id} hideTitle />
+      )}
     </div>
   );
 }

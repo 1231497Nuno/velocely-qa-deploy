@@ -7,7 +7,7 @@
 """
 import requests
 import pytest
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -75,6 +75,7 @@ class TestConverterOrcamentoSoCriaEncomenda:
         oid = orc["id"]
 
         try:
+            finalizar_e_aceitar(requests, API, oid, headers=hdr, timeout=15)
             # 3. Converter (1a vez)
             r1 = requests.post(f"{API}/orcamentos/{oid}/converter", headers=hdr, timeout=20)
             assert r1.status_code == 200, r1.text

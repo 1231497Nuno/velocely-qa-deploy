@@ -5,13 +5,15 @@ import ListPagination, { useServerPagedList } from "@/components/ListPagination"
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import {
   Plus, Pencil, Trash2, ArrowRightLeft, Wallet, ShieldCheck, Star,
-  CheckCircle2, GitFork, Copy, History, StickyNote, Clock, User, Search,
+  CheckCircle2, GitFork, Copy, History, StickyNote, Clock, User, Search, AlertTriangle,
 } from "lucide-react";
 
 const ICONS = {
   criado: Plus, editado: Pencil, eliminado: Trash2, estado_alterado: ArrowRightLeft,
   pagamento: Wallet, producao_autorizada: ShieldCheck, prioridade: Star,
   concluido: CheckCircle2, convertido: GitFork, duplicado: Copy, nota: StickyNote, operacao: CheckCircle2,
+  anexo: Wallet,
+  nao_conformidade: AlertTriangle,
 };
 const COLORS = {
   criado: "bg-emerald-100 text-emerald-700", editado: "bg-blue-100 text-blue-700",
@@ -20,6 +22,8 @@ const COLORS = {
   prioridade: "bg-orange-100 text-orange-700", concluido: "bg-emerald-100 text-emerald-700",
   convertido: "bg-indigo-100 text-indigo-700", duplicado: "bg-gray-100 text-gray-700",
   nota: "bg-yellow-100 text-yellow-700",
+  anexo: "bg-sky-100 text-sky-800",
+  nao_conformidade: "bg-amber-100 text-amber-800",
 };
 
 const TIPOS = [
@@ -29,6 +33,8 @@ const TIPOS = [
   { key: "pedido_cotacao", label: "Pedidos de Cotação" },
   { key: "ordem_compra", label: "Ordens de Compra" },
   { key: "ordem_fabrico", label: "Ordens de Fabrico" },
+  { key: "nao_conformidade", label: "Não conformidades" },
+  { key: "conta", label: "Contas a pagar/receber" },
   { key: "fornecedor", label: "Fornecedores" },
   { key: "cliente", label: "Clientes" },
   { key: "artigo", label: "Artigos" },
@@ -42,6 +48,8 @@ const LINKS = {
   orcamento: (id) => `/orcamentos/${id}`,
   encomenda: (id) => `/encomendas/${id}`,
   ordem_fabrico: (id) => `/ordens-fabrico/${id}`,
+  nao_conformidade: (id) => `/nao-conformidades/${id}`,
+  conta: (id) => `/contas/${id}`,
   ordem_compra: (id) => `/ordens-compra/${id}`,
   pedido_cotacao: (id) => `/pedidos-cotacao/${id}`,
   fornecedor: (id) => `/fornecedores/${id}`,

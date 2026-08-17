@@ -7,7 +7,7 @@ respondem com %PDF e tamanho razoável.
 """
 import requests
 import pytest
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, first_orcamento_numerado, finalizar_orcamento
 
 BASE_URL = get_base_url()
 ADMIN_EMAIL, ADMIN_PASSWORD = get_admin_credentials()
@@ -40,7 +40,10 @@ class TestPDFGeneration:
         items = lst.json()
         if not items:
             pytest.skip("No orcamento available to test PDF")
-        oid = items[0]["id"]
+        numbered = first_orcamento_numerado(items)
+        if not numbered:
+            pytest.skip("No numbered orcamento available to test PDF")
+        oid = numbered["id"]
         r = requests.get(f"{BASE_URL}/api/orcamentos/{oid}/pdf", headers=headers, timeout=60)
         assert r.status_code == 200, f"PDF orcamento failed: {r.status_code} {r.text[:200]}"
         assert _is_pdf(r.content), "Response is not a PDF (header)"
@@ -85,7 +88,10 @@ class TestPDFGeneration:
         items = lst.json()
         if not items:
             pytest.skip("No orcamento")
-        oid = items[0]["id"]
+        numbered = first_orcamento_numerado(items)
+        if not numbered:
+            pytest.skip("No numbered orcamento")
+        oid = numbered["id"]
         r = requests.get(f"{BASE_URL}/api/orcamentos/{oid}/pdf?template_id={tpl_orc['id']}", headers=headers, timeout=60)
         assert r.status_code == 200, r.text[:200]
         assert _is_pdf(r.content)
@@ -208,6 +214,7 @@ class TestOrcamentoCRUD:
             assert r2.status_code == 200
             fetched = r2.json()
             assert fetched["id"] == oid
+            finalizar_orcamento(requests, f"{BASE_URL}/api/orcamentos/{oid}/finalizar", headers=headers, timeout=30)
             # PDF deste orc deve gerar
             rp = requests.get(f"{BASE_URL}/api/orcamentos/{oid}/pdf", headers=headers, timeout=60)
             assert rp.status_code == 200

@@ -4,6 +4,7 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
@@ -60,6 +61,7 @@ function formFromPc(data) {
 export default function PedidoCotacaoDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["pc", "historico"], "pc");
   const location = useLocation();
   const { can } = useAuth();
   const [pc, setPc] = useState(null);
@@ -285,6 +287,18 @@ export default function PedidoCotacaoDetail() {
         }
       />
 
+      <DetailTabs
+        testid="pc-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "pc", label: "Pedido de cotação", testid: "pc-tab-pc" },
+          { id: "historico", label: "Histórico", testid: "pc-tab-historico" },
+        ]}
+      />
+
+      {tab === "pc" && (
+        <>
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Field label="Assunto">
@@ -480,8 +494,12 @@ export default function PedidoCotacaoDetail() {
       <div className="text-xs text-gray-400 mb-6">
         Criado em {fmtDate(pc?.created_at)}
       </div>
+        </>
+      )}
 
-      <HistoricoTimeline tipo="pedido_cotacao" id={id} />
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="pedido_cotacao" id={id} hideTitle />
+      )}
     </div>
   );
 }

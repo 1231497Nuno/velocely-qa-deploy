@@ -4,6 +4,7 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
+import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import { Plus, Trash2, Save, Pencil, X } from "lucide-react";
@@ -60,6 +61,7 @@ function formFromOc(data) {
 export default function OrdemCompraDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [tab, setTab] = useDetailTab(["oc", "historico"], "oc");
   const location = useLocation();
   const { can } = useAuth();
   const [oc, setOc] = useState(null);
@@ -212,6 +214,18 @@ export default function OrdemCompraDetail() {
         }
       />
 
+      <DetailTabs
+        testid="oc-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "oc", label: "Ordem de compra", testid: "oc-tab-oc" },
+          { id: "historico", label: "Histórico", testid: "oc-tab-historico" },
+        ]}
+      />
+
+      {tab === "oc" && (
+        <>
       <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Field label="Assunto">
@@ -443,8 +457,12 @@ export default function OrdemCompraDetail() {
       <div className="text-xs text-gray-400 mb-6">
         Criada em {fmtDate(oc?.created_at)} · Subtotal doc. {eur(form.subtotal)} · Pago {eur(form.valor_pago)}
       </div>
+        </>
+      )}
 
-      <HistoricoTimeline tipo="ordem_compra" id={id} />
+      {tab === "historico" && (
+        <HistoricoTimeline tipo="ordem_compra" id={id} hideTitle />
+      )}
     </div>
   );
 }

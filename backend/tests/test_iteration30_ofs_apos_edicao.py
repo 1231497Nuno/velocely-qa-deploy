@@ -120,14 +120,20 @@ class TestPutEncomendaDevolveOfs:
         requests.put(f"{API}/encomendas/{eid}", json=payload, headers=hdr, timeout=20)
 
 
-# --------- 3) Pagamentos informais desactivados (fluxo fiscal) ---------
-class TestPagamentoInformalBloqueado:
-    def test_post_e_delete_pagamento_informal_bloqueados(self, hdr):
+# --------- 3) Pagamentos na encomenda devolvem ordens_fabrico ---------
+class TestPagamentoDevolveOfs:
+    def test_post_e_delete_pagamento_preservam_ofs(self, hdr):
         enc = _find_encomenda(hdr, "ENC-2026-0046")
-        assert enc is not None
+        full = _get_enc(hdr, enc["id"]) if enc else None
+        if not (full and full.get("ordens_fabrico")):
+            encs = requests.get(f"{API}/encomendas", headers=hdr, timeout=20).json()
+            enc = next((e for e in encs if e.get("num_ofs") or (e.get("ordens_resumo") or [])), None)
+            assert enc is not None, "sem encomenda para o teste"
+            full = _get_enc(hdr, enc["id"])
+        if not full.get("ordens_fabrico"):
+            pytest.skip("nenhuma encomenda com OFs disponível")
         eid = enc["id"]
-        full = _get_enc(hdr, eid)
-        assert full.get("ordens_fabrico"), "pré-condição: encomenda tem OFs"
+        of_ids_before = sorted(o["id"] for o in full["ordens_fabrico"])
 
         r = requests.post(
             f"{API}/encomendas/{eid}/pagamentos",
@@ -135,13 +141,21 @@ class TestPagamentoInformalBloqueado:
             headers=hdr,
             timeout=20,
         )
-        assert r.status_code == 400, f"esperado 400, obteve {r.status_code}: {r.text}"
-        detail = (r.json() or {}).get("detail") or ""
-        assert "fatura" in detail.lower() or "pagamento" in detail.lower()
+        assert r.status_code == 200, f"esperado 200, obteve {r.status_code}: {r.text}"
+        data = r.json()
+        assert "ordens_fabrico" in data, "POST pagamento deve devolver ordens_fabrico"
+        assert sorted(o["id"] for o in data["ordens_fabrico"]) == of_ids_before
+        pags = data.get("pagamentos") or []
+        pag = next((p for p in pags if p.get("nota") == "teste-iter30"), pags[-1] if pags else None)
+        assert pag, "pagamento de teste não encontrado"
+        pid = pag["id"]
 
-        # DELETE também bloqueado (mesmo com id inventado — a regra é global)
-        r2 = requests.delete(f"{API}/encomendas/{eid}/pagamentos/nao-existe", headers=hdr, timeout=20)
-        assert r2.status_code == 400
+        r2 = requests.delete(f"{API}/encomendas/{eid}/pagamentos/{pid}", headers=hdr, timeout=20)
+        assert r2.status_code == 200, r2.text
+        deleted = r2.json()
+        assert "ordens_fabrico" in deleted
+        assert sorted(o["id"] for o in deleted["ordens_fabrico"]) == of_ids_before
+        assert pid not in [p["id"] for p in (deleted.get("pagamentos") or [])]
 
 
 

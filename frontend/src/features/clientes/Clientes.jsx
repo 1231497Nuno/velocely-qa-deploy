@@ -7,11 +7,12 @@ import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
-import { Plus, Pencil, Trash2, ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowDown, ArrowUp, ArrowUpDown, Settings } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import ClienteDefaultConfig from "@/components/ClienteDefaultConfig";
 
 const empty = { nome: "", tipo: "empresa", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", contacto: "", email: "", nif: "", notas: "", responsavel: "" };
 
@@ -77,6 +78,7 @@ export default function Clientes() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const [configOpen, setConfigOpen] = useState(false);
 
   const onSort = (field) => {
     if (sortBy === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -117,7 +119,16 @@ export default function Clientes() {
       toast.error(apiDetail(e) || "Erro ao guardar cliente");
     }
   };
-  const remove = async (id) => { await api.del(`/clientes/${id}`); toast.success("Cliente eliminado"); reload(); };
+  const remove = async (c) => {
+    if (c.sistema) return toast.error("Não é possível eliminar o cliente de sistema");
+    try {
+      await api.del(`/clientes/${c.id}`);
+      toast.success("Cliente eliminado");
+      reload();
+    } catch (e) {
+      toast.error(apiDetail(e) || "Erro ao eliminar");
+    }
+  };
 
   return (
     <>
@@ -129,6 +140,16 @@ export default function Clientes() {
           actions={
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="clientes" ids={items.map((c) => c.id)} />
+              {can("clientes", "view") && (
+                <button
+                  type="button"
+                  data-testid="clientes-config-btn"
+                  onClick={() => setConfigOpen(true)}
+                  className="border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Settings size={16} /> Configurações
+                </button>
+              )}
               {can("clientes", "create") && (
                 <button data-testid="new-cliente-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Cliente</button>
               )}
@@ -174,7 +195,15 @@ export default function Clientes() {
               >
                 <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{c.codigo || "—"}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">
-                  <span data-testid={`cliente-link-${c.id}`}>{c.nome}</span>
+                  <span data-testid={`cliente-link-${c.id}`} className="inline-flex items-center gap-1.5">
+                    {c.nome}
+                    {c.is_default && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 px-1 py-0.5 rounded-sm">Default</span>
+                    )}
+                    {c.sistema && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-0.5 rounded-sm">Sistema</span>
+                    )}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {(c.tipo === "empresa" || (!c.tipo && c.nif)) ? "Empresa" : "Particular"}
@@ -186,7 +215,9 @@ export default function Clientes() {
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">
                     {can("clientes", "edit") && <button data-testid={`edit-cliente-${c.id}`} onClick={() => openEdit(c)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>}
-                    {can("clientes", "delete") && <button data-testid={`delete-cliente-${c.id}`} onClick={() => remove(c.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>}
+                    {can("clientes", "delete") && !c.sistema && (
+                      <button data-testid={`delete-cliente-${c.id}`} onClick={() => remove(c)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -287,6 +318,8 @@ export default function Clientes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ClienteDefaultConfig open={configOpen} onOpenChange={setConfigOpen} onChanged={reload} />
     </>
   );
 }

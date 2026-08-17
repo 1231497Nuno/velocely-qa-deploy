@@ -9,7 +9,7 @@ New surfaces:
 """
 import pytest
 import requests
-from conftest import get_base_url
+from conftest import get_base_url, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -194,6 +194,7 @@ class TestConversionCarriesFields:
         }
         r = client.post(f"{API}/orcamentos", json=body)
         oid = r.json()["id"]
+        finalizar_e_aceitar(client, API, oid)
 
         rc = client.post(f"{API}/orcamentos/{oid}/converter")
         assert rc.status_code == 200, rc.text

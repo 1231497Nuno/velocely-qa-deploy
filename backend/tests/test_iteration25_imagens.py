@@ -7,7 +7,7 @@ import pytest
 import requests
 import struct
 import zlib
-from conftest import get_base_url, get_admin_credentials
+from conftest import get_base_url, get_admin_credentials, finalizar_e_aceitar
 
 BASE_URL = get_base_url()
 API = f"{BASE_URL}/api"
@@ -208,11 +208,7 @@ class TestPropagacaoConverter:
         }, headers=auth_headers, timeout=15).json()
         created_ids["orcamentos"].append(orc["id"])
 
-        # garantir aceite (create pode defaultar a rascunho)
-        if orc.get("status") != "aceite":
-            orc["status"] = "aceite"
-            put_body = {k: orc[k] for k in ("cliente", "cliente_id", "descricao", "data", "validade", "status", "notas", "linhas", "materiais") if k in orc}
-            requests.put(f"{API}/orcamentos/{orc['id']}", json=put_body, headers=auth_headers, timeout=15)
+        finalizar_e_aceitar(requests, API, orc["id"], headers=auth_headers, timeout=15)
 
         of = requests.post(f"{API}/orcamentos/{orc['id']}/converter",
                            headers=auth_headers, timeout=30)

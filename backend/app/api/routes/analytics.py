@@ -10,7 +10,7 @@ from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.repositories import (
     ordens_repo, orcamentos_repo, artigos_repo, encomendas_repo,
     maquinas_repo, tipos_repo, consumiveis_repo, clientes_repo,
-    documentos_financeiros_repo, ordens_compra_repo,
+    documentos_financeiros_repo, ordens_compra_repo, nao_conformidades_repo, contas_repo,
 )
 from app.services.costing import (
     recompute_of_status, op_custo_real, compute_orcamento_totais,
@@ -345,7 +345,7 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
     orc_q = text_search(["numero", "cliente"], ql)
     if orc_q:
         for o in await orcamentos_repo.find(orc_q, limit=6):
-            resultados.append({"tipo": "Orçamento", "id": o["id"], "titulo": o.get("numero") or "—",
+            resultados.append({"tipo": "Orçamento", "id": o["id"], "titulo": o.get("numero") or "Rascunho",
                                "subtitulo": o.get("cliente") or "", "url": f"/orcamentos/{o['id']}"})
     enc_q = text_search(["numero", "cliente"], ql)
     if enc_q:
@@ -362,6 +362,16 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
         for a in await artigos_repo.find(art_q, limit=6):
             resultados.append({"tipo": "Artigo", "id": a["id"], "titulo": a.get("nome") or "—",
                                "subtitulo": a.get("codigo") or "", "url": f"/artigos/{a['id']}"})
+    nc_q = text_search(["numero", "encomenda_numero", "artigo_codigo", "artigo_nome", "cliente"], ql)
+    if nc_q:
+        for n in await nao_conformidades_repo.find(nc_q, limit=6):
+            resultados.append({
+                "tipo": "Não conformidade",
+                "id": n["id"],
+                "titulo": n.get("numero") or "—",
+                "subtitulo": n.get("artigo_codigo") or n.get("artigo_nome") or n.get("encomenda_numero") or "",
+                "url": f"/nao-conformidades/{n['id']}",
+            })
     doc_q = text_search(["numero", "cliente", "encomenda_numero"], ql)
     if doc_q:
         for d in await documentos_financeiros_repo.find(doc_q, limit=6):
@@ -373,7 +383,29 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
                 "subtitulo": d.get("cliente") or "",
                 "url": f"/financeiro/{d['id']}",
             })
+    conta_q = text_search(["numero", "entidade", "descricao", "referencia"], ql)
+    if conta_q:
+        from app.domain.models import CONTA_TIPO_PT
+        for c in await contas_repo.find(conta_q, limit=6):
+            resultados.append({
+                "tipo": CONTA_TIPO_PT.get(c.get("tipo"), "Conta"),
+                "id": c["id"],
+                "titulo": c.get("numero") or "—",
+                "subtitulo": c.get("entidade") or c.get("descricao") or "",
+                "url": f"/contas/{c['id']}",
+            })
     return {"resultados": resultados}
+
+
+def _orc_status(o) -> str:
+    s = (o or {}).get("status")
+    if s == "finalizado":
+        return "criado"
+    if s == "aceite":
+        return "ganho"
+    if s == "rejeitado":
+        return "perdido"
+    return s or "rascunho"
 
 
 def _orcamentos_por_estado(orcs_t: list) -> list:
@@ -381,10 +413,10 @@ def _orcamentos_por_estado(orcs_t: list) -> list:
         {
             "estado": e,
             "label": STATUS_PT.get(e, e),
-            "count": sum(1 for o in orcs_t if o.get("status") == e),
-            "valor": round2(sum(o["total"] for o in orcs_t if o.get("status") == e)),
+            "count": sum(1 for o in orcs_t if _orc_status(o) == e),
+            "valor": round2(sum(o["total"] for o in orcs_t if _orc_status(o) == e)),
         }
-        for e in ["rascunho", "enviado", "aceite", "rejeitado"]
+        for e in ["rascunho", "criado", "enviado", "negociado", "ganho", "perdido"]
     ]
 
 
@@ -645,8 +677,8 @@ async def dashboard(_u: dict = Depends(require_perm("dashboard", "view"))):
         "custo_medio": round2(sum(custos) / len(custos)) if custos else 0,
         "total_orcamentos": len(orcs_t),
         "valor_orcamentos": round2(sum(o["total"] for o in orcs_t)),
-        "valor_aceites": round2(sum(o["total"] for o in orcs_t if o.get("status") == "aceite")),
-        "orcamentos_aceites": sum(1 for o in orcs_t if o.get("status") == "aceite"),
+        "valor_aceites": round2(sum(o["total"] for o in orcs_t if _orc_status(o) == "ganho")),
+        "orcamentos_aceites": sum(1 for o in orcs_t if _orc_status(o) == "ganho"),
         "total_ofs": len(ofs_t),
         "ofs_pendentes": sum(1 for o in ofs_t if o.get("status") == "pendente"),
         "ofs_em_producao": sum(1 for o in ofs_t if o.get("status") == "em_producao"),
