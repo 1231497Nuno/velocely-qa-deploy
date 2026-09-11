@@ -1,0 +1,9 @@
+# Arranque rápido
+
+1. `git checkout DEV`  ou  `git checkout QA`
+2. Ficheiro `.env.dev` ou `.env.qa` na raiz do projeto
+3. Duplo-clique:
+   - Mac: `INICIAR.command` nesta pasta (ou em `iniciar/Mac/`)
+   - Windows: `iniciar\Windows\INICIAR.bat`
+
+Ver **COMO-CORRER.md** na raiz do projeto.
