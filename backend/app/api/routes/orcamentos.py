@@ -91,6 +91,7 @@ def _snapshot(orc: dict) -> dict:
         "desconto_total": orc.get("desconto_total") or 0,
         "desconto_total_tipo": orc.get("desconto_total_tipo") or "pct",
         "imagens": list(orc.get("imagens") or []),
+        "anexos": copy.deepcopy(orc.get("anexos") or []),
         "total": tot.get("total"),
         "status": _status(orc),
     }
@@ -292,6 +293,7 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
     if not existing:
         raise HTTPException(404, "Orçamento não encontrado")
     update = data.model_dump()
+    update.pop("anexos", None)
     # Número só no finalizar — nunca atribuir/alterar aqui
     update.pop("numero", None)
     if not _tem_numero(existing) and _status(update.get("status")) in (
@@ -482,6 +484,7 @@ async def converter_orcamento(oid: str, request: Request, user: dict = Depends(r
         notas=f"Gerada a partir do orçamento {orc.get('numero')}",
         artigos=enc_artigos,
         imagens=orc.get("imagens") or [],
+        anexos=list(orc.get("anexos") or []),
         valor_total=orc_t.get("total"),
     )
     enc.numero = await next_sequence("ENC")

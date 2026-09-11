@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
+import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import { Plus, Trash2, Save, Pencil, X } from "lucide-react";
@@ -61,7 +62,7 @@ function formFromOc(data) {
 export default function OrdemCompraDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["oc", "historico"], "oc");
+  const [tab, setTab] = useDetailTab(["oc", "ficheiros", "historico"], "oc");
   const location = useLocation();
   const { can } = useAuth();
   const [oc, setOc] = useState(null);
@@ -220,6 +221,7 @@ export default function OrdemCompraDetail() {
         onChange={setTab}
         tabs={[
           { id: "oc", label: "Ordem de compra", testid: "oc-tab-oc" },
+          { id: "ficheiros", label: "Ficheiros", testid: "oc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "oc-tab-historico" },
         ]}
       />
@@ -458,6 +460,10 @@ export default function OrdemCompraDetail() {
         Criada em {fmtDate(oc?.created_at)} · Subtotal doc. {eur(form.subtotal)} · Pago {eur(form.valor_pago)}
       </div>
         </>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="ordem_compra" id={id} canEdit={can("ordens_compra", "edit") && form?.estado !== "cancelada"} />
       )}
 
       {tab === "historico" && (

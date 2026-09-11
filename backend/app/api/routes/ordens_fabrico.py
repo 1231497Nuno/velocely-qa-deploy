@@ -146,6 +146,7 @@ async def update_of(ofid: str, data: OrdemFabricoInput, user: dict = Depends(req
     if not existing:
         raise HTTPException(404, "OF não encontrada")
     update = data.model_dump()
+    update.pop("anexos", None)
     update["itens"] = await build_of_itens(update.get("itens", []))
     merged = {**existing, **update}
     merged = recompute_of_status(merged)

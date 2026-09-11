@@ -10,7 +10,7 @@ import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
-import ImagensGaleria from "@/components/ImagensGaleria";
+import FicheirosTab from "@/components/FicheirosTab";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -19,7 +19,7 @@ import Combobox from "@/components/Combobox";
 export default function OrdemFabricoDetail() {
   const { can } = useAuth();
   const { id } = useParams();
-  const [tab, setTab] = useDetailTab(["of", "historico"], "of");
+  const [tab, setTab] = useDetailTab(["of", "ficheiros", "historico"], "of");
   const nav = useNavigate();
   const [of, setOf] = useState(null);
   const [artigos, setArtigos] = useState([]);
@@ -127,17 +127,6 @@ export default function OrdemFabricoDetail() {
     const updated = await api.put(`/ordens-fabrico/${id}`, bodyFrom(of));
     setOf(updated);
     toast.success("OF guardada · roteiro carregado");
-  };
-
-  const saveImagens = async (imgs) => {
-    const next = { ...of, imagens: imgs };
-    setOf(next);
-    try {
-      const updated = await api.put(`/ordens-fabrico/${id}`, bodyFrom(next));
-      setOf(updated);
-    } catch {
-      toast.error("Falha ao guardar imagens");
-    }
   };
 
   const toggleOp = async (itemId, opId, concluida) => {
@@ -335,6 +324,7 @@ export default function OrdemFabricoDetail() {
         onChange={setTab}
         tabs={[
           { id: "of", label: "Ordem de fabrico", testid: "of-tab-of" },
+          { id: "ficheiros", label: "Ficheiros", testid: "of-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "of-tab-historico" },
         ]}
       />
@@ -473,9 +463,11 @@ export default function OrdemFabricoDetail() {
             <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} updOpNota={updOpNota} elapsedSeg={elapsedSeg} fmtDur={fmtDur} />
           </div>
         </div>
-
-        <ImagensGaleria value={of.imagens} onChange={saveImagens} title="Imagens da ordem de fabrico" hint="Imagens de referência de toda a OF (herdadas do orçamento/encomenda quando aplicável)." />
       </div>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="ordem_fabrico" id={id} canEdit={can("ordens_fabrico", "edit")} />
       )}
 
       {tab === "historico" && (

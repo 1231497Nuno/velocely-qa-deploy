@@ -20,6 +20,14 @@ def soma_valor_pago(pagamentos) -> float:
     return round2(sum((p.get("valor") or 0) * pagamento_sinal(p) for p in (pagamentos or [])))
 
 
+def artigo_is_diversos(artigo: dict) -> bool:
+    if not artigo:
+        return False
+    if artigo.get("diversos"):
+        return True
+    return bool(re.match(r"^DIV[-_]?", artigo.get("codigo") or "", re.I))
+
+
 def soma_valor_devolvido(pagamentos) -> float:
     return round2(sum((p.get("valor") or 0) for p in (pagamentos or []) if (p.get("tipo") or "") == "devolucao"))
 
@@ -72,9 +80,12 @@ def _artigo_breakdown_from_parts(artigo: dict, custo_materiais: float, custo_maq
     custo_mao_obra = round2(custo_mao_obra)
     custo_artigo = round2(artigo.get("custo_artigo") or 0)
     custo_total = round2(custo_artigo + custo_materiais + custo_maquinas + custo_mao_obra)
-    margem = artigo.get("margem")
-    if margem is None:
-        margem = 30.0
+    if artigo_is_diversos(artigo):
+        margem = 0.0
+    else:
+        margem = artigo.get("margem")
+        if margem is None:
+            margem = 30.0
     return {
         "custo_artigo": custo_artigo,
         "custo_materiais": custo_materiais,
@@ -170,11 +181,9 @@ async def enrich_artigos_list(rows: list) -> list:
 def artigo_lite(artigo: dict) -> dict:
     """Payload mínimo para selectors (sem BOM/roteiro/descrição longa)."""
     custo = round2(artigo.get("custo_artigo") or 0)
-    margem = artigo.get("margem")
-    if margem is None:
-        margem = 30.0
     codigo = artigo.get("codigo") or ""
-    diversos = bool(artigo.get("diversos")) or bool(re.match(r"^DIV[-_]?", codigo, re.I))
+    diversos = artigo_is_diversos(artigo)
+    margem = 0.0 if diversos else (artigo.get("margem") if artigo.get("margem") is not None else 30.0)
     return {
         "id": artigo.get("id"),
         "codigo": codigo,
@@ -321,14 +330,17 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
                 bd_a = await artigo_breakdown(a)
                 l["custo_base_unit"] = round2(bd_a["custo_artigo"] + bd_a["custo_materiais"])
                 if l.get("margem") is None:
-                    l["margem"] = a.get("margem", 30)
+                    l["margem"] = 0 if artigo_is_diversos(a) else a.get("margem", 30)
                 if not l.get("roteiro"):
                     l["roteiro"] = a.get("roteiro", [])
+            livre = bool(l.get("descricao_livre")) or artigo_is_diversos(a)
+            if livre:
+                l["margem"] = 0
             pseudo = {
                 "custo_artigo": l.get("custo_base_unit") or 0,
                 "materiais": [],
                 "roteiro": l.get("roteiro", []),
-                "margem": l.get("margem") if l.get("margem") is not None else 30,
+                "margem": 0 if livre else (l.get("margem") if l.get("margem") is not None else 30),
             }
             bd = await artigo_breakdown(pseudo)
             l["custo_producao_unit"] = bd["custo_producao_total"]

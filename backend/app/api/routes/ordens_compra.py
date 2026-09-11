@@ -128,6 +128,7 @@ async def update_ordem_compra(
         raise HTTPException(404, "Ordem de compra não encontrada")
     data = await _resolve_fornecedor(data)
     novo = data.model_dump()
+    novo.pop("anexos", None)
     alteracoes = audit.diff_campos(existing, novo, _OC_CAMPOS)
     await ordens_compra_repo.update(oid, novo)
     if alteracoes:

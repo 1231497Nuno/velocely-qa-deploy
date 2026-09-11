@@ -86,7 +86,7 @@ export default function Artigos() {
       unidade: a.unidade || "un",
       imagem: a.imagem || "",
       custo_artigo: a.custo_artigo ?? 0,
-      margem: a.margem ?? 30,
+      margem: isDiversosArtigo(a) ? 0 : (a.margem ?? 30),
       categoria_id: a.categoria_id || "",
       categoria_nome: a.categoria_nome || "",
       subcategoria_id: a.subcategoria_id || "",
@@ -104,6 +104,8 @@ export default function Artigos() {
       responsavel: a.responsavel || "",
       materiais: a.materiais || [],
       roteiro: a.roteiro || [],
+      diversos: !!a.diversos,
+      codigo: a.codigo || "",
     });
     setEditId(a.id);
     setOpen(true);
@@ -118,7 +120,7 @@ export default function Artigos() {
       unidade: form.unidade || "un",
       imagem: form.imagem || "",
       custo_artigo: Number(form.custo_artigo) || 0,
-      margem: Number(form.margem) || 0,
+      margem: isDiversosArtigo(form) ? 0 : (Number(form.margem) || 0),
       categoria_id: form.categoria_id || null,
       categoria_nome: form.categoria_nome || "",
       subcategoria_id: form.subcategoria_id || null,
@@ -243,7 +245,7 @@ export default function Artigos() {
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_maquinas)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_mao_obra)}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(a.custo_producao_total)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-500">{a.margem ?? 0}%</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-500">{isDiversosArtigo(a) ? "—" : `${a.margem ?? 0}%`}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">

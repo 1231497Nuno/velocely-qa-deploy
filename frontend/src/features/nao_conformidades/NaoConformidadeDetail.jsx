@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
+import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import { Save, Trash2 } from "lucide-react";
@@ -20,7 +21,7 @@ export default function NaoConformidadeDetail() {
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["nc", "historico"], "nc");
+  const [tab, setTab] = useDetailTab(["nc", "ficheiros", "historico"], "nc");
   const [nc, setNc] = useState(null);
 
   const load = useCallback(async () => {
@@ -88,6 +89,7 @@ export default function NaoConformidadeDetail() {
         onChange={setTab}
         tabs={[
           { id: "nc", label: "Não conformidade", testid: "nc-tab-nc" },
+          { id: "ficheiros", label: "Ficheiros", testid: "nc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "nc-tab-historico" },
         ]}
       />
@@ -154,6 +156,10 @@ export default function NaoConformidadeDetail() {
         </div>
       </div>
         </>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="nao_conformidade" id={id} canEdit={can("nao_conformidades", "edit")} />
       )}
 
       {tab === "historico" && (

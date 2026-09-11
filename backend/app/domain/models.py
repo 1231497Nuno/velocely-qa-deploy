@@ -160,6 +160,15 @@ class Operacao(BaseModel):
     tempo_mao_obra_unidade: str = "min"
 
 
+class Anexo(BaseModel):
+    id: str = Field(default_factory=new_id)
+    nome: str = ""
+    path: str = ""
+    content_type: str = ""
+    size: int = 0
+    created_at: str = Field(default_factory=now_iso)
+
+
 class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     codigo: str = ""
@@ -168,6 +177,7 @@ class Artigo(BaseModel):
     descricao: str = ""
     unidade: str = "un"
     imagem: str = ""
+    anexos: List[Anexo] = Field(default_factory=list)
     categoria_id: Optional[str] = None
     categoria_nome: str = ""
     subcategoria_id: Optional[str] = None
@@ -197,6 +207,7 @@ class ArtigoInput(BaseModel):
     descricao: str = ""
     unidade: str = "un"
     imagem: str = ""
+    anexos: List[Anexo] = Field(default_factory=list)
     categoria_id: Optional[str] = None
     categoria_nome: str = ""
     subcategoria_id: Optional[str] = None
@@ -478,6 +489,7 @@ class OrdemCompraInput(BaseModel):
     transportadora: str = ""
     notas: str = ""
     linhas: List[OrdemCompraLinha] = Field(default_factory=list)
+    anexos: List[Anexo] = Field(default_factory=list)
 
 
 class OrdemCompra(OrdemCompraInput):
@@ -520,6 +532,7 @@ class PedidoCotacaoInput(BaseModel):
     responsavel: str = ""
     notas: str = ""
     linhas: List[PedidoCotacaoLinha] = Field(default_factory=list)
+    anexos: List[Anexo] = Field(default_factory=list)
     ordem_compra_id: Optional[str] = None
     ordem_compra_codigo: str = ""
 
@@ -545,6 +558,7 @@ class OrcamentoInput(BaseModel):
     linhas: List[OrcamentoLinha] = Field(default_factory=list)
     materiais: List[MaterialLinha] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
+    anexos: List[Anexo] = Field(default_factory=list)
 
 
 class Orcamento(OrcamentoInput):
@@ -611,6 +625,7 @@ class OrdemFabricoInput(BaseModel):
     responsavel_nome: str = ""
     itens: List[OFItem] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
+    anexos: List[Anexo] = Field(default_factory=list)
 
 
 class OrdemFabrico(OrdemFabricoInput):
@@ -660,6 +675,7 @@ class EncomendaInput(BaseModel):
     desconto_total_tipo: str = "pct"  # pct | eur
     artigos: List[EncomendaArtigo] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
+    anexos: List[Anexo] = Field(default_factory=list)
     pagamentos: List[Pagamento] = Field(default_factory=list)
     valor_total: Optional[float] = None
     valor_total_manual: bool = False
@@ -794,6 +810,7 @@ class NaoConformidadeInput(BaseModel):
     acao_corretiva: str = ""
     estado: str = "aberta"
     notas: str = ""
+    anexos: List[Anexo] = Field(default_factory=list)
 
 
 class NaoConformidade(NaoConformidadeInput):
@@ -824,13 +841,8 @@ CONTA_ESTADO_PT = {
 }
 
 
-class ContaAnexo(BaseModel):
-    id: str = Field(default_factory=new_id)
-    nome: str = ""
-    path: str = ""
-    content_type: str = ""
-    size: int = 0
-    created_at: str = Field(default_factory=now_iso)
+class ContaAnexo(Anexo):
+    pass
 
 
 class ContaInput(BaseModel):

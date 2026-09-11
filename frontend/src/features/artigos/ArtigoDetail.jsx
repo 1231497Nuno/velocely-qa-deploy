@@ -6,11 +6,13 @@ import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
+import FicheirosTab from "@/components/FicheirosTab";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
   FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight,
 } from "lucide-react";
+import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
   <div data-testid={testid} className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden">
@@ -29,7 +31,7 @@ const Th = ({ children, align = "left" }) => (
 export default function ArtigoDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["artigo", "historico"], "artigo");
+  const [tab, setTab] = useDetailTab(["artigo", "ficheiros", "historico"], "artigo");
   const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -105,6 +107,7 @@ export default function ArtigoDetail() {
         onChange={setTab}
         tabs={[
           { id: "artigo", label: "Artigo", testid: "artigo-tab-artigo" },
+          { id: "ficheiros", label: "Ficheiros", testid: "artigo-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "artigo-tab-historico" },
         ]}
       />
@@ -141,8 +144,10 @@ export default function ArtigoDetail() {
           </div>
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-2 text-sm">
             <div className="flex items-center justify-between"><span className="text-gray-500">Custo de produção</span><span className="tabular-nums font-medium">{eur(a.custo_producao_total)}</span></div>
-            <div className="flex items-center justify-between"><span className="text-gray-500">Margem</span><span className="tabular-nums text-gray-600">{a.margem ?? 0}%</span></div>
-            <div className="flex items-center justify-between"><span className="text-gray-500">Preço de venda</span><span className="tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</span></div>
+            {!isDiversosArtigo(a) && (
+              <div className="flex items-center justify-between"><span className="text-gray-500">Margem</span><span className="tabular-nums text-gray-600">{a.margem ?? 0}%</span></div>
+            )}
+            <div className="flex items-center justify-between"><span className="text-gray-500">{isDiversosArtigo(a) ? "Preço" : "Preço de venda"}</span><span className="tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</span></div>
             <div className="flex items-center justify-between text-xs text-gray-400 pt-1"><span>{(a.materiais || []).length} materiais</span><span>{(a.roteiro || []).length} operações</span></div>
           </div>
         </div>
@@ -246,6 +251,10 @@ export default function ArtigoDetail() {
       </SeccaoPesquisavel>
       )}
         </>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="artigo" id={id} canEdit={can("artigos", "edit")} addLabel="Adicionar ficheiro ou foto" />
       )}
 
       {tab === "historico" && (

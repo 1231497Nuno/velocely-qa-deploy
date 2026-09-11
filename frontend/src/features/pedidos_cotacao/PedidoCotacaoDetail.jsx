@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
+import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
@@ -61,7 +62,7 @@ function formFromPc(data) {
 export default function PedidoCotacaoDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["pc", "historico"], "pc");
+  const [tab, setTab] = useDetailTab(["pc", "ficheiros", "historico"], "pc");
   const location = useLocation();
   const { can } = useAuth();
   const [pc, setPc] = useState(null);
@@ -293,6 +294,7 @@ export default function PedidoCotacaoDetail() {
         onChange={setTab}
         tabs={[
           { id: "pc", label: "Pedido de cotação", testid: "pc-tab-pc" },
+          { id: "ficheiros", label: "Ficheiros", testid: "pc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "pc-tab-historico" },
         ]}
       />
@@ -495,6 +497,10 @@ export default function PedidoCotacaoDetail() {
         Criado em {fmtDate(pc?.created_at)}
       </div>
         </>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="pedido_cotacao" id={id} canEdit={can("pedidos_cotacao", "edit") && pc?.estado !== "adjudicado" && pc?.estado !== "cancelado"} />
       )}
 
       {tab === "historico" && (

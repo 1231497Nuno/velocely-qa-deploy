@@ -35,6 +35,7 @@ from app.api.routes.encomendas import router as encomendas_router
 from app.api.routes.nao_conformidades import router as nao_conformidades_router
 from app.api.routes.financeiro import router as financeiro_router
 from app.api.routes.contas import router as contas_router
+from app.api.routes.ficheiros import router as ficheiros_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.admin import router as admin_router
@@ -80,7 +81,7 @@ api_router = APIRouter(prefix="/api")
 for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router, fornecedores_router,
     ordens_compra_router, pedidos_cotacao_router, encomendas_router, nao_conformidades_router, financeiro_router, contas_router, settings_router, analytics_router,
-    admin_router, historico_router, uploads_router, referencias_router, io_excel_router,
+    admin_router, historico_router, uploads_router, referencias_router, io_excel_router, ficheiros_router,
 ):
     api_router.include_router(r)
 

@@ -12,7 +12,7 @@ import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/Orcam
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
-import ImagensGaleria from "@/components/ImagensGaleria";
+import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { Plus, Trash2, Save, FileText, Cog, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Handshake, Trophy, Ban, GitBranch } from "lucide-react";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ export default function OrcamentoDetail() {
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["orcamento", "historico"], "orcamento");
+  const [tab, setTab] = useDetailTab(["orcamento", "ficheiros", "historico"], "orcamento");
   const [orc, setOrc] = useState(null);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -155,7 +155,7 @@ export default function OrcamentoDetail() {
       artigo_nome: opts.clear_nome ? "" : a.nome,
       imagem: l.imagem || a.imagem || "",
       custo_base_unit: Math.round(((a.custo_artigo || 0) + (a.custo_materiais || 0)) * 100) / 100,
-      margem: a.margem ?? 30,
+      margem: livre ? 0 : (a.margem ?? 30),
       roteiro: JSON.parse(JSON.stringify(a.roteiro || [])),
       preco_unit_manual: !!livre,
     });
@@ -378,16 +378,6 @@ export default function OrcamentoDetail() {
     }
   };
 
-  const saveImagens = async (imgs) => {
-    const next = { ...orc, imagens: imgs };
-    setOrc(next);
-    try {
-      await api.put(`/orcamentos/${id}`, payloadFrom(next));
-    } catch {
-      toast.error("Falha ao guardar imagens");
-    }
-  };
-
   const converter = async () => {
     if (requisitosEncomenda.length > 0) {
       setShowRequisitosEncomenda(true);
@@ -510,6 +500,7 @@ export default function OrcamentoDetail() {
         onChange={setTab}
         tabs={[
           { id: "orcamento", label: "Orçamento", testid: "orc-tab-orcamento" },
+          { id: "ficheiros", label: "Ficheiros", testid: "orc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "orc-tab-historico" },
         ]}
       />
@@ -715,9 +706,13 @@ export default function OrcamentoDetail() {
                 <td className="px-4 py-2.5 align-top" data-testid={`line-preco-${i}`}>
                   <div className="flex items-center gap-1 justify-end">
                     <input data-testid={`line-preco-input-${i}`} type="number" min="0" step="0.01" value={l.preco_unit_manual ? (l.preco_unit ?? 0) : Number(compPreco(l).toFixed(2))} onChange={(e) => updLinha(i, { preco_unit: e.target.value, preco_unit_manual: true })} className="w-24 text-right border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-                    {l.preco_unit_manual && <button data-testid={`line-preco-reset-${i}`} onClick={() => updLinha(i, { preco_unit_manual: false })} title="Repor preço automático" className="p-1 rounded-sm hover:bg-gray-100 text-gray-500"><RotateCcw size={13} /></button>}
+                    {l.preco_unit_manual && !(l.descricao_livre || l.tipo_linha === "descritor" || isDiversosArtigo(artigos.find((a) => a.id === l.artigo_id))) && (
+                      <button data-testid={`line-preco-reset-${i}`} onClick={() => updLinha(i, { preco_unit_manual: false })} title="Repor preço automático" className="p-1 rounded-sm hover:bg-gray-100 text-gray-500"><RotateCcw size={13} /></button>
+                    )}
                   </div>
-                  {l.preco_unit_manual && <div className="text-[10px] text-blue-500 text-right mt-0.5">manual · auto {eur(compPreco(l))}</div>}
+                  {l.preco_unit_manual && !(l.descricao_livre || l.tipo_linha === "descritor" || isDiversosArtigo(artigos.find((a) => a.id === l.artigo_id))) && (
+                    <div className="text-[10px] text-blue-500 text-right mt-0.5">manual · auto {eur(compPreco(l))}</div>
+                  )}
                   {linePreco(l) < lineCusto(l) && <div data-testid={`line-abaixo-custo-${i}`} className="text-[10px] text-red-600 font-medium text-right mt-0.5 flex items-center justify-end gap-1"><AlertTriangle size={10} /> abaixo do custo {eur(lineCusto(l))}</div>}
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`line-unit-pers-${i}`}>{eur(linePreco(l) + persUnit(l))}</td>
@@ -763,7 +758,12 @@ export default function OrcamentoDetail() {
                         </div>
                       ))}
                       {(l.roteiro || []).length === 0 && <p className="text-xs text-gray-400">Sem operações. O custo da linha usa apenas o valor base + materiais.</p>}
-                      <p className="text-[11px] text-gray-400">Custo de produção da linha: <span className="font-medium text-gray-600 tabular-nums">{eur(lineCusto(l))}</span> · Margem {l.margem ?? 0}% → Preço unit. <span className="font-medium text-gray-600 tabular-nums">{eur(linePreco(l))}</span></p>
+                      <p className="text-[11px] text-gray-400">
+                        Custo de produção da linha: <span className="font-medium text-gray-600 tabular-nums">{eur(lineCusto(l))}</span>
+                        {!(l.descricao_livre || l.tipo_linha === "descritor" || isDiversosArtigo(artigos.find((a) => a.id === l.artigo_id))) && (
+                          <> · Margem {l.margem ?? 0}% → Preço unit. <span className="font-medium text-gray-600 tabular-nums">{eur(linePreco(l))}</span></>
+                        )}
+                      </p>
                     </div>
                   </td>
                 </tr>
@@ -791,8 +791,6 @@ export default function OrcamentoDetail() {
       <OrcamentoMateriais materiais={orc.materiais} consumiveis={consumiveis} addMaterial={addMaterial} delMaterial={delMaterial} updMaterial={updMaterial} matValor={matValor} isM2={isM2} />
 
       <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)} ivaIsento={!!empresa.iva_isento} condicoesPagamento={empresa.condicoes_pagamento} />
-
-      <ImagensGaleria value={orc.imagens} onChange={saveImagens} title="Imagens do orçamento" hint="Imagens de referência de todo o orçamento. Transitam para a encomenda e ordem de fabrico ao converter." />
       </div>
 
       {temNumero && (
@@ -844,6 +842,10 @@ export default function OrcamentoDetail() {
       )}
 
         </>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="orcamento" id={id} canEdit={can("orcamentos", "edit") && orcEditavel(orc)} />
       )}
 
       {tab === "historico" && (

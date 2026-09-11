@@ -23,7 +23,6 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
   const [editId, setEditId] = useState(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [margem, setMargem] = useState(30);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -47,7 +46,6 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
     setEditId(null);
     setNome("");
     setDescricao("");
-    setMargem(30);
     setFormOpen(true);
   };
 
@@ -55,7 +53,6 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
     setEditId(a.id);
     setNome(a.nome || "");
     setDescricao(a.descricao || "");
-    setMargem(a.margem ?? 30);
     setFormOpen(true);
   };
 
@@ -68,7 +65,7 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
         descricao: descricao.trim(),
         unidade: "un",
         custo_artigo: 0,
-        margem: Number(margem) || 0,
+        margem: 0,
         ativo: true,
         diversos: true,
         materiais: [],
@@ -198,16 +195,6 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Margem %</label>
-              <input
-                data-testid="diversos-margem"
-                type="number"
-                value={margem}
-                onChange={(e) => setMargem(e.target.value)}
-                className="w-28 border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
               />
             </div>
           </div>

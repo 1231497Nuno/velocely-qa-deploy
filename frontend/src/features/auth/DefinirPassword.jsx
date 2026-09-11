@@ -59,11 +59,8 @@ export default function DefinirPassword() {
       />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.35)_100%)]" />
       <div className="w-full max-w-md relative z-10 bg-white rounded-sm shadow-xl shadow-black/25 overflow-hidden">
-        <div className="flex items-center justify-center gap-3 px-7 pt-7 pb-5 border-b border-gray-100">
-          <img src="/logo.png" alt="Velocely" className="h-10 w-auto" />
-          <span className="text-gray-900 text-[1.65rem] font-bold tracking-wide font-display lowercase">
-            velocely
-          </span>
+        <div className="flex items-center justify-center px-7 pt-7 pb-5 border-b border-gray-100">
+          <img src="/logo-full.png" alt="Velocely" className="h-10 w-auto" />
         </div>
         <form onSubmit={submit} data-testid="set-password-form" className="p-7 sm:p-8 space-y-5">
           <div>

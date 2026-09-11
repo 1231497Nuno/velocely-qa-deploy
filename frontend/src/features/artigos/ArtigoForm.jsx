@@ -1,12 +1,14 @@
 import { eur } from "@/lib/api";
 import { Plus, X, Package, Cog, Calculator, Tag } from "lucide-react";
 import ImagemUpload from "@/components/ImagemUpload";
+import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
 const UNIDADES = ["un", "kg", "g", "m", "cm", "m²", "L", "ml", "folha", "par", "h"];
 
 export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra, categorias = [], subcategorias = [] }) {
+  const isDiversos = isDiversosArtigo(form);
   const subsDaCat = subcategorias.filter((s) => s.categoria_id === form.categoria_id);
 
   const setCategoria = (categoria_id) => {
@@ -53,7 +55,8 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra, cate
     return s + toHours(op.tempo_mao_obra, op.tempo_mao_obra_unidade) * (mo ? Number(mo.custo_hora) || 0 : 0);
   }, 0);
   const custoTotal = (Number(form.custo_artigo) || 0) + custoMateriais + custoMaquinas + custoMaoObra;
-  const precoVenda = custoTotal * (1 + (Number(form.margem) || 0) / 100);
+  const margemPct = isDiversos ? 0 : (Number(form.margem) || 0);
+  const precoVenda = custoTotal * (1 + margemPct / 100);
 
   return (
     <div className="space-y-6 py-2">
@@ -201,12 +204,14 @@ export function ArtigoForm({ form, setForm, maquinas, consumiveis, maoObra, cate
           <span className="text-sm text-gray-300">Custo de Produção por unidade</span>
           <span className="tabular-nums font-bold text-2xl font-display" data-testid="calc-total">{eur(custoTotal)}</span>
         </div>
-        <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
-          <label className="text-sm text-gray-300 flex items-center gap-2"><Tag size={14} /> Margem de Lucro (%)</label>
-          <input data-testid="artigo-margem-input" type="number" value={form.margem} onChange={(e) => setForm({ ...form, margem: e.target.value })} className="w-24 text-right border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30" />
-        </div>
+        {!isDiversos && (
+          <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
+            <label className="text-sm text-gray-300 flex items-center gap-2"><Tag size={14} /> Margem de Lucro (%)</label>
+            <input data-testid="artigo-margem-input" type="number" value={form.margem} onChange={(e) => setForm({ ...form, margem: e.target.value })} className="w-24 text-right border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30" />
+          </div>
+        )}
         <div className="flex items-end justify-between pt-3">
-          <span className="text-sm font-semibold text-emerald-300">Preço de Venda</span>
+          <span className="text-sm font-semibold text-emerald-300">{isDiversos ? "Preço (sem margem)" : "Preço de Venda"}</span>
           <span className="tabular-nums font-bold text-3xl font-display text-emerald-300" data-testid="calc-preco-venda">{eur(precoVenda)}</span>
         </div>
       </section>

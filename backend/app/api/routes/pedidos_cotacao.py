@@ -137,6 +137,7 @@ async def update_pedido_cotacao(
         data.ordem_compra_codigo = existing.get("ordem_compra_codigo") or ""
 
     novo = data.model_dump()
+    novo.pop("anexos", None)
     valor = _recalc_valor_cotado(novo.get("linhas") or [])
     if valor is not None:
         novo["valor_cotado"] = valor
@@ -238,6 +239,7 @@ async def adjudicar_pedido_cotacao(
         notas=f"Adjudicado a partir de {pc.get('codigo')}"
               + (f"\n{pc.get('notas')}" if pc.get("notas") else ""),
         linhas=oc_linhas,
+        anexos=list(pc.get("anexos") or []),
     )
     oc.codigo = await next_codigo("ordem_compra")
     await ordens_compra_repo.insert(oc.model_dump())

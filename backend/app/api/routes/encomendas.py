@@ -211,6 +211,7 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
     novo = data.model_dump()
+    novo.pop("anexos", None)
     if "entregue" not in data.model_fields_set:
         novo["entregue"] = bool(existing.get("entregue"))
     if "data_entrega" not in data.model_fields_set:
@@ -314,6 +315,8 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
     payload["cliente_id"] = enc.get("cliente_id")
     if not payload.get("imagens"):
         payload["imagens"] = enc.get("imagens") or []
+    if not payload.get("anexos"):
+        payload["anexos"] = list(enc.get("anexos") or [])
     of = OrdemFabrico(**payload)
     of.numero = await next_sequence("OF")
     of.encomenda_numero = enc.get("numero")

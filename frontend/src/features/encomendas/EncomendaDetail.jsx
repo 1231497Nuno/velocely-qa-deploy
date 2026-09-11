@@ -7,7 +7,7 @@ import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
-import ImagensGaleria from "@/components/ImagensGaleria";
+import FicheirosTab from "@/components/FicheirosTab";
 import PdfExportButton from "@/components/PdfExportButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
@@ -29,7 +29,7 @@ export default function EncomendaDetail() {
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["encomenda", "pagamentos", "historico"], "encomenda");
+  const [tab, setTab] = useDetailTab(["encomenda", "pagamentos", "ficheiros", "historico"], "encomenda");
   const [enc, setEnc] = useState(null);
   const [cliente, setCliente] = useState(null);
   const [precoHist, setPrecoHist] = useState({});
@@ -337,6 +337,7 @@ export default function EncomendaDetail() {
         tabs={[
           { id: "encomenda", label: "Encomenda", testid: "enc-tab-encomenda" },
           { id: "pagamentos", label: "Pagamentos e devoluções", testid: "enc-tab-pagamentos" },
+          { id: "ficheiros", label: "Ficheiros", testid: "enc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "enc-tab-historico" },
         ]}
       />
@@ -564,7 +565,6 @@ export default function EncomendaDetail() {
         </div>
       )}
 
-      <ImagensGaleria value={enc.imagens} onChange={(imgs) => persist({ imagens: imgs })} title="Imagens da encomenda" hint="Imagens de referência de toda a encomenda. Transitam para a ordem de fabrico ao criar." />
         </>
       )}
 
@@ -729,6 +729,10 @@ export default function EncomendaDetail() {
             </div>
           </div>
         </>
+      )}
+
+      {tab === "ficheiros" && (
+        <FicheirosTab tipo="encomenda" id={id} canEdit={can("encomendas", "edit") && enc.estado !== "cancelada"} />
       )}
 
       {tab === "historico" && (

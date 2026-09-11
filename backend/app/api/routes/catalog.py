@@ -360,6 +360,8 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
 async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("artigos", "create"))):
     payload = await _resolve_categorias(data.model_dump())
     a = Artigo(**payload)
+    if a.diversos:
+        a.margem = 0.0
     a.codigo = await next_codigo("artigo_diversos" if a.diversos else "artigo")
     doc = a.model_dump()
     await artigos_repo.insert(doc)
@@ -374,8 +376,11 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     if not existing:
         raise HTTPException(404, "Artigo não encontrado")
     update = await _resolve_categorias(data.model_dump())
+    update.pop("anexos", None)
     # Flag «diversos» só na criação (código DIV-); updates preservam o valor.
     update["diversos"] = bool(existing.get("diversos"))
+    if update["diversos"]:
+        update["margem"] = 0.0
     alteracoes = audit.diff_campos(existing, update, ["nome", "descricao", "unidade", "custo_artigo", "margem", "categoria_id", "subcategoria_id"])
     await artigos_repo.update(aid, update)
     existing.update(update)
@@ -404,6 +409,7 @@ async def duplicar_artigo(aid: str, user: dict = Depends(require_perm("artigos",
         "codigo": await next_codigo("artigo_diversos" if is_div else "artigo"),
         "nome": f"{a.get('nome', 'Artigo')} (cópia)",
         "diversos": is_div,
+        "margem": 0.0 if is_div else a.get("margem"),
         "created_at": now_iso(),
     })
     await artigos_repo.insert(novo)
