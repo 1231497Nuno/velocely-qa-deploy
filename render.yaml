@@ -1,0 +1,57 @@
+# Render Blueprint — Velocely QA
+# Docs: https://render.com/docs/blueprint-spec
+#
+# 1) Push este ficheiro (branch QA)
+# 2) Render → New → Blueprint → escolhe o repo → Apply
+# 3) Preenche os secretos (MONGO_URL, JWT_SECRET, …)
+# 4) Depois do 1.º deploy da API, mete REACT_APP_BACKEND_URL no static site
+#    com a URL pública da API (https://….onrender.com) e faz Manual Deploy
+
+previewsEnabled: false
+
+services:
+  - type: web
+    name: velocely-qa-api
+    runtime: python
+    plan: free
+    branch: QA
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /docs
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: DB_NAME
+        value: velocely_qa
+      - key: UPLOAD_DIR
+        value: uploads
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: web
+    name: velocely-qa-web
+    runtime: static
+    plan: free
+    branch: QA
+    rootDir: frontend
+    buildCommand: npm ci --legacy-peer-deps && npm run build
+    staticPublishPath: build
+    autoDeployTrigger: commit
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Sem barra final. Ex.: https://velocely-qa-api.onrender.com
+      - key: REACT_APP_BACKEND_URL
+        sync: false
