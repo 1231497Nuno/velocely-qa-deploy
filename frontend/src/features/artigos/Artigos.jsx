@@ -1,4 +1,3 @@
-import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -10,26 +9,10 @@ import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListP
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Pencil, Trash2, Copy, Settings } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { ArtigoForm } from "@/features/artigos/ArtigoForm";
+import { useState } from "react";
 import ImagemUpload from "@/components/ImagemUpload";
 import ArtigosDiversosConfig from "@/components/ArtigosDiversosConfig";
-import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
-
-const empty = {
-  nome: "", descricao: "", unidade: "un", imagem: "", custo_artigo: 0, margem: 30,
-  categoria_id: "", categoria_nome: "", subcategoria_id: "", subcategoria_nome: "",
-  ativo: true, fabricante: "", cod_fabricante: "", fornecedor_id: "", fornecedor_nome: "",
-  cod_fornecedor: "", website: "", comprimento_mm: 0, largura_mm: 0, espessura_mm: 0,
-  responsavel: "", materiais: [], roteiro: [],
-};
+import { TIPO_ARTIGO_PT, normalizarTipo, isProduzido } from "@/features/artigos/artigoTipos";
 
 export default function Artigos() {
   const { can } = useAuth();
@@ -38,110 +21,8 @@ export default function Artigos() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel, loading,
   } = useServerPagedList("/artigos");
-  const [maquinas, setMaquinas] = useState([]);
-  const [consumiveis, setConsumiveis] = useState([]);
-  const [maoObra, setMaoObra] = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [subcategorias, setSubcategorias] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
   const [diversosOpen, setDiversosOpen] = useState(false);
   const { sort, toggle, apply } = useSort();
-
-  const [formDataReady, setFormDataReady] = useState(false);
-
-  const loadFormData = useCallback(async () => {
-    if (formDataReady) return;
-    try {
-      const [maq, cons, mo, cats, subs] = await Promise.all([
-        api.get("/maquinas"),
-        api.get("/consumiveis"),
-        api.get("/mao-obra"),
-        api.get("/categorias"),
-        api.get("/subcategorias"),
-      ]);
-      setMaquinas(maq);
-      setConsumiveis(cons);
-      setMaoObra(mo);
-      setCategorias(cats);
-      setSubcategorias(subs);
-      setFormDataReady(true);
-    } catch {
-      setCategorias([]);
-      setSubcategorias([]);
-    }
-  }, [formDataReady]);
-
-  const openNew = async () => {
-    setForm(empty);
-    setEditId(null);
-    setOpen(true);
-    await loadFormData();
-  };
-  const openEdit = async (a) => {
-    setForm({
-      nome: a.nome,
-      descricao: a.descricao || "",
-      unidade: a.unidade || "un",
-      imagem: a.imagem || "",
-      custo_artigo: a.custo_artigo ?? 0,
-      margem: isDiversosArtigo(a) ? 0 : (a.margem ?? 30),
-      categoria_id: a.categoria_id || "",
-      categoria_nome: a.categoria_nome || "",
-      subcategoria_id: a.subcategoria_id || "",
-      subcategoria_nome: a.subcategoria_nome || "",
-      ativo: a.ativo !== false,
-      fabricante: a.fabricante || "",
-      cod_fabricante: a.cod_fabricante || "",
-      fornecedor_id: a.fornecedor_id || "",
-      fornecedor_nome: a.fornecedor_nome || "",
-      cod_fornecedor: a.cod_fornecedor || "",
-      website: a.website || "",
-      comprimento_mm: a.comprimento_mm ?? 0,
-      largura_mm: a.largura_mm ?? 0,
-      espessura_mm: a.espessura_mm ?? 0,
-      responsavel: a.responsavel || "",
-      materiais: a.materiais || [],
-      roteiro: a.roteiro || [],
-      diversos: !!a.diversos,
-      codigo: a.codigo || "",
-    });
-    setEditId(a.id);
-    setOpen(true);
-    await loadFormData();
-  };
-
-  const save = async () => {
-    if (!form.nome.trim()) return toast.error("Indique o nome do artigo");
-    const body = {
-      nome: form.nome,
-      descricao: form.descricao,
-      unidade: form.unidade || "un",
-      imagem: form.imagem || "",
-      custo_artigo: Number(form.custo_artigo) || 0,
-      margem: isDiversosArtigo(form) ? 0 : (Number(form.margem) || 0),
-      categoria_id: form.categoria_id || null,
-      categoria_nome: form.categoria_nome || "",
-      subcategoria_id: form.subcategoria_id || null,
-      subcategoria_nome: form.subcategoria_nome || "",
-      materiais: form.materiais.filter((m) => m.material_id).map((m) => ({
-        ...m,
-        quantidade: Number(m.quantidade) || 0,
-        custo_unitario: Number(m.custo_unitario) || 0,
-      })),
-      roteiro: form.roteiro.map((op) => ({
-        ...op,
-        tempo_maquina: Number(op.tempo_maquina) || 0,
-        tempo_mao_obra: Number(op.tempo_mao_obra) || 0,
-      })),
-    };
-    if (editId) await api.put(`/artigos/${editId}`, body);
-    else await api.post("/artigos", body);
-    toast.success("Artigo guardado");
-    setOpen(false);
-    reload();
-  };
 
   const remove = async (id) => {
     await api.del(`/artigos/${id}`);
@@ -150,9 +31,10 @@ export default function Artigos() {
   };
 
   const duplicar = async (id) => {
-    await api.post(`/artigos/${id}/duplicar`);
+    const novo = await api.post(`/artigos/${id}/duplicar`);
     toast.success("Artigo duplicado");
-    reload();
+    if (novo?.id) nav(`/artigos/${novo.id}`);
+    else reload();
   };
 
   const rows = apply(items);
@@ -163,22 +45,26 @@ export default function Artigos() {
       header={
         <PageHeader
           title="Artigos"
-          subtitle="Receita de materiais, roteiro de operações, custo e preço de venda"
+          subtitle="Tipos de artigo com regras próprias — venda, produção, consumíveis e serviços"
           actions={
             <div className="flex items-center gap-2 flex-wrap">
-              <ExportExcelButton entity="artigos" ids={items.map((a) => a.id)} />
-              {can("artigos", "view") && (
+              {can("artigos", "edit") && (
                 <button
                   type="button"
-                  data-testid="artigos-config-btn"
+                  data-testid="artigos-diversos-config-btn"
                   onClick={() => setDiversosOpen(true)}
-                  className="border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="inline-flex items-center gap-1.5 bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium"
                 >
-                  <Settings size={16} /> Configurações
+                  <Settings size={16} /> Diversos
                 </button>
               )}
+              <ExportExcelButton path="/export/artigos" filename="artigos.xlsx" />
               {can("artigos", "create") && (
-                <button data-testid="new-artigo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button
+                  data-testid="add-artigo-btn"
+                  onClick={() => nav("/artigos/novo")}
+                  className="inline-flex items-center gap-1.5 bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-2 text-sm font-medium"
+                >
                   <Plus size={16} /> Novo Artigo
                 </button>
               )}
@@ -186,105 +72,95 @@ export default function Artigos() {
           }
         />
       }
-      toolbar={<SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nome ou código..." testid="artigos-search" />}
+      toolbar={
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar artigos..." testid="search-artigos" />
+          <div className="text-xs text-gray-500 sm:ml-auto">{loading ? "A carregar…" : rangeLabel}</div>
+        </div>
+      }
       footer={
         <ListPagination
           page={page}
           pages={pages}
           total={total}
           pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          rangeLabel={rangeLabel}
-          testid="artigos-pagination"
+          onPage={setPage}
+          onPageSize={setPageSize}
+          testid="artigos"
         />
       }
     >
       <ScrollableTable>
-        <table className="w-full text-sm min-w-[720px]">
+        <table className="w-full text-sm min-w-[960px]">
           <thead className={TABLE_HEAD_STICKY}>
-            <tr>
+            <tr className="border-b border-gray-200 bg-gray-50">
               <SortTh label="Código" sortKey="codigo" sort={sort} onSort={toggle} />
-              <SortTh label="Artigo" sortKey="nome" sort={sort} onSort={toggle} />
+              <SortTh label="Nome" sortKey="nome" sort={sort} onSort={toggle} />
+              <SortTh label="Tipo" sortKey="tipo_artigo" sort={sort} onSort={toggle} />
               <SortTh label="Categoria" sortKey="categoria_nome" sort={sort} onSort={toggle} />
               <SortTh label="Subcategoria" sortKey="subcategoria_nome" sort={sort} onSort={toggle} />
-              <SortTh label="Materiais" sortKey="custo_materiais" sort={sort} onSort={toggle} align="right" />
-              <SortTh label="Máquinas" sortKey="custo_maquinas" sort={sort} onSort={toggle} align="right" />
-              <SortTh label="Mão de Obra" sortKey="custo_mao_obra" sort={sort} onSort={toggle} align="right" />
-              <SortTh label="Custo Total" sortKey="custo_producao_total" sort={sort} onSort={toggle} align="right" />
-              <SortTh label="Margem" sortKey="margem" sort={sort} onSort={toggle} align="right" />
-              <SortTh label="Preço Venda" sortKey="preco_venda" sort={sort} onSort={toggle} align="right" />
-              <th className="px-4 py-3 w-32 bg-gray-50"></th>
+              <SortTh label="Custo" sortKey="custo_producao_total" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Preço" sortKey="preco_venda" sort={sort} onSort={toggle} align="right" />
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody data-testid="artigos-table">
-            {rows.map((a) => (
-              <tr
-                key={a.id}
-                data-testid={`artigo-row-${a.id}`}
-                onClick={() => nav(`/artigos/${a.id}`)}
-                className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">
-                  <span className="inline-flex items-center gap-1.5">
-                    {a.codigo || "—"}
-                    {isDiversosArtigo(a) && (
-                      <span className="text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 px-1 py-0.5 rounded-sm">DIV</span>
-                    )}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
-                    <span data-testid={`artigo-nome-link-${a.id}`} className="font-medium text-gray-900 truncate">{a.nome}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-gray-600 text-sm">{a.categoria_nome || "—"}</td>
-                <td className="px-4 py-3 text-gray-600 text-sm">{a.subcategoria_nome || "—"}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_materiais)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_maquinas)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_mao_obra)}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold">{eur(a.custo_producao_total)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-500">{isDiversosArtigo(a) ? "—" : `${a.margem ?? 0}%`}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</td>
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-end gap-1">
-                    {can("artigos","create") && (<button data-testid={`duplicate-artigo-${a.id}`} onClick={() => duplicar(a.id)} title="Duplicar" className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"><Copy size={15} /></button>)}
-                    {can("artigos","edit") && (<button data-testid={`edit-artigo-${a.id}`} onClick={() => openEdit(a)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>)}
-                    {can("artigos","delete") && (<button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>)}
-                  </div>
-                </td>
-              </tr>
-            ))}
+          <tbody>
+            {rows.map((a) => {
+              const tipo = normalizarTipo(a);
+              const prod = tipo === "ativo" && isProduzido(a);
+              return (
+                <tr
+                  key={a.id}
+                  data-testid={`artigo-row-${a.id}`}
+                  onClick={() => nav(`/artigos/${a.id}`)}
+                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                >
+                  <td className="px-4 py-3 mono tabular-nums text-gray-600">{a.codigo}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
+                      <span data-testid={`artigo-nome-link-${a.id}`} className="font-medium text-gray-900 truncate">{a.nome}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">
+                    {TIPO_ARTIGO_PT[tipo] || tipo}
+                    {prod ? <span className="text-gray-400"> · produzido</span> : null}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{a.categoria_nome || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{a.subcategoria_nome || "—"}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_producao_total ?? a.custo_artigo)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-emerald-700">{eur(a.preco_venda)}</td>
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="inline-flex items-center gap-1">
+                      {can("artigos", "create") && (
+                        <button data-testid={`dup-artigo-${a.id}`} onClick={() => duplicar(a.id)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600" title="Duplicar">
+                          <Copy size={15} />
+                        </button>
+                      )}
+                      {can("artigos", "edit") && (
+                        <button data-testid={`edit-artigo-${a.id}`} onClick={() => nav(`/artigos/${a.id}`)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600" title="Abrir">
+                          <Pencil size={15} />
+                        </button>
+                      )}
+                      {can("artigos", "delete") && (
+                        <button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {rows.length === 0 && (
-              <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem artigos."}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem artigos."}</td></tr>
             )}
           </tbody>
         </table>
       </ScrollableTable>
     </ListPage>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">{editId ? "Editar Artigo" : "Novo Artigo"}</DialogTitle>
-            <DialogDescription>Defina a receita de materiais e o roteiro de operações. O custo e o preço de venda são calculados automaticamente.</DialogDescription>
-          </DialogHeader>
-
-          <ArtigoForm form={form} setForm={setForm} maquinas={maquinas} consumiveis={consumiveis} maoObra={maoObra} categorias={categorias} subcategorias={subcategorias} />
-
-          <DialogFooter>
-            <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-artigo-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <ArtigosDiversosConfig
-        open={diversosOpen}
-        onOpenChange={setDiversosOpen}
-        onChanged={reload}
-      />
+    <ArtigosDiversosConfig open={diversosOpen} onOpenChange={setDiversosOpen} onSaved={reload} />
     </>
   );
 }

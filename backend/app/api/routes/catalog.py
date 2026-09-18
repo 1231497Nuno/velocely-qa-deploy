@@ -244,6 +244,7 @@ async def list_artigos(
     q: str = Query(""),
     lite: bool = Query(False, description="Payload mínimo para selectors (sem BOM/custeio pesado)"),
     diversos: Optional[bool] = Query(None, description="Filtrar artigos diversos (DIV-)"),
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo_artigo (ex.: consumivel)"),
     _u: dict = Depends(require_perm("artigos", "view")),
 ):
     query = {}
@@ -254,6 +255,8 @@ async def list_artigos(
         query["diversos"] = True
     elif diversos is False:
         query["diversos"] = {"$ne": True}
+    if tipo:
+        query["tipo_artigo"] = tipo.strip().lower()
 
     if page is None:
         artigos = await artigos_repo.find(query, sort=("nome", 1), limit=5000)
@@ -363,6 +366,9 @@ async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("ar
     if a.diversos:
         a.margem = 0.0
     a.codigo = await next_codigo("artigo_diversos" if a.diversos else "artigo")
+    a.created_by = user.get("id")
+    a.created_by_nome = (user.get("nome") or user.get("email") or "").strip()
+    a.updated_at = a.created_at
     doc = a.model_dump()
     await artigos_repo.insert(doc)
     doc.pop("_id", None)
@@ -381,7 +387,17 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     update["diversos"] = bool(existing.get("diversos"))
     if update["diversos"]:
         update["margem"] = 0.0
-    alteracoes = audit.diff_campos(existing, update, ["nome", "descricao", "unidade", "custo_artigo", "margem", "categoria_id", "subcategoria_id"])
+    # Não sobrescrever metadados de criação
+    update.pop("created_at", None)
+    update.pop("created_by", None)
+    update.pop("created_by_nome", None)
+    update.pop("codigo", None)
+    update["updated_at"] = now_iso()
+    alteracoes = audit.diff_campos(existing, update, [
+        "nome", "descricao", "unidade", "custo_artigo", "margem", "comissao_pct",
+        "categoria_id", "subcategoria_id", "tipo_artigo", "produzido",
+        "fabricante", "fornecedor_nome", "qtd_stock", "responsavel",
+    ])
     await artigos_repo.update(aid, update)
     existing.update(update)
     await audit.registar("artigo", aid, "editado", user, f"Artigo «{update.get('nome')}» editado", update.get("nome"), alteracoes)

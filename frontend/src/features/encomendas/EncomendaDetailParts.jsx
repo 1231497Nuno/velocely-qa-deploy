@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { eur, fmtDate } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
+import { FieldGrid, FieldRow } from "@/components/BlocosShell";
 import {
   AlertTriangle, User, Phone, Mail, MapPin, Hash, Factory, Layers, Plus,
 } from "lucide-react";
@@ -113,6 +114,103 @@ export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPr
   </div>
 );
 
+/** Campos de cliente / prazos no estilo FieldGrid dos artigos. */
+export const EncClienteCampos = ({
+  enc, cliente, moradaCompleta, canEdit,
+  onPrazoChange, onPrazoBlur,
+  onEntregaToggle, onDataEntregaChange, onDataEntregaBlur,
+  onDescricaoChange, onDescricaoBlur,
+}) => (
+  <div data-testid="encomenda-cliente-info">
+    <FieldGrid>
+      <FieldRow label="Cliente" testid="enc-campo-cliente" full>
+        <span className="truncate" title={enc.cliente || ""}>{enc.cliente || "—"}</span>
+      </FieldRow>
+      {cliente?.contacto && (
+        <FieldRow label="Contacto" testid="enc-campo-contacto">
+          <span className="truncate">{cliente.contacto}</span>
+        </FieldRow>
+      )}
+      {cliente?.email && (
+        <FieldRow label="Email" testid="enc-campo-email">
+          <span className="truncate" title={cliente.email}>{cliente.email}</span>
+        </FieldRow>
+      )}
+      {cliente?.nif && (
+        <FieldRow label="NIF" testid="enc-campo-nif">
+          <span className="tabular-nums">{cliente.nif}</span>
+        </FieldRow>
+      )}
+      {(cliente?.morada || cliente?.cidade) && (
+        <FieldRow label="Morada" testid="enc-campo-morada" full>
+          <span className="truncate" title={moradaCompleta}>{moradaCompleta}</span>
+        </FieldRow>
+      )}
+      <FieldRow label="Data" testid="enc-campo-data">
+        <span className="tabular-nums">{fmtDate(enc.data) || "—"}</span>
+      </FieldRow>
+      <FieldRow label="Prazo de entrega" testid="enc-campo-prazo">
+        {canEdit ? (
+          <input
+            data-testid="enc-prazo-input"
+            type="date"
+            value={enc.prazo_entrega || ""}
+            onChange={onPrazoChange}
+            onBlur={onPrazoBlur}
+            className="border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+          />
+        ) : (
+          <span className="tabular-nums">{fmtDate(enc.prazo_entrega) || "—"}</span>
+        )}
+      </FieldRow>
+      <FieldRow label="Material entregue" testid="enc-campo-entregue">
+        <label className="inline-flex items-center gap-2 cursor-pointer">
+          <input
+            data-testid="enc-entregue-check"
+            type="checkbox"
+            checked={!!enc.entregue}
+            disabled={!canEdit}
+            onChange={onEntregaToggle}
+            className="w-4 h-4 accent-teal-700"
+          />
+          <span className="text-sm font-medium text-gray-900">{enc.entregue ? "Sim" : "Não"}</span>
+        </label>
+      </FieldRow>
+      {enc.entregue && (
+        <FieldRow label="Data de entrega" testid="enc-campo-data-entrega">
+          {canEdit ? (
+            <input
+              data-testid="enc-data-entrega-input"
+              type="date"
+              value={enc.data_entrega || ""}
+              onChange={onDataEntregaChange}
+              onBlur={onDataEntregaBlur}
+              className="border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+            />
+          ) : (
+            <span className="tabular-nums">{fmtDate(enc.data_entrega) || "—"}</span>
+          )}
+        </FieldRow>
+      )}
+      <FieldRow label="Descrição" testid="enc-campo-descricao" full>
+        {canEdit ? (
+          <input
+            data-testid="enc-descricao-input"
+            type="text"
+            value={enc.descricao || ""}
+            onChange={onDescricaoChange}
+            onBlur={onDescricaoBlur}
+            placeholder="—"
+            className="w-full max-w-md border border-gray-300 rounded-sm px-2 py-1 text-sm text-right bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+          />
+        ) : (
+          <span className="truncate" title={enc.descricao || ""}>{enc.descricao || "—"}</span>
+        )}
+      </FieldRow>
+    </FieldGrid>
+  </div>
+);
+
 /** Bloco compacto do cliente para a barra sticky da encomenda. */
 export const ClienteStickyMeta = ({
   enc, cliente, moradaCompleta, onPrazoChange, onPrazoBlur,
@@ -207,16 +305,17 @@ export const ClienteStickyMeta = ({
   </div>
 );
 
-export const OFsPanel = ({ enc, onCriar, canCreate }) => (
-  <div className="bg-white border border-gray-200 rounded-sm p-5" data-testid="encomenda-ofs-panel">
+export const OFsPanel = ({ enc, onCriar, canCreate, embedded = false }) => (
+  <div className={embedded ? "p-4" : "bg-white border border-gray-200 rounded-sm p-5"} data-testid="encomenda-ofs-panel">
     <div className="flex items-center justify-between gap-2 mb-3">
-      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h3>
+      {!embedded && <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Factory size={15} /> Ordens de Fabrico</h3>}
+      {embedded && <span className="text-xs text-gray-500">Produção lançada em OFs</span>}
       {canCreate && (
         <button
           type="button"
           data-testid="encomenda-criar-of-btn"
           onClick={onCriar}
-          className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
+          className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors ml-auto"
         >
           <Plus size={15} /> Criar OF
         </button>
@@ -242,6 +341,71 @@ export const OFsPanel = ({ enc, onCriar, canCreate }) => (
               <span className="text-sm text-gray-500">{Math.round(o.progresso || 0)}%</span>
             </div>
             <StatusBadge status={o.status} />
+          </Link>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+export const OrcamentosPanel = ({ orcamentos, orcamentoId, orcamentoNumero, embedded = false }) => {
+  const list = orcamentos?.length
+    ? orcamentos
+    : (orcamentoId ? [{ id: orcamentoId, numero: orcamentoNumero || "—", status: null }] : []);
+  return (
+    <div className={embedded ? "p-4" : "bg-white border border-gray-200 rounded-sm p-5"} data-testid="encomenda-orcamentos-panel">
+      {!embedded && <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">Orçamentos</h3>}
+      {list.length === 0 ? (
+        <p className="text-sm text-gray-400 py-6 text-center">Nenhum orçamento associado a esta encomenda.</p>
+      ) : (
+        <div className="space-y-2" data-testid="encomenda-orcamentos">
+          {list.map((o) => (
+            <Link
+              key={o.id}
+              to={`/orcamentos/${o.id}`}
+              data-testid={`encomenda-orc-${o.id}`}
+              className="flex items-center justify-between gap-3 border border-gray-200 rounded-sm px-4 py-3 hover:bg-gray-50 transition-colors"
+            >
+              <div className="min-w-0">
+                <span className="mono tabular-nums font-medium text-gray-900">{o.numero || "—"}</span>
+                {o.cliente && <span className="text-sm text-gray-500 ml-2 truncate">{o.cliente}</span>}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {o.total != null && <span className="text-sm tabular-nums text-gray-600">{eur(o.total)}</span>}
+                {o.status && <StatusBadge status={o.status} />}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const NcsPanel = ({ ncs, embedded = false }) => (
+  <div className={embedded ? "p-4" : "bg-white border border-gray-200 rounded-sm p-5"} data-testid="enc-ncs">
+    {!embedded && (
+      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+        <AlertTriangle size={15} /> Não conformidades
+        <span className="text-xs font-normal tabular-nums text-gray-400">{ncs.length}</span>
+      </h3>
+    )}
+    {(ncs || []).length === 0 ? (
+      <p className="text-sm text-gray-400 py-6 text-center">Sem não conformidades nesta encomenda.</p>
+    ) : (
+      <div className="space-y-1.5">
+        {ncs.map((n) => (
+          <Link
+            key={n.id}
+            to={`/nao-conformidades/${n.id}`}
+            data-testid={`enc-nc-${n.id}`}
+            className="flex items-center justify-between gap-2 border border-gray-200 rounded-sm px-2.5 py-1.5 hover:bg-gray-50 text-sm"
+          >
+            <span className="min-w-0 truncate">
+              <span className="font-medium mono text-gray-900">{n.numero}</span>
+              <span className="text-xs text-gray-500 ml-2">{n.artigo_codigo || n.artigo_nome}</span>
+            </span>
+            <StatusBadge status={n.estado} />
           </Link>
         ))}
       </div>

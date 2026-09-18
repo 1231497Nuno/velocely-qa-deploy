@@ -46,5 +46,5 @@ Produção (mais tarde): serviço à parte na branch `PROD` + BD `velocely_prod`
 
 ## Notas free
 
-- A API **adormece** ~15 min sem tráfego; o 1.º pedido pode demorar ~1 min
-- Uploads no disco do Render **não são persistentes** no plano free (ficheiros somem em redeploy) — ok para QA leve; para serio usa S3 depois
+- A API **adormece** ~15 min sem tráfego; o 1.º pedido pode demorar ~1 min (o frontend faz 1 retry automático)
+- **Uploads**: `STORAGE_BACKEND=gridfs` (no `render.yaml`) grava fotos/ficheiros no Mongo Atlas — **não se perdem** em redeploy. Em DEV local continua disco (`uploads/`)

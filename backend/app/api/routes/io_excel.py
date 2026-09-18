@@ -31,8 +31,8 @@ async def list_io_entities(user: dict = Depends(get_current_user)):
     """Lista entidades disponíveis para export/import."""
     items = []
     for key, meta in excel_io.SHEETS.items():
-        if key == "subcategorias":
-            continue  # agrupado em categorias no hub
+        if key in ("subcategorias", "encomenda_linhas"):
+            continue  # agrupado em categorias / encomendas no hub
         items.append({
             "key": key,
             "label": meta["title"].replace("_", " "),
@@ -41,10 +41,13 @@ async def list_io_entities(user: dict = Depends(get_current_user)):
             "columns": meta["columns"],
             "perm": excel_io.ENTITY_PERM.get(key),
         })
-    # categorias covers subcategorias
+    # categorias covers subcategorias; encomendas covers linhas
     for it in items:
         if it["key"] == "categorias":
             it["label"] = "Categorias / Subcategorias"
+            it["importable"] = True
+        if it["key"] == "encomendas":
+            it["label"] = "Encomendas / Linhas"
             it["importable"] = True
     return {"entities": items, "max_rows": excel_io.MAX_ROWS}
 

@@ -13,7 +13,6 @@ import {
   Palette,
   FileText,
   Factory,
-  Package,
   Users,
   LineChart,
   Menu,
@@ -59,7 +58,6 @@ const NAV_GROUPS = [
     items: [
       { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
       { to: "/categorias", label: "Categorias", icon: Layers, tid: "nav-categorias", modulo: "artigos" },
-      { to: "/materiais", label: "Materiais", icon: Package, tid: "nav-materiais", modulo: "materiais" },
       { to: "/maquinas", label: "Máquinas", icon: Cog, tid: "nav-maquinas", modulo: "maquinas" },
       { to: "/mao-obra", label: "Mão de Obra", icon: Users, tid: "nav-mao-obra", modulo: "mao_obra" },
       { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao", modulo: "personalizacao" },

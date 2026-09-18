@@ -802,7 +802,7 @@ function DadosTab() {
         <div>
           <h2 className="font-display text-lg text-gray-900 flex items-center gap-2"><Upload size={18} /> Importar Excel</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Descarregue o template, preencha no Excel e valide antes de gravar. Upsert por código (máx. 5000 linhas).
+            Descarregue o template, preencha no Excel e valide antes de gravar. Upsert por código (ou número nas encomendas). Encomendas incluem a folha de linhas. Máx. 5000 linhas.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -29,22 +29,30 @@ export default function OrdemFabricoDetail() {
   const [utilizadores, setUtilizadores] = useState([]);
   const [, setTick] = useState(0);
   const [itemAberto, setItemAberto] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
-    const [ofData, arts, tipos, maqs, mos, users] = await Promise.all([
-      api.get(`/ordens-fabrico/${id}`),
-      api.get("/artigos?lite=1"),
-      api.get("/tipos-personalizacao"),
-      api.get("/maquinas"),
-      api.get("/mao-obra"),
-      api.get("/utilizadores-lista").catch(() => []),
-    ]);
-    setOf(ofData);
-    setArtigos(arts);
-    setTipos(tipos);
-    setMaquinas(maqs);
-    setMaoObra(mos);
-    setUtilizadores(users);
+    try {
+      setLoadError(null);
+      const [ofData, arts, tipos, maqs, mos, users] = await Promise.all([
+        api.get(`/ordens-fabrico/${id}`),
+        api.get("/artigos?lite=1"),
+        api.get("/tipos-personalizacao"),
+        api.get("/maquinas"),
+        api.get("/mao-obra"),
+        api.get("/utilizadores-lista").catch(() => []),
+      ]);
+      setOf(ofData);
+      setArtigos(arts);
+      setTipos(tipos);
+      setMaquinas(maqs);
+      setMaoObra(mos);
+      setUtilizadores(users);
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setLoadError(typeof detail === "string" ? detail : "Não foi possível carregar a ordem de fabrico.");
+      setOf(null);
+    }
   }, [id]);
   useEffect(() => {
     load();
@@ -54,6 +62,14 @@ export default function OrdemFabricoDetail() {
     return () => clearInterval(t);
   }, []);
 
+  if (loadError && !of) {
+    return (
+      <div className="text-sm space-y-3 py-8 text-center">
+        <p className="text-gray-600">{loadError}</p>
+        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
+      </div>
+    );
+  }
   if (!of) return <div className="text-sm text-gray-500">A carregar...</div>;
 
   const upd = (patch) => setOf({ ...of, ...patch });

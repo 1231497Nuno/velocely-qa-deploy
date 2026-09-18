@@ -27,6 +27,8 @@ services:
         value: velocely_qa
       - key: UPLOAD_DIR
         value: uploads
+      - key: STORAGE_BACKEND
+        value: gridfs
       - key: MONGO_URL
         sync: false
       - key: JWT_SECRET

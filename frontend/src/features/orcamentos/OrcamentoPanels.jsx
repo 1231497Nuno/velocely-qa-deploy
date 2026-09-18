@@ -64,12 +64,33 @@ export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMat
   );
 }
 
-export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, descontoLinhas = 0, descTotal, descTotalTipo = "pct", descTotalVal = 0, onDescTotal, onDescTotalTipo, custoProducao, lucro, total, ivaTaxa = 0, ivaIsento = false, condicoesPagamento = "" }) {
+export function OrcamentoTotais({
+  subtotalVenda,
+  totalPers,
+  totalMateriais,
+  envio,
+  onEnvio,
+  descontoLinhas = 0,
+  descTotal,
+  descTotalTipo = "pct",
+  descTotalVal = 0,
+  onDescTotal,
+  onDescTotalTipo,
+  onDescBlur,
+  custoProducao,
+  lucro,
+  total,
+  ivaTaxa = 0,
+  ivaIsento = false,
+  condicoesPagamento = "",
+  embedded = false,
+}) {
   const ivaVal = ivaTaxa > 0 ? total * ivaTaxa / 100 : 0;
   const totalComIva = total + ivaVal;
-  return (
-    <div className="flex justify-end">
-      <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3">
+  const mostrarEnvio = envio !== undefined || typeof onEnvio === "function";
+  const envioEditavel = typeof onEnvio === "function";
+  const body = (
+      <div className={embedded ? "p-4 space-y-3" : "bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3"} data-testid={mostrarEnvio ? "enc-totais" : "orc-totais"}>
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Preço dos artigos</span>
           <span className="tabular-nums font-medium" data-testid="orc-subtotal-venda">{eur(subtotalVenda)}</span>
@@ -78,10 +99,33 @@ export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, desc
           <span className="text-gray-500">Personalização</span>
           <span className="tabular-nums font-medium" data-testid="orc-personalizacao">{eur(totalPers)}</span>
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">Materiais</span>
-          <span className="tabular-nums font-medium" data-testid="orc-materiais">{eur(totalMateriais)}</span>
-        </div>
+        {mostrarEnvio ? (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Envio</span>
+            {envioEditavel ? (
+              <div className="flex items-center gap-1">
+                <input
+                  data-testid="enc-envio-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={envio ?? 0}
+                  onChange={(e) => onEnvio(e.target.value)}
+                  onBlur={onDescBlur}
+                  className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20"
+                />
+                <span className="text-xs text-gray-400">€</span>
+              </div>
+            ) : (
+              <span className="tabular-nums font-medium" data-testid="enc-envio">{eur(envio)}</span>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Materiais</span>
+            <span className="tabular-nums font-medium" data-testid="orc-materiais">{eur(totalMateriais)}</span>
+          </div>
+        )}
         {descontoLinhas > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Desconto nas linhas</span>
@@ -91,7 +135,7 @@ export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, desc
         <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
           <span className="text-gray-500">Desconto no total</span>
           <div className="flex items-center gap-1">
-            <input data-testid="orc-desc-total-input" type="number" min="0" step="0.01" value={descTotal ?? 0} onChange={(e) => onDescTotal && onDescTotal(e.target.value)} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+            <input data-testid="orc-desc-total-input" type="number" min="0" step="0.01" value={descTotal ?? 0} onChange={(e) => onDescTotal && onDescTotal(e.target.value)} onBlur={onDescBlur} className="w-20 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
             <select data-testid="orc-desc-total-tipo" value={descTotalTipo} onChange={(e) => onDescTotalTipo && onDescTotalTipo(e.target.value)} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
               <option value="pct">%</option>
               <option value="eur">€</option>
@@ -131,6 +175,7 @@ export function OrcamentoTotais({ subtotalVenda, totalPers, totalMateriais, desc
         {ivaIsento && <div className="text-xs text-gray-400 text-right" data-testid="orc-isento-iva">Isento de IVA</div>}
         {condicoesPagamento && <div className="text-xs text-gray-400 border-t border-gray-100 pt-2 mt-1"><span className="font-medium text-gray-500">Condições:</span> {condicoesPagamento}</div>}
       </div>
-    </div>
   );
+  if (embedded) return body;
+  return <div className="flex justify-end">{body}</div>;
 }

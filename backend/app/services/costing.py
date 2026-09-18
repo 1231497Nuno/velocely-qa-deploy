@@ -126,13 +126,19 @@ def artigo_breakdown_with_caches(
 
 
 async def _artigo_breakdown_with_lookups(artigo: dict, mats: list, roteiro: list) -> dict:
-    cons_ids = {m.get("material_id") for m in mats if m.get("material_id")}
+    mat_ids = {m.get("material_id") for m in mats if m.get("material_id")}
     maq_ids = {op.get("maquina_id") for op in roteiro if op.get("maquina_id")}
     mo_ids = {op.get("mao_obra_id") for op in roteiro if op.get("mao_obra_id")}
     cons_by_id, maq_by_id, mo_by_id = {}, {}, {}
-    if cons_ids:
-        for c in await consumiveis_repo.find({"id": {"$in": list(cons_ids)}}, limit=len(cons_ids) + 5):
-            cons_by_id[c["id"]] = c.get("custo_unitario")
+    if mat_ids:
+        # Preferência: artigos (novo modelo). Fallback: consumíveis legados.
+        for a in await artigos_repo.find({"id": {"$in": list(mat_ids)}}, limit=len(mat_ids) + 5):
+            # custo de componente = valor de compra do artigo referenciado
+            cons_by_id[a["id"]] = a.get("custo_artigo", 0.0)
+        missing = mat_ids - set(cons_by_id.keys())
+        if missing:
+            for c in await consumiveis_repo.find({"id": {"$in": list(missing)}}, limit=len(missing) + 5):
+                cons_by_id[c["id"]] = c.get("custo_unitario")
     if maq_ids:
         for m in await maquinas_repo.find({"id": {"$in": list(maq_ids)}}, limit=len(maq_ids) + 5):
             maq_by_id[m["id"]] = maquina_custo_hora(m)
@@ -164,8 +170,12 @@ async def enrich_artigos_list(rows: list) -> list:
     cons_by_id, maq_by_id, mo_by_id = {}, {}, {}
     if needs_lookup:
         if cons_ids:
-            for c in await consumiveis_repo.find({"id": {"$in": list(cons_ids)}}, limit=len(cons_ids) + 5):
-                cons_by_id[c["id"]] = c.get("custo_unitario")
+            for a in await artigos_repo.find({"id": {"$in": list(cons_ids)}}, limit=len(cons_ids) + 5):
+                cons_by_id[a["id"]] = a.get("custo_artigo", 0.0)
+            missing = cons_ids - set(cons_by_id.keys())
+            if missing:
+                for c in await consumiveis_repo.find({"id": {"$in": list(missing)}}, limit=len(missing) + 5):
+                    cons_by_id[c["id"]] = c.get("custo_unitario")
         if maq_ids:
             for m in await maquinas_repo.find({"id": {"$in": list(maq_ids)}}, limit=len(maq_ids) + 5):
                 maq_by_id[m["id"]] = maquina_custo_hora(m)
@@ -189,6 +199,8 @@ def artigo_lite(artigo: dict) -> dict:
         "codigo": codigo,
         "nome": artigo.get("nome") or "",
         "unidade": artigo.get("unidade") or "un",
+        "tipo_artigo": artigo.get("tipo_artigo") or "ativo",
+        "produzido": bool(artigo.get("produzido")) or (artigo.get("tipo_artigo") == "produzido"),
         "custo_artigo": custo,
         "margem": margem,
         "diversos": diversos,
@@ -538,19 +550,27 @@ async def _apply_pers_tempo(itens: List[dict]) -> None:
 
 # ----------------------- Encomendas -----------------------
 def encomenda_artigos_breakdown(enc: dict) -> dict:
-    bruto = 0.0
+    subtotal_venda = 0.0
+    total_pers = 0.0
     desc_linhas = 0.0
     for a in enc.get("artigos", []):
         qtd = a.get("quantidade") or 0
+        subtotal_venda += (a.get("preco_unit") or 0) * qtd
+        total_pers += pers_valor_unit(a) * qtd
         linha_bruto = round2(((a.get("preco_unit") or 0) + pers_valor_unit(a)) * qtd)
-        bruto += linha_bruto
         desc_linhas += desconto_valor(linha_bruto, a.get("desconto"), a.get("desconto_tipo"))
-    bruto = round2(bruto)
+    subtotal_venda = round2(subtotal_venda)
+    total_pers = round2(total_pers)
+    bruto = round2(subtotal_venda + total_pers)
     desc_linhas = round2(desc_linhas)
-    subtotal_liquido = round2(bruto - desc_linhas)
+    envio = round2(enc.get("envio") or 0)
+    subtotal_liquido = round2(bruto - desc_linhas + envio)
     desc_total = desconto_valor(subtotal_liquido, enc.get("desconto_total"), enc.get("desconto_total_tipo"))
     return {
         "bruto": bruto,
+        "subtotal_venda": subtotal_venda,
+        "total_personalizacao": total_pers,
+        "envio": envio,
         "desconto_linhas": desc_linhas,
         "subtotal_liquido": subtotal_liquido,
         "desconto_total_valor": desc_total,
@@ -714,15 +734,16 @@ def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[
         valor_orcamento = compute_orcamento_totais(orc)["total"]
     enc["valor_orcamento"] = round2(valor_orcamento) if valor_orcamento is not None else None
 
+    bd = encomenda_artigos_breakdown(enc)
     if enc.get("valor_total_manual") and enc.get("valor_total") is not None:
         valor = enc.get("valor_total") or 0
-    elif valor_orcamento is not None:
-        valor = round2(valor_orcamento + encomenda_acrescimo_preco_orcamento(enc))
     else:
-        valor = encomenda_artigos_total(enc)
+        valor = bd["total"]
     enc["valor_total"] = round2(valor)
-    bd = encomenda_artigos_breakdown(enc)
     enc["valor_artigos_bruto"] = bd["bruto"]
+    enc["subtotal_venda"] = bd["subtotal_venda"]
+    enc["total_personalizacao"] = bd["total_personalizacao"]
+    enc["envio"] = bd["envio"]
     enc["desconto_linhas"] = bd["desconto_linhas"]
     enc["desconto_total_valor"] = bd["desconto_total_valor"]
 

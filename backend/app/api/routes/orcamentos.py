@@ -161,10 +161,13 @@ async def list_orcamentos(
     page_size: int = Query(25, ge=1, le=100),
     q: str = Query(""),
     status: Optional[str] = Query(None),
+    encomenda_id: Optional[str] = Query(None),
     _u: dict = Depends(require_perm("orcamentos", "view")),
 ):
     query = {}
     apply_status_filter(query, status)
+    if encomenda_id:
+        query["encomenda_id"] = encomenda_id
     ts = text_search(["numero", "cliente", "numero_encomenda"], q)
     if ts:
         query.update(ts)
@@ -485,6 +488,9 @@ async def converter_orcamento(oid: str, request: Request, user: dict = Depends(r
         artigos=enc_artigos,
         imagens=orc.get("imagens") or [],
         anexos=list(orc.get("anexos") or []),
+        desconto_total=orc.get("desconto_total") or 0,
+        desconto_total_tipo=orc.get("desconto_total_tipo") or "pct",
+        envio=orc_t.get("total_materiais") or 0,
         valor_total=orc_t.get("total"),
     )
     enc.numero = await next_sequence("ENC")

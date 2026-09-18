@@ -32,8 +32,17 @@ client.interceptors.request.use((config) => {
 
 client.interceptors.response.use(
   (r) => r,
-  (err) => {
-    const url = err.config?.url || "";
+  async (err) => {
+    const cfg = err.config || {};
+    const status = err.response?.status;
+    const network = !err.response;
+    // Render free: API a dormir → 1 retry após pausa curta
+    if (!cfg.__retried && (network || status === 502 || status === 503 || status === 504)) {
+      cfg.__retried = true;
+      await new Promise((r) => setTimeout(r, 1800));
+      return client.request(cfg);
+    }
+    const url = cfg.url || "";
     const isAuthFlow =
       url.includes("/auth/login") ||
       url.includes("/auth/set-password") ||

@@ -44,45 +44,61 @@ export default function OrcamentoDetail() {
   const [precosEncomenda, setPrecosEncomenda] = useState({});
   const [converting, setConverting] = useState(false);
   const [viewVersao, setViewVersao] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
-    const o = await api.get(`/orcamentos/${id}`);
-    // migrar personalização única (legado) para lista
-    o.linhas = (o.linhas || []).map((l) => {
-      if ((!l.personalizacoes || l.personalizacoes.length === 0) && l.tipo_personalizacao_id) {
-        l.personalizacoes = [{ id: l.tipo_personalizacao_id, nome: l.tipo_personalizacao_nome || "", valor: Number(l.valor_personalizacao) || 0 }];
-      } else if (!l.personalizacoes) {
-        l.personalizacoes = [];
-      }
-      if (!l.tipo_linha) l.tipo_linha = "";
-      if (l.descricao_livre == null) l.descricao_livre = false;
-      return l;
-    });
-    o.materiais = o.materiais || [];
-    setOrc(o);
+    try {
+      setLoadError(null);
+      const o = await api.get(`/orcamentos/${id}`);
+      // migrar personalização única (legado) para lista
+      o.linhas = (o.linhas || []).map((l) => {
+        if ((!l.personalizacoes || l.personalizacoes.length === 0) && l.tipo_personalizacao_id) {
+          l.personalizacoes = [{ id: l.tipo_personalizacao_id, nome: l.tipo_personalizacao_nome || "", valor: Number(l.valor_personalizacao) || 0 }];
+        } else if (!l.personalizacoes) {
+          l.personalizacoes = [];
+        }
+        if (!l.tipo_linha) l.tipo_linha = "";
+        if (l.descricao_livre == null) l.descricao_livre = false;
+        return l;
+      });
+      o.materiais = o.materiais || [];
+      setOrc(o);
 
-    const [arts, tipos, maqs, mos, cons, empresa, cs] = await Promise.all([
-      api.get("/artigos?lite=1"),
-      api.get("/tipos-personalizacao"),
-      api.get("/maquinas"),
-      api.get("/mao-obra"),
-      api.get("/consumiveis"),
-      api.get("/settings/empresa").catch(() => ({})),
-      o.cliente_id ? api.get("/clientes").catch(() => []) : Promise.resolve([]),
-    ]);
-    setArtigos(arts);
-    setTipos(tipos);
-    setMaquinas(maqs);
-    setMaoObra(mos);
-    setConsumiveis(cons);
-    setEmpresa(empresa);
-    const clientes = Array.isArray(cs) ? cs : (cs.items || []);
-    setClienteEmail(o.cliente_id ? (clientes.find((x) => x.id === o.cliente_id)?.email || "") : "");
+      const [arts, tipos, maqs, mos, cons, empresa, cs] = await Promise.all([
+        api.get("/artigos?lite=1"),
+        api.get("/tipos-personalizacao"),
+        api.get("/maquinas"),
+        api.get("/mao-obra"),
+        api.get("/consumiveis"),
+        api.get("/settings/empresa").catch(() => ({})),
+        o.cliente_id ? api.get("/clientes").catch(() => []) : Promise.resolve([]),
+      ]);
+      setArtigos(arts);
+      setTipos(tipos);
+      setMaquinas(maqs);
+      setMaoObra(mos);
+      setConsumiveis(cons);
+      setEmpresa(empresa);
+      const clientes = Array.isArray(cs) ? cs : (cs.items || []);
+      setClienteEmail(o.cliente_id ? (clientes.find((x) => x.id === o.cliente_id)?.email || "") : "");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setLoadError(typeof detail === "string" ? detail : "Não foi possível carregar o orçamento.");
+      setOrc(null);
+    }
   }, [id]);
   useEffect(() => {
     load();
   }, [load]);
 
+  if (loadError && !orc) {
+    return (
+      <div className="text-sm space-y-3 py-8 text-center">
+        <p className="text-gray-600">{loadError}</p>
+        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
+      </div>
+    );
+  }
   if (!orc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
   const upd = (patch) => setOrc({ ...orc, ...patch });

@@ -21,7 +21,7 @@ from app.services.pdf import load_pdf_config, fetch_cliente, fetch_orcamento, bu
 from app.services import audit
 from app.services import email as email_service
 
-_ENC_CAMPOS = ["cliente", "descricao", "prazo_entrega", "notas", "valor_total", "desconto_total", "entregue", "data_entrega"]
+_ENC_CAMPOS = ["cliente", "descricao", "prazo_entrega", "notas", "valor_total", "desconto_total", "envio", "entregue", "data_entrega"]
 
 PAG_METODO_PT = {
     "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",

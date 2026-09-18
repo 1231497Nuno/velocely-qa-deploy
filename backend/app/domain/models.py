@@ -138,15 +138,6 @@ class MaoObraInput(BaseModel):
     responsavel_personalizacoes: bool = False
 
 
-class ArtigoMaterial(BaseModel):
-    id: str = Field(default_factory=new_id)
-    material_id: str
-    material_nome: str = ""
-    unidade: str = ""
-    quantidade: float = 0.0
-    custo_unitario: float = 0.0
-
-
 class Operacao(BaseModel):
     id: str = Field(default_factory=new_id)
     nome: str = ""
@@ -169,6 +160,48 @@ class Anexo(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+class ArtigoMaterial(BaseModel):
+    id: str = Field(default_factory=new_id)
+    material_id: str  # artigo (consumível/componente) — legado: pode ser consumivel_id
+    material_nome: str = ""
+    unidade: str = ""
+    quantidade: float = 0.0
+    custo_unitario: float = 0.0
+
+
+# Tipo de artigo — define campos e regras de utilização.
+# «Produzido» não é tipo: é o flag `produzido` no Ativo (receita + operações).
+TIPO_ARTIGO_ATIVO = "ativo"
+TIPO_ARTIGO_CONSUMIVEL = "consumivel"
+TIPO_ARTIGO_SERVICO = "servico"
+TIPO_ARTIGO_NAO_UTILIZADO = "nao_utilizado"
+TIPO_ARTIGO_INATIVO = "inativo"
+# Legado (aceite no input e normalizado para ativo + produzido=True)
+TIPO_ARTIGO_PRODUZIDO_LEGADO = "produzido"
+TIPOS_ARTIGO = (
+    TIPO_ARTIGO_ATIVO,
+    TIPO_ARTIGO_CONSUMIVEL,
+    TIPO_ARTIGO_SERVICO,
+    TIPO_ARTIGO_NAO_UTILIZADO,
+    TIPO_ARTIGO_INATIVO,
+)
+TIPOS_ARTIGO_INPUT = TIPOS_ARTIGO + (TIPO_ARTIGO_PRODUZIDO_LEGADO,)
+TIPO_ARTIGO_PT = {
+    TIPO_ARTIGO_ATIVO: "Ativo",
+    TIPO_ARTIGO_CONSUMIVEL: "Consumível",
+    TIPO_ARTIGO_SERVICO: "Serviço",
+    TIPO_ARTIGO_NAO_UTILIZADO: "Não utilizado",
+    TIPO_ARTIGO_INATIVO: "Inativo",
+}
+TIPO_ARTIGO_DESC = {
+    TIPO_ARTIGO_ATIVO: "Artigo de venda — opcionalmente produzido (receita e operações)",
+    TIPO_ARTIGO_CONSUMIVEL: "Artigo consumido / matéria-prima",
+    TIPO_ARTIGO_SERVICO: "Sem stock nem produção",
+    TIPO_ARTIGO_NAO_UTILIZADO: "Pode usar em operações futuras, com confirmação",
+    TIPO_ARTIGO_INATIVO: "Não pode voltar a ser utilizado em operações futuras",
+}
+
+
 class Artigo(BaseModel):
     id: str = Field(default_factory=new_id)
     codigo: str = ""
@@ -182,8 +215,12 @@ class Artigo(BaseModel):
     categoria_nome: str = ""
     subcategoria_id: Optional[str] = None
     subcategoria_nome: str = ""
+    tipo_artigo: str = TIPO_ARTIGO_ATIVO
+    # Ativo com produção: receita (materiais) + operações
+    produzido: bool = False
     custo_artigo: float = 0.0
     margem: float = 30.0
+    comissao_pct: float = 0.0
     ativo: bool = True
     # Artigo genérico para linhas com descrição livre (código DIV-…)
     diversos: bool = False
@@ -193,13 +230,28 @@ class Artigo(BaseModel):
     fornecedor_nome: str = ""
     cod_fornecedor: str = ""
     website: str = ""
+    ficha_produto: str = ""
+    plano_contas: str = ""
+    codigo_produto: str = ""
     comprimento_mm: float = 0.0
     largura_mm: float = 0.0
     espessura_mm: float = 0.0
+    peso_kg: float = 0.0
+    comprimento_unidade: str = "mm"
+    largura_unidade: str = "mm"
+    espessura_unidade: str = "mm"
+    peso_unidade: str = "kg"
     responsavel: str = ""
+    qtd_uni: float = 1.0
+    qtd_stock: float = 0.0
+    nivel_reabastecimento: float = 0.0
+    qtd_ultima_compra: float = 0.0
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+    created_by: Optional[str] = None
+    created_by_nome: str = ""
 
 
 class ArtigoInput(BaseModel):
@@ -212,8 +264,11 @@ class ArtigoInput(BaseModel):
     categoria_nome: str = ""
     subcategoria_id: Optional[str] = None
     subcategoria_nome: str = ""
+    tipo_artigo: str = TIPO_ARTIGO_ATIVO
+    produzido: bool = False
     custo_artigo: float = 0.0
     margem: float = 30.0
+    comissao_pct: float = 0.0
     ativo: bool = True
     diversos: bool = False
     fabricante: str = ""
@@ -222,13 +277,68 @@ class ArtigoInput(BaseModel):
     fornecedor_nome: str = ""
     cod_fornecedor: str = ""
     website: str = ""
+    ficha_produto: str = ""
+    plano_contas: str = ""
+    codigo_produto: str = ""
     comprimento_mm: float = 0.0
     largura_mm: float = 0.0
     espessura_mm: float = 0.0
+    peso_kg: float = 0.0
+    comprimento_unidade: str = "mm"
+    largura_unidade: str = "mm"
+    espessura_unidade: str = "mm"
+    peso_unidade: str = "kg"
     responsavel: str = ""
+    qtd_uni: float = 1.0
+    qtd_stock: float = 0.0
+    nivel_reabastecimento: float = 0.0
+    qtd_ultima_compra: float = 0.0
     codigo_origem: str = ""
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _normalizar_tipo_artigo(self):
+        t = (self.tipo_artigo or TIPO_ARTIGO_ATIVO).strip().lower()
+        if t not in TIPOS_ARTIGO_INPUT:
+            raise ValueError(
+                "Tipo de artigo inválido. Use: " + ", ".join(TIPOS_ARTIGO)
+            )
+        # Legado «produzido» → Ativo + check produzido
+        if t == TIPO_ARTIGO_PRODUZIDO_LEGADO:
+            t = TIPO_ARTIGO_ATIVO
+            self.produzido = True
+        self.tipo_artigo = t
+        # Produção só faz sentido em Ativo
+        if t != TIPO_ARTIGO_ATIVO:
+            self.produzido = False
+        # Receita/operações só se produzido
+        if not self.produzido:
+            self.materiais = []
+            self.roteiro = []
+        # Alinha flag legado «ativo» com o tipo
+        if t == TIPO_ARTIGO_INATIVO:
+            self.ativo = False
+        elif t in (TIPO_ARTIGO_ATIVO, TIPO_ARTIGO_CONSUMIVEL, TIPO_ARTIGO_SERVICO):
+            self.ativo = True
+        if t == TIPO_ARTIGO_SERVICO:
+            self.comprimento_mm = 0.0
+            self.largura_mm = 0.0
+            self.espessura_mm = 0.0
+            self.peso_kg = 0.0
+            self.qtd_stock = 0.0
+            self.nivel_reabastecimento = 0.0
+            self.qtd_ultima_compra = 0.0
+        if t == TIPO_ARTIGO_CONSUMIVEL:
+            # Consumível: custo de aquisição; sem margem de venda típica
+            self.margem = 0.0
+            self.comissao_pct = 0.0
+        # Unidades de dimensão — defaults
+        self.comprimento_unidade = (self.comprimento_unidade or "mm").strip() or "mm"
+        self.largura_unidade = (self.largura_unidade or "mm").strip() or "mm"
+        self.espessura_unidade = (self.espessura_unidade or "mm").strip() or "mm"
+        self.peso_unidade = (self.peso_unidade or "kg").strip() or "kg"
+        return self
 
 
 class CategoriaInput(BaseModel):
@@ -673,6 +783,7 @@ class EncomendaInput(BaseModel):
     notas: str = ""
     desconto_total: float = 0.0
     desconto_total_tipo: str = "pct"  # pct | eur
+    envio: float = 0.0
     artigos: List[EncomendaArtigo] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
     anexos: List[Anexo] = Field(default_factory=list)

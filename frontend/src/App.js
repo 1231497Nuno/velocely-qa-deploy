@@ -3,13 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/features/auth/Login";
 import DefinirPassword from "@/features/auth/DefinirPassword";
 import Dashboard from "@/features/dashboard/Dashboard";
 import Artigos from "@/features/artigos/Artigos";
 import ArtigoDetail from "@/features/artigos/ArtigoDetail";
+import ArtigoNovo from "@/features/artigos/ArtigoNovo";
 import Maquinas from "@/features/catalogo/Maquinas";
-import Materiais from "@/features/catalogo/Materiais";
 import MaoObra from "@/features/catalogo/MaoObra";
 import TiposPersonalizacao from "@/features/catalogo/TiposPersonalizacao";
 import Categorias from "@/features/catalogo/Categorias";
@@ -46,7 +47,7 @@ function Protected({ children, adminOnly, modulo }) {
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
   if (modulo && !can(modulo, "view")) return <Navigate to="/" replace />;
-  return <Layout>{children}</Layout>;
+  return <Layout><ErrorBoundary>{children}</ErrorBoundary></Layout>;
 }
 
 function AppRoutes() {
@@ -73,11 +74,12 @@ function AppRoutes() {
       <Route path="/contas" element={<Protected modulo="contas"><Contas /></Protected>} />
       <Route path="/contas/:id" element={<Protected modulo="contas"><ContaDetail /></Protected>} />
       <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
+      <Route path="/artigos/novo" element={<Protected modulo="artigos"><ArtigoNovo /></Protected>} />
       <Route path="/artigos/:id" element={<Protected modulo="artigos"><ArtigoDetail /></Protected>} />
       <Route path="/categorias" element={<Protected modulo="artigos"><Categorias /></Protected>} />
       <Route path="/subcategorias" element={<Navigate to="/categorias" replace />} />
       <Route path="/maquinas" element={<Protected modulo="maquinas"><Maquinas /></Protected>} />
-      <Route path="/materiais" element={<Protected modulo="materiais"><Materiais /></Protected>} />
+      <Route path="/materiais" element={<Navigate to="/artigos" replace />} />
       <Route path="/mao-obra" element={<Protected modulo="mao_obra"><MaoObra /></Protected>} />
       <Route path="/personalizacao" element={<Protected modulo="personalizacao"><TiposPersonalizacao /></Protected>} />
       <Route path="/orcamentos" element={<Protected modulo="orcamentos"><Orcamentos /></Protected>} />
@@ -89,6 +91,7 @@ function AppRoutes() {
       <Route path="/utilizadores" element={<Protected adminOnly><GestaoUtilizadores /></Protected>} />
       <Route path="/historico" element={<Protected modulo="historico"><Historico /></Protected>} />
       <Route path="/definicoes" element={<Protected modulo="definicoes"><Definicoes /></Protected>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
@@ -97,9 +100,11 @@ function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" richColors />
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

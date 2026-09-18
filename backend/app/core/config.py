@@ -21,6 +21,9 @@ CORS_ORIGINS = [
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@velocely.local")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR", str(ROOT_DIR / "uploads"))
+# local | gridfs — no Render usa gridfs por omissão (uploads sobrevivem a redeploys)
+STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "").strip().lower()
+IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 
 # Email / SMTP (opcional — sem isto, códigos de password aparecem nos logs em dev)
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
