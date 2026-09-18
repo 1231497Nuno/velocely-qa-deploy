@@ -149,10 +149,33 @@ def ensure_api(owner: str, services: list[dict], env: dict) -> dict:
     return s
 
 
+SPA_ROUTES = [{"type": "rewrite", "source": "/*", "destination": "/index.html"}]
+
+
+def ensure_spa_routes(service_id: str) -> None:
+    """SPA: refresh em /login, /encomendas/…, etc. tem de servir index.html."""
+    _, data = req("GET", f"/services/{service_id}/routes")
+    items = data if isinstance(data, list) else []
+    routes = [(it.get("route") or it) for it in items]
+    has_spa = any(
+        r.get("type") == "rewrite"
+        and r.get("source") in ("/*", "*")
+        and r.get("destination") == "/index.html"
+        for r in routes
+    )
+    if has_spa:
+        print(f"✓ SPA rewrite já existe em {service_id}")
+        return
+    print(f"→ A aplicar SPA rewrite /* → /index.html em {service_id}…")
+    req("PUT", f"/services/{service_id}/routes", SPA_ROUTES)
+    print("✓ SPA rewrite aplicado")
+
+
 def ensure_web(owner: str, services: list[dict], api_url: str) -> dict:
     existing = find(services, "velocely-qa-web")
     if existing:
         print(f"✓ Web já existe: {existing['id']}  {service_url(existing)}")
+        ensure_spa_routes(existing["id"])
         return existing
 
     if not api_url:
@@ -171,9 +194,7 @@ def ensure_web(owner: str, services: list[dict], api_url: str) -> dict:
             "buildCommand": "npm run build",
             "publishPath": "build",
             "pullRequestPreviewsEnabled": "no",
-            "routes": [
-                {"type": "rewrite", "source": "/*", "destination": "/index.html"},
-            ],
+            "routes": list(SPA_ROUTES),
         },
         "envVars": [
             {"key": "REACT_APP_BACKEND_URL", "value": api_url},
@@ -183,6 +204,7 @@ def ensure_web(owner: str, services: list[dict], api_url: str) -> dict:
     _, data = req("POST", "/services", body)
     s = (data or {}).get("service") or data
     print(f"✓ Web criado: {s['id']}  {service_url(s)}")
+    ensure_spa_routes(s["id"])
     return s
 
 
