@@ -48,13 +48,18 @@ export function downloadImportTemplate(entity) {
   return downloadBlob(`/io/import/template/${entity}`);
 }
 
-export async function importExcel(entity, file, dryRun = true) {
+export async function importExcel(entity, file, dryRun = true, mode = "create") {
   const fd = new FormData();
   fd.append("file", file);
   const headers = {};
   const t = getToken();
   if (t) headers.Authorization = `Bearer ${t}`;
-  const res = await fetch(`${API}/io/import/xlsx?entity=${encodeURIComponent(entity)}&dry_run=${dryRun}`, {
+  const q = new URLSearchParams({
+    entity,
+    dry_run: String(dryRun),
+    mode: mode || "create",
+  });
+  const res = await fetch(`${API}/io/import/xlsx?${q}`, {
     method: "POST",
     headers,
     body: fd,

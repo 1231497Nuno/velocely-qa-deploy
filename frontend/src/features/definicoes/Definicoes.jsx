@@ -707,6 +707,7 @@ function DadosTab() {
   const [selected, setSelected] = useState({});
   const [exporting, setExporting] = useState(false);
   const [importEntity, setImportEntity] = useState("clientes");
+  const [importMode, setImportMode] = useState("create");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -750,15 +751,22 @@ function DadosTab() {
 
   const runImport = async (dryRun) => {
     if (!file) return toast.error("Escolha um ficheiro .xlsx");
+    if (!dryRun && importMode === "update") {
+      const ok = window.confirm(
+        "Modo Actualizar: registos com o mesmo código/número vão ser alterados. Continuar?"
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     try {
-      const res = await importExcel(importEntity, file, dryRun);
+      const res = await importExcel(importEntity, file, dryRun, importMode);
       setPreview(res);
+      const skip = res.skipped || 0;
       if (dryRun) {
-        if (res.ok) toast.success(`Validação OK — ${res.created} novos, ${res.updated} actualizações`);
+        if (res.ok) toast.success(`Validação OK — ${res.created} novos, ${res.updated} actualizar, ${skip} ignorados`);
         else toast.error(`${res.errors?.length || 0} erro(s) na validação`);
       } else {
-        if (res.ok) toast.success(`Importado: ${res.created} criados, ${res.updated} actualizados`);
+        if (res.ok) toast.success(`Importado: ${res.created} criados, ${res.updated} actualizados, ${skip} ignorados`);
         else toast.error("Importação com erros");
       }
     } catch (e) {
@@ -802,10 +810,12 @@ function DadosTab() {
         <div>
           <h2 className="font-display text-lg text-gray-900 flex items-center gap-2"><Upload size={18} /> Importar Excel</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Descarregue o template, preencha no Excel e valide antes de gravar. Upsert por código (ou número nas encomendas). Encomendas incluem a folha de linhas. Máx. 5000 linhas.
+            Descarregue o template (já formatado: códigos/NIF/telefone como texto, dropdowns).
+            Por defeito <strong>só cria</strong> registos novos — não substitui os existentes.
+            Encomendas: folha Encomendas + Encomenda_linhas. Máx. 5000 linhas.
           </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1.5 block">Entidade</label>
             <select
@@ -815,6 +825,18 @@ function DadosTab() {
               className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
             >
               {importable.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Modo</label>
+            <select
+              data-testid="import-mode-select"
+              value={importMode}
+              onChange={(e) => { setImportMode(e.target.value); setPreview(null); }}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+            >
+              <option value="create">Só criar (recomendado)</option>
+              <option value="update">Actualizar existentes</option>
             </select>
           </div>
           <div>
@@ -828,6 +850,11 @@ function DadosTab() {
             />
           </div>
         </div>
+        {importMode === "update" && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-sm px-3 py-2">
+            Atenção: no modo Actualizar, códigos/números já existentes são substituídos. Confirme sempre com «Validar» primeiro.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={doTemplate} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
             <Download size={16} /> Template
@@ -854,9 +881,11 @@ function DadosTab() {
         {preview && (
           <div className="border border-gray-200 rounded-sm p-3 text-sm space-y-2" data-testid="import-preview">
             <div className="text-gray-700">
-              {preview.dry_run ? "Pré-visualização" : "Resultado"}:{" "}
+              {preview.dry_run ? "Pré-visualização" : "Resultado"}
+              {preview.mode ? ` (${preview.mode === "update" ? "actualizar" : "só criar"})` : ""}:{" "}
               <span className="font-medium">{preview.created}</span> criar,{" "}
-              <span className="font-medium">{preview.updated}</span> actualizar
+              <span className="font-medium">{preview.updated}</span> actualizar,{" "}
+              <span className="font-medium">{preview.skipped || 0}</span> ignorar
               {preview.errors?.length ? <> · <span className="text-red-600">{preview.errors.length} erros</span></> : null}
             </div>
             {preview.errors?.length > 0 && (
@@ -866,12 +895,15 @@ function DadosTab() {
                 ))}
               </ul>
             )}
-            {preview.preview?.length > 0 && !preview.errors?.length && (
-              <ul className="text-xs text-gray-600 max-h-32 overflow-auto space-y-0.5">
-                {preview.preview.slice(0, 15).map((p, i) => (
-                  <li key={i}>{p.acao}: {p.codigo} — {p.nome}</li>
+            {preview.preview?.length > 0 && (
+              <ul className="text-xs text-gray-600 max-h-40 overflow-auto space-y-0.5">
+                {preview.preview.slice(0, 20).map((p, i) => (
+                  <li key={i}>
+                    {p.acao}: {p.codigo} — {p.nome}
+                    {p.motivo ? ` (${p.motivo})` : ""}
+                  </li>
                 ))}
-                {preview.preview_total > 15 && <li>… e mais {preview.preview_total - 15}</li>}
+                {preview.preview_total > 20 && <li>… e mais {preview.preview_total - 20}</li>}
               </ul>
             )}
           </div>

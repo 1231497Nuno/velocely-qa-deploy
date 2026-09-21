@@ -102,6 +102,10 @@ async def import_template(entity: str, user: dict = Depends(get_current_user)):
 async def import_xlsx(
     entity: str = Query(..., description="Entidade mestre a importar"),
     dry_run: bool = Query(True),
+    mode: str = Query(
+        "create",
+        description="create = só novos (predefinição); update = permite actualizar existentes",
+    ),
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
 ):
@@ -109,6 +113,12 @@ async def import_xlsx(
         raise HTTPException(400, "Entidade não suportada para importação")
     modulo = excel_io.ENTITY_PERM.get(entity, "artigos")
     await _ensure_perm(user, modulo, "create")
+
+    mode_norm = (mode or "create").strip().lower()
+    if mode_norm not in excel_io.IMPORT_MODES:
+        raise HTTPException(400, "mode deve ser 'create' ou 'update'")
+    if mode_norm == "update":
+        await _ensure_perm(user, modulo, "edit")
 
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm")):
         raise HTTPException(400, "Envie um ficheiro .xlsx")
@@ -120,7 +130,7 @@ async def import_xlsx(
         raise HTTPException(400, "Ficheiro demasiado grande (máx. 15 MB)")
 
     try:
-        result = await excel_io.import_rows(entity, raw, dry_run=dry_run)
+        result = await excel_io.import_rows(entity, raw, dry_run=dry_run, mode=mode_norm)
     except ValueError as ex:
         raise HTTPException(400, str(ex))
     except Exception as ex:
