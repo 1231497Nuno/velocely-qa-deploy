@@ -279,6 +279,27 @@ def desconto_valor(base: float, desconto, tipo) -> float:
     return round2(base * d / 100.0)
 
 
+def desconto_linha_item(item: dict) -> float:
+    """
+    Desconto de uma linha (orçamento/encomenda).
+    desconto_base: 'linha' (default) | 'unit'
+    - pct: sobre o bruto da linha
+    - eur + linha: valor fixo na linha
+    - eur + unit: valor × quantidade
+    """
+    qtd = float(item.get("quantidade") or 0)
+    unit = (item.get("preco_unit") or 0) + pers_valor_unit(item)
+    bruto = round2(unit * qtd)
+    d = float(item.get("desconto") or 0)
+    if d <= 0 or bruto <= 0:
+        return 0.0
+    tipo = (item.get("desconto_tipo") or "pct").strip().lower()
+    base = (item.get("desconto_base") or "linha").strip().lower()
+    if tipo == "eur" and base in ("unit", "unidade", "un"):
+        return round2(min(d * qtd, bruto))
+    return desconto_valor(bruto, d, tipo)
+
+
 def linha_venda_bruto(l: dict) -> float:
     qtd = l.get("quantidade") or 0
     return round2(((l.get("preco_unit") or 0) + pers_valor_unit(l)) * qtd)
@@ -294,7 +315,7 @@ def compute_orcamento_totais(orc: dict) -> dict:
         subtotal_custo += (l.get("custo_producao_unit") or 0) * qtd
         subtotal_venda += (l.get("preco_unit") or 0) * qtd
         total_pers += pers_valor_unit(l) * qtd
-        desconto_linhas += desconto_valor(linha_venda_bruto(l), l.get("desconto"), l.get("desconto_tipo"))
+        desconto_linhas += desconto_linha_item(l)
     custo_materiais = 0.0
     venda_materiais = 0.0
     for m in orc.get("materiais", []):
@@ -557,8 +578,7 @@ def encomenda_artigos_breakdown(enc: dict) -> dict:
         qtd = a.get("quantidade") or 0
         subtotal_venda += (a.get("preco_unit") or 0) * qtd
         total_pers += pers_valor_unit(a) * qtd
-        linha_bruto = round2(((a.get("preco_unit") or 0) + pers_valor_unit(a)) * qtd)
-        desc_linhas += desconto_valor(linha_bruto, a.get("desconto"), a.get("desconto_tipo"))
+        desc_linhas += desconto_linha_item(a)
     subtotal_venda = round2(subtotal_venda)
     total_pers = round2(total_pers)
     bruto = round2(subtotal_venda + total_pers)
@@ -601,8 +621,7 @@ def encomenda_acrescimo_preco_orcamento(enc: dict) -> float:
         qtd = a.get("quantidade") or 0
         pu = a.get("preco_unit") or 0
         if piso is None:
-            linha_bruto = round2(((pu) + pers_valor_unit(a)) * qtd)
-            novos += linha_bruto - desconto_valor(linha_bruto, a.get("desconto"), a.get("desconto_tipo"))
+            novos += linha_venda_bruto(a) - desconto_linha_item(a)
         else:
             extra += max(0.0, float(pu) - piso) * qtd
     return round2(extra + novos)

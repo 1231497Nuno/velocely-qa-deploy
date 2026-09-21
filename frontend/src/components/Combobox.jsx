@@ -15,6 +15,7 @@ export default function Combobox({
   testid,
   optionTestidPrefix = "option",
   className = "",
+  disabled = false,
   /** Prefixo no label (igual a clientes/fornecedores). Default: true. */
   matchPrefix = true,
 }) {
@@ -32,12 +33,13 @@ export default function Combobox({
     : undefined;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={disabled ? false : open} onOpenChange={disabled ? undefined : setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           data-testid={testid}
-          className={`w-full flex items-center justify-between gap-2 border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black transition-colors ${className}`}
+          disabled={disabled}
+          className={`w-full flex items-center justify-between gap-2 border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black transition-colors disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed ${className}`}
         >
           <span className={selected ? "text-gray-900 truncate" : "text-gray-400 truncate"}>
             {selected ? selected.label : placeholder}

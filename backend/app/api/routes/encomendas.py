@@ -20,8 +20,12 @@ from app.services.costing import (
 from app.services.pdf import load_pdf_config, fetch_cliente, fetch_orcamento, build_encomenda_pdf, build_recibo_pdf
 from app.services import audit
 from app.services import email as email_service
+from app.services import contactos as contactos_svc
 
-_ENC_CAMPOS = ["cliente", "descricao", "prazo_entrega", "notas", "valor_total", "desconto_total", "envio", "entregue", "data_entrega"]
+_ENC_CAMPOS = [
+    "cliente", "descricao", "prazo_entrega", "notas", "valor_total", "desconto_total", "envio",
+    "entregue", "data_entrega", "contacto_id", "contacto_nome",
+]
 
 PAG_METODO_PT = {
     "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
@@ -196,7 +200,8 @@ async def get_encomenda(eid: str, _u: dict = Depends(require_perm("encomendas", 
 
 @router.post("/encomendas")
 async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_perm("encomendas", "create"))):
-    enc = Encomenda(**data.model_dump())
+    payload = await contactos_svc.apply_contacto_denorm(data.model_dump())
+    enc = Encomenda(**payload)
     enc.numero = await next_sequence("ENC")
     if not enc.data:
         enc.data = now_iso()[:10]
@@ -216,6 +221,7 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
         novo["entregue"] = bool(existing.get("entregue"))
     if "data_entrega" not in data.model_fields_set:
         novo["data_entrega"] = existing.get("data_entrega")
+    novo = await contactos_svc.apply_contacto_denorm(novo)
     orc = None
     if existing.get("orcamento_id"):
         orc = await orcamentos_repo.get(existing["orcamento_id"])
@@ -362,7 +368,10 @@ async def _enviar_encomenda_notificacao(eid: str, body: EnviarEmailBody, user: d
         raise HTTPException(400, "Não é possível notificar uma encomenda cancelada")
 
     cliente = await fetch_cliente(e.get("cliente_id"))
-    to = (body.to or (cliente or {}).get("email") or "").strip()
+    # Preferir «à atenção de», senão email da empresa
+    to = contactos_svc.resolve_email_destinatario(
+        e, cliente, explicit_to=body.to or "",
+    )
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")
 

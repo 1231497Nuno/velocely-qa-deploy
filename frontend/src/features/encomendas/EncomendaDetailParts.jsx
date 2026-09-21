@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { eur, fmtDate } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
+import ContactoSelector from "@/components/ContactoSelector";
 import { FieldGrid, FieldRow } from "@/components/BlocosShell";
 import {
-  AlertTriangle, User, Phone, Mail, MapPin, Hash, Factory, Layers, Plus,
+  AlertTriangle, User, Phone, Mail, MapPin, Hash, Factory, Layers, Plus, Trash2,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -49,7 +51,7 @@ export const EncKPIs = ({ enc }) => {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
       <KpiCard testid="enc-kpi-valor" label="Valor da Encomenda" value={eur(enc.valor_total)} />
-      <KpiCard testid="enc-kpi-pago" label="Pago" value={eur(enc.valor_pago)} valueClass="text-emerald-600" sub={`${pctLabel ? `${pctLabel} · ` : ""}Pendente ${eur(enc.valor_pendente)}`} />
+      <KpiCard testid="enc-kpi-pago" label="Recebido" value={eur(enc.valor_pago)} valueClass="text-emerald-600" sub={`${pctLabel ? `${pctLabel} · ` : ""}A receber ${eur(enc.valor_pendente)}`} />
       <KpiCard testid="enc-kpi-custo-real" label="Custo Produção (real)" value={eur(enc.custo_producao_real)} sub={`Estimado ${eur(enc.custo_producao_estimado)}`} />
       <KpiCard testid="enc-kpi-margem" label="Margem (valor − custo real)" value={eur(enc.margem_producao)} valueClass={enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"} />
     </div>
@@ -75,8 +77,8 @@ export const EncPagamentoResumo = ({ enc }) => {
           <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 leading-tight">Estado do pagamento</div>
           <div className="mt-2"><StatusBadge status={enc.status_pagamento} testid="enc-pag-pagamento-badge" /></div>
         </div>
-        <KpiCard testid="enc-pag-kpi-pago" label="Pago" value={eur(pago)} valueClass="text-emerald-600" sub={`de ${eur(base)} c/ IVA`} />
-        <KpiCard testid="enc-pag-kpi-pendente" label="Pendente" value={eur(enc.valor_pendente)} valueClass={(enc.valor_pendente || 0) > 0.009 ? "text-amber-700" : "text-emerald-600"} sub={devolvido > 0.009 ? `Devolvido ${eur(devolvido)}` : undefined} />
+        <KpiCard testid="enc-pag-kpi-pago" label="Recebido" value={eur(pago)} valueClass="text-emerald-600" sub={`de ${eur(base)} c/ IVA`} />
+        <KpiCard testid="enc-pag-kpi-pendente" label="A receber" value={eur(enc.valor_pendente)} valueClass={(enc.valor_pendente || 0) > 0.009 ? "text-amber-700" : "text-emerald-600"} sub={devolvido > 0.009 ? `Devolvido ${eur(devolvido)}` : undefined} />
       </div>
       <div className="bg-white border border-gray-200 rounded-sm p-4" data-testid="enc-pag-percentual">
         <div className="flex items-center justify-between gap-3 mb-2">
@@ -90,6 +92,143 @@ export const EncPagamentoResumo = ({ enc }) => {
             style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
           />
         </div>
+      </div>
+    </div>
+  );
+};
+
+const METODO_PAG_PT = {
+  transferencia: "Transferência",
+  numerario: "Numerário",
+  mbway: "MB WAY",
+  cheque: "Cheque",
+  cartao: "Cartão",
+  outro: "Outro",
+};
+
+/** Bloco sob os totais: recebido / a receber + registo rápido. */
+export const EncRegistarPagamento = ({
+  enc,
+  canEdit,
+  onRegistar,
+  registering = false,
+}) => {
+  const [valor, setValor] = useState("");
+  const [metodo, setMetodo] = useState("transferencia");
+  const pago = Number(enc.valor_pago) || 0;
+  const pendente = Number(enc.valor_pendente) || 0;
+  const base = Number(enc.total_com_iva) || Number(enc.valor_total) || 0;
+  const cancelada = enc.estado === "cancelada";
+
+  const submit = async () => {
+    const v = Number(valor);
+    if (!(v > 0)) return;
+    await onRegistar?.({ valor: v, metodo });
+    setValor("");
+    setMetodo("transferencia");
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3" data-testid="enc-registar-pagamento">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-500">Recebido</span>
+        <span className="tabular-nums font-medium text-emerald-600" data-testid="enc-totais-recebido">{eur(pago)}</span>
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-500">A receber</span>
+        <span className={`tabular-nums font-medium ${pendente > 0.009 ? "text-amber-700" : "text-emerald-600"}`} data-testid="enc-totais-a-receber">{eur(pendente)}</span>
+      </div>
+      {base > 0 && (
+        <div className="text-[11px] text-gray-400 text-right">Total c/ IVA {eur(base)}</div>
+      )}
+      {canEdit && !cancelada && (
+        <div className="border-t border-gray-200 pt-3 space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Registar pagamento</div>
+          <div className="flex items-center gap-2">
+            <input
+              data-testid="enc-pag-valor-input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              placeholder="Valor"
+              className="flex-1 min-w-0 border border-gray-300 rounded-sm px-2 py-1.5 text-sm tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-black/20"
+            />
+            <span className="text-xs text-gray-400 shrink-0">€</span>
+          </div>
+          <select
+            data-testid="enc-pag-metodo-select"
+            value={metodo}
+            onChange={(e) => setMetodo(e.target.value)}
+            className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+          >
+            {Object.entries(METODO_PAG_PT).map(([k, label]) => (
+              <option key={k} value={k}>{label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            data-testid="enc-pag-registar-btn"
+            disabled={registering || !(Number(valor) > 0)}
+            onClick={submit}
+            className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-40 rounded-sm px-3 py-2 text-sm font-medium transition-colors"
+          >
+            {registering ? "A registar…" : "Registar pagamento"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Lista de pagamentos no sub-separador. */
+export const EncPagamentosLista = ({ enc, canEdit, onDelete }) => {
+  const pags = enc.pagamentos || [];
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm overflow-hidden" data-testid="enc-pagamentos-lista">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Recibo</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Método</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
+              <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
+              <th className="w-12" />
+            </tr>
+          </thead>
+          <tbody>
+            {pags.map((p) => (
+              <tr key={p.id} data-testid={`enc-pag-row-${p.id}`} className="border-b border-gray-100 last:border-0">
+                <td className="px-4 py-2.5 mono tabular-nums font-medium text-gray-900 whitespace-nowrap">{p.recibo_numero || "—"}</td>
+                <td className="px-4 py-2.5 text-gray-600 tabular-nums whitespace-nowrap">{fmtDate(p.data)}</td>
+                <td className="px-4 py-2.5 text-gray-600">{METODO_PAG_PT[p.metodo] || p.metodo || "—"}</td>
+                <td className="px-4 py-2.5 text-gray-600 text-xs">{p.tipo === "devolucao" ? "Devolução" : "Pagamento"}</td>
+                <td className={`px-4 py-2.5 text-right tabular-nums font-medium whitespace-nowrap ${p.tipo === "devolucao" ? "text-red-600" : "text-gray-900"}`}>
+                  {p.tipo === "devolucao" ? "− " : ""}{eur(p.valor)}
+                </td>
+                <td className="px-4 py-2.5">
+                  {canEdit && p.origem !== "fatura" && (
+                    <button
+                      type="button"
+                      data-testid={`enc-pag-del-${p.id}`}
+                      title="Remover"
+                      onClick={() => onDelete?.(p)}
+                      className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {pags.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Sem pagamentos registados.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -117,23 +256,43 @@ export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPr
 /** Campos de cliente / prazos no estilo FieldGrid dos artigos. */
 export const EncClienteCampos = ({
   enc, cliente, moradaCompleta, canEdit,
+  onContactoChange,
   onPrazoChange, onPrazoBlur,
   onEntregaToggle, onDataEntregaChange, onDataEntregaBlur,
   onDescricaoChange, onDescricaoBlur,
-}) => (
+}) => {
+  const isEmpresa = cliente?.tipo === "empresa" || (!cliente?.tipo && cliente?.nif);
+  const showAtencao = isEmpresa || (cliente?.contactos || []).length > 0 || enc.contacto_nome;
+  return (
   <div data-testid="encomenda-cliente-info">
     <FieldGrid>
       <FieldRow label="Cliente" testid="enc-campo-cliente" full>
         <span className="truncate" title={enc.cliente || ""}>{enc.cliente || "—"}</span>
       </FieldRow>
+      {showAtencao && (
+        <FieldRow label="À atenção de" testid="enc-campo-atencao" full>
+          {canEdit ? (
+            <div className="w-full max-w-md ml-auto">
+              <ContactoSelector
+                contactos={cliente?.contactos || []}
+                value={enc.contacto_id}
+                onChange={(cid, c) => onContactoChange?.(cid, c)}
+                testid="enc-contacto-select"
+              />
+            </div>
+          ) : (
+            <span className="truncate">{enc.contacto_nome || "—"}</span>
+          )}
+        </FieldRow>
+      )}
       {cliente?.contacto && (
         <FieldRow label="Contacto" testid="enc-campo-contacto">
           <span className="truncate">{cliente.contacto}</span>
         </FieldRow>
       )}
-      {cliente?.email && (
+      {(enc.contacto_email || cliente?.email) && (
         <FieldRow label="Email" testid="enc-campo-email">
-          <span className="truncate" title={cliente.email}>{cliente.email}</span>
+          <span className="truncate" title={enc.contacto_email || cliente?.email}>{enc.contacto_email || cliente?.email}</span>
         </FieldRow>
       )}
       {cliente?.nif && (
@@ -209,7 +368,8 @@ export const EncClienteCampos = ({
       </FieldRow>
     </FieldGrid>
   </div>
-);
+  );
+};
 
 /** Bloco compacto do cliente para a barra sticky da encomenda. */
 export const ClienteStickyMeta = ({

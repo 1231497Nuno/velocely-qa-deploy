@@ -15,6 +15,7 @@ from app.core.database import round2
 _CLIENTE_CAMPOS = [
     "nome", "tipo", "morada", "codigo_postal", "cidade", "pais",
     "contacto", "email", "nif", "notas", "responsavel",
+    "condicoes_pagamento", "desconto_comercial_pct", "limite_credito",
 ]
 
 router = APIRouter()

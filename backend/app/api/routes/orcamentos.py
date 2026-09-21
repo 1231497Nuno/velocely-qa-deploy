@@ -21,8 +21,12 @@ from app.services.pdf import load_pdf_config, fetch_cliente, build_orcamento_pdf
 from app.services import audit
 from app.services import email as email_service
 from app.services import cliente_default as cliente_default_svc
+from app.services import contactos as contactos_svc
 
-_ORC_CAMPOS = ["cliente", "descricao", "numero_encomenda", "validade", "margem", "notas", "desconto_total"]
+_ORC_CAMPOS = [
+    "cliente", "descricao", "numero_encomenda", "validade", "margem", "notas", "desconto_total",
+    "contacto_id", "contacto_nome",
+]
 
 router = APIRouter()
 
@@ -220,7 +224,9 @@ async def enviar_orcamento_email(
         raise HTTPException(400, "Finalize o orçamento antes de enviar. Só depois de finalizado recebe número.")
     o = compute_orcamento_totais(o)
     cliente = await fetch_cliente(o.get("cliente_id"))
-    to = (body.to or (cliente or {}).get("email") or "").strip()
+    to = contactos_svc.resolve_email_destinatario(
+        o, cliente, explicit_to=body.to or "",
+    )
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")
 
@@ -282,6 +288,7 @@ async def create_orcamento(data: OrcamentoInput, user: dict = Depends(require_pe
         raise HTTPException(400, detail="; ".join(faltas))
     doc = o.model_dump()
     doc = await cliente_default_svc.apply_cliente_default(doc)
+    doc = await contactos_svc.apply_contacto_denorm(doc)
     doc["linhas"] = await fill_linha_custos(doc.get("linhas", []))
     doc["materiais"] = fill_materiais(doc.get("materiais", []))
     await orcamentos_repo.insert(doc)
@@ -306,6 +313,7 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
     faltas = requisitos_datas(update)
     if faltas:
         raise HTTPException(400, detail="; ".join(faltas))
+    update = await contactos_svc.apply_contacto_denorm(update)
     update["linhas"] = await fill_linha_custos(update.get("linhas", []))
     update["materiais"] = fill_materiais(update.get("materiais", []))
     alteracoes = audit.diff_campos(existing, update, _ORC_CAMPOS)
@@ -476,11 +484,18 @@ async def converter_orcamento(oid: str, request: Request, user: dict = Depends(r
             "preco_unit_orcamento": piso,
             "desconto": l.get("desconto") or 0,
             "desconto_tipo": l.get("desconto_tipo") or "pct",
+            "desconto_base": l.get("desconto_base") or "linha",
             "personalizacoes": l.get("personalizacoes") or [],
         })
     enc = Encomenda(
         cliente=orc.get("cliente", ""),
         cliente_id=orc.get("cliente_id"),
+        contacto_id=orc.get("contacto_id"),
+        contacto_nome=orc.get("contacto_nome") or "",
+        contacto_email=orc.get("contacto_email") or "",
+        contacto_telefone=orc.get("contacto_telefone") or "",
+        contacto_cargo=orc.get("contacto_cargo") or "",
+        contacto_departamento=orc.get("contacto_departamento") or "",
         descricao=orc.get("descricao", ""),
         data=now_iso()[:10],
         estado="aberta",

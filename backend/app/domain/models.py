@@ -425,6 +425,33 @@ class MaterialLinha(BaseModel):
     valor: float = 0.0
 
 
+class ClienteContacto(BaseModel):
+    """Pessoa de contacto da empresa (cargo preenchido manualmente)."""
+    id: str = Field(default_factory=new_id)
+    nome: str = ""
+    cargo: str = ""
+    email: str = ""
+    telefone: str = ""
+    departamento: str = ""
+    notas: str = ""
+    ativo: bool = True
+    # Fase 2 (portal B2B)
+    user_id: Optional[str] = None
+    portal_ativo: bool = False
+
+    @model_validator(mode="after")
+    def _normalizar_contacto(self):
+        self.nome = (self.nome or "").strip()
+        if not self.nome:
+            raise ValueError("Nome do contacto obrigatório")
+        self.cargo = (self.cargo or "").strip()
+        self.email = (self.email or "").strip()
+        self.telefone = (self.telefone or "").strip()
+        self.departamento = (self.departamento or "").strip()
+        self.notas = (self.notas or "").strip()
+        return self
+
+
 class ClienteInput(BaseModel):
     nome: str
     tipo: Literal["empresa", "particular"] = "empresa"
@@ -437,6 +464,12 @@ class ClienteInput(BaseModel):
     nif: str = ""
     notas: str = ""
     responsavel: str = ""
+    # Dados financeiros / comerciais (empresa)
+    condicoes_pagamento: str = ""
+    desconto_comercial_pct: Optional[float] = None
+    limite_credito: Optional[float] = None
+    # Contactos da empresa (pessoas)
+    contactos: List[ClienteContacto] = Field(default_factory=list)
     # Flags de sistema (geridas pelo backend / configurações)
     sistema: bool = False
     is_default: bool = False
@@ -456,6 +489,17 @@ class ClienteInput(BaseModel):
         self.nif = "".join((self.nif or "").split())
         self.notas = (self.notas or "").strip()
         self.responsavel = (self.responsavel or "").strip()
+        self.condicoes_pagamento = (self.condicoes_pagamento or "").strip()
+        if self.desconto_comercial_pct is not None:
+            try:
+                self.desconto_comercial_pct = max(0.0, float(self.desconto_comercial_pct))
+            except (TypeError, ValueError):
+                self.desconto_comercial_pct = None
+        if self.limite_credito is not None:
+            try:
+                self.limite_credito = max(0.0, float(self.limite_credito))
+            except (TypeError, ValueError):
+                self.limite_credito = None
 
         if self.tipo == "empresa":
             faltam = []
@@ -475,6 +519,9 @@ class ClienteInput(BaseModel):
                 raise ValueError(
                     "Para empresas são obrigatórios: " + ", ".join(faltam)
                 )
+        else:
+            # Particulares: sem lista de contactos
+            self.contactos = []
         return self
 
 
@@ -656,6 +703,13 @@ class PedidoCotacao(PedidoCotacaoInput):
 class OrcamentoInput(BaseModel):
     cliente: str = ""
     cliente_id: Optional[str] = None
+    # «À atenção de» — contacto da empresa (denormalizado)
+    contacto_id: Optional[str] = None
+    contacto_nome: str = ""
+    contacto_email: str = ""
+    contacto_telefone: str = ""
+    contacto_cargo: str = ""
+    contacto_departamento: str = ""
     descricao: str = ""
     numero_encomenda: str = ""
     data: Optional[str] = None
@@ -758,6 +812,7 @@ class EncomendaArtigo(BaseModel):
     preco_unit_orcamento: Optional[float] = None
     desconto: float = 0.0
     desconto_tipo: str = "pct"  # pct | eur
+    desconto_base: str = "linha"  # linha | unit — € unitário vs total da linha
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
 
 
@@ -776,6 +831,13 @@ class Pagamento(BaseModel):
 class EncomendaInput(BaseModel):
     cliente: str
     cliente_id: Optional[str] = None
+    # «À atenção de» — contacto da empresa (denormalizado)
+    contacto_id: Optional[str] = None
+    contacto_nome: str = ""
+    contacto_email: str = ""
+    contacto_telefone: str = ""
+    contacto_cargo: str = ""
+    contacto_departamento: str = ""
     descricao: str = ""
     data: Optional[str] = None
     prazo_entrega: Optional[str] = None

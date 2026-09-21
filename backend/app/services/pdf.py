@@ -144,6 +144,15 @@ def cliente_meta_pairs(record: dict, cliente: dict, fields: dict) -> list:
         val = (c.get("nome") or record.get("cliente")) if fkey == "cliente_nome" else c.get(ckey)
         if val:
             pairs.append((label, val))
+    # «À atenção de» — contacto do documento (denormalizado)
+    atencao = (record or {}).get("contacto_nome") or ""
+    if atencao.strip():
+        cargo = ((record or {}).get("contacto_cargo") or "").strip()
+        label = f"{atencao.strip()}" + (f" ({cargo})" if cargo else "")
+        pairs.append(("À atenção de", label))
+        dept = ((record or {}).get("contacto_departamento") or "").strip()
+        if dept:
+            pairs.append(("Departamento", dept))
     return pairs
 
 

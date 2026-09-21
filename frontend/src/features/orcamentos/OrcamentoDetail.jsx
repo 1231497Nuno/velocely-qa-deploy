@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import ClienteSelector from "@/components/ClienteSelector";
+import ContactoSelector from "@/components/ContactoSelector";
 import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
@@ -38,6 +39,7 @@ export default function OrcamentoDetail() {
   const [openOps, setOpenOps] = useState({});
   const [empresa, setEmpresa] = useState({});
   const [clienteEmail, setClienteEmail] = useState("");
+  const [clienteDoc, setClienteDoc] = useState(null);
   const [showRequisitosEncomenda, setShowRequisitosEncomenda] = useState(false);
   const [showRequisitosFinalizar, setShowRequisitosFinalizar] = useState(false);
   const [showConverterPrecos, setShowConverterPrecos] = useState(false);
@@ -80,7 +82,9 @@ export default function OrcamentoDetail() {
       setConsumiveis(cons);
       setEmpresa(empresa);
       const clientes = Array.isArray(cs) ? cs : (cs.items || []);
-      setClienteEmail(o.cliente_id ? (clientes.find((x) => x.id === o.cliente_id)?.email || "") : "");
+      const cli = o.cliente_id ? (clientes.find((x) => x.id === o.cliente_id) || null) : null;
+      setClienteDoc(cli);
+      setClienteEmail(o.contacto_email || cli?.email || "");
     } catch (err) {
       const detail = err?.response?.data?.detail;
       setLoadError(typeof detail === "string" ? detail : "Não foi possível carregar o orçamento.");
@@ -288,6 +292,12 @@ export default function OrcamentoDetail() {
   const bodyFrom = (o) => ({
     cliente: o.cliente,
     cliente_id: o.cliente_id || null,
+    contacto_id: o.contacto_id || null,
+    contacto_nome: o.contacto_nome || "",
+    contacto_email: o.contacto_email || "",
+    contacto_telefone: o.contacto_telefone || "",
+    contacto_cargo: o.contacto_cargo || "",
+    contacto_departamento: o.contacto_departamento || "",
     descricao: o.descricao || "",
     numero_encomenda: o.numero_encomenda || "",
     data: o.data,
@@ -570,8 +580,24 @@ export default function OrcamentoDetail() {
           <ClienteSelector
             value={orc.cliente_id}
             onChange={async (cid, nome, cli) => {
-              const next = { ...orc, cliente_id: cid, cliente: nome };
+              const next = {
+                ...orc,
+                cliente_id: cid,
+                cliente: nome,
+                contacto_id: null,
+                contacto_nome: "",
+                contacto_email: "",
+                contacto_telefone: "",
+                contacto_cargo: "",
+                contacto_departamento: "",
+              };
+              // Sugerir desconto comercial da empresa se ainda não houver desconto no doc
+              if (cli?.tipo === "empresa" && cli.desconto_comercial_pct != null && !(Number(orc.desconto_total) > 0)) {
+                next.desconto_total = Number(cli.desconto_comercial_pct) || 0;
+                next.desconto_total_tipo = "pct";
+              }
               setOrc(next);
+              setClienteDoc(cli || null);
               setClienteEmail(cli?.email || "");
               if (cid) setShowRequisitosFinalizar(false);
               try {
@@ -583,6 +609,35 @@ export default function OrcamentoDetail() {
             testid="orc-cliente-select"
           />
         </div>
+        {(clienteDoc?.tipo === "empresa" || (clienteDoc?.contactos || []).length > 0 || orc.contacto_nome) && (
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">À atenção de</label>
+            <ContactoSelector
+              contactos={clienteDoc?.contactos || []}
+              value={orc.contacto_id}
+              disabled={!editavel || !orc.cliente_id}
+              onChange={async (cid, c) => {
+                const next = {
+                  ...orc,
+                  contacto_id: cid,
+                  contacto_nome: c?.nome || "",
+                  contacto_email: c?.email || "",
+                  contacto_telefone: c?.telefone || "",
+                  contacto_cargo: c?.cargo || "",
+                  contacto_departamento: c?.departamento || "",
+                };
+                setOrc(next);
+                setClienteEmail(c?.email || clienteDoc?.email || "");
+                try {
+                  await api.put(`/orcamentos/${id}`, payloadFrom(next));
+                } catch {
+                  toast.error("Não foi possível definir o contacto");
+                }
+              }}
+              testid="orc-contacto-select"
+            />
+          </div>
+        )}
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>
           <input

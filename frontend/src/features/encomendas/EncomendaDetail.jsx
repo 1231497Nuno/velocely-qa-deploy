@@ -16,7 +16,7 @@ import {
   ShieldCheck, ShieldAlert, FileOutput, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { EncAlertas, EncKPIs, EncClienteCampos, OFsPanel, OrcamentosPanel, NcsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
+import { EncAlertas, EncKPIs, EncClienteCampos, EncRegistarPagamento, EncPagamentoResumo, EncPagamentosLista, OFsPanel, OrcamentosPanel, NcsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
 import { OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
 import BlocosShell from "@/components/BlocosShell";
 import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
@@ -43,6 +43,7 @@ export default function EncomendaDetail() {
   const nav = useNavigate();
   const tabIds = [
     "encomenda",
+    "pagamentos",
     "producao",
     "orcamentos",
     ...(can("nao_conformidades", "view") ? ["nao_conformidades"] : []),
@@ -66,6 +67,7 @@ export default function EncomendaDetail() {
   const [ncs, setNcs] = useState([]);
   const [ncOpen, setNcOpen] = useState(false);
   const [ncLinha, setNcLinha] = useState(null);
+  const [pagRegistering, setPagRegistering] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -128,10 +130,15 @@ export default function EncomendaDetail() {
   const persUnitOf = (a) => (a.personalizacoes || []).reduce((x, p) => x + (Number(p.valor) || 0), 0);
   const lineGross = (a) => ((Number(a.preco_unit) || 0) + persUnitOf(a)) * (Number(a.quantidade) || 0);
   const lineDisc = (a) => {
-    const base = lineGross(a);
+    const qtd = Number(a.quantidade) || 0;
+    const unit = (Number(a.preco_unit) || 0) + persUnitOf(a);
+    const base = unit * qtd;
     const d = Number(a.desconto) || 0;
-    if (d <= 0) return 0;
-    return a.desconto_tipo === "eur" ? Math.min(d, base) : (base * d) / 100;
+    if (d <= 0 || base <= 0) return 0;
+    const tipo = a.desconto_tipo || "pct";
+    const porUnidade = (a.desconto_base || "linha") === "unit";
+    if (tipo === "eur" && porUnidade) return Math.min(d * qtd, base);
+    return tipo === "eur" ? Math.min(d, base) : (base * d) / 100;
   };
   const lineNet = (a) => lineGross(a) - lineDisc(a);
 
@@ -152,6 +159,12 @@ export default function EncomendaDetail() {
   const bodyFrom = (e) => ({
     cliente: e.cliente,
     cliente_id: e.cliente_id || null,
+    contacto_id: e.contacto_id || null,
+    contacto_nome: e.contacto_nome || "",
+    contacto_email: e.contacto_email || "",
+    contacto_telefone: e.contacto_telefone || "",
+    contacto_cargo: e.contacto_cargo || "",
+    contacto_departamento: e.contacto_departamento || "",
     descricao: e.descricao || "",
     data: e.data,
     prazo_entrega: e.prazo_entrega || null,
@@ -169,6 +182,7 @@ export default function EncomendaDetail() {
       preco_unit_orcamento: a.preco_unit_orcamento == null || a.preco_unit_orcamento === "" ? null : Number(a.preco_unit_orcamento),
       desconto: Number(a.desconto) || 0,
       desconto_tipo: a.desconto_tipo || "pct",
+      desconto_base: a.desconto_base === "unit" ? "unit" : "linha",
       personalizacoes: (a.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0, tempo: Number(p.tempo) || 0 })),
     })),
     valor_total: e.valor_total_manual ? Number(e.valor_total) || 0 : null,
@@ -199,7 +213,7 @@ export default function EncomendaDetail() {
   const addArtigo = (artigoId) => {
     const a = artigos.find((x) => x.id === artigoId);
     if (!a) return;
-    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, imagem: a.imagem || "", quantidade: 1, preco_unit: Number(a.preco_venda) || 0, desconto: 0, desconto_tipo: "pct", personalizacoes: [] }] }, "Artigo adicionado");
+    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, imagem: a.imagem || "", quantidade: 1, preco_unit: Number(a.preco_venda) || 0, desconto: 0, desconto_tipo: "pct", desconto_base: "linha", personalizacoes: [] }] }, "Artigo adicionado");
   };
   const updArtigo = (i, patch) => {
     const list = [...enc.artigos];
@@ -276,7 +290,7 @@ export default function EncomendaDetail() {
               <EnviarEmailButton
                 variant="encomenda"
                 recordId={id}
-                defaultTo={cliente?.email || ""}
+                defaultTo={enc.contacto_email || cliente?.email || ""}
                 clienteNome={enc.cliente || cliente?.nome || ""}
                 prazoEntrega={enc.prazo_entrega || ""}
                 valorTotal={enc.total_com_iva ?? enc.valor_total}
@@ -308,6 +322,7 @@ export default function EncomendaDetail() {
         onChange={setTab}
         tabs={[
           { id: "encomenda", label: "Encomenda", testid: "enc-tab-encomenda" },
+          { id: "pagamentos", label: "Pagamentos", testid: "enc-tab-pagamentos" },
           { id: "producao", label: "Ordens de fabrico", testid: "enc-tab-producao" },
           { id: "orcamentos", label: "Orçamentos", testid: "enc-tab-orcamentos" },
           ...(can("nao_conformidades", "view") ? [{ id: "nao_conformidades", label: "Não conformidades", testid: "enc-tab-ncs" }] : []),
@@ -339,6 +354,19 @@ export default function EncomendaDetail() {
                       cliente={cliente}
                       moradaCompleta={moradaCompleta}
                       canEdit={can("encomendas", "edit")}
+                      onContactoChange={(cid, c) => {
+                        persist(
+                          {
+                            contacto_id: cid,
+                            contacto_nome: c?.nome || "",
+                            contacto_email: c?.email || "",
+                            contacto_telefone: c?.telefone || "",
+                            contacto_cargo: c?.cargo || "",
+                            contacto_departamento: c?.departamento || "",
+                          },
+                          cid ? "Contacto actualizado" : "Contacto removido",
+                        );
+                      }}
                       onPrazoChange={(e) => upd({ prazo_entrega: e.target.value })}
                       onPrazoBlur={() => persist({}, "Prazo atualizado")}
                       onEntregaToggle={() => {
@@ -488,14 +516,34 @@ export default function EncomendaDetail() {
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`enc-artigo-unit-pers-${i}`}>{eur(unitPers)}</td>
                           <td className="px-4 py-2.5 text-right align-top">
-                            <div className="flex items-center gap-1 justify-end">
-                              <input data-testid={`enc-artigo-desc-${i}`} type="number" min="0" step="0.01" value={a.desconto ?? 0} onChange={(e) => updArtigo(i, { desconto: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-1.5 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
-                              <select data-testid={`enc-artigo-desc-tipo-${i}`} value={a.desconto_tipo || "pct"} onChange={(e) => updArtigo(i, { desconto_tipo: e.target.value })} onBlur={() => persist({})} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                                <option value="pct">%</option>
-                                <option value="eur">€</option>
-                              </select>
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center gap-1 justify-end">
+                                <input data-testid={`enc-artigo-desc-${i}`} type="number" min="0" step="0.01" value={a.desconto ?? 0} onChange={(e) => updArtigo(i, { desconto: e.target.value })} onBlur={() => persist({})} className="w-14 text-right border border-gray-300 rounded-sm px-1.5 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                                <select data-testid={`enc-artigo-desc-tipo-${i}`} value={a.desconto_tipo || "pct"} onChange={(e) => updArtigo(i, { desconto_tipo: e.target.value })} onBlur={() => persist({})} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                                  <option value="pct">%</option>
+                                  <option value="eur">€</option>
+                                </select>
+                              </div>
+                              <label
+                                className="inline-flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer select-none"
+                                title="Se marcado, o desconto em € aplica-se por unidade; senão ao total da linha"
+                              >
+                                <input
+                                  data-testid={`enc-artigo-desc-unit-${i}`}
+                                  type="checkbox"
+                                  checked={(a.desconto_base || "linha") === "unit"}
+                                  onChange={(e) => {
+                                    const base = e.target.checked ? "unit" : "linha";
+                                    const artigos = enc.artigos.map((x, idx) => (idx === i ? { ...x, desconto_base: base } : x));
+                                    upd({ artigos });
+                                    persist({ artigos });
+                                  }}
+                                  className="w-3 h-3 accent-black"
+                                />
+                                por un.
+                              </label>
+                              {lineDisc(a) > 0 && <div className="text-[10px] text-red-500 text-right">- {eur(lineDisc(a))}</div>}
                             </div>
-                            {lineDisc(a) > 0 && <div className="text-[10px] text-red-500 text-right mt-0.5">- {eur(lineDisc(a))}</div>}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-medium align-top" data-testid={`enc-artigo-subtotal-${i}`}>{eur(lineNet(a))}</td>
                           <td className="px-4 py-2.5 align-top">
@@ -550,7 +598,7 @@ export default function EncomendaDetail() {
               }}
             />
           </div>
-          <div className="mt-4">
+          <div className="mt-4 space-y-3 flex flex-col items-end">
             <OrcamentoTotais
               subtotalVenda={subtotalVenda}
               totalPers={totalPers}
@@ -570,8 +618,47 @@ export default function EncomendaDetail() {
               ivaIsento={!!empresa.iva_isento}
               condicoesPagamento={empresa.condicoes_pagamento}
             />
+            <EncRegistarPagamento
+              enc={enc}
+              canEdit={can("encomendas", "edit")}
+              registering={pagRegistering}
+              onRegistar={async ({ valor, metodo }) => {
+                setPagRegistering(true);
+                try {
+                  const updated = await api.post(`/encomendas/${id}/pagamentos`, { valor, metodo, tipo: "pagamento" });
+                  setEnc(updated);
+                  toast.success("Pagamento registado");
+                } catch (e) {
+                  const d = e?.response?.data?.detail;
+                  toast.error(typeof d === "string" ? d : "Erro ao registar pagamento");
+                } finally {
+                  setPagRegistering(false);
+                }
+              }}
+            />
           </div>
         </>
+      )}
+
+      {tab === "pagamentos" && (
+        <div className="space-y-4" data-testid="enc-tab-pagamentos-panel">
+          <EncPagamentoResumo enc={enc} />
+          <EncPagamentosLista
+            enc={enc}
+            canEdit={can("encomendas", "edit") && enc.estado !== "cancelada"}
+            onDelete={async (p) => {
+              if (!window.confirm(`Remover pagamento ${p.recibo_numero || ""}?`)) return;
+              try {
+                const updated = await api.del(`/encomendas/${id}/pagamentos/${p.id}`);
+                setEnc(updated);
+                toast.success("Pagamento removido");
+              } catch (e) {
+                const d = e?.response?.data?.detail;
+                toast.error(typeof d === "string" ? d : "Erro ao remover");
+              }
+            }}
+          />
+        </div>
       )}
 
       {tab === "producao" && (
