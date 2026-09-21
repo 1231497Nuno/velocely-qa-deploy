@@ -48,7 +48,7 @@ export function downloadImportTemplate(entity) {
   return downloadBlob(`/io/import/template/${entity}`);
 }
 
-export async function importExcel(entity, file, dryRun = true, mode = "create") {
+export async function importExcel(entity, file, dryRun = true, mode = "create", { signal, onProgress } = {}) {
   const fd = new FormData();
   fd.append("file", file);
   const headers = {};
@@ -59,14 +59,42 @@ export async function importExcel(entity, file, dryRun = true, mode = "create") 
     dry_run: String(dryRun),
     mode: mode || "create",
   });
-  const res = await fetch(`${API}/io/import/xlsx?${q}`, {
-    method: "POST",
-    headers,
-    body: fd,
-  });
+
+  onProgress?.(dryRun ? "A enviar e validar o Excel…" : "A gravar na base de dados…");
+
+  let res;
+  try {
+    res = await fetch(`${API}/io/import/xlsx?${q}`, {
+      method: "POST",
+      headers,
+      body: fd,
+      signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new Error("Importação cancelada ou tempo esgotado. Tente de novo (ficheiros grandes demoram).");
+    }
+    // API a dormir (Render) — 1 retry
+    onProgress?.("API a acordar… a tentar de novo…");
+    await new Promise((r) => setTimeout(r, 2000));
+    res = await fetch(`${API}/io/import/xlsx?${q}`, {
+      method: "POST",
+      headers,
+      body: fd,
+      signal,
+    });
+  }
+
+  onProgress?.("A processar resposta…");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(typeof data.detail === "string" ? data.detail : "Erro na importação");
+    const detail = data.detail;
+    const msg = typeof detail === "string"
+      ? detail
+      : res.status === 504 || res.status === 502
+        ? "O servidor demorou demasiado (timeout). Valide de novo — a API pode estar a acordar."
+        : "Erro na importação";
+    throw new Error(msg);
   }
   return data;
 }

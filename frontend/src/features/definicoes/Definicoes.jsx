@@ -711,6 +711,9 @@ function DadosTab() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState("");
+  const [busySince, setBusySince] = useState(null);
+  const [, setBusyTick] = useState(0);
 
   useEffect(() => {
     api.get("/io/entities").then((d) => {
@@ -724,28 +727,42 @@ function DadosTab() {
     }).catch(() => toast.error("Não foi possível carregar entidades"));
   }, []);
 
+  useEffect(() => {
+    if (!busy) return undefined;
+    const id = setInterval(() => setBusyTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [busy]);
+
   const toggle = (key) => setSelected((s) => ({ ...s, [key]: !s[key] }));
   const selectedKeys = entities.filter((e) => selected[e.key]).map((e) => e.key);
+  const busySeconds = busy && busySince ? Math.max(0, Math.floor((Date.now() - busySince) / 1000)) : 0;
+  const canCommit = !!preview && (
+    preview.ok
+    || (preview.created || 0) > 0
+    || (preview.updated || 0) > 0
+  );
 
   const doExport = async () => {
     if (!selectedKeys.length) return toast.error("Seleccione pelo menos uma entidade");
     setExporting(true);
+    const tid = toast.loading("A gerar Excel…");
     try {
       await exportExcel(selectedKeys);
-      toast.success("Excel descarregado");
+      toast.success("Excel descarregado", { id: tid });
     } catch (e) {
-      toast.error(e?.message || "Erro ao exportar");
+      toast.error(e?.message || "Erro ao exportar", { id: tid });
     } finally {
       setExporting(false);
     }
   };
 
   const doTemplate = async () => {
+    const tid = toast.loading("A descarregar template…");
     try {
       await downloadImportTemplate(importEntity);
-      toast.success("Template descarregado");
+      toast.success("Template descarregado", { id: tid });
     } catch (e) {
-      toast.error(e?.message || "Erro ao descarregar template");
+      toast.error(e?.message || "Erro ao descarregar template", { id: tid });
     }
   };
 
@@ -757,22 +774,51 @@ function DadosTab() {
       );
       if (!ok) return;
     }
+    if (!dryRun && preview && !preview.ok && ((preview.created || 0) + (preview.updated || 0) > 0)) {
+      const ok = window.confirm(
+        `Há ${preview.errors?.length || 0} erro(s) na validação. As linhas válidas serão importadas e as com erro ignoradas. Continuar?`
+      );
+      if (!ok) return;
+    }
+
     setBusy(true);
+    setBusySince(Date.now());
+    setBusyLabel(dryRun ? "A validar o ficheiro…" : "A importar para a base de dados…");
+    const tid = toast.loading(
+      dryRun
+        ? "A validar Excel… ficheiros grandes podem demorar 1–2 minutos"
+        : "A importar… não feche esta página"
+    );
+    const ctrl = new AbortController();
+    const kill = setTimeout(() => ctrl.abort(), 5 * 60 * 1000);
     try {
-      const res = await importExcel(importEntity, file, dryRun, importMode);
+      const res = await importExcel(importEntity, file, dryRun, importMode, {
+        signal: ctrl.signal,
+        onProgress: (msg) => setBusyLabel(msg),
+      });
       setPreview(res);
       const skip = res.skipped || 0;
+      const errN = res.errors?.length || 0;
       if (dryRun) {
-        if (res.ok) toast.success(`Validação OK — ${res.created} novos, ${res.updated} actualizar, ${skip} ignorados`);
-        else toast.error(`${res.errors?.length || 0} erro(s) na validação`);
+        if (res.ok) {
+          toast.success(`Validação OK — ${res.created} novos, ${res.updated} actualizar, ${skip} ignorados`, { id: tid });
+        } else if ((res.created || 0) + (res.updated || 0) > 0) {
+          toast.warning(`Validação com ${errN} erro(s) — ainda pode importar as ${res.created + res.updated} linhas válidas`, { id: tid });
+        } else {
+          toast.error(`${errN} erro(s) — nada a importar`, { id: tid });
+        }
+      } else if (res.ok || (res.created || 0) + (res.updated || 0) > 0) {
+        toast.success(`Importado: ${res.created} criados, ${res.updated} actualizados, ${skip} ignorados${errN ? ` (${errN} erros)` : ""}`, { id: tid });
       } else {
-        if (res.ok) toast.success(`Importado: ${res.created} criados, ${res.updated} actualizados, ${skip} ignorados`);
-        else toast.error("Importação com erros");
+        toast.error("Importação sem alterações", { id: tid });
       }
     } catch (e) {
-      toast.error(e?.message || "Erro na importação");
+      toast.error(e?.message || "Erro na importação", { id: tid });
     } finally {
+      clearTimeout(kill);
       setBusy(false);
+      setBusyLabel("");
+      setBusySince(null);
     }
   };
 
@@ -802,7 +848,7 @@ function DadosTab() {
           className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
         >
           {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          Exportar seleccionados
+          {exporting ? "A exportar…" : "Exportar seleccionados"}
         </button>
       </section>
 
@@ -810,9 +856,8 @@ function DadosTab() {
         <div>
           <h2 className="font-display text-lg text-gray-900 flex items-center gap-2"><Upload size={18} /> Importar Excel</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Descarregue o template (já formatado: códigos/NIF/telefone como texto, dropdowns).
-            Por defeito <strong>só cria</strong> registos novos — não substitui os existentes.
-            Encomendas: folha Encomendas + Encomenda_linhas. Máx. 5000 linhas.
+            1) Template ou ficheiro limpo · 2) Validar · 3) Confirmar.
+            Por defeito <strong>só cria</strong> novos. Ordem: Clientes → Artigos → Encomendas.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -821,8 +866,9 @@ function DadosTab() {
             <select
               data-testid="import-entity-select"
               value={importEntity}
+              disabled={busy}
               onChange={(e) => { setImportEntity(e.target.value); setPreview(null); setFile(null); }}
-              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:opacity-60"
             >
               {importable.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}
             </select>
@@ -832,8 +878,9 @@ function DadosTab() {
             <select
               data-testid="import-mode-select"
               value={importMode}
+              disabled={busy}
               onChange={(e) => { setImportMode(e.target.value); setPreview(null); }}
-              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:opacity-60"
             >
               <option value="create">Só criar (recomendado)</option>
               <option value="update">Actualizar existentes</option>
@@ -845,9 +892,13 @@ function DadosTab() {
               data-testid="import-file-input"
               type="file"
               accept=".xlsx,.xlsm"
+              disabled={busy}
               onChange={(e) => { setFile(e.target.files?.[0] || null); setPreview(null); }}
-              className="w-full text-sm"
+              className="w-full text-sm disabled:opacity-60"
             />
+            {file && (
+              <p className="text-xs text-gray-500 mt-1 truncate">{file.name} ({Math.max(1, Math.round(file.size / 1024))} KB)</p>
+            )}
           </div>
         </div>
         {importMode === "update" && (
@@ -855,27 +906,45 @@ function DadosTab() {
             Atenção: no modo Actualizar, códigos/números já existentes são substituídos. Confirme sempre com «Validar» primeiro.
           </p>
         )}
+        {busy && (
+          <div
+            className="flex items-center gap-3 rounded-sm border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900"
+            data-testid="import-busy-banner"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 size={18} className="animate-spin shrink-0" />
+            <div>
+              <div className="font-medium">{busyLabel || "A processar…"}</div>
+              <div className="text-xs text-blue-800/80">
+                Em curso há {busySeconds}s — ficheiros com centenas de linhas podem demorar. Não feche a página.
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={doTemplate} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+          <button type="button" disabled={busy} onClick={doTemplate} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60">
             <Download size={16} /> Template
           </button>
           <button
             data-testid="import-validate-btn"
             type="button"
-            disabled={busy}
+            disabled={busy || !file}
             onClick={() => runImport(true)}
-            className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60 flex items-center gap-2"
           >
-            Validar
+            {busy ? <Loader2 size={16} className="animate-spin" /> : null}
+            {busy ? "A validar…" : "Validar"}
           </button>
           <button
             data-testid="import-commit-btn"
             type="button"
-            disabled={busy || !preview?.ok}
+            disabled={busy || !canCommit}
             onClick={() => runImport(false)}
-            className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60 flex items-center gap-2"
           >
-            Confirmar importação
+            {busy ? <Loader2 size={16} className="animate-spin" /> : null}
+            {busy ? "A importar…" : "Confirmar importação"}
           </button>
         </div>
         {preview && (
@@ -888,11 +957,17 @@ function DadosTab() {
               <span className="font-medium">{preview.skipped || 0}</span> ignorar
               {preview.errors?.length ? <> · <span className="text-red-600">{preview.errors.length} erros</span></> : null}
             </div>
+            {!preview.ok && ((preview.created || 0) + (preview.updated || 0) > 0) && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-sm px-2 py-1.5">
+                Há erros em algumas linhas, mas pode confirmar: só as linhas válidas serão gravadas.
+              </p>
+            )}
             {preview.errors?.length > 0 && (
               <ul className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-sm p-2 max-h-40 overflow-auto space-y-1">
                 {preview.errors.slice(0, 30).map((err, i) => (
                   <li key={i}>Linha {err.linha}{err.folha ? ` (${err.folha})` : ""}: {err.erro}</li>
                 ))}
+                {preview.errors.length > 30 && <li>… e mais {preview.errors.length - 30} erros</li>}
               </ul>
             )}
             {preview.preview?.length > 0 && (

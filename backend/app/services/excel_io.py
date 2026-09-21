@@ -833,17 +833,31 @@ async def import_rows(
 
         # Cache de existentes (evita N queries e acelera ficheiros grandes)
         existing_by_codigo: Dict[str, dict] = {}
+        nif_index: Dict[str, dict] = {}
+        clientes_by_nome: Dict[str, dict] = {}
+        pending_docs: List[dict] = []
+        flush_repo = None
+
         if target == "clientes":
+            flush_repo = clientes_repo
             for d in await clientes_repo.find(limit=MAX_ROWS):
                 c = _norm_code(d.get("codigo"))
                 if c:
                     existing_by_codigo[c] = d
+                nif = _norm_nif(d.get("nif"))
+                if nif:
+                    nif_index[nif] = d
         elif target == "fornecedores":
+            flush_repo = fornecedores_repo
             for d in await fornecedores_repo.find(limit=MAX_ROWS):
                 c = _norm_code(d.get("codigo"))
                 if c:
                     existing_by_codigo[c] = d
+                nif = _norm_nif(d.get("nif"))
+                if nif:
+                    nif_index[nif] = d
         elif target == "artigos":
+            flush_repo = artigos_repo
             for d in await artigos_repo.find(limit=MAX_ROWS):
                 c = _norm_code(d.get("codigo"))
                 if c:
@@ -853,6 +867,13 @@ async def import_rows(
                 c = _norm_code(d.get("numero"))
                 if c:
                     existing_by_codigo[c] = d
+            for d in await clientes_repo.find(limit=MAX_ROWS):
+                c = _norm_code(d.get("codigo"))
+                if c:
+                    clientes_by_nome[c.lower()] = d
+                n = _norm_str(d.get("nome")).lower()
+                if n:
+                    clientes_by_nome[n] = d
 
         if target == "encomenda_linhas":
             lines_by_num: Dict[str, List[dict]] = defaultdict(list)
@@ -944,6 +965,9 @@ async def import_rows(
                 action, summary = await _upsert_row(
                     target, row, dry_run=dry_run, mode=mode,
                     existing_by_codigo=existing_by_codigo,
+                    nif_index=nif_index,
+                    clientes_by_nome=clientes_by_nome,
+                    pending_docs=pending_docs if flush_repo is not None else None,
                 )
             except Exception as ex:
                 errors.append({"linha": line_no, "folha": sheet_title, "erro": str(ex)})
@@ -969,8 +993,15 @@ async def import_rows(
                 skipped += 1
             preview.append({"linha": line_no, "folha": sheet_title, "acao": action, **summary})
 
+        # Grava criações em lote (muito mais rápido no Atlas / Render)
+        if flush_repo is not None and pending_docs and not dry_run:
+            for i in range(0, len(pending_docs), 250):
+                await flush_repo.insert_many(pending_docs[i : i + 250])
+            pending_docs.clear()
+
     return {
         "ok": len(errors) == 0,
+        "can_commit": (created + updated) > 0 or len(errors) == 0,
         "dry_run": dry_run,
         "mode": mode,
         "created": created,
@@ -989,11 +1020,15 @@ async def _upsert_row(
     dry_run: bool,
     mode: str = "create",
     existing_by_codigo: Optional[Dict[str, dict]] = None,
+    nif_index: Optional[Dict[str, dict]] = None,
+    clientes_by_nome: Optional[Dict[str, dict]] = None,
+    pending_docs: Optional[List[dict]] = None,
 ) -> Tuple[str, Any]:
     nome = _norm_str(row.get("nome"))
     codigo = _norm_code(row.get("codigo"))
     allow_update = _row_wants_update(row, mode)
     cache = existing_by_codigo if existing_by_codigo is not None else {}
+    nifs = nif_index if nif_index is not None else {}
 
     if entity == "clientes":
         if not nome:
@@ -1029,11 +1064,12 @@ async def _upsert_row(
                 return "error", "Para empresas são obrigatórios: " + ", ".join(faltam)
 
         existing = cache.get(codigo) if codigo else None
-        if existing is None and codigo:
+        if existing is None and codigo and not cache:
             existing = await clientes_repo.find_one({"codigo": codigo})
-        # NIF real noutro código → erro (nunca merge silencioso). Vazio/placeholder → null.
         if not existing and patch["nif"]:
-            by_nif = await clientes_repo.find_one({"nif": patch["nif"]})
+            by_nif = nifs.get(patch["nif"])
+            if by_nif is None and not nifs:
+                by_nif = await clientes_repo.find_one({"nif": patch["nif"]})
             if by_nif and _norm_code(by_nif.get("codigo")) != codigo:
                 return "error", (
                     f"NIF {patch['nif']} já usado por {_norm_code(by_nif.get('codigo')) or 'outro cliente'} "
@@ -1057,7 +1093,12 @@ async def _upsert_row(
                 **patch,
                 "created_at": now_iso(),
             }
-            await clientes_repo.insert(doc)
+            if pending_docs is not None:
+                pending_docs.append(doc)
+            else:
+                await clientes_repo.insert(doc)
+            if patch.get("nif"):
+                nifs[patch["nif"]] = doc
             return "create", {"codigo": doc["codigo"], "nome": nome}
         return "create", {"codigo": codigo or "(novo)", "nome": nome}
 
@@ -1118,7 +1159,12 @@ async def _upsert_row(
                 **patch,
                 "created_at": now_iso(),
             }
-            await fornecedores_repo.insert(doc)
+            if pending_docs is not None:
+                pending_docs.append(doc)
+            else:
+                await fornecedores_repo.insert(doc)
+            if patch.get("nif"):
+                nifs[patch["nif"]] = doc
             return "create", {"codigo": doc["codigo"], "nome": nome}
         return "create", {"codigo": codigo or "(novo)", "nome": nome}
 
@@ -1126,11 +1172,13 @@ async def _upsert_row(
         cliente_nome = _norm_str(row.get("cliente"))
         if not cliente_nome:
             return "error", "Cliente obrigatório"
-        cliente = await clientes_repo.find_one({"nome": cliente_nome})
+        cli_map = clientes_by_nome or {}
+        cliente = cli_map.get(cliente_nome.lower()) or cli_map.get(_norm_code(cliente_nome).lower())
+        if not cliente:
+            cliente = await clientes_repo.find_one({"nome": cliente_nome})
         if not cliente:
             cliente = await clientes_repo.find_one({"codigo": cliente_nome})
         if not cliente:
-            # match case-insensitive por nome
             cliente = await clientes_repo.find_one({"nome": {"$regex": f"^{re.escape(cliente_nome)}$", "$options": "i"}})
         if not cliente:
             return "error", f"Cliente não encontrado: {cliente_nome}"
@@ -1145,6 +1193,7 @@ async def _upsert_row(
             "concluida": "concluida",
             "concluída": "concluida",
             "cancelada": "cancelada",
+            "cancel": "cancelada",
             "open": "aberta",
             "closed": "concluida",
             "cancelled": "cancelada",
@@ -1442,7 +1491,10 @@ async def _upsert_row(
                 "created_at": now_iso(),
                 "updated_at": now_iso(),
             }
-            await artigos_repo.insert(doc)
+            if pending_docs is not None:
+                pending_docs.append(doc)
+            else:
+                await artigos_repo.insert(doc)
             return "create", {"codigo": doc["codigo"], "nome": nome}
         return "create", {"codigo": codigo or "(novo)", "nome": nome}
 
