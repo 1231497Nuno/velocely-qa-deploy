@@ -10,7 +10,7 @@ from app.domain.models import (
 )
 from app.core.database import new_id, now_iso, round2
 from app.core.security import get_current_user, require_perm
-from app.core.pagination import parse_page, page_payload, text_search
+from app.core.pagination import parse_page, page_payload, text_search, text_search_artigo
 from app.repositories import (
     maquinas_repo, consumiveis_repo, mao_obra_repo, artigos_repo, tipos_repo,
     orcamentos_repo, encomendas_repo, ordens_repo, categorias_repo, subcategorias_repo,
@@ -18,6 +18,7 @@ from app.repositories import (
 from app.services.costing import (
     artigo_breakdown, enrich_artigo, enrich_artigos_list, artigo_lite,
     compute_orcamento_totais, compute_encomendas_many, recompute_of_status,
+    aplicar_custo_placa_mp,
 )
 from app.services.numeracao import next_codigo
 from app.services import audit
@@ -244,11 +245,15 @@ async def list_artigos(
     q: str = Query(""),
     lite: bool = Query(False, description="Payload mínimo para selectors (sem BOM/custeio pesado)"),
     diversos: Optional[bool] = Query(None, description="Filtrar artigos diversos (DIV-)"),
-    tipo: Optional[str] = Query(None, description="Filtrar por tipo_artigo (ex.: consumivel)"),
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo_artigo (ex.: materia_prima)"),
+    categoria_id: Optional[str] = Query(None, description="Filtrar por categoria"),
+    subcategoria_id: Optional[str] = Query(None, description="Filtrar por subcategoria"),
+    produzido: Optional[str] = Query(None, description="Filtrar produzidos: sim | nao"),
     _u: dict = Depends(require_perm("artigos", "view")),
 ):
+    from app.domain.models import TIPOS_MATERIA_PRIMA
     query = {}
-    ts = text_search(["nome", "codigo"], q)
+    ts = text_search_artigo(q)
     if ts:
         query.update(ts)
     if diversos is True:
@@ -256,7 +261,21 @@ async def list_artigos(
     elif diversos is False:
         query["diversos"] = {"$ne": True}
     if tipo:
-        query["tipo_artigo"] = tipo.strip().lower()
+        t = tipo.strip().lower()
+        # Matéria prima inclui o id legado «consumivel»
+        if t in TIPOS_MATERIA_PRIMA:
+            query["tipo_artigo"] = {"$in": list(TIPOS_MATERIA_PRIMA)}
+        else:
+            query["tipo_artigo"] = t
+    if categoria_id:
+        query["categoria_id"] = categoria_id.strip()
+    if subcategoria_id:
+        query["subcategoria_id"] = subcategoria_id.strip()
+    prod = (produzido or "").strip().lower()
+    if prod == "sim":
+        query["produzido"] = True
+    elif prod == "nao":
+        query["produzido"] = {"$ne": True}
 
     if page is None:
         artigos = await artigos_repo.find(query, sort=("nome", 1), limit=5000)
@@ -362,6 +381,7 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
 @router.post("/artigos")
 async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("artigos", "create"))):
     payload = await _resolve_categorias(data.model_dump())
+    payload = aplicar_custo_placa_mp(payload)
     a = Artigo(**payload)
     if a.diversos:
         a.margem = 0.0
@@ -387,6 +407,7 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     update["diversos"] = bool(existing.get("diversos"))
     if update["diversos"]:
         update["margem"] = 0.0
+    update = aplicar_custo_placa_mp(update)
     # Não sobrescrever metadados de criação
     update.pop("created_at", None)
     update.pop("created_by", None)
@@ -394,9 +415,10 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     update.pop("codigo", None)
     update["updated_at"] = now_iso()
     alteracoes = audit.diff_campos(existing, update, [
-        "nome", "descricao", "unidade", "custo_artigo", "margem", "comissao_pct",
+        "nome", "descricao", "unidade", "custo_artigo", "preco_compra", "margem", "comissao_pct",
         "categoria_id", "subcategoria_id", "tipo_artigo", "produzido",
         "fabricante", "fornecedor_nome", "qtd_stock", "responsavel",
+        "comprimento_mm", "largura_mm",
     ])
     await artigos_repo.update(aid, update)
     existing.update(update)

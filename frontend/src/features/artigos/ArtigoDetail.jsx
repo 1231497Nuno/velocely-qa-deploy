@@ -9,19 +9,24 @@ import FicheirosTab from "@/components/FicheirosTab";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
-  FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight, Plus, X, Pencil, Calculator, Tag,
+  FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight, Plus, X, Pencil, Calculator, Tag, Eye,
 } from "lucide-react";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { toast } from "sonner";
+import UtilizacoesDialog from "@/components/UtilizacoesDialog";
 import {
   TIPO_ARTIGO_PT,
   normalizarTipo,
   isProduzido,
+  isMateriaPrima,
   buildArtigoBody,
   mostraCampo,
 } from "@/features/artigos/artigoTipos";
 import ArtigoBlocosShell from "@/features/artigos/ArtigoBlocosShell";
+import { unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
 import ArtigoFichaCampos from "@/features/artigos/ArtigoFichaCampos";
+import ArtigoMateriaisReceita from "@/features/artigos/ArtigoMateriaisReceita";
+import { materialLinhaCusto, normalizeMateriaisReceita } from "@/features/artigos/artigoMateriais";
 import { InlineField, fieldCls, contentWidthCh, fitInputCls, fitSelectCls } from "@/features/artigos/ArtigoInlineEdit";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
@@ -53,7 +58,8 @@ function artigoToDraft(a) {
     tipo_artigo: tipo,
     produzido,
     custo_artigo: a.custo_artigo ?? 0,
-    margem: isDiversosArtigo(a) || tipo === "consumivel" ? 0 : (a.margem ?? 30),
+    preco_compra: a.preco_compra ?? 0,
+    margem: isDiversosArtigo(a) ? 0 : (a.margem ?? 30),
     comissao_pct: a.comissao_pct ?? 0,
     categoria_id: a.categoria_id || "",
     categoria_nome: a.categoria_nome || "",
@@ -82,7 +88,7 @@ function artigoToDraft(a) {
     qtd_stock: a.qtd_stock ?? 0,
     nivel_reabastecimento: a.nivel_reabastecimento ?? 0,
     qtd_ultima_compra: a.qtd_ultima_compra ?? 0,
-    materiais: Array.isArray(a.materiais) ? a.materiais.map((m) => ({ ...m })) : [],
+    materiais: Array.isArray(a.materiais) ? normalizeMateriaisReceita(a.materiais) : [],
     roteiro: Array.isArray(a.roteiro) ? a.roteiro.map((op) => ({ ...op })) : [],
     diversos: !!a.diversos,
     codigo: a.codigo || "",
@@ -116,6 +122,7 @@ export default function ArtigoDetail() {
   const [saving, setSaving] = useState(false);
   const [fieldSaving, setFieldSaving] = useState(false);
   const [lookupsReady, setLookupsReady] = useState(false);
+  const [usoOpen, setUsoOpen] = useState(false);
   const fieldRefs = useRef({});
   const artigoRef = useRef(null);
 
@@ -168,7 +175,7 @@ export default function ArtigoDetail() {
         api.get("/mao-obra"),
         api.get("/categorias"),
         api.get("/subcategorias"),
-        api.get("/artigos?lite=true&tipo=consumivel").catch(() => []),
+        api.get("/artigos?lite=true&tipo=materia_prima").catch(() => []),
         api.get("/artigos?lite=true&tipo=ativo").catch(() => []),
       ]);
       setMaquinas(maq);
@@ -268,7 +275,7 @@ export default function ArtigoDetail() {
 
   // Cálculo em direto (modo edição)
   const custoMateriais = (editing && produzido)
-    ? (draft.materiais || []).reduce((s, m) => s + (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0), 0)
+    ? (draft.materiais || []).reduce((s, m) => s + materialLinhaCusto(m), 0)
     : (produzido ? (a.custo_materiais ?? 0) : 0);
   const custoMaquinas = (editing && produzido)
     ? (draft.roteiro || []).reduce((s, op) => {
@@ -286,7 +293,8 @@ export default function ArtigoDetail() {
   const custoTotal = editing
     ? custoCompra + (produzido ? custoMateriais + custoMaquinas + custoMaoObra : 0)
     : (a.custo_producao_total ?? (custoCompra + custoMateriais + custoMaquinas + custoMaoObra));
-  const margemPct = isDiversos || tipoAtual === "consumivel" ? 0 : (editing ? (Number(draft?.margem) || 0) : (Number(a.margem) || 0));
+  const unMedida = unidadeMedida(editing ? draft : a);
+  const margemPct = isDiversos ? 0 : (editing ? (Number(draft?.margem) || 0) : (Number(a.margem) || 0));
   const precoVenda = editing
     ? custoTotal * (1 + margemPct / 100)
     : (a.preco_venda ?? (custoTotal * (1 + margemPct / 100)));
@@ -349,7 +357,8 @@ export default function ArtigoDetail() {
         ...prev,
         tipo_artigo: nextTipo,
         produzido: keepProd,
-        margem: nextTipo === "consumivel" || prev.diversos ? 0 : (prev.margem ?? 30),
+        margem: prev.diversos ? 0 : (prev.margem ?? 30),
+        comissao_pct: isMateriaPrima(nextTipo) || prev.diversos ? 0 : (prev.comissao_pct ?? 0),
         materiais: keepProd ? (prev.materiais || []) : [],
         roteiro: keepProd ? (prev.roteiro || []) : [],
         comprimento_mm: nextTipo === "servico" ? 0 : prev.comprimento_mm,
@@ -374,13 +383,6 @@ export default function ArtigoDetail() {
     else saveFieldPatch(apply(artigoToDraft(a)));
   };
 
-  const updMat = (i, patch) => {
-    setDraft((prev) => {
-      const materiais = [...(prev.materiais || [])];
-      materiais[i] = { ...materiais[i], ...patch };
-      return { ...prev, materiais };
-    });
-  };
   const updOp = (i, patch) => {
     setDraft((prev) => {
       const roteiro = [...(prev.roteiro || [])];
@@ -395,9 +397,6 @@ export default function ArtigoDetail() {
         back={<StickyBackButton onClick={() => nav("/artigos")} testid="artigo-back-btn" label="Voltar aos artigos" />}
         title={
           <div className="min-w-0">
-            {(view?.codigo || a.codigo) && (
-              <div className="mono text-xs tabular-nums text-gray-500" data-testid="artigo-codigo">{view?.codigo || a.codigo}</div>
-            )}
             {editing ? (
               <input
                 ref={(el) => { fieldRefs.current.nome = el; }}
@@ -412,11 +411,15 @@ export default function ArtigoDetail() {
                   value={a.nome}
                   canEdit={canEdit}
                   onSave={(v) => saveFieldPatch({ nome: String(v).trim() })}
-                  className="font-bold text-lg sm:text-xl font-display text-left"
+                  align="left"
+                  className="font-bold text-lg sm:text-xl font-display"
                   testid="artigo-nome-edit"
                   placeholder="Nome do artigo"
                 />
               </h1>
+            )}
+            {(view?.codigo || a.codigo) && (
+              <div className="mono text-xs tabular-nums text-gray-500 mt-0.5" data-testid="artigo-codigo">{view?.codigo || a.codigo}</div>
             )}
           </div>
         }
@@ -430,10 +433,33 @@ export default function ArtigoDetail() {
           <div className="flex items-center gap-2 sm:gap-3 text-sm flex-wrap justify-end">
             {!editing && (
               <>
-                <span className="text-gray-500">Venda <span className="tabular-nums font-bold text-emerald-700">{eur(a.preco_venda)}</span></span>
-                <span className="text-gray-400">Custo <span className="tabular-nums font-medium text-gray-700">{eur(a.custo_producao_total)}</span></span>
+                <span className="text-gray-500">
+                  Venda{" "}
+                  <span className="tabular-nums font-bold text-emerald-700" data-testid="artigo-header-venda">
+                    {eur(a.preco_venda)}
+                    <span className="text-gray-400 font-normal text-xs ml-1">/ {unMedida}</span>
+                  </span>
+                </span>
+                <span className="text-gray-400">
+                  Custo{" "}
+                  <span className="tabular-nums font-medium text-gray-700" data-testid="artigo-header-custo">
+                    {eur(a.custo_producao_total ?? a.custo_artigo)}
+                    <span className="text-gray-400 font-normal text-xs ml-1">/ {unMedida}</span>
+                  </span>
+                </span>
                 {fieldSaving && <span className="text-xs text-gray-400">A guardar…</span>}
               </>
+            )}
+            {isMateriaPrima(tipoAtual) && !editing && (
+              <button
+                type="button"
+                data-testid="artigo-uso-btn"
+                onClick={() => setUsoOpen(true)}
+                className="inline-flex items-center gap-1.5 bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium"
+                title="Onde é usado nas receitas"
+              >
+                <Eye size={14} /> Onde é usado
+              </button>
             )}
             {canEdit && !editing && (
               <button
@@ -513,89 +539,12 @@ export default function ArtigoDetail() {
 
               if (blocoId === "materiais") {
                 return (
-                  <div className="overflow-x-auto" data-testid="artigo-materiais">
-                    {editing && (
-                      <div className="px-4 py-2 border-b border-gray-100 flex justify-end">
-                        <button
-                          type="button"
-                          data-testid="artigo-add-material"
-                          onClick={() => setDraft((p) => ({
-                            ...p,
-                            materiais: [...(p.materiais || []), { material_id: "", material_nome: "", unidade: "un", quantidade: 1, custo_unitario: 0 }],
-                          }))}
-                          className="text-xs font-medium text-gray-900 inline-flex items-center gap-1 hover:underline"
-                        >
-                          <Plus size={13} /> Material
-                        </button>
-                      </div>
-                    )}
-                    <table className="w-full text-sm min-w-[420px]">
-                      <thead>
-                        <tr className="border-b border-gray-100">
-                          <Th>Artigo / componente</Th>
-                          <Th align="right">Qtd</Th>
-                          <Th>Un.</Th>
-                          <Th align="right">Custo unit.</Th>
-                          <Th align="right">Total</Th>
-                          {editing && <th className="w-8" />}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {((editing ? draft?.materiais : a.materiais) || []).map((m, i) => {
-                          const qtd = Number(m.quantidade) || 0;
-                          const custo = Number(m.custo_unitario) || 0;
-                          return (
-                            <tr key={m.id || i} className="border-b border-gray-50" data-testid={`artigo-material-row-${i}`}>
-                              <td className="px-4 py-2">
-                                {editing ? (
-                                  <select
-                                    value={m.material_id || ""}
-                                    onChange={(e) => {
-                                      const c = consumiveis.find((x) => x.id === e.target.value);
-                                      updMat(i, {
-                                        material_id: e.target.value,
-                                        material_nome: c?.nome || "",
-                                        unidade: c?.unidade || "un",
-                                        custo_unitario: c?.custo_artigo ?? c?.custo_unitario ?? 0,
-                                      });
-                                    }}
-                                    className={fieldCls}
-                                  >
-                                    <option value="">Selecionar artigo…</option>
-                                    {consumiveis.map((c) => (
-                                      <option key={c.id} value={c.id}>{c.nome}{c.codigo ? ` (${c.codigo})` : ""}</option>
-                                    ))}
-                                  </select>
-                                ) : (m.material_nome || "—")}
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                {editing ? (
-                                  <input type="number" step="0.01" value={m.quantidade} onChange={(e) => updMat(i, { quantidade: e.target.value })} className={`${fieldCls} text-right tabular-nums`} />
-                                ) : <span className="tabular-nums">{qtd}</span>}
-                              </td>
-                              <td className="px-4 py-2.5 text-gray-600">{m.unidade || "un"}</td>
-                              <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{eur(custo)}</td>
-                              <td className="px-4 py-2.5 text-right tabular-nums font-medium">{eur(qtd * custo)}</td>
-                              {editing && (
-                                <td className="px-2 py-2">
-                                  <button type="button" onClick={() => setDraft((p) => ({ ...p, materiais: p.materiais.filter((_, idx) => idx !== i) }))} className="p-1 rounded-sm hover:bg-red-100 text-red-600">
-                                    <X size={14} />
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                        {((editing ? draft?.materiais : a.materiais) || []).length === 0 && (
-                          <tr>
-                            <td colSpan={editing ? 6 : 5} className="px-4 py-8 text-center text-gray-400 text-sm">
-                              {editing ? "Clique em + Material para adicionar componentes." : "Sem materiais definidos."}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ArtigoMateriaisReceita
+                    materiais={(editing ? draft?.materiais : a.materiais) || []}
+                    componentes={consumiveis}
+                    editing={editing}
+                    onChange={(materiais) => setDraft((p) => ({ ...p, materiais }))}
+                  />
                 );
               }
 
@@ -755,8 +704,30 @@ export default function ArtigoDetail() {
                     </div>
                     <div className={`grid grid-cols-2 ${produzido ? "sm:grid-cols-4" : "sm:grid-cols-2"} gap-4 mb-4 text-sm`}>
                       <div>
-                        <div className="text-gray-400 text-xs">Valor de compra</div>
-                        <div className="tabular-nums font-medium" data-testid="calc-artigo">{eur(custoCompra)}</div>
+                        <div className="text-gray-400 text-xs">Preço de custo / compra <span className="normal-case">(/ {unMedida})</span></div>
+                        {editing ? (
+                          <input
+                            ref={(el) => { fieldRefs.current.custo_artigo = el; }}
+                            data-testid="calc-artigo"
+                            type="number"
+                            step="0.01"
+                            value={draft?.custo_artigo ?? 0}
+                            onChange={(e) => setDraft((p) => ({ ...p, custo_artigo: e.target.value }))}
+                            className="w-28 mt-0.5 border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30"
+                          />
+                        ) : (
+                          <InlineField
+                            value={custoCompra}
+                            display={`${eur(custoCompra)} / ${unMedida}`}
+                            type="number"
+                            canEdit={canEdit}
+                            mono
+                            align="left"
+                            onSave={(v) => saveFieldPatch({ custo_artigo: Number(v) || 0 })}
+                            testid="calc-artigo"
+                            className="text-white hover:bg-gray-800 font-medium"
+                          />
+                        )}
                       </div>
                       {produzido && (
                         <>
@@ -777,9 +748,12 @@ export default function ArtigoDetail() {
                     </div>
                     <div className="flex items-end justify-between border-t border-gray-700 pt-4">
                       <span className="text-sm text-gray-300">{produzido ? "Custo de Produção por unidade" : "Custo por unidade"}</span>
-                      <span className="tabular-nums font-bold text-2xl font-display" data-testid="calc-total">{eur(custoTotal)}</span>
+                      <span className="tabular-nums font-bold text-2xl font-display" data-testid="calc-total">
+                        {eur(custoTotal)}
+                        <span className="text-gray-400 font-normal text-sm ml-1.5">/ {unMedida}</span>
+                      </span>
                     </div>
-                    {!isDiversos && show("margem") && tipoAtual !== "consumivel" && (
+                    {!isDiversos && show("margem") && (
                       <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
                         <label className="text-sm text-gray-300 flex items-center gap-2">
                           <Tag size={14} /> Margem de Lucro (%)
@@ -807,16 +781,22 @@ export default function ArtigoDetail() {
                         )}
                       </div>
                     )}
-                    {(!isDiversos && show("margem") && tipoAtual !== "consumivel") && (
+                    {!isDiversos && show("margem") && (
                       <div className="flex items-end justify-between pt-3">
                         <span className="text-sm font-semibold text-emerald-300">Preço de Venda</span>
-                        <span className="tabular-nums font-bold text-3xl font-display text-emerald-300" data-testid="calc-preco-venda">{eur(precoVenda)}</span>
+                        <span className="tabular-nums font-bold text-3xl font-display text-emerald-300" data-testid="calc-preco-venda">
+                          {eur(precoVenda)}
+                          <span className="text-emerald-400/70 font-normal text-sm ml-1.5">/ {unMedida}</span>
+                        </span>
                       </div>
                     )}
-                    {(isDiversos || tipoAtual === "consumivel") && (
+                    {isDiversos && (
                       <div className="flex items-end justify-between pt-3">
-                        <span className="text-sm font-semibold text-emerald-300">{isDiversos ? "Preço (sem margem)" : "Custo"}</span>
-                        <span className="tabular-nums font-bold text-3xl font-display text-emerald-300" data-testid="calc-preco-venda">{eur(precoVenda)}</span>
+                        <span className="text-sm font-semibold text-emerald-300">Preço (sem margem)</span>
+                        <span className="tabular-nums font-bold text-3xl font-display text-emerald-300" data-testid="calc-preco-venda">
+                          {eur(precoVenda)}
+                          <span className="text-emerald-400/70 font-normal text-sm ml-1.5">/ {unMedida}</span>
+                        </span>
                       </div>
                     )}
                   </section>
@@ -925,6 +905,14 @@ export default function ArtigoDetail() {
       {tab === "historico" && (
         <HistoricoTimeline tipo="artigo" id={id} hideTitle />
       )}
+
+      <UtilizacoesDialog
+        open={usoOpen}
+        onOpenChange={setUsoOpen}
+        endpoint={id ? `/artigos/${id}/utilizacoes` : null}
+        titulo={a ? `Onde é usado: ${a.nome}` : "Onde é usado"}
+        subtitulo="Artigos produzidos que usam esta matéria-prima na receita, e documentos onde aparece."
+      />
     </div>
   );
 }

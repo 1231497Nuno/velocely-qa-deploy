@@ -7,22 +7,114 @@ import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Pencil, Trash2, Copy, Settings } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Settings, Eye } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ImagemUpload from "@/components/ImagemUpload";
 import ArtigosDiversosConfig from "@/components/ArtigosDiversosConfig";
-import { TIPO_ARTIGO_PT, normalizarTipo, isProduzido } from "@/features/artigos/artigoTipos";
+import UtilizacoesDialog from "@/components/UtilizacoesDialog";
+import Combobox from "@/components/Combobox";
+import { TIPOS_ARTIGO, TIPO_ARTIGO_PT, normalizarTipo, isProduzido, isMateriaPrima } from "@/features/artigos/artigoTipos";
+import { unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
+
+const filtroCls = "w-[11.5rem] sm:w-[13rem]";
 
 export default function Artigos() {
   const { can } = useAuth();
   const nav = useNavigate();
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroCategoria, setFiltroCategoria] = useState("");
+  const [filtroSubcategoria, setFiltroSubcategoria] = useState("");
+  const [filtroProduzido, setFiltroProduzido] = useState("");
+  const [categorias, setCategorias] = useState([]);
+  const [subcategorias, setSubcategorias] = useState([]);
+
+  const extraParams = useMemo(() => {
+    const p = {};
+    if (filtroTipo) p.tipo = filtroTipo;
+    if (filtroCategoria) p.categoria_id = filtroCategoria;
+    if (filtroSubcategoria) p.subcategoria_id = filtroSubcategoria;
+    if (filtroProduzido) p.produzido = filtroProduzido;
+    return p;
+  }, [filtroTipo, filtroCategoria, filtroSubcategoria, filtroProduzido]);
+
   const {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel, loading,
-  } = useServerPagedList("/artigos");
+  } = useServerPagedList("/artigos", { extraParams });
   const [diversosOpen, setDiversosOpen] = useState(false);
+  const [uso, setUso] = useState(null);
   const { sort, toggle, apply } = useSort();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cats, subs] = await Promise.all([
+          api.get("/categorias"),
+          api.get("/subcategorias"),
+        ]);
+        setCategorias(Array.isArray(cats) ? cats : cats?.items || []);
+        setSubcategorias(Array.isArray(subs) ? subs : subs?.items || []);
+      } catch {
+        /* filtros opcionais */
+      }
+    })();
+  }, []);
+
+  const subsFiltradas = useMemo(
+    () => (filtroCategoria
+      ? subcategorias.filter((s) => s.categoria_id === filtroCategoria)
+      : subcategorias),
+    [subcategorias, filtroCategoria],
+  );
+
+  const tipoOptions = useMemo(
+    () => [
+      { value: "", label: "Todos os tipos" },
+      ...TIPOS_ARTIGO.map((t) => ({ value: t.id, label: t.label })),
+    ],
+    [],
+  );
+  const categoriaOptions = useMemo(
+    () => [
+      { value: "", label: "Todas as categorias" },
+      ...categorias.map((c) => ({ value: c.id, label: c.nome })),
+    ],
+    [categorias],
+  );
+  const subcategoriaOptions = useMemo(
+    () => [
+      { value: "", label: "Todas as subcategorias" },
+      ...subsFiltradas.map((s) => ({ value: s.id, label: s.nome })),
+    ],
+    [subsFiltradas],
+  );
+  const produzidoOptions = useMemo(
+    () => [
+      { value: "", label: "Produzido / compra" },
+      { value: "sim", label: "Só produzidos" },
+      { value: "nao", label: "Só compra / sem receita" },
+    ],
+    [],
+  );
+
+  const temFiltros = !!(filtroTipo || filtroCategoria || filtroSubcategoria || filtroProduzido);
+
+  const limparFiltros = () => {
+    setFiltroTipo("");
+    setFiltroCategoria("");
+    setFiltroSubcategoria("");
+    setFiltroProduzido("");
+  };
+
+  const onCategoriaChange = (id) => {
+    setFiltroCategoria(id || "");
+    if (filtroSubcategoria) {
+      if (!id) return;
+      const ok = subcategorias.some((s) => s.id === filtroSubcategoria && s.categoria_id === id);
+      if (!ok) setFiltroSubcategoria("");
+    }
+  };
 
   const remove = async (id) => {
     await api.del(`/artigos/${id}`);
@@ -45,7 +137,7 @@ export default function Artigos() {
       header={
         <PageHeader
           title="Artigos"
-          subtitle="Tipos de artigo com regras próprias — venda, produção, consumíveis e serviços"
+          subtitle="Tipos de artigo com regras próprias — venda, produção, matéria-prima e serviços"
           actions={
             <div className="flex items-center gap-2 flex-wrap">
               {can("artigos", "edit") && (
@@ -73,9 +165,72 @@ export default function Artigos() {
         />
       }
       toolbar={
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar artigos..." testid="search-artigos" />
-          <div className="text-xs text-gray-500 sm:ml-auto">{loading ? "A carregar…" : rangeLabel}</div>
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <SearchBar
+              value={q}
+              onChange={setQ}
+              placeholder="Pesquisar por código ou nome (qualquer parte)…"
+              testid="search-artigos"
+            />
+            <div className="text-xs text-gray-500 sm:ml-auto">{loading ? "A carregar…" : rangeLabel}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Combobox
+              testid="artigos-filtro-tipo"
+              optionTestidPrefix="artigos-filtro-tipo"
+              options={tipoOptions}
+              value={filtroTipo}
+              onChange={(v) => setFiltroTipo(v || "")}
+              placeholder="Todos os tipos"
+              searchPlaceholder="Escrever para filtrar tipo…"
+              matchPrefix={false}
+              className={filtroCls}
+            />
+            <Combobox
+              testid="artigos-filtro-categoria"
+              optionTestidPrefix="artigos-filtro-categoria"
+              options={categoriaOptions}
+              value={filtroCategoria}
+              onChange={onCategoriaChange}
+              placeholder="Todas as categorias"
+              searchPlaceholder="Escrever para filtrar categoria…"
+              matchPrefix={false}
+              className={filtroCls}
+            />
+            <Combobox
+              testid="artigos-filtro-subcategoria"
+              optionTestidPrefix="artigos-filtro-subcategoria"
+              options={subcategoriaOptions}
+              value={filtroSubcategoria}
+              onChange={(v) => setFiltroSubcategoria(v || "")}
+              placeholder="Todas as subcategorias"
+              searchPlaceholder="Escrever para filtrar subcategoria…"
+              matchPrefix={false}
+              className={filtroCls}
+            />
+            <Combobox
+              testid="artigos-filtro-produzido"
+              optionTestidPrefix="artigos-filtro-produzido"
+              options={produzidoOptions}
+              value={filtroProduzido}
+              onChange={(v) => setFiltroProduzido(v || "")}
+              placeholder="Produzido / compra"
+              searchPlaceholder="Escrever para filtrar…"
+              matchPrefix={false}
+              className={filtroCls}
+            />
+            {temFiltros && (
+              <button
+                type="button"
+                data-testid="artigos-limpar-filtros"
+                onClick={limparFiltros}
+                className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
         </div>
       }
       footer={
@@ -108,6 +263,7 @@ export default function Artigos() {
             {rows.map((a) => {
               const tipo = normalizarTipo(a);
               const prod = tipo === "ativo" && isProduzido(a);
+              const un = unidadeMedida(a);
               return (
                 <tr
                   key={a.id}
@@ -128,10 +284,30 @@ export default function Artigos() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{a.categoria_nome || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{a.subcategoria_nome || "—"}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{eur(a.custo_producao_total ?? a.custo_artigo)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-emerald-700">{eur(a.preco_venda)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {eur(a.custo_producao_total ?? a.custo_artigo)}
+                    <span className="text-gray-400 text-xs ml-1">/ {un}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-emerald-700">
+                    {eur(a.preco_venda)}
+                    <span className="text-gray-400 font-normal text-xs ml-1">/ {un}</span>
+                  </td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="inline-flex items-center gap-1">
+                      {isMateriaPrima(a) && (
+                        <button
+                          data-testid={`uso-artigo-${a.id}`}
+                          onClick={() => setUso({
+                            endpoint: `/artigos/${a.id}/utilizacoes`,
+                            titulo: `Onde é usado: ${a.nome}`,
+                            subtitulo: "Artigos produzidos que usam esta matéria-prima na receita.",
+                          })}
+                          title="Onde é usado"
+                          className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-500"
+                        >
+                          <Eye size={15} />
+                        </button>
+                      )}
                       {can("artigos", "create") && (
                         <button data-testid={`dup-artigo-${a.id}`} onClick={() => duplicar(a.id)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600" title="Duplicar">
                           <Copy size={15} />
@@ -161,6 +337,13 @@ export default function Artigos() {
     </ListPage>
 
     <ArtigosDiversosConfig open={diversosOpen} onOpenChange={setDiversosOpen} onSaved={reload} />
+    <UtilizacoesDialog
+      open={!!uso}
+      onOpenChange={(v) => !v && setUso(null)}
+      endpoint={uso?.endpoint}
+      titulo={uso?.titulo}
+      subtitulo={uso?.subtitulo}
+    />
     </>
   );
 }

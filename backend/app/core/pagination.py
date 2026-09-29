@@ -83,6 +83,64 @@ def text_search_nome_prefix(q: str) -> Optional[dict]:
     esc = re.escape(ql)
     return {"nome": {"$regex": rf"^{esc}", "$options": "i"}}
 
+
+def _strip_accents(s: str) -> str:
+    import unicodedata
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn"
+    )
+
+
+# Variantes acentuadas (PT) — a pesquisa não distingue acentos.
+_ACCENT_CLASS = {
+    "a": "aáàâãäAÁÀÂÃÄ",
+    "e": "eéèêëEÉÈÊË",
+    "i": "iíìîïIÍÌÎÏ",
+    "o": "oóòôõöOÓÒÔÕÖ",
+    "u": "uúùûüUÚÙÛÜ",
+    "c": "cçCÇ",
+    "n": "nñNÑ",
+}
+
+
+def _accent_insensitive_regex(q: str) -> str:
+    """Regex que ignora acentos: «jose» ↔ «José», «acao» ↔ «Acção»."""
+    import re
+    folded = _strip_accents((q or "").strip())
+    parts: List[str] = []
+    for ch in folded:
+        low = ch.lower()
+        if low in _ACCENT_CLASS:
+            parts.append(f"[{_ACCENT_CLASS[low]}]")
+        else:
+            parts.append(re.escape(ch))
+    return "".join(parts)
+
+
+def text_search_artigo(q: str) -> Optional[dict]:
+    """Pesquisa de artigos — substring em codigo|||nome, sem ligar a acentos."""
+    ql = (q or "").strip()
+    if not ql:
+        return None
+    pattern = _accent_insensitive_regex(ql)
+    if not pattern:
+        return None
+    return {
+        "$expr": {
+            "$regexMatch": {
+                "input": {
+                    "$concat": [
+                        {"$ifNull": ["$codigo", ""]},
+                        "|||",
+                        {"$ifNull": ["$nome", ""]},
+                    ]
+                },
+                "regex": pattern,
+                "options": "i",
+            }
+        }
+    }
+
 def apply_status_filter(query: dict, status: Optional[str], field: str = "status") -> dict:
     """Filtro de estado: valor único, lista CSV, ou `ne:valor` (≠)."""
     if not status:

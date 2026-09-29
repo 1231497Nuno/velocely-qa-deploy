@@ -91,10 +91,16 @@ export function LinhaCodigoSelect({
   const codigo = linha.artigo_codigo || selected?.codigo || "";
   const diversos = useMemo(() => artigos.filter(isDiversosArtigo), [artigos]);
 
+  const fold = (s) =>
+    String(s || "")
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .toLowerCase();
+
   const filter = (itemValue, search) => {
-    const s = (search || "").trim().toLowerCase();
+    const s = fold(search).trim();
     if (!s) return 1;
-    return itemValue.toLowerCase().includes(s) ? 1 : 0;
+    return fold(itemValue).includes(s) ? 1 : 0;
   };
 
   const pick = (a, opts = {}) => {
@@ -143,6 +149,10 @@ export function LinhaCodigoSelect({
 
   const heading =
     tipo === "servico" ? "Serviços" : tipo === "produto" ? "Produtos" : "Produtos e serviços";
+
+  const precoLista = (a) => {
+    return Number(a.preco_venda) || Number(a.custo_artigo) || 0;
+  };
 
   return (
     <>
@@ -195,7 +205,7 @@ export function LinhaCodigoSelect({
                     <Check size={14} className={linha.artigo_id === a.id ? "opacity-100 shrink-0" : "opacity-0 shrink-0"} />
                     <span className="tabular-nums text-xs text-gray-500 w-16 shrink-0">{a.codigo}</span>
                     <span className="truncate flex-1">{a.nome}</span>
-                    <span className="text-xs text-gray-400 tabular-nums shrink-0">{eur(a.preco_venda)}</span>
+                    <span className="text-xs text-gray-400 tabular-nums shrink-0">{eur(precoLista(a))}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>

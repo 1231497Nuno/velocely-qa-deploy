@@ -38,7 +38,7 @@ const TIPOS = [
   { key: "fornecedor", label: "Fornecedores" },
   { key: "cliente", label: "Clientes" },
   { key: "artigo", label: "Artigos" },
-  { key: "consumivel", label: "Materiais" },
+  { key: "consumivel", label: "Consumíveis" },
   { key: "maquina", label: "Máquinas" },
   { key: "mao_obra", label: "Mão de obra" },
   { key: "tipo_personalizacao", label: "Tipos de personalização" },

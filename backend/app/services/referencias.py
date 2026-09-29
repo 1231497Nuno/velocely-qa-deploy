@@ -65,7 +65,14 @@ async def artigo_utilizacoes(aid: str) -> dict:
     e_used = [e for e in encs if any((a or {}).get("artigo_id") == aid for a in (e.get("artigos") or []))]
     ofs = await ordens_repo.find(sort=("created_at", -1), limit=5000)
     f_used = [f for f in ofs if any((it or {}).get("artigo_id") == aid for it in (f.get("itens") or []))]
+    # Receitas: artigos produzidos que usam este como matéria-prima / componente
+    arts = await artigos_repo.find(sort=("nome", 1), limit=5000)
+    as_material = [
+        a for a in arts
+        if any((m or {}).get("material_id") == aid for m in (a.get("materiais") or []))
+    ]
     return {
+        "artigos": [_art_ref(a) for a in as_material],
         "orcamentos": [_orc_ref(o) for o in o_used],
         "encomendas": [_enc_ref(e) for e in e_used],
         "ordens_fabrico": [_of_ref(f) for f in f_used],

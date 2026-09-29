@@ -12,6 +12,8 @@ import {
 } from "@/features/artigos/artigoTipos";
 import ArtigoBlocosShell from "@/features/artigos/ArtigoBlocosShell";
 import ArtigoFichaCampos from "@/features/artigos/ArtigoFichaCampos";
+import ArtigoMateriaisReceita from "@/features/artigos/ArtigoMateriaisReceita";
+import { materialLinhaCusto, normalizeMateriaisReceita } from "@/features/artigos/artigoMateriais";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
@@ -43,7 +45,7 @@ export default function ArtigoNovo() {
           api.get("/mao-obra"),
           api.get("/categorias"),
           api.get("/subcategorias"),
-          api.get("/artigos?lite=true&tipo=consumivel").catch(() => []),
+          api.get("/artigos?lite=true&tipo=materia_prima").catch(() => []),
           api.get("/artigos?lite=true&tipo=ativo").catch(() => []),
         ]);
         setMaquinas(maq || []);
@@ -78,7 +80,7 @@ export default function ArtigoNovo() {
       ...prev,
       tipo_artigo,
       produzido: tipo_artigo === "ativo" ? prev.produzido : false,
-      margem: tipo_artigo === "consumivel" ? 0 : (prev.margem ?? 30),
+      margem: prev.margem ?? 30,
       materiais: tipo_artigo === "ativo" && prev.produzido ? prev.materiais : [],
       roteiro: tipo_artigo === "ativo" && prev.produzido ? prev.roteiro : [],
       comprimento_mm: tipo_artigo === "servico" ? 0 : prev.comprimento_mm,
@@ -117,13 +119,6 @@ export default function ArtigoNovo() {
     }));
   };
 
-  const updMat = (i, patch) => {
-    setForm((p) => {
-      const materiais = [...(p.materiais || [])];
-      materiais[i] = { ...materiais[i], ...patch };
-      return { ...p, materiais };
-    });
-  };
   const updOp = (i, patch) => {
     setForm((p) => {
       const roteiro = [...(p.roteiro || [])];
@@ -132,7 +127,7 @@ export default function ArtigoNovo() {
     });
   };
 
-  const custoMateriais = (form.materiais || []).reduce((s, m) => s + (Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0), 0);
+  const custoMateriais = (form.materiais || []).reduce((s, m) => s + materialLinhaCusto(m), 0);
   const custoMaquinas = (form.roteiro || []).reduce((s, op) => {
     const maq = maquinas.find((x) => x.id === op.maquina_id);
     return s + toHours(op.tempo_maquina, op.tempo_maquina_unidade) * maqHora(maq);
@@ -142,7 +137,7 @@ export default function ArtigoNovo() {
     return s + toHours(op.tempo_mao_obra, op.tempo_mao_obra_unidade) * (mo ? Number(mo.custo_hora) || 0 : 0);
   }, 0);
   const custoTotal = (Number(form.custo_artigo) || 0) + (produzido ? custoMateriais + custoMaquinas + custoMaoObra : 0);
-  const margemPct = tipo === "consumivel" ? 0 : (Number(form.margem) || 0);
+  const margemPct = Number(form.margem) || 0;
   const precoVenda = custoTotal * (1 + margemPct / 100);
 
   const save = async () => {
@@ -209,44 +204,12 @@ export default function ArtigoNovo() {
 
           if (blocoId === "materiais") {
             return (
-              <div className="p-4 space-y-2">
-                <div className="flex justify-end">
-                  <button type="button" onClick={() => setForm((p) => ({
-                    ...p,
-                    materiais: [...(p.materiais || []), { material_id: "", material_nome: "", unidade: "un", quantidade: 1, custo_unitario: 0 }],
-                  }))} className="text-sm font-medium flex items-center gap-1 hover:underline">
-                    <Plus size={14} /> Material
-                  </button>
-                </div>
-                {(form.materiais || []).map((m, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_90px_90px_32px] gap-2 items-center">
-                    <select
-                      value={m.material_id || ""}
-                      onChange={(e) => {
-                        const c = componentes.find((x) => x.id === e.target.value);
-                        updMat(i, {
-                          material_id: e.target.value,
-                          material_nome: c?.nome || "",
-                          unidade: c?.unidade || "un",
-                          custo_unitario: c?.custo_artigo ?? c?.custo_unitario ?? 0,
-                        });
-                      }}
-                      className={fieldCls}
-                    >
-                      <option value="">Selecionar artigo…</option>
-                      {componentes.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nome}{c.codigo ? ` (${c.codigo})` : ""}</option>
-                      ))}
-                    </select>
-                    <input type="number" step="0.01" value={m.quantidade} onChange={(e) => updMat(i, { quantidade: e.target.value })} className={`${fieldCls} text-right tabular-nums`} />
-                    <div className="text-right text-sm tabular-nums text-gray-600">{eur((Number(m.quantidade) || 0) * (Number(m.custo_unitario) || 0))}</div>
-                    <button type="button" onClick={() => setForm((p) => ({ ...p, materiais: p.materiais.filter((_, idx) => idx !== i) }))} className="p-1.5 text-red-600 hover:bg-red-50 rounded-sm">
-                      <X size={15} />
-                    </button>
-                  </div>
-                ))}
-                {(form.materiais || []).length === 0 && <p className="text-sm text-gray-400">Sem materiais.</p>}
-              </div>
+              <ArtigoMateriaisReceita
+                materiais={form.materiais || []}
+                componentes={componentes}
+                editing
+                onChange={(materiais) => setForm((p) => ({ ...p, materiais }))}
+              />
             );
           }
 
@@ -314,7 +277,17 @@ export default function ArtigoNovo() {
                   <Calculator size={14} /> Custo total calculado
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4 text-sm">
-                  <div><div className="text-gray-400 text-xs">Valor de compra</div><div className="tabular-nums font-medium">{eur(Number(form.custo_artigo) || 0)}</div></div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Preço de custo / compra</div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      data-testid="calc-artigo"
+                      value={form.custo_artigo ?? 0}
+                      onChange={(e) => setForm((f) => ({ ...f, custo_artigo: e.target.value }))}
+                      className="w-28 mt-0.5 border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30"
+                    />
+                  </div>
                   {produzido && (
                     <>
                       <div><div className="text-gray-400 text-xs">Materiais</div><div className="tabular-nums font-medium">{eur(custoMateriais)}</div></div>
@@ -327,13 +300,13 @@ export default function ArtigoNovo() {
                   <span className="text-sm text-gray-300">Custo por unidade</span>
                   <span className="tabular-nums font-bold text-2xl font-display">{eur(custoTotal)}</span>
                 </div>
-                {show("margem") && tipo !== "consumivel" && (
+                {show("margem") && (
                   <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
                     <label className="text-sm text-gray-300 flex items-center gap-2"><Tag size={14} /> Margem de lucro (%)</label>
                     <input type="number" value={form.margem} onChange={(e) => setForm((f) => ({ ...f, margem: e.target.value }))} className="w-24 text-right border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums" />
                   </div>
                 )}
-                {(show("margem") || show("custo_artigo")) && tipo !== "consumivel" && (
+                {(show("margem") || show("custo_artigo")) && (
                   <div className="flex items-end justify-between pt-3">
                     <span className="text-sm font-semibold text-emerald-300">Preço de venda</span>
                     <span className="tabular-nums font-bold text-3xl font-display text-emerald-300">{eur(precoVenda)}</span>

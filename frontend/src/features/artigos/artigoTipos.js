@@ -1,5 +1,8 @@
 /** Tipos de artigo, campos e blocos da ficha. */
 
+import { serializeMaterialLinha } from "@/features/artigos/artigoMateriais";
+import { applyCustoPlaca } from "@/features/artigos/artigoCustoPlaca";
+
 export const TIPOS_ARTIGO = [
   {
     id: "ativo",
@@ -7,9 +10,14 @@ export const TIPOS_ARTIGO = [
     desc: "Artigo de venda — pode ser produzido (receita e operações)",
   },
   {
+    id: "materia_prima",
+    label: "Matéria Prima",
+    desc: "Componente usado nas receitas dos artigos produzidos (como o antigo separador Materiais)",
+  },
+  {
     id: "consumivel",
     label: "Consumível",
-    desc: "Artigos que irão ser consumidos / matéria-prima",
+    desc: "Artigo consumido na produção / operações",
   },
   {
     id: "servico",
@@ -34,7 +42,7 @@ export const TIPO_ARTIGO_PT = Object.fromEntries(TIPOS_ARTIGO.map((t) => [t.id, 
 export const BLOCOS_ARTIGO = [
   { id: "detalhes", label: "Detalhes do produto" },
   { id: "dimensoes", label: "Dimensões" },
-  { id: "preco", label: "Informação preço venda" },
+  { id: "preco", label: "Informação preço / custo" },
   { id: "stock", label: "Informação de stock" },
   { id: "materiais", label: "Materiais necessários" },
   { id: "operacoes", label: "Operações / tempos" },
@@ -43,9 +51,14 @@ export const BLOCOS_ARTIGO = [
 
 export const BLOCOS_ARTIGO_DEFAULT_ORDER = BLOCOS_ARTIGO.map((b) => b.id);
 
+function _tipoKey(tipo) {
+  if (tipo === "produzido") return "ativo";
+  return tipo || "ativo";
+}
+
 /** Quais blocos aparecem por tipo (+ check produzido). */
 export function blocosVisiveis(tipo, produzido) {
-  const t = tipo === "produzido" ? "ativo" : (tipo || "ativo");
+  const t = _tipoKey(tipo);
   const set = new Set(["detalhes", "preco", "custo"]);
   if (t !== "servico") {
     set.add("dimensoes");
@@ -55,14 +68,21 @@ export function blocosVisiveis(tipo, produzido) {
     set.add("materiais");
     set.add("operacoes");
   }
-  if (t === "consumivel") {
-    set.delete("preco"); // sem margem/comissão típica — custo fica em detalhes/custo
+  if (t === "materia_prima" || t === "consumivel") {
+    // Sem margem/comissão — custo editável (como Materiais)
     set.add("custo");
   }
   return set;
 }
 
 /** Campos do bloco «detalhes» visíveis por tipo. */
+const DETALHES_MP = [
+  "nome", "codigo", "tipo_artigo",
+  "fabricante", "categoria", "fornecedor", "subcategoria",
+  "cod_fornecedor", "cod_fabricante", "plano_contas", "descricao", "imagem",
+  "created_at", "created_by", "updated_at",
+];
+
 const DETALHES_BY_TIPO = {
   ativo: [
     "nome", "codigo", "tipo_artigo", "produzido",
@@ -71,12 +91,8 @@ const DETALHES_BY_TIPO = {
     "plano_contas", "descricao", "imagem",
     "created_at", "created_by", "updated_at",
   ],
-  consumivel: [
-    "nome", "codigo", "tipo_artigo",
-    "fabricante", "categoria", "fornecedor", "subcategoria",
-    "cod_fornecedor", "cod_fabricante", "plano_contas", "descricao", "imagem",
-    "created_at", "created_by", "updated_at",
-  ],
+  materia_prima: DETALHES_MP,
+  consumivel: DETALHES_MP,
   servico: [
     "nome", "codigo", "tipo_artigo",
     "categoria", "subcategoria", "website", "ficha_produto", "plano_contas",
@@ -101,7 +117,8 @@ const DETALHES_BY_TIPO = {
 
 const PRECO_BY_TIPO = {
   ativo: ["preco_venda", "custo_artigo", "margem", "comissao_pct"],
-  consumivel: ["custo_artigo"],
+  materia_prima: ["preco_compra", "custo_artigo", "margem", "preco_venda"],
+  consumivel: ["preco_compra", "custo_artigo", "margem", "preco_venda"],
   servico: ["preco_venda", "custo_artigo", "margem", "comissao_pct"],
   nao_utilizado: ["preco_venda", "custo_artigo", "margem", "comissao_pct"],
   inativo: ["preco_venda", "custo_artigo", "margem", "comissao_pct"],
@@ -109,6 +126,7 @@ const PRECO_BY_TIPO = {
 
 const STOCK_BY_TIPO = {
   ativo: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
+  materia_prima: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
   consumivel: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
   servico: ["unidade"],
   nao_utilizado: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
@@ -116,7 +134,7 @@ const STOCK_BY_TIPO = {
 };
 
 export function camposBloco(blocoId, tipo) {
-  const t = tipo === "produzido" ? "ativo" : (tipo || "ativo");
+  const t = _tipoKey(tipo);
   if (blocoId === "detalhes") return DETALHES_BY_TIPO[t] || DETALHES_BY_TIPO.ativo;
   if (blocoId === "dimensoes") return ["comprimento_mm", "largura_mm", "espessura_mm", "peso_kg"];
   if (blocoId === "preco") return PRECO_BY_TIPO[t] || PRECO_BY_TIPO.ativo;
@@ -125,7 +143,7 @@ export function camposBloco(blocoId, tipo) {
 }
 
 export function mostraCampo(tipo, campo) {
-  const t = tipo === "produzido" ? "ativo" : (tipo || "ativo");
+  const t = _tipoKey(tipo);
   const all = new Set([
     ...(DETALHES_BY_TIPO[t] || []),
     ...(t !== "servico" ? ["comprimento_mm", "largura_mm", "espessura_mm", "peso_kg"] : []),
@@ -152,11 +170,19 @@ export function isProduzido(artigoOuForm) {
 }
 
 export function normalizarTipo(artigo) {
-  const raw = artigo?.tipo_artigo;
+  const raw = typeof artigo === "string" ? artigo : artigo?.tipo_artigo;
   if (raw === "produzido") return "ativo";
   if (raw && TIPO_ARTIGO_PT[raw]) return raw;
-  if (artigo?.ativo === false) return "inativo";
+  if (artigo && typeof artigo === "object" && artigo.ativo === false) return "inativo";
   return "ativo";
+}
+
+/** Tipos usáveis como componentes nas receitas (matéria-prima e consumível). */
+export function isMateriaPrima(tipoOuArtigo) {
+  const t = typeof tipoOuArtigo === "string"
+    ? tipoOuArtigo
+    : normalizarTipo(tipoOuArtigo);
+  return t === "materia_prima" || t === "consumivel";
 }
 
 export const emptyArtigoForm = {
@@ -167,6 +193,7 @@ export const emptyArtigoForm = {
   unidade: "un",
   imagem: "",
   custo_artigo: 0,
+  preco_compra: 0,
   margem: 30,
   comissao_pct: 0,
   categoria_id: "",
@@ -205,16 +232,18 @@ export function buildArtigoBody(form) {
   let tipo = form.tipo_artigo || "ativo";
   if (tipo === "produzido") tipo = "ativo";
   const produzido = tipo === "ativo" && isProduzido(form);
+  const formPlaca = applyCustoPlaca({ ...form, tipo_artigo: tipo });
   const body = {
     nome: form.nome,
     descricao: form.descricao || "",
-    unidade: form.unidade || "un",
+    unidade: formPlaca.unidade || "un",
     imagem: form.imagem || "",
     tipo_artigo: tipo,
     produzido,
-    custo_artigo: Number(form.custo_artigo) || 0,
-    margem: tipo === "consumivel" || form.diversos ? 0 : (Number(form.margem) || 0),
-    comissao_pct: tipo === "consumivel" || form.diversos ? 0 : (Number(form.comissao_pct) || 0),
+    custo_artigo: Number(formPlaca.custo_artigo) || 0,
+    preco_compra: isMateriaPrima(tipo) ? (Number(form.preco_compra) || 0) : 0,
+    margem: form.diversos ? 0 : (Number(form.margem) || 0),
+    comissao_pct: isMateriaPrima(tipo) || form.diversos ? 0 : (Number(form.comissao_pct) || 0),
     categoria_id: form.categoria_id || null,
     categoria_nome: form.categoria_nome || "",
     subcategoria_id: form.subcategoria_id || null,
@@ -243,11 +272,9 @@ export function buildArtigoBody(form) {
     nivel_reabastecimento: tipo === "servico" ? 0 : (Number(form.nivel_reabastecimento) || 0),
     qtd_ultima_compra: tipo === "servico" ? 0 : (Number(form.qtd_ultima_compra) || 0),
     materiais: produzido
-      ? (form.materiais || []).filter((m) => m.material_id).map((m) => ({
-        ...m,
-        quantidade: Number(m.quantidade) || 0,
-        custo_unitario: Number(m.custo_unitario) || 0,
-      }))
+      ? (form.materiais || [])
+          .filter((m) => m.material_id)
+          .map((m) => serializeMaterialLinha(m))
       : [],
     roteiro: produzido
       ? (form.roteiro || []).map((op) => ({

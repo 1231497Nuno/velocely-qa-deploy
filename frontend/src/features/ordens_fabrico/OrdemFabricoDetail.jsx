@@ -207,7 +207,7 @@ export default function OrdemFabricoDetail() {
   return (
     <div>
       {/* Barra sticky: ações + dados gerais (não saem com o scroll) */}
-      <div className="sticky top-14 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white/95 backdrop-blur border-b border-gray-200">
+      <div className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto flex flex-col gap-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="min-w-0 flex items-center gap-2 sm:gap-3">

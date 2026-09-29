@@ -160,18 +160,32 @@ class Anexo(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+class ArtigoMaterialMedida(BaseModel):
+    """Um consumo/medida dentro da mesma matéria-prima na receita (ex.: vários cortes)."""
+    id: str = Field(default_factory=new_id)
+    quantidade: float = 0.0  # na un. do material, ou nº de peças se L×A preenchidos
+    comprimento_mm: float = 0.0
+    largura_mm: float = 0.0
+
+
 class ArtigoMaterial(BaseModel):
     id: str = Field(default_factory=new_id)
-    material_id: str  # artigo (consumível/componente) — legado: pode ser consumivel_id
+    material_id: str  # artigo (consumível/matéria-prima) — legado: pode ser consumivel_id
     material_nome: str = ""
-    unidade: str = ""
-    quantidade: float = 0.0
-    custo_unitario: float = 0.0
+    unidade: str = ""  # herdada do artigo componente (não editar livremente na receita)
+    # Legado (linha única): usados se `medidas` estiver vazio
+    quantidade: float = 0.0  # na unidade do material (ex.: m², kg, un)
+    custo_unitario: float = 0.0  # € por unidade do material
+    comprimento_mm: float = 0.0
+    largura_mm: float = 0.0
+    # Vários consumos do mesmo material (cortes/áreas diferentes)
+    medidas: List[ArtigoMaterialMedida] = Field(default_factory=list)
 
 
 # Tipo de artigo — define campos e regras de utilização.
 # «Produzido» não é tipo: é o flag `produzido` no Ativo (receita + operações).
 TIPO_ARTIGO_ATIVO = "ativo"
+TIPO_ARTIGO_MATERIA_PRIMA = "materia_prima"
 TIPO_ARTIGO_CONSUMIVEL = "consumivel"
 TIPO_ARTIGO_SERVICO = "servico"
 TIPO_ARTIGO_NAO_UTILIZADO = "nao_utilizado"
@@ -180,14 +194,18 @@ TIPO_ARTIGO_INATIVO = "inativo"
 TIPO_ARTIGO_PRODUZIDO_LEGADO = "produzido"
 TIPOS_ARTIGO = (
     TIPO_ARTIGO_ATIVO,
+    TIPO_ARTIGO_MATERIA_PRIMA,
     TIPO_ARTIGO_CONSUMIVEL,
     TIPO_ARTIGO_SERVICO,
     TIPO_ARTIGO_NAO_UTILIZADO,
     TIPO_ARTIGO_INATIVO,
 )
 TIPOS_ARTIGO_INPUT = TIPOS_ARTIGO + (TIPO_ARTIGO_PRODUZIDO_LEGADO,)
+# Componentes usáveis nas receitas (ex-separador Materiais)
+TIPOS_MATERIA_PRIMA = (TIPO_ARTIGO_MATERIA_PRIMA, TIPO_ARTIGO_CONSUMIVEL)
 TIPO_ARTIGO_PT = {
     TIPO_ARTIGO_ATIVO: "Ativo",
+    TIPO_ARTIGO_MATERIA_PRIMA: "Matéria Prima",
     TIPO_ARTIGO_CONSUMIVEL: "Consumível",
     TIPO_ARTIGO_SERVICO: "Serviço",
     TIPO_ARTIGO_NAO_UTILIZADO: "Não utilizado",
@@ -195,7 +213,8 @@ TIPO_ARTIGO_PT = {
 }
 TIPO_ARTIGO_DESC = {
     TIPO_ARTIGO_ATIVO: "Artigo de venda — opcionalmente produzido (receita e operações)",
-    TIPO_ARTIGO_CONSUMIVEL: "Artigo consumido / matéria-prima",
+    TIPO_ARTIGO_MATERIA_PRIMA: "Componente / matéria-prima usado nas receitas dos artigos produzidos",
+    TIPO_ARTIGO_CONSUMIVEL: "Artigo consumido na produção / operações",
     TIPO_ARTIGO_SERVICO: "Sem stock nem produção",
     TIPO_ARTIGO_NAO_UTILIZADO: "Pode usar em operações futuras, com confirmação",
     TIPO_ARTIGO_INATIVO: "Não pode voltar a ser utilizado em operações futuras",
@@ -219,6 +238,8 @@ class Artigo(BaseModel):
     # Ativo com produção: receita (materiais) + operações
     produzido: bool = False
     custo_artigo: float = 0.0
+    # Preço pago pela placa/folha (MP). Com L×A → deriva custo_artigo em €/m².
+    preco_compra: float = 0.0
     margem: float = 30.0
     comissao_pct: float = 0.0
     ativo: bool = True
@@ -267,6 +288,8 @@ class ArtigoInput(BaseModel):
     tipo_artigo: str = TIPO_ARTIGO_ATIVO
     produzido: bool = False
     custo_artigo: float = 0.0
+    # Preço pago pela placa/folha (MP). Com L×A → deriva custo_artigo em €/m².
+    preco_compra: float = 0.0
     margem: float = 30.0
     comissao_pct: float = 0.0
     ativo: bool = True
@@ -319,7 +342,7 @@ class ArtigoInput(BaseModel):
         # Alinha flag legado «ativo» com o tipo
         if t == TIPO_ARTIGO_INATIVO:
             self.ativo = False
-        elif t in (TIPO_ARTIGO_ATIVO, TIPO_ARTIGO_CONSUMIVEL, TIPO_ARTIGO_SERVICO):
+        elif t in (TIPO_ARTIGO_ATIVO, TIPO_ARTIGO_MATERIA_PRIMA, TIPO_ARTIGO_CONSUMIVEL, TIPO_ARTIGO_SERVICO):
             self.ativo = True
         if t == TIPO_ARTIGO_SERVICO:
             self.comprimento_mm = 0.0
@@ -329,10 +352,6 @@ class ArtigoInput(BaseModel):
             self.qtd_stock = 0.0
             self.nivel_reabastecimento = 0.0
             self.qtd_ultima_compra = 0.0
-        if t == TIPO_ARTIGO_CONSUMIVEL:
-            # Consumível: custo de aquisição; sem margem de venda típica
-            self.margem = 0.0
-            self.comissao_pct = 0.0
         # Unidades de dimensão — defaults
         self.comprimento_unidade = (self.comprimento_unidade or "mm").strip() or "mm"
         self.largura_unidade = (self.largura_unidade or "mm").strip() or "mm"
@@ -409,11 +428,19 @@ class OrcamentoLinha(BaseModel):
     preco_unit_manual: bool = False
     desconto: float = 0.0
     desconto_tipo: str = "pct"  # pct | eur
+    desconto_base: str = "linha"  # linha | unit — € unitário vs total da linha
+    # Linha de matéria-prima / consumível vendido directamente (cálculo por unidade/medidas)
+    eh_materia_prima: bool = False
+    eh_servico: bool = False
+    eh_producao: bool = False
+    modo_calculo: str = ""  # diversos | materia_prima | servico | compra | producao
 
 
 class MaterialLinha(BaseModel):
     id: str = Field(default_factory=new_id)
     consumivel_id: Optional[str] = None
+    # Alias do componente (artigo matéria-prima / consumível)
+    material_id: Optional[str] = None
     nome: str = ""
     unidade: str = "un"
     custo_unitario: float = 0.0
@@ -423,6 +450,15 @@ class MaterialLinha(BaseModel):
     margem: float = 50.0
     custo: float = 0.0
     valor: float = 0.0
+    # Materiais vindos da receita do artigo da linha (não somam outra vez ao total)
+    da_receita: bool = False
+    artigo_origem_id: Optional[str] = None
+    artigo_origem_nome: str = ""
+    linha_origem_id: Optional[str] = None
+    # Quantidade por 1 un. do artigo (para reescalar com a qtd da linha)
+    quantidade_unit: Optional[float] = None
+    # Consumo do próprio artigo MP na linha (não confundir com componentes da receita)
+    eh_materia_prima_linha: bool = False
 
 
 class ClienteContacto(BaseModel):

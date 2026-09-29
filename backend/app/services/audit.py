@@ -76,6 +76,7 @@ CAMPO_LABELS = {
     "desconto_total": "Desconto total",
     "nome": "Nome",
     "custo_artigo": "Valor de compra",
+    "preco_compra": "Preço da placa",
     "custo_hora": "Custo/hora",
     "custo_unitario": "Custo unitário",
     "custo_amortizacao_hora": "Amortização/hora",

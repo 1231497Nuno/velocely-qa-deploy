@@ -80,7 +80,7 @@ export default function UtilizacoesDialog({ open, onOpenChange, endpoint, titulo
             <div className="text-sm text-gray-400 py-6 text-center" data-testid="utilizacoes-vazio">Ainda não está a ser utilizado em nenhum registo.</div>
           ) : (
             <>
-              <Grupo icon={Boxes} titulo="Artigos" testid="artigos" items={d.artigos} />
+              <Grupo icon={Boxes} titulo="Artigos (receitas)" testid="artigos" items={d.artigos} onGo={go("/artigos")} />
               <Grupo icon={FileText} titulo="Orçamentos" testid="orcamentos" items={d.orcamentos} onGo={go("/orcamentos")} />
               <Grupo icon={ClipboardList} titulo="Encomendas" testid="encomendas" items={d.encomendas} onGo={go("/encomendas")} />
               {canOF && <Grupo icon={Factory} titulo="Ordens de Fabrico" testid="ordens" items={d.ordens_fabrico} onGo={go("/ordens-fabrico")} />}

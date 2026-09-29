@@ -1,13 +1,15 @@
 import { eur } from "@/lib/api";
 import { Trash2 } from "lucide-react";
 
-export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMaterial, updMaterial, matValor, isM2 }) {
+export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMaterial, updMaterial, matValor, matCusto, isM2 }) {
   return (
     <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
           <h2 className="text-base font-semibold text-gray-900 font-display">Materiais / Consumíveis</h2>
-          <p className="text-xs text-gray-500">Materiais soltos adicionados ao orçamento, com margem editável por linha.</p>
+          <p className="text-xs text-gray-500">
+            Materiais soltos (fora da receita das linhas). Os materiais de cada artigo editam-se dentro da linha.
+          </p>
         </div>
         <select
           data-testid="add-material-select"
@@ -24,15 +26,28 @@ export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMat
         <p className="text-sm text-gray-400 py-4 text-center">Sem materiais adicionados.</p>
       ) : (
         <div className="space-y-3" data-testid="materiais-list">
-          {(materiais || []).map((m, i) => (
-            <div key={m.id || i} data-testid={`material-row-${i}`} className="border border-gray-200 rounded-sm p-3">
+          {(materiais || []).map((m, i) => {
+            const custoLinha = typeof matCusto === "function" ? matCusto(m) : (Number(m.custo) || 0);
+            return (
+            <div key={m.id || i} data-testid={`material-row-${i}`} className={`border rounded-sm p-3 ${m.da_receita ? "border-teal-200 bg-teal-50/30" : "border-gray-200"}`}>
               <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="font-medium text-gray-900 text-sm">{m.nome} <span className="text-gray-400 font-normal">· {m.unidade} · {eur(m.custo_unitario)}/{m.unidade}</span></div>
+                <div>
+                  <div className="font-medium text-gray-900 text-sm">
+                    {m.nome}{" "}
+                    <span className="text-gray-400 font-normal">· {m.unidade} · {eur(m.custo_unitario)}/{m.unidade}</span>
+                  </div>
+                  {m.da_receita && (
+                    <div className="text-xs text-teal-700 mt-0.5" data-testid={`material-origem-${i}`}>
+                      Da receita de: <span className="font-medium">{m.artigo_origem_nome || "artigo"}</span>
+                      <span className="text-teal-600/80"> · custo de compra na receita</span>
+                    </div>
+                  )}
+                </div>
                 <button data-testid={`del-material-${i}`} onClick={() => delMaterial(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Quantidade ({m.unidade || "un"})</label>
                   <input data-testid={`material-qtd-${i}`} type="number" min="0" value={m.quantidade} onChange={(e) => updMaterial(i, { quantidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
                 </div>
                 {isM2(m.unidade) && (
@@ -47,17 +62,22 @@ export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMat
                     </div>
                   </>
                 )}
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Margem (%)</label>
-                  <input data-testid={`material-margem-${i}`} type="number" min="0" value={m.margem ?? 50} onChange={(e) => updMaterial(i, { margem: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
-                </div>
+                {!m.da_receita && (
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Margem (%)</label>
+                    <input data-testid={`material-margem-${i}`} type="number" min="0" value={m.margem ?? 50} onChange={(e) => updMaterial(i, { margem: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20" />
+                  </div>
+                )}
                 <div className="text-right">
-                  <label className="text-xs text-gray-500 mb-1 block">Valor</label>
-                  <div className="tabular-nums font-semibold text-gray-900 py-2" data-testid={`material-valor-${i}`}>{eur(matValor(m))}</div>
+                  <label className="text-xs text-gray-500 mb-1 block">{m.da_receita ? "Custo (na receita)" : "Valor"}</label>
+                  <div className="tabular-nums font-semibold text-gray-900 py-2" data-testid={`material-valor-${i}`}>
+                    {m.da_receita ? eur(custoLinha) : eur(matValor(m))}
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

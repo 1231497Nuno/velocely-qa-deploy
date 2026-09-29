@@ -590,7 +590,7 @@ def _add_sheet_validations(ws, entity: str, columns: List[str]) -> None:
         "encomendas": {"estado": '"aberta,em_producao,concluida,cancelada"', "desconto_total_tipo": '"pct,eur"'},
         "encomenda_linhas": {"desconto_tipo": '"pct,eur"'},
         "artigos": {
-            "tipo_artigo": '"ativo,consumivel,servico,nao_utilizado,inativo"',
+            "tipo_artigo": '"ativo,materia_prima,consumivel,servico,nao_utilizado,inativo"',
             "produzido": '"sim,nao"',
             "ativo": '"sim,nao"',
         },
@@ -1426,7 +1426,11 @@ async def _upsert_row(
             produzido = True
         else:
             produzido = _parse_bool(row.get("produzido")) if "produzido" in row else False
-        if tipo_raw not in ("ativo", "consumivel", "servico", "nao_utilizado", "inativo"):
+        if tipo_raw == "consumivel":
+            pass  # tipo próprio
+        elif tipo_raw == "materia_prima":
+            pass
+        if tipo_raw not in ("ativo", "materia_prima", "consumivel", "servico", "nao_utilizado", "inativo"):
             return "error", f"tipo_artigo inválido: {tipo_raw}"
         if tipo_raw != "ativo":
             produzido = False
@@ -1446,7 +1450,7 @@ async def _upsert_row(
             "subcategoria_id": sub["id"] if sub else None,
             "subcategoria_nome": (sub or {}).get("nome") or "",
             "custo_artigo": _parse_float(row.get("custo_artigo")),
-            "margem": _parse_float(row.get("margem"), 0.0 if tipo_raw == "consumivel" else 30.0),
+            "margem": _parse_float(row.get("margem"), 30.0),
             "comissao_pct": _parse_float(row.get("comissao_pct")),
             "fabricante": _norm_str(row.get("fabricante")),
             "cod_fabricante": _norm_code(row.get("cod_fabricante")),

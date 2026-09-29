@@ -11,7 +11,9 @@ import {
   camposBloco,
   normalizarTipo,
   isProduzido,
+  isMateriaPrima,
 } from "@/features/artigos/artigoTipos";
+import { areaPlacaM2, custoM2FromPlaca, applyCustoPlaca, unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
 
 dayjs.extend(relativeTime);
 dayjs.locale("pt");
@@ -302,11 +304,25 @@ export default function ArtigoFichaCampos({
       { key: "espessura_mm", unitKey: "espessura_unidade", label: "Espessura", units: UNIDADES_LINEAR, defaultUnit: "mm" },
       { key: "peso_kg", unitKey: "peso_unidade", label: "Peso", units: UNIDADES_PESO, defaultUnit: "kg", step: "0.001" },
     ];
+    const areaM2 = isMateriaPrima(tipo) ? areaPlacaM2(src) : 0;
+    const patchDim = (patch) => {
+      const base = editing ? draft : artigo;
+      const next = applyCustoPlaca({ ...base, ...patch });
+      const extra = {
+        ...patch,
+        ...(next.custo_artigo !== base?.custo_artigo || next.unidade !== base?.unidade
+          ? { custo_artigo: next.custo_artigo, unidade: next.unidade }
+          : {}),
+      };
+      if (editing) onChange?.(extra);
+      else onPatch?.(extra);
+    };
     return (
       <FieldGrid>
         {dims.map(({ key, unitKey, label, units, defaultUnit, step }) => {
           const unit = (editing ? draft?.[unitKey] : artigo?.[unitKey]) || defaultUnit;
           const editable = editing || canEdit;
+          const isLinear = key === "comprimento_mm" || key === "largura_mm";
           return (
             <FieldRow key={key} label={label} testid={`ficha-${key}`}>
               {editable ? (
@@ -316,7 +332,11 @@ export default function ArtigoFichaCampos({
                       type="number"
                       step={step}
                       value={draft?.[key] ?? 0}
-                      onChange={(e) => onChange?.({ [key]: e.target.value })}
+                      onChange={(e) => {
+                        const patch = { [key]: e.target.value };
+                        if (isLinear && isMateriaPrima(tipo)) patchDim(patch);
+                        else onChange?.(patch);
+                      }}
                       className={`${fitInputCls} text-right`}
                       style={{
                         width: contentWidthCh(draft?.[key] ?? 0, { min: 5, max: 16, pad: 2.5 }),
@@ -334,7 +354,11 @@ export default function ArtigoFichaCampos({
                       fit
                       fitMin={5}
                       fitMax={16}
-                      onSave={patchNum(key)}
+                      onSave={(v) => {
+                        const patch = { [key]: Number(v) || 0 };
+                        if (isLinear && isMateriaPrima(tipo)) patchDim(patch);
+                        else onPatch?.(patch);
+                      }}
                       testid={`artigo-${key}`}
                     />
                   )}
@@ -342,8 +366,10 @@ export default function ArtigoFichaCampos({
                     value={unit}
                     onChange={(e) => {
                       const v = e.target.value || defaultUnit;
-                      if (editing) onChange?.({ [unitKey]: v });
-                      else onPatch?.({ [unitKey]: v });
+                      const patch = { [unitKey]: v };
+                      if (isLinear && isMateriaPrima(tipo)) patchDim(patch);
+                      else if (editing) onChange?.(patch);
+                      else onPatch?.(patch);
                     }}
                     className={fitSelectCls}
                     style={{
@@ -362,24 +388,97 @@ export default function ArtigoFichaCampos({
             </FieldRow>
           );
         })}
+        {isMateriaPrima(tipo) && (
+          <FieldRow label="Área da placa" testid="ficha-area-placa">
+            <span className="tabular-nums font-medium" data-testid="artigo-area-placa">
+              {areaM2 > 0 ? `${areaM2.toLocaleString("pt-PT", { maximumFractionDigits: 4 })} m²` : "—"}
+            </span>
+          </FieldRow>
+        )}
       </FieldGrid>
     );
   }
 
   if (blocoId === "preco") {
+    const ehMp = isMateriaPrima(tipo);
+    const areaM2 = ehMp ? areaPlacaM2(src) : 0;
+    const custoM2 = ehMp ? custoM2FromPlaca(src) : 0;
+    const temPlaca = ehMp && custoM2 > 0;
+    const un = unidadeMedida(src);
+
+    const patchPrecoPlaca = (precoVal) => {
+      const patch = { preco_compra: precoVal };
+      const next = applyCustoPlaca({ ...(editing ? draft : artigo), ...patch });
+      const extra = {
+        ...patch,
+        custo_artigo: next.custo_artigo,
+        unidade: next.unidade,
+      };
+      if (editing) onChange?.(extra);
+      else onPatch?.(extra);
+    };
+
     return (
       <FieldGrid>
-        {show("preco_venda") && (
-          <FieldRow label="Preço unitário (€)" testid="ficha-preco">
-            <span className="tabular-nums font-medium text-emerald-700">{eur(precoVenda ?? artigo?.preco_venda)}</span>
+        {show("preco_compra") && (
+          <FieldRow label="Preço da placa (€)" testid="ficha-preco-compra">
+            {editing ? (
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={draft?.preco_compra ?? 0}
+                onChange={(e) => patchPrecoPlaca(e.target.value)}
+                className={`${fieldCls} tabular-nums`}
+                data-testid="artigo-preco-compra-input"
+              />
+            ) : (
+              <InlineField
+                value={artigo?.preco_compra}
+                display={eur(artigo?.preco_compra)}
+                type="number"
+                canEdit={canEdit}
+                mono
+                align="left"
+                onSave={(v) => patchPrecoPlaca(Number(v) || 0)}
+                testid="artigo-preco-compra"
+              />
+            )}
           </FieldRow>
         )}
         {show("custo_artigo") && (
-          <FieldRow label="Preço custo / compra" testid="ficha-custo">
-            {editing ? (
-              <input type="number" step="0.01" value={draft?.custo_artigo ?? 0} onChange={(e) => onChange?.({ custo_artigo: e.target.value })} className={`${fieldCls} tabular-nums`} />
+          <FieldRow
+            label={temPlaca ? `Custo (€ / ${un})` : (ehMp ? `Custo por unidade (€ / ${un})` : `Preço de custo (€ / ${un})`)}
+            testid="ficha-custo"
+          >
+            {temPlaca ? (
+              <div className="text-right">
+                <span className="tabular-nums font-medium" data-testid="artigo-custo-m2">
+                  {eur(custoM2)}
+                  <span className="text-gray-400 font-normal text-xs ml-1">/ {un}</span>
+                </span>
+                {areaM2 > 0 && (
+                  <div className="text-[10px] text-gray-400 mt-0.5" data-testid="artigo-custo-placa-formula">
+                    {eur(src?.preco_compra)} ÷ {areaM2.toLocaleString("pt-PT", { maximumFractionDigits: 4 })} {un}
+                  </div>
+                )}
+              </div>
+            ) : editing ? (
+              <div className="inline-flex items-center gap-1.5 justify-end">
+                <input type="number" step="0.01" value={draft?.custo_artigo ?? 0} onChange={(e) => onChange?.({ custo_artigo: e.target.value })} className={`${fieldCls} tabular-nums`} data-testid="artigo-custo-input" />
+                <span className="text-xs text-gray-400 shrink-0">/ {un}</span>
+              </div>
             ) : (
-              <InlineField value={artigo?.custo_artigo} display={eur(artigo?.custo_artigo)} type="number" canEdit={canEdit} mono onSave={patchNum("custo_artigo")} testid="artigo-custo" />
+              <InlineField
+                value={artigo?.custo_artigo}
+                display={`${eur(artigo?.custo_artigo)} / ${un}`}
+                type="number"
+                canEdit={canEdit}
+                mono
+                align="left"
+                onSave={patchNum("custo_artigo")}
+                testid="artigo-custo"
+              />
             )}
           </FieldRow>
         )}
@@ -390,6 +489,14 @@ export default function ArtigoFichaCampos({
             ) : (
               <InlineField value={artigo?.margem} display={`${Number(artigo?.margem) || 0}%`} type="number" canEdit={canEdit} mono onSave={patchNum("margem")} testid="artigo-margem-ficha" />
             )}
+          </FieldRow>
+        )}
+        {show("preco_venda") && (
+          <FieldRow label={`Preço de venda (€ / ${un})`} testid="ficha-preco">
+            <span className="tabular-nums font-medium text-emerald-700" data-testid="artigo-preco-venda">
+              {eur(precoVenda ?? artigo?.preco_venda)}
+              <span className="text-gray-400 font-normal text-xs ml-1">/ {un}</span>
+            </span>
           </FieldRow>
         )}
         {show("comissao_pct") && (

@@ -15,6 +15,89 @@ def pagamento_sinal(p: dict) -> int:
     return -1 if (p.get("tipo") or "pagamento") == "devolucao" else 1
 
 
+# ----------------------- Matéria-prima: placa → €/m² -----------------------
+_LINEAR_TO_M = {
+    "mm": 0.001,
+    "cm": 0.01,
+    "m": 1.0,
+    "in": 0.0254,
+    "inch": 0.0254,
+    '"': 0.0254,
+}
+
+
+def linear_to_m(val, unidade) -> float:
+    """Converte dimensão linear para metros."""
+    try:
+        v = float(val or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if v <= 0:
+        return 0.0
+    u = (unidade or "mm").strip().lower()
+    return v * _LINEAR_TO_M.get(u, 0.001)
+
+
+def area_placa_m2(artigo: Optional[dict]) -> float:
+    """Área da placa/folha a partir de comprimento × largura (com unidades)."""
+    if not artigo:
+        return 0.0
+    comp = linear_to_m(artigo.get("comprimento_mm"), artigo.get("comprimento_unidade") or "mm")
+    larg = linear_to_m(artigo.get("largura_mm"), artigo.get("largura_unidade") or "mm")
+    if comp <= 0 or larg <= 0:
+        return 0.0
+    return round2(comp * larg)
+
+
+def custo_m2_from_placa(artigo: Optional[dict]) -> float:
+    """€/m² = preço da placa ÷ área. 0 se faltar preço ou dimensões."""
+    if not artigo:
+        return 0.0
+    try:
+        preco = float(artigo.get("preco_compra") or 0)
+    except (TypeError, ValueError):
+        preco = 0.0
+    area = area_placa_m2(artigo)
+    if preco <= 0 or area <= 0:
+        return 0.0
+    return round2(preco / area)
+
+
+def aplicar_custo_placa_mp(artigo: dict) -> dict:
+    """
+    Matéria-prima / consumível: se há preço de placa + L×A, grava custo_artigo em €/m²
+    e unidade m² — esse valor alimenta receitas e orçamentos.
+    """
+    from app.domain.models import TIPOS_MATERIA_PRIMA
+    if not artigo:
+        return artigo
+    tipo = (artigo.get("tipo_artigo") or "").strip().lower()
+    if tipo not in TIPOS_MATERIA_PRIMA:
+        return artigo
+    custo_m2 = custo_m2_from_placa(artigo)
+    if custo_m2 <= 0:
+        return artigo
+    artigo = {**artigo}
+    artigo["custo_artigo"] = custo_m2
+    un = (artigo.get("unidade") or "").strip().lower().replace("m2", "m²")
+    if un not in ("m²", "m2"):
+        artigo["unidade"] = "m²"
+    return artigo
+
+
+def custo_unitario_compra(artigo: Optional[dict]) -> float:
+    """Custo por unidade usado em BOM/orçamento (placa→€/m² se aplicável)."""
+    if not artigo:
+        return 0.0
+    from app.domain.models import TIPOS_MATERIA_PRIMA
+    tipo = (artigo.get("tipo_artigo") or "").strip().lower()
+    if tipo in TIPOS_MATERIA_PRIMA:
+        custo_m2 = custo_m2_from_placa(artigo)
+        if custo_m2 > 0:
+            return custo_m2
+    return round2(artigo.get("custo_artigo") or 0)
+
+
 def soma_valor_pago(pagamentos) -> float:
     """Valor líquido pago na encomenda (pagamentos − devoluções)."""
     return round2(sum((p.get("valor") or 0) * pagamento_sinal(p) for p in (pagamentos or [])))
@@ -78,7 +161,8 @@ def _artigo_breakdown_from_parts(artigo: dict, custo_materiais: float, custo_maq
     custo_materiais = round2(custo_materiais)
     custo_maquinas = round2(custo_maquinas)
     custo_mao_obra = round2(custo_mao_obra)
-    custo_artigo = round2(artigo.get("custo_artigo") or 0)
+    # MP com placa: usa €/m² derivado; restantes: custo_artigo
+    custo_artigo = custo_unitario_compra(artigo)
     custo_total = round2(custo_artigo + custo_materiais + custo_maquinas + custo_mao_obra)
     if artigo_is_diversos(artigo):
         margem = 0.0
@@ -108,11 +192,11 @@ def artigo_breakdown_with_caches(
     mo_by_id = mo_by_id or {}
     custo_materiais = 0.0
     for mat in artigo.get("materiais") or []:
-        cid = mat.get("material_id")
-        custo_unit = mat.get("custo_unitario") or 0
+        m = {**mat}
+        cid = m.get("material_id")
         if cid and cid in cons_by_id and cons_by_id[cid] is not None:
-            custo_unit = cons_by_id[cid]
-        custo_materiais += (mat.get("quantidade") or 0) * custo_unit
+            m["custo_unitario"] = cons_by_id[cid]
+        custo_materiais += material_custo(m)
     custo_maquinas = 0.0
     custo_mao_obra = 0.0
     for op in artigo.get("roteiro") or []:
@@ -134,7 +218,7 @@ async def _artigo_breakdown_with_lookups(artigo: dict, mats: list, roteiro: list
         # Preferência: artigos (novo modelo). Fallback: consumíveis legados.
         for a in await artigos_repo.find({"id": {"$in": list(mat_ids)}}, limit=len(mat_ids) + 5):
             # custo de componente = valor de compra do artigo referenciado
-            cons_by_id[a["id"]] = a.get("custo_artigo", 0.0)
+            cons_by_id[a["id"]] = custo_unitario_compra(a)
         missing = mat_ids - set(cons_by_id.keys())
         if missing:
             for c in await consumiveis_repo.find({"id": {"$in": list(missing)}}, limit=len(missing) + 5):
@@ -171,7 +255,7 @@ async def enrich_artigos_list(rows: list) -> list:
     if needs_lookup:
         if cons_ids:
             for a in await artigos_repo.find({"id": {"$in": list(cons_ids)}}, limit=len(cons_ids) + 5):
-                cons_by_id[a["id"]] = a.get("custo_artigo", 0.0)
+                cons_by_id[a["id"]] = custo_unitario_compra(a)
             missing = cons_ids - set(cons_by_id.keys())
             if missing:
                 for c in await consumiveis_repo.find({"id": {"$in": list(missing)}}, limit=len(missing) + 5):
@@ -189,8 +273,13 @@ async def enrich_artigos_list(rows: list) -> list:
 
 
 def artigo_lite(artigo: dict) -> dict:
-    """Payload mínimo para selectors (sem BOM/roteiro/descrição longa)."""
-    custo = round2(artigo.get("custo_artigo") or 0)
+    """Payload mínimo para selectors (sem BOM/roteiro/descrição longa).
+
+    `preco_venda` aqui é só estimativa (custo_artigo × margem), sem materiais/ops.
+    Orçamentos devem usar GET /artigos/{id} (breakdown completo).
+    Inclui preço/dims da placa para o frontend derivar €/m².
+    """
+    custo = custo_unitario_compra(artigo)
     codigo = artigo.get("codigo") or ""
     diversos = artigo_is_diversos(artigo)
     margem = 0.0 if diversos else (artigo.get("margem") if artigo.get("margem") is not None else 30.0)
@@ -202,6 +291,11 @@ def artigo_lite(artigo: dict) -> dict:
         "tipo_artigo": artigo.get("tipo_artigo") or "ativo",
         "produzido": bool(artigo.get("produzido")) or (artigo.get("tipo_artigo") == "produzido"),
         "custo_artigo": custo,
+        "preco_compra": round2(artigo.get("preco_compra") or 0),
+        "comprimento_mm": float(artigo.get("comprimento_mm") or 0),
+        "largura_mm": float(artigo.get("largura_mm") or 0),
+        "comprimento_unidade": artigo.get("comprimento_unidade") or "mm",
+        "largura_unidade": artigo.get("largura_unidade") or "mm",
         "margem": margem,
         "diversos": diversos,
         "categoria_id": artigo.get("categoria_id"),
@@ -209,6 +303,7 @@ def artigo_lite(artigo: dict) -> dict:
         "subcategoria_id": artigo.get("subcategoria_id"),
         "subcategoria_nome": artigo.get("subcategoria_nome") or "",
         "preco_venda": round2(custo * (1 + float(margem) / 100.0)),
+        "lite": True,
     }
 
 
@@ -248,12 +343,52 @@ def material_margem_factor(m: dict) -> float:
     return 1.0 + (float(margem) / 100.0)
 
 
+def _medida_custo(unidade: str, custo: float, med: dict) -> float:
+    """Custo de um consumo/medida (qtd na un. ou L×A em m²)."""
+    qtd = float(med.get("quantidade") or 0)
+    un = (unidade or "").lower().replace("m2", "m²")
+    if un in ("m²", "m2"):
+        comp = float(med.get("comprimento_mm") or 0)
+        larg = float(med.get("largura_mm") or 0)
+        if comp > 0 and larg > 0:
+            area = (comp / 1000.0) * (larg / 1000.0)
+            return round2(area * custo * (qtd if qtd > 0 else 1.0))
+        return round2(qtd * custo)
+    return round2(qtd * custo)
+
+
+def material_qtd_efetiva(m: dict) -> float:
+    """Quantidade efectiva na unidade do material (soma das medidas)."""
+    unidade = (m.get("unidade") or "").lower().replace("m2", "m²")
+    medidas = m.get("medidas") or []
+    if not medidas:
+        medidas = [m]
+
+    def _qtd(med: dict) -> float:
+        qtd = float(med.get("quantidade") or 0)
+        if unidade in ("m²", "m2"):
+            comp = float(med.get("comprimento_mm") or 0)
+            larg = float(med.get("largura_mm") or 0)
+            if comp > 0 and larg > 0:
+                return (comp / 1000.0) * (larg / 1000.0) * (qtd if qtd > 0 else 1.0)
+        return qtd
+
+    return sum(_qtd(med) for med in medidas)
+
+
 def material_custo(m: dict) -> float:
-    unidade = (m.get("unidade") or "").lower()
-    if unidade in ("m²", "m2"):
-        c = (float(m.get("comprimento_mm") or 0) / 1000.0) * (float(m.get("largura_mm") or 0) / 1000.0)
-        return round2(c * (float(m.get("custo_unitario") or 0)) * (float(m.get("quantidade") or 1)))
-    return round2(float(m.get("quantidade") or 0) * float(m.get("custo_unitario") or 0))
+    """Custo de uma linha de material (orçamento solto ou BOM de artigo).
+
+    - Unidade normal: quantidade × custo_unitario (quantidade já na un. do material).
+    - m² com L×A (mm): área_m² × custo × quantidade (nº de peças); se L/A=0, quantidade é m².
+    - Se `medidas` existir, soma o custo de cada consumo do mesmo material.
+    """
+    custo = float(m.get("custo_unitario") or 0)
+    unidade = m.get("unidade") or ""
+    medidas = m.get("medidas") or []
+    if medidas:
+        return round2(sum(_medida_custo(unidade, custo, med) for med in medidas))
+    return _medida_custo(unidade, custo, m)
 
 
 def fill_materiais(materiais: List[dict]) -> List[dict]:
@@ -261,10 +396,14 @@ def fill_materiais(materiais: List[dict]) -> List[dict]:
     for m in materiais or []:
         m = {**m}
         if m.get("margem") is None:
-            m["margem"] = 50.0
+            m["margem"] = 0.0 if m.get("da_receita") else 50.0
         custo = material_custo(m)
         m["custo"] = custo
-        m["valor"] = round2(custo * material_margem_factor(m))
+        # Receita do artigo: já está no preço/custo da linha — valor de venda 0
+        if m.get("da_receita"):
+            m["valor"] = 0.0
+        else:
+            m["valor"] = round2(custo * material_margem_factor(m))
         out.append(m)
     return out
 
@@ -319,6 +458,9 @@ def compute_orcamento_totais(orc: dict) -> dict:
     custo_materiais = 0.0
     venda_materiais = 0.0
     for m in orc.get("materiais", []):
+        # Materiais da receita do artigo já entram no custo/preço da linha
+        if m.get("da_receita"):
+            continue
         c = material_custo(m)
         custo_materiais += c
         venda_materiais += round2(c * material_margem_factor(m))
@@ -345,12 +487,53 @@ def compute_orcamento_totais(orc: dict) -> dict:
     return orc
 
 
-async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
+def _is_materia_prima_artigo(artigo: dict) -> bool:
+    t = (artigo.get("tipo_artigo") or "").strip().lower()
+    return t in ("materia_prima", "consumivel")
+
+
+def _linha_custo_from_materiais(l: dict, materiais: List[dict]) -> Optional[float]:
+    """Custo unitário da linha a partir dos consumos da receita (ex.: matéria-prima com medidas)."""
+    linha_id = l.get("id")
+    if not linha_id:
+        return None
+    mats = [
+        m for m in (materiais or [])
+        if m.get("da_receita") and m.get("linha_origem_id") == linha_id
+    ]
+    if not mats:
+        return None
+    qtd = float(l.get("quantidade") or 0) or 1.0
+    total = sum(material_custo(m) for m in mats)
+    return round2(total / qtd)
+
+
+def _modo_calculo_linha(l: dict, artigo: dict) -> str:
+    modo = (l.get("modo_calculo") or "").strip().lower()
+    if modo in ("diversos", "materia_prima", "servico", "compra", "producao"):
+        return modo
+    if artigo_is_diversos(artigo) or l.get("descricao_livre"):
+        return "diversos"
+    if _is_materia_prima_artigo(artigo) or l.get("eh_materia_prima"):
+        return "materia_prima"
+    t = (artigo.get("tipo_artigo") or "ativo").strip().lower()
+    if t == "servico":
+        return "servico"
+    if t == "ativo" and (
+        artigo.get("produzido")
+        or (artigo.get("materiais") or [])
+        or (artigo.get("roteiro") or [])
+    ):
+        return "producao"
+    return "compra"
+
+
+async def fill_linha_custos(linhas: List[dict], materiais: Optional[List[dict]] = None) -> List[dict]:
+    materiais = materiais or []
     out = []
     for l in linhas:
         a = await artigos_repo.get(l.get("artigo_id"))
         if a:
-            # Diversos / descrição livre: manter nome custom; código de referência do catálogo
             if not l.get("artigo_codigo"):
                 l["artigo_codigo"] = a.get("codigo") or ""
             if not l.get("descricao_livre"):
@@ -359,28 +542,83 @@ async def fill_linha_custos(linhas: List[dict]) -> List[dict]:
                 l["artigo_nome"] = a.get("nome", "")
             if not l.get("imagem") and a.get("imagem"):
                 l["imagem"] = a.get("imagem")
-            if l.get("custo_base_unit") is None:
+
+            livre = bool(l.get("descricao_livre")) or artigo_is_diversos(a)
+            modo = _modo_calculo_linha(l, a)
+            l["modo_calculo"] = modo
+            l["eh_materia_prima"] = modo == "materia_prima"
+            l["eh_servico"] = modo == "servico"
+            l["eh_producao"] = modo == "producao"
+
+            if livre or modo == "diversos":
+                l["margem"] = 0
+                l["roteiro"] = []
+                if l.get("preco_unit_manual") and l.get("preco_unit") is not None:
+                    l["preco_unit"] = round2(float(l.get("preco_unit") or 0))
+            elif modo == "materia_prima":
+                if l.get("margem") is None:
+                    l["margem"] = float(a.get("margem") if a.get("margem") is not None else 30)
+                l["roteiro"] = []
+                custo_unit = _linha_custo_from_materiais(l, materiais)
+                if custo_unit is None:
+                    custo_unit = custo_unitario_compra(a)
+                l["custo_compra_unit"] = 0.0
+                l["custo_materiais_unit"] = custo_unit
+                l["custo_operacoes_unit"] = 0.0
+                l["custo_base_unit"] = custo_unit
+                l["custo_producao_unit"] = custo_unit
+                margem = float(l.get("margem") or 0)
+                if l.get("preco_unit_manual") and l.get("preco_unit") is not None:
+                    l["preco_unit"] = round2(float(l.get("preco_unit") or 0))
+                else:
+                    l["preco_unit"] = round2(custo_unit * (1 + margem / 100.0))
+            elif modo in ("servico", "compra"):
+                custo_unit = round2(a.get("custo_artigo") or 0)
+                if l.get("margem") is None:
+                    l["margem"] = float(a.get("margem") or 30)
+                l["roteiro"] = []
+                l["custo_compra_unit"] = custo_unit
+                l["custo_materiais_unit"] = 0.0
+                l["custo_operacoes_unit"] = 0.0
+                l["custo_base_unit"] = custo_unit
+                l["custo_producao_unit"] = custo_unit
+                if l.get("preco_unit_manual") and l.get("preco_unit") is not None:
+                    l["preco_unit"] = round2(float(l.get("preco_unit") or 0))
+                else:
+                    bd_a = await artigo_breakdown(a)
+                    l["preco_unit"] = bd_a["preco_venda"]
+            elif modo == "producao":
                 bd_a = await artigo_breakdown(a)
-                l["custo_base_unit"] = round2(bd_a["custo_artigo"] + bd_a["custo_materiais"])
                 if l.get("margem") is None:
                     l["margem"] = 0 if artigo_is_diversos(a) else a.get("margem", 30)
                 if not l.get("roteiro"):
                     l["roteiro"] = a.get("roteiro", [])
-            livre = bool(l.get("descricao_livre")) or artigo_is_diversos(a)
-            if livre:
-                l["margem"] = 0
-            pseudo = {
-                "custo_artigo": l.get("custo_base_unit") or 0,
-                "materiais": [],
-                "roteiro": l.get("roteiro", []),
-                "margem": 0 if livre else (l.get("margem") if l.get("margem") is not None else 30),
-            }
-            bd = await artigo_breakdown(pseudo)
-            l["custo_producao_unit"] = bd["custo_producao_total"]
-            if l.get("preco_unit_manual") and l.get("preco_unit") is not None:
-                l["preco_unit"] = round2(float(l.get("preco_unit") or 0))
-            else:
-                l["preco_unit"] = bd["preco_venda"]
+                compra = round2(
+                    l.get("custo_compra_unit")
+                    if l.get("custo_compra_unit") is not None
+                    else bd_a.get("custo_artigo") or 0
+                )
+                mats_unit = _linha_custo_from_materiais(l, materiais)
+                if mats_unit is None:
+                    mats_unit = round2(bd_a.get("custo_materiais") or 0)
+                pseudo = {
+                    "custo_artigo": compra,
+                    "materiais": [],
+                    "roteiro": l.get("roteiro", []),
+                    "margem": 0,
+                }
+                bd = await artigo_breakdown(pseudo)
+                ops_unit = round2((bd.get("custo_maquinas") or 0) + (bd.get("custo_mao_obra") or 0))
+                custo_total = round2(compra + mats_unit + ops_unit)
+                l["custo_compra_unit"] = compra
+                l["custo_materiais_unit"] = mats_unit
+                l["custo_operacoes_unit"] = ops_unit
+                l["custo_base_unit"] = round2(compra + mats_unit)
+                l["custo_producao_unit"] = custo_total
+                if l.get("preco_unit_manual") and l.get("preco_unit") is not None:
+                    l["preco_unit"] = round2(float(l.get("preco_unit") or 0))
+                else:
+                    l["preco_unit"] = bd_a["preco_venda"]
         out.append(l)
     return out
 

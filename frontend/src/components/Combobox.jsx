@@ -5,12 +5,18 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "./ui/command";
 
+const fold = (s) =>
+  String(s || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+
 export default function Combobox({
   options,
   value,
   onChange,
   placeholder = "Selecionar...",
-  searchPlaceholder = "Pesquisar pelo início do nome...",
+  searchPlaceholder = "Pesquisar...",
   emptyText = "Sem resultados.",
   testid,
   optionTestidPrefix = "option",
@@ -23,14 +29,12 @@ export default function Combobox({
   const ordered = [...options].sort((a, b) => Number(!!b.pin) - Number(!!a.pin));
   const selected = ordered.find((o) => o.value === value);
 
-  const filter = matchPrefix
-    ? (itemValue, search) => {
-        const s = (search || "").trim().toLowerCase();
-        if (!s) return 1;
-        const label = (itemValue || "").toLowerCase();
-        return label.startsWith(s) ? 1 : 0;
-      }
-    : undefined;
+  const filter = (itemValue, search) => {
+    const s = fold(search).trim();
+    if (!s) return 1;
+    const label = fold(itemValue);
+    return (matchPrefix ? label.startsWith(s) : label.includes(s)) ? 1 : 0;
+  };
 
   return (
     <Popover open={disabled ? false : open} onOpenChange={disabled ? undefined : setOpen}>

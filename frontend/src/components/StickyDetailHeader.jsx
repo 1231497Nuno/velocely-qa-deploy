@@ -16,7 +16,7 @@ export function StickyDetailHeader({
 }) {
   return (
     <div
-      className={`sticky top-14 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white/95 backdrop-blur border-b border-gray-200 ${className}`}
+      className={`sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white border-b border-gray-200 ${className}`}
       data-testid="sticky-detail-header"
     >
       <div className="max-w-[1400px] mx-auto flex flex-col gap-2">
