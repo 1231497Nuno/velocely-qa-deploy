@@ -919,15 +919,22 @@ async def compute_encomenda(enc: dict) -> dict:
     return _compute_encomenda_core(enc, ofs, settings, orc)
 
 
-async def compute_encomendas_many(encs: list) -> list:
+async def compute_encomendas_many(encs: list, ofs_all: Optional[list] = None) -> list:
     """Enriquece várias encomendas com lookups em lote (OFs, orçamentos, empresa)."""
     if not encs:
         return []
     ids = [e["id"] for e in encs if e.get("id")]
-    ofs_all = await ordens_repo.find({"encomenda_id": {"$in": ids}}, limit=max(5000, len(ids) * 20)) if ids else []
+    if ofs_all is None:
+        ofs_all = (
+            await ordens_repo.find({"encomenda_id": {"$in": ids}}, limit=max(5000, len(ids) * 20))
+            if ids
+            else []
+        )
     ofs_by: dict = {}
     for o in ofs_all:
-        ofs_by.setdefault(o.get("encomenda_id"), []).append(o)
+        eid = o.get("encomenda_id")
+        if eid in ids or not ids:
+            ofs_by.setdefault(eid, []).append(o)
     orc_ids = list({e["orcamento_id"] for e in encs if e.get("orcamento_id")})
     orc_by = {}
     if orc_ids:
@@ -938,6 +945,97 @@ async def compute_encomendas_many(encs: list) -> list:
         _compute_encomenda_core(e, ofs_by.get(e.get("id"), []), settings, orc_by.get(e.get("orcamento_id")))
         for e in encs
     ]
+
+
+async def compute_encomendas_alertas(encs: list, ofs_all: Optional[list] = None) -> list:
+    """Versão leve para badges/alertas: sem orçamentos nem custos de OF.
+
+    Calcula estado, valor_pendente, tem_artigos_sem_of e mantém prazo_entrega.
+    """
+    if not encs:
+        return []
+    ids = [e["id"] for e in encs if e.get("id")]
+    if ofs_all is None:
+        ofs_all = (
+            await ordens_repo.find(
+                {"encomenda_id": {"$in": ids}},
+                limit=max(5000, len(ids) * 20),
+                projection={
+                    "id": 1,
+                    "numero": 1,
+                    "encomenda_id": 1,
+                    "status": 1,
+                    "cliente": 1,
+                    "progresso": 1,
+                    "itens.artigo_id": 1,
+                    "itens.quantidade": 1,
+                    "itens.operacoes.concluida": 1,
+                    "itens.operacoes.timer_inicio": 1,
+                    "itens.operacoes.tempo_real_seg": 1,
+                },
+            )
+            if ids
+            else []
+        )
+    ofs_by: dict = {}
+    idset = set(ids)
+    for o in ofs_all:
+        eid = o.get("encomenda_id")
+        if eid and (not idset or eid in idset):
+            ofs_by.setdefault(eid, []).append(o)
+    settings = await empresa_repo.find_one(
+        {"id": "empresa"}, projection={"iva_taxa": 1, "iva_isento": 1}
+    ) or {}
+
+    out = []
+    for enc in encs:
+        row = {**enc}
+        ofs = [recompute_of_status(o) for o in ofs_by.get(enc.get("id"), [])]
+
+        enc_tot_by_art: dict = {}
+        for a in enc.get("artigos") or []:
+            aid = a.get("artigo_id")
+            if aid:
+                enc_tot_by_art[aid] = enc_tot_by_art.get(aid, 0) + (a.get("quantidade") or 0)
+        of_qty_by_art: dict = {}
+        for o in ofs:
+            for it in o.get("itens") or []:
+                aid = it.get("artigo_id")
+                if aid:
+                    of_qty_by_art[aid] = of_qty_by_art.get(aid, 0) + (it.get("quantidade") or 0)
+
+        if enc.get("estado") != "cancelada":
+            if ofs and all(o.get("status") == "concluido" for o in ofs):
+                row["estado"] = "concluida"
+            elif any(o.get("status") in ("em_producao", "concluido") for o in ofs):
+                row["estado"] = "em_producao"
+            else:
+                row["estado"] = enc.get("estado") or "aberta"
+
+        ativo = row.get("estado") not in ("concluida", "cancelada")
+        sem_of = any(
+            tot > 0 and of_qty_by_art.get(aid, 0) <= 0 for aid, tot in enc_tot_by_art.items()
+        )
+        row["tem_artigos_sem_of"] = bool(sem_of) and ativo
+
+        if enc.get("valor_total") is not None and (
+            enc.get("valor_total_manual") or enc.get("total_com_iva") is not None
+        ):
+            valor = float(enc.get("valor_total") or 0)
+        else:
+            valor = encomenda_artigos_breakdown(enc)["total"]
+        row["valor_total"] = round2(valor)
+        if enc.get("total_com_iva") is not None:
+            base = float(enc.get("total_com_iva") or 0)
+        else:
+            base = iva_calc(valor, settings)["total_com_iva"]
+        pags = enc.get("pagamentos") or []
+        pago = soma_valor_pago(pags) if pags else float(enc.get("valor_pago") or 0)
+        row["valor_pago"] = pago
+        row["valor_pendente"] = round2(max(0.0, base - pago))
+        row["autorizada_producao"] = bool(enc.get("autorizada_producao"))
+        out.append(row)
+    return out
 
 
 def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[dict] = None) -> dict:

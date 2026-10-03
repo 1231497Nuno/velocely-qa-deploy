@@ -1,3 +1,5 @@
+import asyncio
+import time
 from collections import defaultdict
 from typing import Optional
 
@@ -15,10 +17,67 @@ from app.repositories import (
 from app.services.costing import (
     recompute_of_status, op_custo_real, compute_orcamento_totais,
     artigo_breakdown, artigo_breakdown_with_caches, compute_encomenda,
-    compute_encomendas_many, _prazo_meta,
+    compute_encomendas_many, compute_encomendas_alertas, enrich_artigos_list, _prazo_meta,
 )
 
 router = APIRouter()
+
+# Cache curto em memória — Layout/Dashboard batem nestes endpoints em todas as páginas.
+_TTL_CACHE: dict = {}
+_TTL_SEC = 45.0
+_ALERT_LOCK = asyncio.Lock()
+_DASH_LOCK = asyncio.Lock()
+
+_ENC_ALERT_PROJ = {
+    "id": 1, "numero": 1, "cliente": 1, "estado": 1, "prazo_entrega": 1,
+    "artigos": 1, "pagamentos": 1, "valor_pago": 1, "valor_total": 1,
+    "valor_total_manual": 1, "total_com_iva": 1, "autorizada_producao": 1,
+    "orcamento_id": 1, "envio": 1, "desconto_total": 1, "desconto_total_tipo": 1,
+    "desconto_total_valor": 1, "data": 1, "created_at": 1,
+}
+_OF_ALERT_PROJ = {
+    "id": 1, "numero": 1, "encomenda_id": 1, "status": 1, "cliente": 1, "progresso": 1,
+    "itens.artigo_id": 1, "itens.quantidade": 1,
+    "itens.operacoes.concluida": 1, "itens.operacoes.timer_inicio": 1,
+    "itens.operacoes.tempo_real_seg": 1,
+}
+
+
+def _ttl_get(key: str):
+    hit = _TTL_CACHE.get(key)
+    if not hit:
+        return None
+    ts, val = hit
+    if time.monotonic() - ts > _TTL_SEC:
+        return None
+    return val
+
+
+def _ttl_set(key: str, val):
+    _TTL_CACHE[key] = (time.monotonic(), val)
+    return val
+
+
+async def _alert_bundle():
+    cached = _ttl_get("alert_bundle")
+    if cached is not None:
+        return cached
+    async with _ALERT_LOCK:
+        cached = _ttl_get("alert_bundle")
+        if cached is not None:
+            return cached
+        encs, ofs = await asyncio.gather(
+            encomendas_repo.find(
+                {"estado": {"$ne": "cancelada"}},
+                limit=3000,
+                projection=_ENC_ALERT_PROJ,
+            ),
+            ordens_repo.find(limit=5000, projection=_OF_ALERT_PROJ),
+        )
+        encs_c = await compute_encomendas_alertas(encs, ofs_all=ofs)
+        ofs_t = [recompute_of_status(o) for o in ofs]
+        enc_map = {e["id"]: e for e in encs_c}
+        return _ttl_set("alert_bundle", (encs_c, ofs_t, enc_map))
 
 
 @router.get("/producao/tempos")
@@ -252,10 +311,12 @@ async def rentabilidade_clientes(
 
 @router.get("/alertas")
 async def alertas(_u: dict = Depends(require_perm("dashboard", "view"))):
-    encs = await encomendas_repo.find(limit=5000)
-    enc_map = {e["id"]: e for e in encs}
+    cached = _ttl_get("alertas")
+    if cached is not None:
+        return cached
+    encs_c, ofs_t, enc_map = await _alert_bundle()
     pagamentos_pendentes = prazos_atrasados = prazos_proximos = encomendas_sem_of = 0
-    for ec in await compute_encomendas_many(encs):
+    for ec in encs_c:
         if ec["estado"] in ("concluida", "cancelada"):
             continue
         if (ec.get("valor_pendente") or 0) > 0:
@@ -270,31 +331,32 @@ async def alertas(_u: dict = Depends(require_perm("dashboard", "view"))):
             elif est == "proxima":
                 prazos_proximos += 1
     ofs_atrasadas = 0
-    for o in await ordens_repo.find(limit=5000):
-        oc = recompute_of_status(o)
+    for oc in ofs_t:
         if oc.get("status") == "concluido":
             continue
-        prazo = (enc_map.get(o.get("encomenda_id")) or {}).get("prazo_entrega")
+        prazo = (enc_map.get(oc.get("encomenda_id")) or {}).get("prazo_entrega")
         if prazo:
             _d, est = _prazo_meta(prazo)
             if est == "atrasada":
                 ofs_atrasadas += 1
-    return {
+    return _ttl_set("alertas", {
         "pagamentos_pendentes": pagamentos_pendentes,
         "prazos_atrasados": prazos_atrasados,
         "prazos_proximos": prazos_proximos,
         "ofs_atrasadas": ofs_atrasadas,
         "encomendas_sem_of": encomendas_sem_of,
-    }
+    })
 
 
 @router.get("/notificacoes")
 async def notificacoes(_u: dict = Depends(require_perm("dashboard", "view"))):
     """Lista de notificações acionáveis (derivadas, não persistidas)."""
+    cached = _ttl_get("notificacoes")
+    if cached is not None:
+        return cached
     items = []
-    encs = await encomendas_repo.find(limit=5000)
-    enc_map = {e["id"]: e for e in encs}
-    for ec in await compute_encomendas_many(encs):
+    encs_c, ofs_t, enc_map = await _alert_bundle()
+    for ec in encs_c:
         if ec["estado"] in ("concluida", "cancelada"):
             continue
         eid = ec["id"]
@@ -315,19 +377,18 @@ async def notificacoes(_u: dict = Depends(require_perm("dashboard", "view"))):
             elif est == "proxima":
                 items.append({"id": f"prazp-{eid}", "tipo": "prazo", "severidade": "aviso",
                               "titulo": f"Encomenda {num} entrega em breve", "descricao": f"{cli} — {prazo}", "url": f"/encomendas/{eid}"})
-    for o in await ordens_repo.find(limit=5000):
-        oc = recompute_of_status(o)
+    for oc in ofs_t:
         if oc.get("status") == "concluido":
             continue
-        prazo = (enc_map.get(o.get("encomenda_id")) or {}).get("prazo_entrega")
+        prazo = (enc_map.get(oc.get("encomenda_id")) or {}).get("prazo_entrega")
         if prazo:
             _d, est = _prazo_meta(prazo)
             if est == "atrasada":
-                items.append({"id": f"of-{o['id']}", "tipo": "of", "severidade": "critico",
-                              "titulo": f"OF {o.get('numero')} atrasada", "descricao": o.get("cliente") or "", "url": f"/ordens-fabrico/{o['id']}"})
+                items.append({"id": f"of-{oc['id']}", "tipo": "of", "severidade": "critico",
+                              "titulo": f"OF {oc.get('numero')} atrasada", "descricao": oc.get("cliente") or "", "url": f"/ordens-fabrico/{oc['id']}"})
     ordem = {"critico": 0, "aviso": 1, "info": 2}
     items.sort(key=lambda x: ordem.get(x["severidade"], 3))
-    return {"total": len(items), "notificacoes": items[:40]}
+    return _ttl_set("notificacoes", {"total": len(items), "notificacoes": items[:40]})
 
 
 @router.get("/search")
@@ -640,27 +701,57 @@ def _prazos_counts(encs_c: list) -> tuple:
 
 @router.get("/dashboard")
 async def dashboard(_u: dict = Depends(require_perm("dashboard", "view"))):
-    import asyncio
-    artigos, orcs, ofs, encs, ocs, n_maq, n_tipos, n_mat = await asyncio.gather(
-        artigos_repo.find(limit=1000),
-        orcamentos_repo.find(limit=1000),
-        ordens_repo.find(limit=1000),
+    cached = _ttl_get("dashboard")
+    if cached is not None:
+        return cached
+    async with _DASH_LOCK:
+        cached = _ttl_get("dashboard")
+        if cached is not None:
+            return cached
+        return await _build_dashboard()
+
+
+async def _build_dashboard():
+    art_proj = {
+        "id": 1, "nome": 1, "codigo": 1, "margem": 1, "materiais": 1, "roteiro": 1,
+        "custo_unitario_compra": 1, "preco_compra": 1, "tipo_artigo": 1,
+        "comprimento_mm": 1, "largura_mm": 1, "comprimento_unidade": 1, "largura_unidade": 1,
+    }
+    orc_proj = {
+        "id": 1, "status": 1, "data": 1, "created_at": 1, "linhas": 1, "materiais": 1,
+        "desconto_total": 1, "desconto_total_tipo": 1,
+    }
+    of_proj = {
+        "id": 1, "numero": 1, "status": 1, "cliente": 1, "encomenda_id": 1, "progresso": 1,
+        "itens": 1, "created_at": 1,
+    }
+    oc_proj = {"total": 1, "subtotal": 1, "estado": 1, "data": 1, "created_at": 1}
+
+    artigos, orcs, ofs, encs, ocs, n_maq, n_tipos, n_mat, n_artigos = await asyncio.gather(
+        artigos_repo.find(limit=1000, projection=art_proj),
+        orcamentos_repo.find(limit=1000, projection=orc_proj),
+        ordens_repo.find(limit=5000, projection=of_proj),
         encomendas_repo.find(limit=2000),
-        ordens_compra_repo.find(limit=5000),
+        ordens_compra_repo.find(limit=2000, projection=oc_proj),
         maquinas_repo.count(),
         tipos_repo.count(),
         consumiveis_repo.count(),
+        artigos_repo.count(),
     )
     orcs_t = [compute_orcamento_totais(o) for o in orcs]
     ofs_t = [recompute_of_status(o) for o in ofs]
-    encs_c = await compute_encomendas_many(encs)
+    encs_c, arts_enriched = await asyncio.gather(
+        compute_encomendas_many(encs, ofs_all=ofs),
+        enrich_artigos_list(artigos),
+    )
 
     arts_bd = []
     custos = []
-    for a in artigos:
-        bd = artigo_breakdown_with_caches(a)
-        custos.append(bd["custo_producao_total"])
-        arts_bd.append({"nome": a.get("nome"), "custo": bd["custo_producao_total"], "preco": bd["preco_venda"]})
+    for a in arts_enriched:
+        custo = a.get("custo_producao_total") or 0
+        preco = a.get("preco_venda") or 0
+        custos.append(custo)
+        arts_bd.append({"nome": a.get("nome"), "custo": custo, "preco": preco})
     arts_bd.sort(key=lambda x: x["preco"], reverse=True)
 
     valor_encomendas = round2(sum(e["valor_total"] for e in encs_c))
@@ -669,8 +760,8 @@ async def dashboard(_u: dict = Depends(require_perm("dashboard", "view"))):
     fluxo = _fluxo_mensal(encs_c, ocs, meses=12)
     ytd = _ytd_totais(encs_c, ocs)
 
-    return {
-        "total_artigos": len(artigos),
+    payload = {
+        "total_artigos": n_artigos,
         "total_maquinas": n_maq,
         "total_tipos": n_tipos,
         "total_materiais": n_mat,
@@ -706,3 +797,4 @@ async def dashboard(_u: dict = Depends(require_perm("dashboard", "view"))):
         "prazos_atrasadas": prazos_atrasadas,
         "prazos_proximos_7": prazos_proximos_7,
     }
+    return _ttl_set("dashboard", payload)
