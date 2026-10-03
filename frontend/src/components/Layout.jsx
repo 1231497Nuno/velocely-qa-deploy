@@ -165,6 +165,17 @@ export default function Layout({ children }) {
     return null;
   };
 
+  const notifBadge = useMemo(() => {
+    const hint =
+      (alertas.pagamentos_pendentes || 0) +
+      (alertas.prazos_atrasados || 0) +
+      (alertas.prazos_proximos || 0) +
+      (alertas.ofs_atrasadas || 0) +
+      (alertas.encomendas_sem_of || 0);
+    const critical = (alertas.prazos_atrasados || 0) + (alertas.ofs_atrasadas || 0) > 0;
+    return { hint, critical };
+  }, [alertas]);
+
   const groups = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
       ...g,
@@ -233,7 +244,7 @@ export default function Layout({ children }) {
         </Link>
         <div className="flex items-center gap-1">
           <MiniCalendarButton />
-          <NotificationsBell />
+          <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
           <UserAvatarMenu />
           <button
             data-testid="mobile-search-toggle"
@@ -345,7 +356,7 @@ export default function Layout({ children }) {
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-1">
             <MiniCalendarButton />
-            <NotificationsBell />
+            <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
             <UserAvatarMenu />
           </div>
         </div>

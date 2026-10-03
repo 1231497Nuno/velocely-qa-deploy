@@ -10,9 +10,10 @@ const SEV = {
   info: "text-blue-600 bg-blue-50",
 };
 
-export default function NotificationsBell() {
+/** Só carrega /notificacoes ao abrir o painel — evita saturar a API free no boot. */
+export default function NotificationsBell({ badgeHint = 0, badgeCritical = false }) {
   const nav = useNavigate();
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(null);
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
 
@@ -22,14 +23,9 @@ export default function NotificationsBell() {
       setItems(d.notificacoes || []);
     } catch (e) {
       console.error("Falha ao carregar notificações", e);
+      setItems([]);
     }
   };
-
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 60000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     const h = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
@@ -37,21 +33,31 @@ export default function NotificationsBell() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const criticos = items.filter((i) => i.severidade === "critico").length;
+  const list = items || [];
+  const count = items ? list.length : badgeHint;
+  const criticos = items
+    ? list.filter((i) => i.severidade === "critico").length
+    : (badgeCritical ? 1 : 0);
   const go = (url) => { setOpen(false); nav(url); };
 
   return (
     <div className="relative" ref={boxRef} data-testid="notifications">
       <button
         data-testid="notifications-bell"
-        onClick={() => { setOpen((o) => !o); if (!open) load(); }}
+        onClick={() => {
+          setOpen((o) => {
+            const next = !o;
+            if (next) load();
+            return next;
+          });
+        }}
         className="relative p-2 rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         aria-label="Notificações"
       >
         <Bell size={19} strokeWidth={1.8} />
-        {items.length > 0 && (
+        {count > 0 && (
           <span data-testid="notifications-count" className={`absolute -top-0.5 -right-0.5 text-[10px] font-bold tabular-nums rounded-full min-w-[17px] text-center px-1 py-0.5 ${criticos > 0 ? "bg-red-500 text-white" : "bg-amber-400 text-gray-900"}`}>
-            {items.length}
+            {count}
           </span>
         )}
       </button>
@@ -60,14 +66,16 @@ export default function NotificationsBell() {
         <div className="absolute right-0 z-50 mt-1 w-80 bg-white border border-gray-200 rounded-sm shadow-lg max-h-[28rem] overflow-y-auto" data-testid="notifications-panel">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
             <span className="text-sm font-semibold text-gray-800">Notificações</span>
-            <span className="text-xs text-gray-400">{items.length}</span>
+            <span className="text-xs text-gray-400">{items ? list.length : "…"}</span>
           </div>
-          {items.length === 0 ? (
+          {items === null ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-400">A carregar…</div>
+          ) : list.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-gray-400 flex flex-col items-center gap-2" data-testid="notifications-empty">
               <CheckCircle2 size={22} className="text-emerald-500" /> Tudo em dia!
             </div>
           ) : (
-            items.map((n) => {
+            list.map((n) => {
               const Icon = ICON[n.tipo] || AlertTriangle;
               return (
                 <button key={n.id} data-testid={`notification-${n.id}`} onClick={() => go(n.url)} className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-50 last:border-0">

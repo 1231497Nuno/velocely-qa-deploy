@@ -919,11 +919,17 @@ async def compute_encomenda(enc: dict) -> dict:
     return _compute_encomenda_core(enc, ofs, settings, orc)
 
 
-async def compute_encomendas_many(encs: list, ofs_all: Optional[list] = None) -> list:
+async def compute_encomendas_many(
+    encs: list,
+    ofs_all: Optional[list] = None,
+    *,
+    include_orcamento: bool = True,
+) -> list:
     """Enriquece várias encomendas com lookups em lote (OFs, orçamentos, empresa)."""
     if not encs:
         return []
     ids = [e["id"] for e in encs if e.get("id")]
+    idset = set(ids)
     if ofs_all is None:
         ofs_all = (
             await ordens_repo.find({"encomenda_id": {"$in": ids}}, limit=max(5000, len(ids) * 20))
@@ -933,16 +939,22 @@ async def compute_encomendas_many(encs: list, ofs_all: Optional[list] = None) ->
     ofs_by: dict = {}
     for o in ofs_all:
         eid = o.get("encomenda_id")
-        if eid in ids or not ids:
+        if eid and (not idset or eid in idset):
             ofs_by.setdefault(eid, []).append(o)
-    orc_ids = list({e["orcamento_id"] for e in encs if e.get("orcamento_id")})
     orc_by = {}
-    if orc_ids:
-        for o in await orcamentos_repo.find({"id": {"$in": orc_ids}}, limit=len(orc_ids) + 10):
-            orc_by[o["id"]] = o
+    if include_orcamento:
+        orc_ids = list({e["orcamento_id"] for e in encs if e.get("orcamento_id")})
+        if orc_ids:
+            for o in await orcamentos_repo.find({"id": {"$in": orc_ids}}, limit=len(orc_ids) + 10):
+                orc_by[o["id"]] = o
     settings = await empresa_repo.find_one({"id": "empresa"}) or {}
     return [
-        _compute_encomenda_core(e, ofs_by.get(e.get("id"), []), settings, orc_by.get(e.get("orcamento_id")))
+        _compute_encomenda_core(
+            e,
+            ofs_by.get(e.get("id"), []),
+            settings,
+            orc_by.get(e.get("orcamento_id")) if include_orcamento else None,
+        )
         for e in encs
     ]
 
