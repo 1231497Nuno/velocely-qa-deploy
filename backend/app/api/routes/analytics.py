@@ -24,7 +24,7 @@ router = APIRouter()
 
 # Cache curto em memória — Layout/Dashboard batem nestes endpoints em todas as páginas.
 _TTL_CACHE: dict = {}
-_TTL_SEC = 45.0
+_TTL_SEC = 120.0
 _ALERT_LOCK = asyncio.Lock()
 _DASH_LOCK = asyncio.Lock()
 
@@ -726,12 +726,24 @@ async def _build_dashboard():
         "itens": 1, "created_at": 1,
     }
     oc_proj = {"total": 1, "subtotal": 1, "estado": 1, "data": 1, "created_at": 1}
+    # Sem imagens/anexos — o dashboard só precisa de valores e contagens.
+    enc_proj = {
+        "id": 1, "numero": 1, "cliente": 1, "estado": 1, "prazo_entrega": 1,
+        "pagamentos": 1, "valor_pago": 1, "valor_total": 1, "valor_total_manual": 1,
+        "total_com_iva": 1, "autorizada_producao": 1, "orcamento_id": 1,
+        "envio": 1, "desconto_total": 1, "desconto_total_tipo": 1, "desconto_total_valor": 1,
+        "data": 1, "created_at": 1,
+        "artigos.id": 1, "artigos.artigo_id": 1, "artigos.artigo_nome": 1,
+        "artigos.quantidade": 1, "artigos.preco_unit": 1, "artigos.preco_unit_orcamento": 1,
+        "artigos.desconto": 1, "artigos.desconto_tipo": 1, "artigos.desconto_base": 1,
+        "artigos.personalizacoes": 1,
+    }
 
     artigos, orcs, ofs, encs, ocs, n_maq, n_tipos, n_mat, n_artigos = await asyncio.gather(
         artigos_repo.find(limit=1000, projection=art_proj),
         orcamentos_repo.find(limit=1000, projection=orc_proj),
         ordens_repo.find(limit=5000, projection=of_proj),
-        encomendas_repo.find(limit=2000),
+        encomendas_repo.find(limit=2000, projection=enc_proj),
         ordens_compra_repo.find(limit=2000, projection=oc_proj),
         maquinas_repo.count(),
         tipos_repo.count(),
@@ -741,7 +753,7 @@ async def _build_dashboard():
     orcs_t = [compute_orcamento_totais(o) for o in orcs]
     ofs_t = [recompute_of_status(o) for o in ofs]
     encs_c, arts_enriched = await asyncio.gather(
-        compute_encomendas_many(encs, ofs_all=ofs),
+        compute_encomendas_many(encs, ofs_all=ofs, include_orcamento=False),
         enrich_artigos_list(artigos),
     )
 
