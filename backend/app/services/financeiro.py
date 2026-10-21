@@ -278,6 +278,7 @@ async def build_doc_from_encomenda(
         cliente_id=enc_c.get("cliente_id"),
         encomenda_id=enc_c.get("id"),
         encomenda_numero=enc_c.get("numero"),
+        referencia_cliente=enc_c.get("referencia_cliente") or "",
         data=now_iso()[:10],
         linhas=linhas,
         subtotal=subtotal,

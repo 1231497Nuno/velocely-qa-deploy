@@ -134,7 +134,12 @@ async def _startup_seed_admin() -> None:
         # Índices para listagens / pesquisa / joins
         await subcategorias_repo.create_index("categoria_id")
         await artigos_repo.create_index("categoria_id")
-        await artigos_repo.create_index("codigo")
+        try:
+            await artigos_repo.create_index("codigo", unique=True)
+        except Exception:
+            await artigos_repo.create_index("codigo")
+        await artigos_repo.create_index("cod_fornecedor")
+        await artigos_repo.create_index("pai_id")
         await artigos_repo.create_index("nome")
         await clientes_repo.create_index("nome")
         await clientes_repo.create_index("codigo")

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { Plus, X, Calculator, Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -9,10 +10,12 @@ import {
   emptyArtigoForm,
   buildArtigoBody,
   mostraCampo,
+  validateArtigoTaxonomia,
 } from "@/features/artigos/artigoTipos";
 import ArtigoBlocosShell from "@/features/artigos/ArtigoBlocosShell";
 import ArtigoFichaCampos from "@/features/artigos/ArtigoFichaCampos";
 import ArtigoMateriaisReceita from "@/features/artigos/ArtigoMateriaisReceita";
+import ArtigoVariantesEditor, { persistDraftVariantes } from "@/features/artigos/ArtigoVariantesEditor";
 import { materialLinhaCusto, normalizeMateriaisReceita } from "@/features/artigos/artigoMateriais";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
@@ -28,7 +31,18 @@ export default function ArtigoNovo() {
   const [maoObra, setMaoObra] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [subcategorias, setSubcategorias] = useState([]);
+  const [draftVariantes, setDraftVariantes] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   useEffect(() => {
     if (!can("artigos", "create")) {
@@ -36,6 +50,11 @@ export default function ArtigoNovo() {
       nav("/artigos");
     }
   }, [can, nav]);
+
+  const updForm = (patchOrFn) => {
+    setDirty(true);
+    setForm((prev) => (typeof patchOrFn === "function" ? patchOrFn(prev) : { ...prev, ...patchOrFn }));
+  };
 
   useEffect(() => {
     (async () => {
@@ -76,7 +95,7 @@ export default function ArtigoNovo() {
   const produzido = tipo === "ativo" && !!form.produzido;
 
   const setTipo = (tipo_artigo) => {
-    setForm((prev) => ({
+    updForm((prev) => ({
       ...prev,
       tipo_artigo,
       produzido: tipo_artigo === "ativo" ? prev.produzido : false,
@@ -91,7 +110,7 @@ export default function ArtigoNovo() {
   };
 
   const setProduzido = (checked) => {
-    setForm((prev) => ({
+    updForm((prev) => ({
       ...prev,
       produzido: checked,
       materiais: checked ? prev.materiais : [],
@@ -99,9 +118,14 @@ export default function ArtigoNovo() {
     }));
   };
 
+  const setTemVariantes = (checked) => {
+    updForm((prev) => ({ ...prev, tem_variantes: checked }));
+    if (!checked) setDraftVariantes([]);
+  };
+
   const setCategoria = (categoria_id) => {
     const cat = categorias.find((c) => c.id === categoria_id);
-    setForm((prev) => ({
+    updForm((prev) => ({
       ...prev,
       categoria_id: categoria_id || "",
       categoria_nome: cat?.nome || "",
@@ -112,7 +136,7 @@ export default function ArtigoNovo() {
 
   const setSubcategoria = (subcategoria_id) => {
     const sub = subcategorias.find((s) => s.id === subcategoria_id);
-    setForm((prev) => ({
+    updForm((prev) => ({
       ...prev,
       subcategoria_id: subcategoria_id || "",
       subcategoria_nome: sub?.nome || "",
@@ -120,7 +144,7 @@ export default function ArtigoNovo() {
   };
 
   const updOp = (i, patch) => {
-    setForm((p) => {
+    updForm((p) => {
       const roteiro = [...(p.roteiro || [])];
       roteiro[i] = { ...roteiro[i], ...patch };
       return { ...p, roteiro };
@@ -140,19 +164,40 @@ export default function ArtigoNovo() {
   const margemPct = Number(form.margem) || 0;
   const precoVenda = custoTotal * (1 + margemPct / 100);
 
-  const save = async () => {
-    if (!form.nome.trim()) return toast.error("Indique o nome do artigo");
+  const save = async ({ navigateAfter = true } = {}) => {
+    if (!form.nome.trim()) {
+      toast.error("Indique o nome do artigo");
+      return false;
+    }
+    const taxErr = validateArtigoTaxonomia(form);
+    if (taxErr) {
+      toast.error(taxErr);
+      return false;
+    }
     setSaving(true);
     try {
       const created = await api.post("/artigos", buildArtigoBody(form));
-      toast.success("Artigo criado");
-      nav(`/artigos/${created.id}`);
+      if (draftVariantes.length) {
+        try {
+          const res = await persistDraftVariantes(created.id, draftVariantes);
+          toast.success(`Artigo criado com ${res.total || draftVariantes.length} variante(s)`);
+        } catch {
+          toast.success("Artigo criado — falha ao gravar algumas variantes (pode adicioná-las no detalhe)");
+        }
+      } else {
+        toast.success("Artigo criado");
+      }
+      setDirty(false);
+      if (navigateAfter) nav(`/artigos/${created.id}`);
+      return true;
     } catch (e) {
-      toast.error(e?.message || "Erro ao criar artigo");
+      toast.error(e?.response?.data?.detail || e?.message || "Erro ao criar artigo");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  saveForLeaveRef.current = () => save({ navigateAfter: false });
 
   return (
     <div>
@@ -193,9 +238,10 @@ export default function ArtigoNovo() {
                 categorias={categorias}
                 subcategorias={subcategorias}
                 precoVenda={precoVenda}
-                onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+                onChange={(patch) => updForm((p) => ({ ...p, ...patch }))}
                 onSetTipo={setTipo}
                 onSetProduzido={setProduzido}
+                onSetTemVariantes={setTemVariantes}
                 onSetCategoria={setCategoria}
                 onSetSubcategoria={setSubcategoria}
               />
@@ -208,7 +254,7 @@ export default function ArtigoNovo() {
                 materiais={form.materiais || []}
                 componentes={componentes}
                 editing
-                onChange={(materiais) => setForm((p) => ({ ...p, materiais }))}
+                onChange={(materiais) => updForm((p) => ({ ...p, materiais }))}
               />
             );
           }
@@ -217,7 +263,7 @@ export default function ArtigoNovo() {
             return (
               <div className="p-4 space-y-3">
                 <div className="flex justify-end">
-                  <button type="button" onClick={() => setForm((p) => ({
+                  <button type="button" onClick={() => updForm((p) => ({
                     ...p,
                     roteiro: [...(p.roteiro || []), {
                       nome: "", maquina_id: "", maquina_nome: "", tempo_maquina: 0, tempo_maquina_unidade: "min",
@@ -231,7 +277,7 @@ export default function ArtigoNovo() {
                   <div key={i} className="border border-gray-200 rounded-sm p-3 space-y-2">
                     <div className="flex gap-2">
                       <input placeholder="Nome da operação" value={op.nome} onChange={(e) => updOp(i, { nome: e.target.value })} className={`${fieldCls} flex-1`} />
-                      <button type="button" onClick={() => setForm((p) => ({ ...p, roteiro: p.roteiro.filter((_, idx) => idx !== i) }))} className="p-1.5 text-red-600"><X size={15} /></button>
+                      <button type="button" onClick={() => updForm((p) => ({ ...p, roteiro: p.roteiro.filter((_, idx) => idx !== i) }))} className="p-1.5 text-red-600"><X size={15} /></button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="grid grid-cols-[1fr_64px_56px] gap-1.5">
@@ -284,7 +330,7 @@ export default function ArtigoNovo() {
                       step="0.01"
                       data-testid="calc-artigo"
                       value={form.custo_artigo ?? 0}
-                      onChange={(e) => setForm((f) => ({ ...f, custo_artigo: e.target.value }))}
+                      onChange={(e) => updForm((f) => ({ ...f, custo_artigo: e.target.value }))}
                       className="w-28 mt-0.5 border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30"
                     />
                   </div>
@@ -303,7 +349,7 @@ export default function ArtigoNovo() {
                 {show("margem") && (
                   <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
                     <label className="text-sm text-gray-300 flex items-center gap-2"><Tag size={14} /> Margem de lucro (%)</label>
-                    <input type="number" value={form.margem} onChange={(e) => setForm((f) => ({ ...f, margem: e.target.value }))} className="w-24 text-right border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums" />
+                    <input type="number" value={form.margem} onChange={(e) => updForm((f) => ({ ...f, margem: e.target.value }))} className="w-24 text-right border border-gray-600 bg-gray-800 text-white rounded-sm px-2 py-1 text-sm tabular-nums" />
                   </div>
                 )}
                 {(show("margem") || show("custo_artigo")) && (
@@ -319,6 +365,17 @@ export default function ArtigoNovo() {
           return null;
         }}
       />
+
+      {form.tem_variantes && (
+        <div className="mt-6 max-w-[1400px] mx-auto px-0 sm:px-0">
+          <ArtigoVariantesEditor
+            draftVariantes={draftVariantes}
+            onDraftChange={(v) => { setDirty(true); setDraftVariantes(v); }}
+            paiNome={form.nome || ""}
+            canEdit
+          />
+        </div>
+      )}
     </div>
   );
 }

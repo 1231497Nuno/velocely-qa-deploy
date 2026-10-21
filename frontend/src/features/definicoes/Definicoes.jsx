@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import { useAuth } from "@/context/AuthContext";
@@ -8,10 +8,23 @@ import { exportExcel, downloadImportTemplate, importExcel } from "@/lib/excelIo"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { useConfirmLeave, useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 const MODULO_LABELS = { orcamento: "Orçamento", of: "Ordem de Fabrico", encomenda: "Encomenda" };
 const FINALIDADES = [{ v: "ambos", l: "Ambos" }, { v: "cliente", l: "Cliente" }, { v: "interno", l: "Interno" }];
-const emptyEmpresa = { nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", nif: "", telefone: "", email: "", website: "", logo_base64: "", login_bg_base64: "", rodape: "", moeda_simbolo: "€", iva_taxa: 23, iva_isento: false, condicoes_pagamento: "" };
+const emptyEmpresa = {
+  nome: "", morada: "", codigo_postal: "", cidade: "", pais: "Portugal", nif: "",
+  telefone: "", email: "", website: "", logo_base64: "", login_bg_base64: "", rodape: "",
+  moeda_simbolo: "€", iva_taxa: 23, iva_isento: false, condicoes_pagamento: "",
+  orcamento_validade_dias: 15,
+  orcamento_notas_templates: [],
+};
+
+const NOTAS_TPL_EXEMPLOS = [
+  { id: "cmyk", nome: "Variação CMYK", texto: "As cores em impressão CMYK podem variar até 10% relativamente à prova digital / ecrã." },
+  { id: "dtf", nome: "Lavagem DTF", texto: "Instruções de lavagem DTF: lavar do avesso, não usar máquina de secar, não passar a ferro directamente sobre a estampa." },
+  { id: "prazo", nome: "Prazo e materiais", texto: "Prazos sujeitos à confirmação de stock de materiais. Alterações à arte após aprovação podem implicar custos e prazos adicionais." },
+];
 
 const MOEDAS = [
   { simbolo: "€", label: "Euro (€)" },
@@ -33,8 +46,22 @@ const Inp = ({ label, val, onChange, tid, ph }) => (
 
 function EmpresaTab() {
   const [form, setForm] = useState(emptyEmpresa);
-  useEffect(() => { api.get("/settings/empresa").then((s) => setForm({ ...emptyEmpresa, ...s })); }, []);
-  const upd = (k, v) => setForm({ ...form, [k]: v });
+  const [dirty, setDirty] = useState(false);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
+  useEffect(() => {
+    api.get("/settings/empresa").then((s) => {
+      setForm({ ...emptyEmpresa, ...s });
+      setDirty(false);
+    });
+  }, []);
+  const upd = (k, v) => {
+    setDirty(true);
+    setForm({ ...form, [k]: v });
+  };
 
   const onLogo = (e) => {
     const file = e.target.files?.[0];
@@ -55,9 +82,29 @@ function EmpresaTab() {
   };
 
   const save = async () => {
-    try { await api.put("/settings/empresa", form); toast.success("Definições guardadas"); }
-    catch (e) { toast.error(e?.response?.data?.detail || "Erro ao guardar"); }
+    try {
+      const payload = {
+        ...form,
+        orcamento_notas_templates: (form.orcamento_notas_templates || [])
+          .map((t) => ({
+            id: t.id || crypto.randomUUID(),
+            nome: String(t.nome || "").trim(),
+            texto: String(t.texto || "").trim(),
+          }))
+          .filter((t) => t.nome || t.texto),
+        orcamento_validade_dias: Math.max(1, Number(form.orcamento_validade_dias) || 15),
+      };
+      await api.put("/settings/empresa", payload);
+      setForm({ ...emptyEmpresa, ...payload });
+      setDirty(false);
+      toast.success("Definições guardadas");
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
+    }
   };
+  saveRef.current = save;
 
   return (
     <div className="bg-white border border-gray-200 rounded-sm p-5 sm:p-6 max-w-3xl">
@@ -125,6 +172,103 @@ function EmpresaTab() {
         </div>
       </div>
 
+      <div className="mt-6 pt-5 border-t border-gray-200" data-testid="emp-orcamento-notas">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700">Templates de notas (orçamentos)</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Atalhos no orçamento: um clique preenche a caixa de notas (e o PDF). Ex.: avisos CMYK, lavagem DTF.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {!(form.orcamento_notas_templates || []).length && (
+              <button
+                type="button"
+                data-testid="emp-notas-exemplos"
+                onClick={() => upd("orcamento_notas_templates", NOTAS_TPL_EXEMPLOS.map((t) => ({ ...t, id: t.id || crypto.randomUUID() })))}
+                className="text-xs border border-gray-300 rounded-sm px-2.5 py-1.5 text-gray-700 hover:bg-gray-50"
+              >
+                Carregar exemplos
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="emp-notas-add"
+              onClick={() => {
+                const list = [...(form.orcamento_notas_templates || [])];
+                list.push({ id: crypto.randomUUID(), nome: "", texto: "" });
+                upd("orcamento_notas_templates", list);
+              }}
+              className="text-xs bg-black text-white rounded-sm px-2.5 py-1.5 font-medium hover:bg-gray-800 inline-flex items-center gap-1"
+            >
+              <Plus size={13} /> Adicionar
+            </button>
+          </div>
+        </div>
+        <div className="mb-4">
+          <label className="text-sm font-medium text-gray-700 mb-1.5 block">Validade automática (dias)</label>
+          <input
+            data-testid="emp-validade-dias"
+            type="number"
+            min="1"
+            max="365"
+            value={form.orcamento_validade_dias ?? 15}
+            onChange={(e) => upd("orcamento_validade_dias", Math.max(1, parseInt(e.target.value, 10) || 15))}
+            className="w-28 border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+          />
+          <p className="text-xs text-gray-400 mt-1">Ao criar orçamento: validade = data + estes dias.</p>
+        </div>
+        {(form.orcamento_notas_templates || []).length === 0 ? (
+          <p className="text-sm text-gray-400 py-3 text-center border border-dashed border-gray-200 rounded-sm">
+            Ainda sem templates. Clique em «Adicionar» ou «Carregar exemplos».
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {(form.orcamento_notas_templates || []).map((t, i) => (
+              <div key={t.id || i} className="border border-gray-200 rounded-sm p-3 space-y-2" data-testid={`emp-notas-row-${i}`}>
+                <div className="flex items-start gap-2">
+                  <input
+                    data-testid={`emp-notas-nome-${i}`}
+                    value={t.nome || ""}
+                    onChange={(e) => {
+                      const list = [...(form.orcamento_notas_templates || [])];
+                      list[i] = { ...list[i], nome: e.target.value };
+                      upd("orcamento_notas_templates", list);
+                    }}
+                    placeholder="Nome do botão (ex.: Variação CMYK)"
+                    className="flex-1 border border-gray-300 rounded-sm px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+                  />
+                  <button
+                    type="button"
+                    data-testid={`emp-notas-del-${i}`}
+                    onClick={() => {
+                      const list = (form.orcamento_notas_templates || []).filter((_, idx) => idx !== i);
+                      upd("orcamento_notas_templates", list);
+                    }}
+                    className="p-1.5 rounded-sm text-red-600 hover:bg-red-50"
+                    title="Remover"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+                <textarea
+                  data-testid={`emp-notas-texto-${i}`}
+                  value={t.texto || ""}
+                  onChange={(e) => {
+                    const list = [...(form.orcamento_notas_templates || [])];
+                    list[i] = { ...list[i], texto: e.target.value };
+                    upd("orcamento_notas_templates", list);
+                  }}
+                  rows={2}
+                  placeholder="Texto que será inserido nas notas do orçamento…"
+                  className="w-full border border-gray-300 rounded-sm px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="mt-6 pt-5 border-t border-gray-200">
         <h3 className="text-sm font-semibold text-gray-700 mb-1">Ecrã de login</h3>
         <p className="text-xs text-gray-400 mb-4">Imagem de fundo do ecrã de início de sessão (substitui o fundo escuro).</p>
@@ -154,6 +298,11 @@ function ModelosTab() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyTpl);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty: open,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const load = async () => setItems(await api.get("/pdf-templates"));
   useEffect(() => { api.get("/pdf-secoes").then(setSecoes); load(); }, []);
@@ -172,13 +321,23 @@ function ModelosTab() {
   const changeModulo = (m) => setForm({ ...form, modulo: m, campos: allOn(m) });
 
   const save = async () => {
-    if (!form.nome.trim()) return toast.error("Indique o nome do modelo");
+    if (!form.nome.trim()) {
+      toast.error("Indique o nome do modelo");
+      return false;
+    }
     try {
       if (editId) await api.put(`/pdf-templates/${editId}`, form);
       else await api.post("/pdf-templates", form);
-      toast.success("Modelo guardado"); setOpen(false); load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao guardar"); }
+      toast.success("Modelo guardado");
+      setOpen(false);
+      load();
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
+    }
   };
+  saveRef.current = save;
   const del = async (id) => { await api.delete(`/pdf-templates/${id}`); toast.success("Modelo removido"); load(); };
 
   const secoesModulo = secoes[form.modulo] || [];
@@ -289,25 +448,35 @@ const GRUPO_LABELS = {
 function ReferenciasTab() {
   const [refs, setRefs] = useState({});
   const [loading, setLoading] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   useEffect(() => {
     api.get("/settings/numeracao").then((d) => {
       setRefs(d.referencias || {});
+      setDirty(false);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
 
-  const upd = (key, patch) => setRefs((prev) => {
-    const cur = { ...prev[key], ...patch };
-    const digitos = Math.max(2, Math.min(8, Number(cur.digitos) || 4));
-    const prefix = (cur.prefix || "").toUpperCase().replace(/\s/g, "");
-    const year = new Date().getFullYear();
-    const seq = "1".padStart(digitos, "0");
-    cur.exemplo = cur.incluir_ano ? `${prefix}-${year}-${seq}` : `${prefix}-${seq}`;
-    cur.digitos = digitos;
-    cur.prefix = prefix;
-    return { ...prev, [key]: cur };
-  });
+  const upd = (key, patch) => {
+    setDirty(true);
+    setRefs((prev) => {
+      const cur = { ...prev[key], ...patch };
+      const digitos = Math.max(2, Math.min(8, Number(cur.digitos) || 4));
+      const prefix = (cur.prefix || "").toUpperCase().replace(/\s/g, "");
+      const year = new Date().getFullYear();
+      const seq = "1".padStart(digitos, "0");
+      cur.exemplo = cur.incluir_ano ? `${prefix}-${year}-${seq}` : `${prefix}-${seq}`;
+      cur.digitos = digitos;
+      cur.prefix = prefix;
+      return { ...prev, [key]: cur };
+    });
+  };
 
   const save = async () => {
     try {
@@ -317,11 +486,15 @@ function ReferenciasTab() {
       });
       const d = await api.put("/settings/numeracao", { referencias: payload });
       setRefs(d.referencias || {});
+      setDirty(false);
       toast.success("Referências guardadas");
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
     }
   };
+  saveRef.current = save;
 
   const backfill = async () => {
     try {
@@ -428,18 +601,26 @@ function ModulosTab() {
   const [modulos, setModulos] = useState([]);
   const [ativos, setAtivos] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const load = () => {
     api.get("/settings/modulos").then((r) => {
       setPacks(r.packs || []);
       setModulos(r.modulos || []);
       setAtivos(r.ativos || []);
+      setDirty(false);
     }).catch(() => toast.error("Não foi possível carregar os módulos"));
   };
   useEffect(() => { load(); }, []);
 
   const toggle = (key, core) => {
     if (core || !isAdmin) return;
+    setDirty(true);
     setAtivos((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   };
 
@@ -448,14 +629,18 @@ function ModulosTab() {
     try {
       const r = await api.put("/settings/modulos", { modulos: ativos });
       setAtivos(r.ativos || ativos);
+      setDirty(false);
       toast.success("Módulos actualizados. Os packs aplicam-se a este cliente.");
       await refresh();
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar módulos");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  saveRef.current = save;
 
   return (
     <div className="bg-white border border-gray-200 rounded-sm p-5 sm:p-6 max-w-3xl">
@@ -510,12 +695,18 @@ function ModulosTab() {
 
 export default function Definicoes() {
   const [tab, setTab] = useState("empresa");
+  const confirmLeave = useConfirmLeave();
+  const goTab = async (k) => {
+    if (k === tab) return;
+    if (!(await confirmLeave())) return;
+    setTab(k);
+  };
   return (
     <div>
       <PageHeader title="Definições" subtitle="Empresa, módulos, referências, dados Excel, modelos PDF e emails" />
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5 overflow-x-auto">
         {[["empresa", "Empresa"], ["modulos", "Módulos"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"]].map(([k, l]) => (
-          <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-black text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>
+          <button key={k} type="button" data-testid={`tab-${k}`} onClick={() => goTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-black text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>
         ))}
       </div>
       {tab === "empresa" && <EmpresaTab />}
@@ -533,6 +724,13 @@ function EmailsTab() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ subject: "", body: "" });
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const saveRef = useRef(null);
+  const confirmLeave = useConfirmLeave();
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const load = async () => {
     const list = await api.get("/settings/email-templates");
@@ -542,24 +740,35 @@ function EmailsTab() {
       if (fresh) {
         setSelected(fresh);
         setForm({ subject: fresh.subject, body: fresh.body });
+        setDirty(false);
       }
     } else if (list?.length) {
       setSelected(list[0]);
       setForm({ subject: list[0].subject, body: list[0].body });
+      setDirty(false);
     }
   };
 
   useEffect(() => { load().catch(() => toast.error("Não foi possível carregar os templates")); }, []);
 
-  const pick = (t) => {
+  const pick = async (t) => {
+    if (selected?.tipo === t.tipo) return;
+    if (!(await confirmLeave())) return;
     setSelected(t);
     setForm({ subject: t.subject, body: t.body });
+    setDirty(false);
   };
 
   const save = async () => {
-    if (!selected) return;
-    if (!form.subject.trim()) return toast.error("Assunto obrigatório");
-    if (!form.body.trim()) return toast.error("Corpo do email obrigatório");
+    if (!selected) return false;
+    if (!form.subject.trim()) {
+      toast.error("Assunto obrigatório");
+      return false;
+    }
+    if (!form.body.trim()) {
+      toast.error("Corpo do email obrigatório");
+      return false;
+    }
     setBusy(true);
     try {
       const updated = await api.put(`/settings/email-templates/${selected.tipo}`, {
@@ -569,13 +778,17 @@ function EmailsTab() {
       toast.success("Template guardado");
       setSelected(updated);
       setForm({ subject: updated.subject, body: updated.body });
-      setItems((prev) => prev.map((t) => (t.tipo === updated.tipo ? updated : t)));
+      setItems((prev) => prev.map((x) => (x.tipo === updated.tipo ? updated : x)));
+      setDirty(false);
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
     } finally {
       setBusy(false);
     }
   };
+  saveRef.current = save;
 
   const reset = async () => {
     if (!selected) return;
@@ -586,7 +799,8 @@ function EmailsTab() {
       toast.success("Template reposto");
       setSelected(updated);
       setForm({ subject: updated.subject, body: updated.body });
-      setItems((prev) => prev.map((t) => (t.tipo === updated.tipo ? updated : t)));
+      setItems((prev) => prev.map((x) => (x.tipo === updated.tipo ? updated : x)));
+      setDirty(false);
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao repor");
     } finally {
@@ -595,6 +809,7 @@ function EmailsTab() {
   };
 
   const insertPlaceholder = (key) => {
+    setDirty(true);
     setForm((f) => ({ ...f, body: `${f.body}{${key}}` }));
   };
 
@@ -641,7 +856,7 @@ function EmailsTab() {
                 <input
                   data-testid="email-tpl-subject"
                   value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                  onChange={(e) => { setDirty(true); setForm({ ...form, subject: e.target.value }); }}
                   className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
                 />
               </div>
@@ -651,7 +866,7 @@ function EmailsTab() {
                 <textarea
                   data-testid="email-tpl-body"
                   value={form.body}
-                  onChange={(e) => setForm({ ...form, body: e.target.value })}
+                  onChange={(e) => { setDirty(true); setForm({ ...form, body: e.target.value }); }}
                   rows={14}
                   className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black resize-y"
                 />

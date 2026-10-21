@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
+import { useConfirmLeave, useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
@@ -14,6 +15,7 @@ const emptyUser = { login: "", email: "", name: "", cargo: "", perfil_id: "" };
 
 export default function GestaoUtilizadores() {
   const [tab, setTab] = useState("users");
+  const confirmLeave = useConfirmLeave();
   const {
     items: users, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload: reloadUsers, rangeLabel,
@@ -31,6 +33,16 @@ export default function GestaoUtilizadores() {
   const [pOpen, setPOpen] = useState(false);
   const [pForm, setPForm] = useState(null);
   const [pEditId, setPEditId] = useState(null);
+  const saveUserRef = useRef(null);
+  const savePerfilRef = useRef(null);
+  useUnsavedChanges({
+    dirty: uOpen || pOpen,
+    onSave: async () => {
+      if (uOpen && saveUserRef.current) return saveUserRef.current();
+      if (pOpen && savePerfilRef.current) return savePerfilRef.current();
+      return true;
+    },
+  });
 
   const loadMeta = useCallback(async () => {
     setPerfis(await api.get("/perfis"));
@@ -56,7 +68,10 @@ export default function GestaoUtilizadores() {
     return fallback;
   };
   const saveUser = async () => {
-    if (!uEditId && !uForm.login.trim()) return toast.error("Login obrigatório");
+    if (!uEditId && !uForm.login.trim()) {
+      toast.error("Login obrigatório");
+      return false;
+    }
     try {
       const body = {
         login: uForm.login.trim(),
@@ -75,8 +90,13 @@ export default function GestaoUtilizadores() {
       }
       setUOpen(false);
       reloadUsers();
-    } catch (e) { toast.error(errMsg(e)); }
+      return true;
+    } catch (e) {
+      toast.error(errMsg(e));
+      return false;
+    }
   };
+  saveUserRef.current = saveUser;
   const reinvitar = async (u) => {
     try {
       const res = await api.post(`/users/${u.id}/reinvitar`);
@@ -117,7 +137,10 @@ export default function GestaoUtilizadores() {
   const togglePerm = (mk, a) => setPForm((f) => ({ ...f, permissoes: { ...f.permissoes, [mk]: { ...f.permissoes[mk], [a]: !f.permissoes[mk][a] } } }));
   const toggleModuleAll = (mk, val) => setPForm((f) => ({ ...f, permissoes: { ...f.permissoes, [mk]: Object.fromEntries(meta.acoes.map((a) => [a, val])) } }));
   const savePerfil = async () => {
-    if (!pForm.nome.trim()) return toast.error("Nome obrigatório");
+    if (!pForm.nome.trim()) {
+      toast.error("Nome obrigatório");
+      return false;
+    }
     try {
       const body = { nome: pForm.nome, admin: pForm.admin, permissoes: pForm.permissoes };
       if (pEditId) await api.put(`/perfis/${pEditId}`, body);
@@ -125,8 +148,13 @@ export default function GestaoUtilizadores() {
       toast.success("Perfil guardado");
       setPOpen(false);
       loadMeta();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao guardar"); }
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
+    }
   };
+  savePerfilRef.current = savePerfil;
   const removePerfil = async (id) => {
     try { await api.del(`/perfis/${id}`); toast.success("Perfil eliminado"); loadMeta(); }
     catch (e) { toast.error(e?.response?.data?.detail || "Erro ao eliminar"); }
@@ -135,8 +163,13 @@ export default function GestaoUtilizadores() {
   const acaoLabel = { view: "Ver", create: "Criar", edit: "Editar", delete: "Eliminar" };
   const isAdminProfile = (p) => p.sistema && p.admin;
 
+  const goTab = async (id) => {
+    if (id === tab) return;
+    if (!(await confirmLeave())) return;
+    setTab(id);
+  };
   const Tab = ({ id, icon: Icon, label }) => (
-    <button data-testid={`gu-tab-${id}`} onClick={() => setTab(id)} className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${tab === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}>
+    <button type="button" data-testid={`gu-tab-${id}`} onClick={() => goTab(id)} className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${tab === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}>
       <Icon size={15} /> {label}
     </button>
   );

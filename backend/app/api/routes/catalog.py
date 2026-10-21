@@ -1,5 +1,6 @@
 from typing import List, Optional
 import asyncio
+import copy
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -16,7 +17,7 @@ from app.repositories import (
     orcamentos_repo, encomendas_repo, ordens_repo, categorias_repo, subcategorias_repo,
 )
 from app.services.costing import (
-    artigo_breakdown, enrich_artigo, enrich_artigos_list, artigo_lite,
+    artigo_breakdown, enrich_artigo, enrich_artigos_list, artigo_lite, herdar_bom_do_pai,
     compute_orcamento_totais, compute_encomendas_many, recompute_of_status,
     aplicar_custo_placa_mp,
 )
@@ -69,11 +70,15 @@ async def _list_categorias_page(page, page_size, query):
     return page_payload(items, total, p, ps)
 
 
-async def _resolve_categorias(data: dict) -> dict:
-    """Preenche nomes a partir dos IDs; limpa subcategoria se não pertencer à categoria."""
+async def _resolve_categorias(data: dict, *, exigir: bool = True) -> dict:
+    """Preenche nomes a partir dos IDs. Categoria + subcategoria obrigatórias (exceto diversos)."""
     cat_id = data.get("categoria_id") or None
     sub_id = data.get("subcategoria_id") or None
+    is_div = bool(data.get("diversos"))
+    must = exigir and not is_div
     if not cat_id:
+        if must:
+            raise HTTPException(400, "Categoria de produto é obrigatória")
         data["categoria_id"] = None
         data["categoria_nome"] = ""
         data["subcategoria_id"] = None
@@ -84,16 +89,28 @@ async def _resolve_categorias(data: dict) -> dict:
         raise HTTPException(400, "Categoria inválida")
     data["categoria_id"] = cat_id
     data["categoria_nome"] = cat.get("nome") or ""
-    if sub_id:
-        sub = await subcategorias_repo.get(sub_id)
-        if not sub or sub.get("categoria_id") != cat_id:
-            raise HTTPException(400, "Subcategoria inválida para esta categoria")
-        data["subcategoria_id"] = sub_id
-        data["subcategoria_nome"] = sub.get("nome") or ""
-    else:
+    if not sub_id:
+        if must:
+            raise HTTPException(400, "Sub categoria é obrigatória")
         data["subcategoria_id"] = None
         data["subcategoria_nome"] = ""
+        return data
+    sub = await subcategorias_repo.get(sub_id)
+    if not sub or sub.get("categoria_id") != cat_id:
+        raise HTTPException(400, "Subcategoria inválida para esta categoria")
+    data["subcategoria_id"] = sub_id
+    data["subcategoria_nome"] = sub.get("nome") or ""
     return data
+
+
+async def _artigo_uso_counts(aid: str) -> dict:
+    """Contadores de uso em orçamentos / OF / encomendas (para soft-delete)."""
+    n_orc, n_of, n_enc = await asyncio.gather(
+        orcamentos_repo.count({"linhas.artigo_id": aid}),
+        ordens_repo.count({"itens.artigo_id": aid}),
+        encomendas_repo.count({"artigos.artigo_id": aid}),
+    )
+    return {"num_orcamentos": n_orc, "num_ofs": n_of, "num_encomendas": n_enc}
 
 
 # ----------------------- Máquinas -----------------------
@@ -299,6 +316,7 @@ async def get_artigo(aid: str, _u: dict = Depends(require_perm("artigos", "view"
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
+    a = await herdar_bom_do_pai(a)
     return enrich_artigo(a, await artigo_breakdown(a))
 
 
@@ -307,6 +325,7 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
     a = await artigos_repo.get(aid)
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
+    a = await herdar_bom_do_pai(a)
 
     # Só documentos que referenciam o artigo (evita varrer 1000+ encomendas).
     artigo_bd, orcs_raw, encs_raw, ofs_raw = await asyncio.gather(
@@ -380,14 +399,17 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
 
 @router.post("/artigos")
 async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("artigos", "create"))):
-    payload = await _resolve_categorias(data.model_dump())
+    payload = await _resolve_categorias(data.model_dump(), exigir=True)
     payload = aplicar_custo_placa_mp(payload)
     a = Artigo(**payload)
     if a.diversos:
         a.margem = 0.0
     a.codigo = await next_codigo("artigo_diversos" if a.diversos else "artigo")
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
     a.created_by = user.get("id")
-    a.created_by_nome = (user.get("nome") or user.get("email") or "").strip()
+    a.created_by_nome = nome_user
+    a.updated_by = user.get("id")
+    a.updated_by_nome = nome_user
     a.updated_at = a.created_at
     doc = a.model_dump()
     await artigos_repo.insert(doc)
@@ -401,24 +423,28 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     existing = await artigos_repo.get(aid)
     if not existing:
         raise HTTPException(404, "Artigo não encontrado")
-    update = await _resolve_categorias(data.model_dump())
+    update = await _resolve_categorias(data.model_dump(), exigir=True)
     update.pop("anexos", None)
     # Flag «diversos» só na criação (código DIV-); updates preservam o valor.
     update["diversos"] = bool(existing.get("diversos"))
     if update["diversos"]:
         update["margem"] = 0.0
     update = aplicar_custo_placa_mp(update)
-    # Não sobrescrever metadados de criação
+    # Não sobrescrever metadados de criação nem Nº produto
     update.pop("created_at", None)
     update.pop("created_by", None)
     update.pop("created_by_nome", None)
     update.pop("codigo", None)
+    update.pop("pai_id", None)  # vínculo de variante só via endpoint dedicado
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
     update["updated_at"] = now_iso()
+    update["updated_by"] = user.get("id")
+    update["updated_by_nome"] = nome_user
     alteracoes = audit.diff_campos(existing, update, [
         "nome", "descricao", "unidade", "custo_artigo", "preco_compra", "margem", "comissao_pct",
         "categoria_id", "subcategoria_id", "tipo_artigo", "produzido",
-        "fabricante", "fornecedor_nome", "qtd_stock", "responsavel",
-        "comprimento_mm", "largura_mm",
+        "fabricante", "fornecedor_nome", "cod_fornecedor", "qtd_stock", "responsavel",
+        "comprimento_mm", "largura_mm", "plano_contas", "conta_proveitos", "iva_taxa",
     ])
     await artigos_repo.update(aid, update)
     existing.update(update)
@@ -429,10 +455,310 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
 @router.delete("/artigos/{aid}")
 async def delete_artigo(aid: str, user: dict = Depends(require_perm("artigos", "delete"))):
     existing = await artigos_repo.get(aid)
+    if not existing:
+        raise HTTPException(404, "Artigo não encontrado")
+    uso = await _artigo_uso_counts(aid)
+    if (uso["num_orcamentos"] or 0) > 0 or (uso["num_ofs"] or 0) > 0:
+        # Soft-delete: preservar histórico financeiro
+        from app.domain.models import TIPO_ARTIGO_INATIVO
+        patch = {
+            "tipo_artigo": TIPO_ARTIGO_INATIVO,
+            "ativo": False,
+            "updated_at": now_iso(),
+            "updated_by": user.get("id"),
+            "updated_by_nome": (user.get("nome") or user.get("email") or "").strip(),
+        }
+        await artigos_repo.update(aid, patch)
+        await audit.registar(
+            "artigo", aid, "inactivado", user,
+            f"Artigo «{existing.get('nome')}» inactivado (em uso: "
+            f"{uso['num_orcamentos']} orç., {uso['num_ofs']} OF)",
+            existing.get("codigo") or existing.get("nome"),
+            [{"campo": "tipo_artigo", "de": existing.get("tipo_artigo"), "para": TIPO_ARTIGO_INATIVO}],
+        )
+        return {
+            "ok": True,
+            "soft": True,
+            "motivo": "Artigo em uso em orçamentos ou ordens de fabrico — marcado como Inativo.",
+            **uso,
+        }
     await artigos_repo.delete({"id": aid})
-    if existing:
-        await audit.registar("artigo", aid, "eliminado", user, f"Artigo «{existing.get('nome')}» eliminado", existing.get("nome"))
-    return {"ok": True}
+    await audit.registar("artigo", aid, "eliminado", user, f"Artigo «{existing.get('nome')}» eliminado", existing.get("nome"))
+    return {"ok": True, "soft": False, **uso}
+
+
+@router.post("/artigos/bulk")
+async def bulk_artigos(body: dict, user: dict = Depends(require_perm("artigos", "edit"))):
+    """Ações em massa: inactivar, fornecedor, aumento % do preço de custo."""
+    ids = [i for i in (body.get("ids") or []) if i]
+    action = (body.get("action") or "").strip()
+    if not ids:
+        raise HTTPException(400, "Selecione pelo menos um artigo")
+    if action not in ("inactivar", "fornecedor", "aumentar_custo_pct"):
+        raise HTTPException(400, "Ação inválida")
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
+    now = now_iso()
+    updated = 0
+    for aid in ids:
+        existing = await artigos_repo.get(aid)
+        if not existing:
+            continue
+        patch = {
+            "updated_at": now,
+            "updated_by": user.get("id"),
+            "updated_by_nome": nome_user,
+        }
+        alteracoes = []
+        if action == "inactivar":
+            from app.domain.models import TIPO_ARTIGO_INATIVO
+            patch["tipo_artigo"] = TIPO_ARTIGO_INATIVO
+            patch["ativo"] = False
+            alteracoes = [{"campo": "tipo_artigo", "de": existing.get("tipo_artigo"), "para": TIPO_ARTIGO_INATIVO}]
+        elif action == "fornecedor":
+            patch["fornecedor_id"] = body.get("fornecedor_id") or None
+            patch["fornecedor_nome"] = (body.get("fornecedor_nome") or "").strip()
+            alteracoes = audit.diff_campos(existing, patch, ["fornecedor_id", "fornecedor_nome"])
+        elif action == "aumentar_custo_pct":
+            try:
+                pct = float(body.get("pct") or 0)
+            except (TypeError, ValueError):
+                raise HTTPException(400, "Percentagem inválida")
+            if pct == 0:
+                continue
+            fator = 1.0 + (pct / 100.0)
+            old_custo = float(existing.get("custo_artigo") or 0)
+            old_compra = float(existing.get("preco_compra") or 0)
+            patch["custo_artigo"] = round2(old_custo * fator)
+            if old_compra > 0:
+                patch["preco_compra"] = round2(old_compra * fator)
+            alteracoes = audit.diff_campos(existing, patch, ["custo_artigo", "preco_compra"])
+        await artigos_repo.update(aid, patch)
+        await audit.registar(
+            "artigo", aid, "bulk", user,
+            f"Artigo «{existing.get('nome')}» — ação em massa «{action}»",
+            existing.get("codigo") or existing.get("nome"),
+            alteracoes,
+        )
+        updated += 1
+    return {"ok": True, "updated": updated, "action": action}
+
+
+def _variante_label_from(attrs: dict, label: str = "") -> str:
+    lab = (label or "").strip()
+    if lab:
+        return lab
+    parts = [f"{k}: {v}" for k, v in (attrs or {}).items() if str(v).strip()]
+    return " / ".join(parts) if parts else ""
+
+
+@router.get("/artigos/{aid}/variantes")
+async def list_variantes(aid: str, _u: dict = Depends(require_perm("artigos", "view"))):
+    pai = await artigos_repo.get(aid)
+    if not pai:
+        raise HTTPException(404, "Artigo não encontrado")
+    rows = await artigos_repo.find({"pai_id": aid}, sort=("nome", 1), limit=2000)
+    from app.services.costing import artigo_lite
+    return {
+        "pai": {"id": pai["id"], "codigo": pai.get("codigo"), "nome": pai.get("nome")},
+        "variantes": [
+            {
+                **artigo_lite(v),
+                "variante_label": v.get("variante_label")
+                    or _variante_label_from(v.get("variante_atributos") or {}, "")
+                    or " / ".join(filter(None, [v.get("variante_cor"), v.get("variante_tamanho")])),
+                "variante_atributos": v.get("variante_atributos") or {},
+                "qtd_stock": v.get("qtd_stock") or 0,
+                "ativo": v.get("ativo") is not False,
+            }
+            for v in rows
+        ],
+        "total": len(rows),
+    }
+
+
+@router.post("/artigos/{aid}/propagar-preco")
+async def propagar_preco_variantes(aid: str, body: dict, user: dict = Depends(require_perm("artigos", "edit"))):
+    """Copia margem / custo / preço de compra do pai para variantes seleccionadas.
+
+    Body: { "variante_ids": ["…"], "campos": ["margem", "custo_artigo", "preco_compra"] }
+    """
+    pai = await artigos_repo.get(aid)
+    if not pai:
+        raise HTTPException(404, "Artigo não encontrado")
+    if pai.get("pai_id"):
+        raise HTTPException(400, "Só o artigo pai pode propagar preço às variantes")
+    ids = [str(x) for x in (body.get("variante_ids") or []) if x]
+    if not ids:
+        raise HTTPException(400, "Seleccione pelo menos uma variante")
+    permitidos = {"margem", "custo_artigo", "preco_compra"}
+    campos = [c for c in (body.get("campos") or list(permitidos)) if c in permitidos]
+    if not campos:
+        campos = list(permitidos)
+    patch = {c: pai.get(c) for c in campos}
+    # MP: recalcular custo_artigo a partir da placa se aplicável
+    if "preco_compra" in campos or "custo_artigo" in campos:
+        tmp = {**pai, **patch}
+        tmp = aplicar_custo_placa_mp(tmp)
+        if "custo_artigo" in campos or "preco_compra" in campos:
+            patch["custo_artigo"] = tmp.get("custo_artigo")
+            if "preco_compra" in campos:
+                patch["preco_compra"] = tmp.get("preco_compra")
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
+    now = now_iso()
+    patch.update({
+        "updated_at": now,
+        "updated_by": user.get("id"),
+        "updated_by_nome": nome_user,
+    })
+    actualizados = 0
+    for vid in ids:
+        var = await artigos_repo.get(vid)
+        if not var or var.get("pai_id") != aid:
+            continue
+        await artigos_repo.update(vid, patch)
+        actualizados += 1
+    if actualizados:
+        await audit.registar(
+            "artigo", aid, "variantes", user,
+            f"Preço/margem propagado a {actualizados} variante(s) de «{pai.get('nome')}»",
+            pai.get("codigo") or pai.get("nome"),
+        )
+    return {"ok": True, "actualizados": actualizados, "campos": campos}
+
+
+@router.post("/artigos/{aid}/variantes")
+async def criar_variantes(aid: str, body: dict, user: dict = Depends(require_perm("artigos", "create"))):
+    """Adiciona variantes livres ao artigo pai (herdam regras; stock individual).
+
+    Body:
+      { "variantes": [ { "label": "Branco M", "atributos": {"Cor":"Branco","Tamanho":"M"}, "nome": "..."? } ] }
+    Ou legado: { "tamanhos": [...], "cores": [...] } → gera matriz.
+    """
+    pai = await artigos_repo.get(aid)
+    if not pai:
+        raise HTTPException(404, "Artigo não encontrado")
+    if pai.get("pai_id"):
+        raise HTTPException(400, "Só o artigo pai pode ter variantes")
+
+    items = list(body.get("variantes") or [])
+    # Compat: matriz tamanho × cor
+    if not items and (body.get("tamanhos") or body.get("cores")):
+        tamanhos = [str(t).strip() for t in (body.get("tamanhos") or []) if str(t).strip()]
+        cores = [str(c).strip() for c in (body.get("cores") or []) if str(c).strip()]
+        for tam in tamanhos or [""]:
+            for cor in cores or [""]:
+                if not tam and not cor:
+                    continue
+                attrs = {}
+                if cor:
+                    attrs["Cor"] = cor
+                if tam:
+                    attrs["Tamanho"] = tam
+                items.append({"label": _variante_label_from(attrs), "atributos": attrs})
+
+    if not items:
+        raise HTTPException(400, "Indique pelo menos uma variante")
+
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
+    now = now_iso()
+    criados = []
+    for it in items:
+        attrs_raw = it.get("atributos") or it.get("variante_atributos") or {}
+        attrs = {str(k).strip(): str(v).strip() for k, v in attrs_raw.items() if str(k).strip() and str(v).strip()}
+        label = _variante_label_from(attrs, it.get("label") or it.get("variante_label") or "")
+        if not label:
+            raise HTTPException(400, "Cada variante precisa de uma etiqueta ou atributos")
+        # Evitar duplicar a mesma etiqueta no mesmo pai
+        ja = await artigos_repo.find_one({"pai_id": aid, "variante_label": label})
+        if ja:
+            continue
+        nome_var = (it.get("nome") or "").strip() or f"{pai.get('nome', 'Artigo')} — {label}"
+        # Cópia profunda: herda materiais (consumíveis) e roteiro (operações) do pai
+        novo = copy.deepcopy({k: v for k, v in pai.items() if k not in ("_id",)})
+        novo.update({
+            "id": new_id(),
+            "codigo": await next_codigo("artigo"),
+            "nome": nome_var,
+            "pai_id": aid,
+            "pai_codigo": pai.get("codigo") or "",
+            "variante_label": label,
+            "variante_atributos": attrs,
+            "variante_tamanho": attrs.get("Tamanho") or attrs.get("tamanho") or "",
+            "variante_cor": attrs.get("Cor") or attrs.get("cor") or "",
+            "tem_variantes": False,
+            "materiais": copy.deepcopy(pai.get("materiais") or []),
+            "roteiro": copy.deepcopy(pai.get("roteiro") or []),
+            "qtd_stock": float(it.get("qtd_stock") or 0),
+            "created_at": now,
+            "updated_at": now,
+            "created_by": user.get("id"),
+            "created_by_nome": nome_user,
+            "updated_by": user.get("id"),
+            "updated_by_nome": nome_user,
+        })
+        await artigos_repo.insert(novo)
+        criados.append({
+            "id": novo["id"], "codigo": novo["codigo"], "nome": novo["nome"],
+            "variante_label": label, "variante_atributos": attrs,
+        })
+    if criados:
+        await artigos_repo.update(aid, {
+            "tem_variantes": True,
+            "updated_at": now,
+            "updated_by": user.get("id"),
+            "updated_by_nome": nome_user,
+        })
+        await audit.registar(
+            "artigo", aid, "variantes", user,
+            f"Adicionadas {len(criados)} variante(s) a «{pai.get('nome')}»",
+            pai.get("codigo") or pai.get("nome"),
+        )
+    return {"ok": True, "criados": criados, "total": len(criados)}
+
+
+@router.delete("/artigos/{aid}/variantes/{vid}")
+async def remover_variante(aid: str, vid: str, user: dict = Depends(require_perm("artigos", "delete"))):
+    """Remove uma variante do pai. Se estiver em uso → inactiva (soft-delete)."""
+    pai = await artigos_repo.get(aid)
+    if not pai:
+        raise HTTPException(404, "Artigo pai não encontrado")
+    var = await artigos_repo.get(vid)
+    if not var or var.get("pai_id") != aid:
+        raise HTTPException(404, "Variante não encontrada neste artigo")
+    uso = await _artigo_uso_counts(vid)
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
+    now = now_iso()
+    if (uso["num_orcamentos"] or 0) > 0 or (uso["num_ofs"] or 0) > 0:
+        from app.domain.models import TIPO_ARTIGO_INATIVO
+        await artigos_repo.update(vid, {
+            "tipo_artigo": TIPO_ARTIGO_INATIVO,
+            "ativo": False,
+            "updated_at": now,
+            "updated_by": user.get("id"),
+            "updated_by_nome": nome_user,
+        })
+        await audit.registar(
+            "artigo", vid, "inactivado", user,
+            f"Variante «{var.get('nome')}» inactivada (em uso)",
+            var.get("codigo") or var.get("nome"),
+        )
+        soft = True
+    else:
+        await artigos_repo.delete({"id": vid})
+        await audit.registar(
+            "artigo", vid, "eliminado", user,
+            f"Variante «{var.get('nome')}» removida",
+            var.get("codigo") or var.get("nome"),
+        )
+        soft = False
+    restam_any = await artigos_repo.count({"pai_id": aid})
+    await artigos_repo.update(aid, {
+        "tem_variantes": restam_any > 0,
+        "updated_at": now,
+        "updated_by": user.get("id"),
+        "updated_by_nome": nome_user,
+    })
+    return {"ok": True, "soft": soft, "restantes": restam_any, **uso}
 
 
 @router.post("/artigos/{aid}/duplicar")
@@ -441,6 +767,8 @@ async def duplicar_artigo(aid: str, user: dict = Depends(require_perm("artigos",
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
     is_div = bool(a.get("diversos"))
+    nome_user = (user.get("nome") or user.get("email") or "").strip()
+    now = now_iso()
     novo = {**a}
     novo.update({
         "id": new_id(),
@@ -448,7 +776,19 @@ async def duplicar_artigo(aid: str, user: dict = Depends(require_perm("artigos",
         "nome": f"{a.get('nome', 'Artigo')} (cópia)",
         "diversos": is_div,
         "margem": 0.0 if is_div else a.get("margem"),
-        "created_at": now_iso(),
+        "pai_id": None,
+        "pai_codigo": "",
+        "variante_label": "",
+        "variante_atributos": {},
+        "variante_tamanho": "",
+        "variante_cor": "",
+        "tem_variantes": False,
+        "created_at": now,
+        "updated_at": now,
+        "created_by": user.get("id"),
+        "created_by_nome": nome_user,
+        "updated_by": user.get("id"),
+        "updated_by_nome": nome_user,
     })
     await artigos_repo.insert(novo)
     await audit.registar("artigo", novo["id"], "duplicado", user, f"Artigo «{novo['nome']}» criado a partir de «{a.get('nome')}»", novo.get("codigo") or novo["nome"])

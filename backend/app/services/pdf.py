@@ -410,6 +410,8 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
             tot_rows.append(["Desconto linhas", "- " + fmt_eur(orc.get("desconto_linhas"))])
         if (orc.get("desconto_total_valor") or 0) > 0:
             tot_rows.append(["Desconto total", "- " + fmt_eur(orc.get("desconto_total_valor"))])
+        if (orc.get("portes") or 0) > 0:
+            tot_rows.append(["Portes de envio", fmt_eur(orc.get("portes"))])
         tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
         s = settings or {}
         iva_taxa = 0.0 if s.get("iva_isento") else float(s.get("iva_taxa") or 0)
@@ -525,6 +527,8 @@ def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, s
     if section_on(fields, "dados_cliente"):
         meta_pairs += cliente_meta_pairs(enc, cliente, fields)
         meta_pairs += [("Data", enc.get("data")), ("Estado", ENC_ESTADO_PT.get(enc.get("estado"), enc.get("estado")))]
+        if enc.get("referencia_cliente"):
+            meta_pairs.append(("Referência cliente (PO)", enc.get("referencia_cliente")))
     if section_on(fields, "orcamento_origem"):
         meta_pairs += orcamento_origem_pairs(orcamento)
     _header(elems, st, "ENCOMENDA", enc.get("numero", ""), meta_pairs, settings, show_branding)
@@ -698,6 +702,8 @@ def build_documento_financeiro_pdf(
     ]
     if documento.get("encomenda_numero"):
         meta_pairs.append(("Encomenda", documento.get("encomenda_numero")))
+    if documento.get("referencia_cliente"):
+        meta_pairs.append(("Referência cliente (PO)", documento.get("referencia_cliente")))
     if documento.get("fatura_numero"):
         meta_pairs.append(("Fatura", documento.get("fatura_numero")))
     _header(elems, st, titulo, documento.get("numero", ""), meta_pairs, settings, show_branding)

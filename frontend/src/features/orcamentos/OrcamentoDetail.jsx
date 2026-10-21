@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, Fragment } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +10,7 @@ import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { LinhaCodigoSelect, LinhaDescricaoInput } from "@/components/LinhaArtigoFields";
 import { OrcamentoMateriais, OrcamentoTotais } from "@/features/orcamentos/OrcamentoPanels";
+import LinhaArteButton from "@/features/orcamentos/LinhaArteButton";
 import {
   expandReceitaParaMateriaisOrc,
   expandMateriaPrimaParaLinhaOrc,
@@ -36,12 +37,17 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
-import { Plus, Trash2, Save, FileText, Cog, Layers, X, ChevronDown, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Handshake, Trophy, Ban, GitBranch } from "lucide-react";
+import { Plus, Trash2, Save, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta, ymdHoje, orcErroDatas } from "@/lib/orcamento";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+  orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta,
+  ymdHoje, orcErroDatas, orcPrecisaNovaVersao, orcExpirado, addDaysYmd, NOTAS_TEMPLATES_DEFAULT,
+} from "@/lib/orcamento";
+import SelecionarVariantesDialog, {
+  artigosParaSelector,
+  artigoTemVariantes,
+} from "@/components/SelecionarVariantesDialog";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 const toHours = (v, u) => (Number(v) || 0) / (u === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
@@ -65,11 +71,33 @@ export default function OrcamentoDetail() {
   const [clienteDoc, setClienteDoc] = useState(null);
   const [showRequisitosEncomenda, setShowRequisitosEncomenda] = useState(false);
   const [showRequisitosFinalizar, setShowRequisitosFinalizar] = useState(false);
-  const [showConverterPrecos, setShowConverterPrecos] = useState(false);
-  const [precosEncomenda, setPrecosEncomenda] = useState({});
   const [converting, setConverting] = useState(false);
   const [viewVersao, setViewVersao] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [variantesPick, setVariantesPick] = useState(null); // { pai, linhaIndex }
+  const dirtyRef = useRef(false);
+  const [dirty, setDirty] = useState(false);
+  const savingRef = useRef(false);
+  const validadeAutoRef = useRef(false);
+  const saveSilentRef = useRef(null);
+  const saveForLeaveRef = useRef(null);
+
+  const markDirty = useCallback(() => {
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
+  const markClean = useCallback(() => {
+    dirtyRef.current = false;
+    setDirty(false);
+  }, []);
+
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     try {
@@ -99,6 +127,18 @@ export default function OrcamentoDetail() {
         o.cliente_id ? api.get("/clientes").catch(() => []) : Promise.resolve([]),
       ]);
       const orcMigrado = migrarLinhasOrc(o, arts);
+      // Rascunho sem validade → preencher com data + dias da empresa
+      let autoValidade = false;
+      if (orcStatus(orcMigrado) === "rascunho" && !orcMigrado.validade) {
+        const dias = Number(empresa?.orcamento_validade_dias) || 15;
+        orcMigrado.validade = addDaysYmd(orcMigrado.data || ymdHoje(), dias);
+        validadeAutoRef.current = true;
+        autoValidade = true;
+      } else {
+        validadeAutoRef.current = false;
+      }
+      dirtyRef.current = autoValidade;
+      setDirty(autoValidade);
       setOrc(orcMigrado);
       setArtigos(arts);
       setTipos(tipos);
@@ -120,6 +160,17 @@ export default function OrcamentoDetail() {
     load();
   }, [load]);
 
+  // Autosave silencioso em rascunho editável (a cada 30s se dirty)
+  useEffect(() => {
+    if (!orc) return undefined;
+    if (!orcEditavel(orc) || orcStatus(orc) !== "rascunho") return undefined;
+    const timer = setInterval(() => {
+      if (!dirtyRef.current || savingRef.current) return;
+      saveSilentRef.current?.();
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [id, orc?.status, !!orc]);
+
   if (loadError && !orc) {
     return (
       <div className="text-sm space-y-3 py-8 text-center">
@@ -130,7 +181,10 @@ export default function OrcamentoDetail() {
   }
   if (!orc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  const upd = (patch) => setOrc({ ...orc, ...patch });
+  const upd = (patch) => {
+    markDirty();
+    setOrc({ ...orc, ...patch });
+  };
 
   const isM2 = (u) => ["m²", "m2"].includes((u || "").toLowerCase());
   const matCusto = (m) => custoConsumoMedida({
@@ -259,33 +313,33 @@ export default function OrcamentoDetail() {
     }
   };
 
-  const applyArtigoLinha = async (i, aLite, opts = {}) => {
-    const l = orc.linhas[i];
-    const linhaId = l.id || crypto.randomUUID();
+  const buildLinhaFromArtigo = async (baseLinha, aLite, opts = {}) => {
     let a = aLite;
     try {
-      // Artigo completo: receita + preço de venda correcto (lite não inclui BOM/custeio)
       a = await api.get(`/artigos/${aLite.id}`);
     } catch {
       a = aLite;
     }
     const livre = !!opts.descricao_livre || isDiversosArtigo(a);
-    const modo = modoCalculoLinha(l, a);
+    const modo = modoCalculoLinha(baseLinha, a);
     const regras = regrasModo(modo);
     const tipoLinha = livre ? "descritor" : tipoLinhaFromArtigo(a);
     const margemArt = regras.margemZero ? 0 : (Number(a.margem) ?? 30);
     const precoVenda = precoVendaInicialFromArtigo(a, modo, margemArt);
     const custos = custosIniciaisFromArtigo(a, modo);
+    const linhaId = baseLinha.id || crypto.randomUUID();
+    const qtd = opts.quantidade != null ? (Number(opts.quantidade) || 1) : (baseLinha.quantidade || 1);
     let nextLinha = {
-      ...l,
+      ...baseLinha,
       id: linhaId,
+      quantidade: qtd,
       tipo_linha: tipoLinha,
       descricao_livre: livre,
       ...flagsLinhaFromModo(modo),
       artigo_id: a.id,
       artigo_codigo: a.codigo || "",
       artigo_nome: opts.clear_nome ? "" : a.nome,
-      imagem: l.imagem || a.imagem || "",
+      imagem: baseLinha.imagem || a.imagem || "",
       ...custos,
       margem: margemArt,
       roteiro: regras.roteiroFromArtigo ? JSON.parse(JSON.stringify(a.roteiro || [])) : [],
@@ -294,7 +348,6 @@ export default function OrcamentoDetail() {
       preco_unit_manual: regras.precoManual,
       preco_origem: regras.precoOrigem,
     };
-    const matsBase = semMateriaisDaLinha(orc.materiais, linhaId);
     let matsReceita = [];
     if (regras.expandMateriaPrima) {
       matsReceita = expandMateriaPrimaParaLinhaOrc(a, {
@@ -310,15 +363,61 @@ export default function OrcamentoDetail() {
         custosById,
       });
     }
+    return { linha: nextLinha, matsReceita, artigo: a, precoVenda, regras };
+  };
+
+  const applyArtigoLinha = async (i, aLite, opts = {}) => {
+    if (artigoTemVariantes(aLite) && !opts.skipVariantes && !opts.descricao_livre) {
+      setVariantesPick({ pai: aLite, linhaIndex: i });
+      return;
+    }
+    const l = orc.linhas[i];
+    const linhaId = l.id || crypto.randomUUID();
+    const built = await buildLinhaFromArtigo({ ...l, id: linhaId }, aLite, opts);
+    const matsBase = semMateriaisDaLinha(orc.materiais, linhaId);
     let linhas = [...orc.linhas];
-    linhas[i] = nextLinha;
-    linhas = adaptarLinhaPorReceita(linhas, [...matsBase, ...matsReceita], linhaId, { forcarCalculado: regras.forcarCalculado });
-    // Actualiza cache com artigo completo
-    setArtigos((prev) => {
-      const others = prev.filter((x) => x.id !== a.id);
-      return [...others, { ...a, lite: false, preco_venda: precoVenda }];
+    linhas[i] = built.linha;
+    linhas = adaptarLinhaPorReceita(linhas, [...matsBase, ...built.matsReceita], linhaId, {
+      forcarCalculado: built.regras.forcarCalculado,
     });
-    upd({ linhas, materiais: [...matsBase, ...matsReceita] });
+    setArtigos((prev) => {
+      const others = prev.filter((x) => x.id !== built.artigo.id);
+      return [...others, { ...built.artigo, lite: false, preco_venda: built.precoVenda }];
+    });
+    upd({ linhas, materiais: [...matsBase, ...built.matsReceita] });
+  };
+
+  const applyVariantesNaLinha = async (picked) => {
+    if (!variantesPick || !picked?.length) return;
+    const i = variantesPick.linhaIndex;
+    const base = orc.linhas[i] || emptyLinha();
+    const oldId = base.id;
+    let mats = oldId ? semMateriaisDaLinha(orc.materiais, oldId) : [...(orc.materiais || [])];
+    const newLinhas = [];
+    const cacheArts = [];
+    for (let k = 0; k < picked.length; k++) {
+      const p = picked[k];
+      const baseLinha = k === 0
+        ? { ...base, id: base.id || crypto.randomUUID() }
+        : { ...emptyLinha(), tipo_linha: base.tipo_linha || "" };
+      const built = await buildLinhaFromArtigo(baseLinha, p, { quantidade: p.quantidade });
+      let tmp = [built.linha];
+      tmp = adaptarLinhaPorReceita(tmp, built.matsReceita, built.linha.id, {
+        forcarCalculado: built.regras.forcarCalculado,
+      });
+      newLinhas.push(tmp[0]);
+      mats = [...mats, ...built.matsReceita];
+      cacheArts.push({ ...built.artigo, lite: false, preco_venda: built.precoVenda });
+    }
+    const before = orc.linhas.slice(0, i);
+    const after = orc.linhas.slice(i + 1);
+    setArtigos((prev) => {
+      const ids = new Set(cacheArts.map((a) => a.id));
+      return [...prev.filter((x) => !ids.has(x.id)), ...cacheArts];
+    });
+    upd({ linhas: [...before, ...newLinhas, ...after], materiais: mats });
+    setVariantesPick(null);
+    toast.success(picked.length === 1 ? "Variante adicionada" : `${picked.length} variantes adicionadas`);
   };
 
   const addLinha = () => {
@@ -357,6 +456,13 @@ export default function OrcamentoDetail() {
       linhas: orc.linhas.filter((_, idx) => idx !== i),
       materiais: semMateriaisDaLinha(orc.materiais, linhaId),
     });
+  };
+  const moveLinha = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= orc.linhas.length) return;
+    const linhas = [...orc.linhas];
+    [linhas[i], linhas[j]] = [linhas[j], linhas[i]];
+    upd({ linhas });
   };
 
   const updOp = (li, oi, patch) => {
@@ -644,8 +750,14 @@ export default function OrcamentoDetail() {
     if (d <= 0) return 0;
     return orc.desconto_total_tipo === "eur" ? Math.min(d, subtotalLiquido) : (subtotalLiquido * d) / 100;
   })();
-  const total = subtotalLiquido - descTotalVal;
-  const lucro = total - subtotalCusto - custoMateriais;
+  const portes = Number(orc.portes) || 0;
+  const totalAntesPortes = subtotalLiquido - descTotalVal;
+  const total = totalAntesPortes + portes;
+  const lucro = totalAntesPortes - subtotalCusto - custoMateriais;
+  const brutoVenda = subtotalVenda + totalPers + totalMateriais;
+  const descontoGlobal = descontoLinhas + descTotalVal;
+  const descontoGlobalPct = brutoVenda > 0 ? (descontoGlobal / brutoVenda) * 100 : 0;
+  const margemPct = totalAntesPortes > 0 ? (lucro / totalAntesPortes) * 100 : 0;
   const linhasAbaixoCusto = orc.linhas.filter((l) => l.artigo_id && linePreco(l) < lineCusto(l)).length;
 
   const linhaPronta = (l) => {
@@ -691,6 +803,7 @@ export default function OrcamentoDetail() {
     imagens: o.imagens || [],
     desconto_total: Number(o.desconto_total) || 0,
     desconto_total_tipo: o.desconto_total_tipo || "pct",
+    portes: Number(o.portes) || 0,
     linhas: (o.linhas || [])
       .filter((l) => l.artigo_id || ((l.tipo_linha === "descritor" || l.descricao_livre) && (l.artigo_nome || "").trim()))
       .map((l) => ({
@@ -706,7 +819,11 @@ export default function OrcamentoDetail() {
       desconto_base: l.desconto_base === "unit" ? "unit" : "linha",
       personalizacoes: (l.personalizacoes || []).map((p) => ({ id: p.id, nome: p.nome, valor: Number(p.valor) || 0 })),
       valor_personalizacao: persUnit(l),
-      preco_unit: Number(l.preco_unit) || 0,
+      // Grava o preço efectivo (UI), para a ENC herdar o valor correcto
+      preco_unit: Number(precoUnitFromBreakdown(
+        l,
+        breakdownLinhaUnit(l, o.materiais || [], lineCtx()),
+      ).toFixed(2)),
       preco_unit_manual: !!l.preco_unit_manual,
       preco_origem: l.preco_origem || (l.preco_unit_manual ? "manual" : "catalogo"),
       preco_venda_catalogo: l.preco_venda_catalogo != null ? Number(l.preco_venda_catalogo) : undefined,
@@ -744,22 +861,42 @@ export default function OrcamentoDetail() {
   };
 
   const save = async ({ silent = false } = {}) => {
+    if (savingRef.current) return false;
     const errDatas = orcErroDatas(orc);
     if (errDatas) {
-      toast.error(errDatas);
+      if (!silent) toast.error(errDatas);
       return false;
     }
-    await api.put(`/orcamentos/${id}`, payloadFrom(orc));
-    await load();
-    if (!silent) toast.success("Orçamento guardado");
-    return true;
+    savingRef.current = true;
+    try {
+      await api.put(`/orcamentos/${id}`, payloadFrom(orc));
+      markClean();
+      await load();
+      if (!silent) toast.success("Orçamento guardado");
+      return true;
+    } catch (e) {
+      if (!silent) {
+        const detail = e?.response?.data?.detail;
+        toast.error(typeof detail === "string" ? detail : "Não foi possível guardar");
+      }
+      return false;
+    } finally {
+      savingRef.current = false;
+    }
   };
+  saveSilentRef.current = () => { save({ silent: true }); };
+  saveForLeaveRef.current = () => save({ silent: false });
 
   const temNumero = orcTemNumero(orc);
   const temCliente = !!(orc.cliente_id || (orc.cliente || "").trim());
   const st = orcStatus(orc);
   const editavel = orcEditavel(orc);
+  const precisaNovaVersao = orcPrecisaNovaVersao(orc);
+  const expirado = orcExpirado(orc);
   const versoes = orc.versoes || [];
+  const notasTemplates = Array.isArray(empresa.orcamento_notas_templates)
+    ? empresa.orcamento_notas_templates.filter((t) => (t?.nome || t?.texto))
+    : NOTAS_TEMPLATES_DEFAULT;
 
   const setStatus = async (status) => {
     try {
@@ -772,19 +909,41 @@ export default function OrcamentoDetail() {
     }
   };
 
-  const negociar = async () => {
+  const criarNovaVersao = async () => {
     try {
       if (editavel) {
         const ok = await save({ silent: true });
         if (!ok) return;
       }
-      const o = await api.post(`/orcamentos/${id}/negociar`);
-      toast.success(`Negociação ${o.numero} V${o.versao}`);
+      const o = await api.post(`/orcamentos/${id}/nova-versao`);
+      toast.success(`Nova versão ${o.numero} V${o.versao}`);
       setViewVersao(null);
       await load();
     } catch (e) {
       const detail = e?.response?.data?.detail;
-      toast.error(typeof detail === "string" ? detail : "Não foi possível abrir a negociação");
+      toast.error(typeof detail === "string" ? detail : "Não foi possível criar a nova versão");
+    }
+  };
+
+  const duplicar = async () => {
+    try {
+      const o = await api.post(`/orcamentos/${id}/duplicar`);
+      toast.success(`Orçamento duplicado${o.numero ? ` (${o.numero})` : ""}`);
+      nav(`/orcamentos/${o.id}`);
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Não foi possível duplicar");
+    }
+  };
+
+  const recalcularCustos = async () => {
+    try {
+      await api.post(`/orcamentos/${id}/recalcular-custos`);
+      toast.success("Custos recalculados");
+      await load();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Não foi possível recalcular custos");
     }
   };
 
@@ -816,31 +975,11 @@ export default function OrcamentoDetail() {
       toast.error(requisitosEncomenda[0]);
       return;
     }
-    const init = {};
-    (orc.linhas || []).filter(orcLinhaPronta).forEach((l) => {
-      init[l.id] = Number(l.preco_unit) || 0;
-    });
-    setPrecosEncomenda(init);
-    setShowConverterPrecos(true);
-  };
-
-  const confirmarConverter = async () => {
-    const linhas = (orc.linhas || []).filter(orcLinhaPronta);
-    for (const l of linhas) {
-      const piso = Number(l.preco_unit) || 0;
-      const p = Number(precosEncomenda[l.id]);
-      if (Number.isNaN(p) || p + 0.001 < piso) {
-        toast.error(`O preço de «${l.artigo_nome || "artigo"}» não pode ser inferior ao do orçamento (${eur(piso)})`);
-        return;
-      }
-    }
-    const precos = {};
-    linhas.forEach((l) => { precos[l.id] = Number(precosEncomenda[l.id]); });
+    // Valores exactos do orçamento — sem alteração de preços
     setConverting(true);
     try {
-      const enc = await api.post(`/orcamentos/${id}/converter`, { precos });
-      setShowConverterPrecos(false);
-      toast.success(`Encomenda ${enc.numero} criada`);
+      const enc = await api.post(`/orcamentos/${id}/converter`);
+      toast.success(`Encomenda ${enc.numero} criada com os valores do orçamento`);
       nav(`/encomendas/${enc.id}`);
     } catch (e) {
       const detail = e?.response?.data?.detail;
@@ -870,14 +1009,14 @@ export default function OrcamentoDetail() {
                 <Send size={15} /> Enviado
               </button>
             )}
-            {temNumero && can("orcamentos", "edit") && (st === "criado" || st === "enviado" || st === "perdido") && (
-              <button data-testid="orc-negociar-btn" onClick={negociar} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
-                <Handshake size={15} /> Negociar
+            {precisaNovaVersao && can("orcamentos", "edit") && (
+              <button data-testid="orc-nova-versao-btn" onClick={criarNovaVersao} className="bg-amber-600 text-white hover:bg-amber-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 shadow-sm">
+                <GitBranch size={15} /> Criar nova versão
               </button>
             )}
             {temNumero && can("orcamentos", "edit") && st === "negociado" && (
-              <button data-testid="orc-nova-versao-btn" onClick={negociar} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
-                <GitBranch size={15} /> Nova versão
+              <button data-testid="orc-negociar-nova-versao-btn" onClick={criarNovaVersao} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <GitBranch size={15} /> Criar nova versão
               </button>
             )}
             {temNumero && can("orcamentos", "edit") && st !== "ganho" && (
@@ -888,6 +1027,11 @@ export default function OrcamentoDetail() {
             {temNumero && can("orcamentos", "edit") && st !== "perdido" && st !== "ganho" && (
               <button data-testid="orc-status-perdido" onClick={() => setStatus("perdido")} className="bg-white text-red-700 border border-red-300 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Ban size={15} /> Perdido
+              </button>
+            )}
+            {can("orcamentos", "create") && (
+              <button data-testid="orc-duplicar-btn" onClick={duplicar} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <Copy size={15} /> Duplicar
               </button>
             )}
             {temNumero && <PdfExportButton modulo="orcamento" recordId={id} />}
@@ -939,6 +1083,30 @@ export default function OrcamentoDetail() {
 
       {tab === "orcamento" && (
         <>
+      {expirado && (
+        <div data-testid="orc-expirado-banner" className="flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-950 rounded-sm px-4 py-2.5 mb-3 text-sm">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">Validade expirada — custos podem estar desactualizados.</p>
+            {editavel && can("orcamentos", "edit") && (
+              <button
+                type="button"
+                data-testid="orc-recalcular-custos-btn"
+                onClick={recalcularCustos}
+                className="mt-2 inline-flex items-center gap-1.5 bg-amber-700 text-white hover:bg-amber-800 rounded-sm px-3 py-1.5 text-xs font-medium"
+              >
+                <RefreshCw size={13} /> Recalcular custos
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {!editavel && precisaNovaVersao && (
+        <div data-testid="orc-lock-banner" className="flex items-start gap-2 bg-sky-50 border border-sky-200 text-sky-950 rounded-sm px-4 py-2.5 mb-3 text-sm">
+          <Info size={16} className="shrink-0 mt-0.5 text-sky-600" />
+          <p>Orçamento enviado/criado — para alterar quantidades ou linhas, crie uma nova versão.</p>
+        </div>
+      )}
       {/* Meta */}
       <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
         <div>
@@ -1055,17 +1223,26 @@ export default function OrcamentoDetail() {
             onChange={(e) => {
               const data = e.target.value;
               const patch = { data };
-              if (orc.validade && data && orc.validade < data) patch.validade = data;
+              const dias = Number(empresa.orcamento_validade_dias) || 15;
+              if (!orc.validade || validadeAutoRef.current) {
+                patch.validade = addDaysYmd(data, dias);
+                validadeAutoRef.current = true;
+              } else if (orc.validade && data && orc.validade < data) {
+                patch.validade = data;
+              }
               upd(patch);
             }}
             className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Validade</label>
+          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">
+            Validade <span className="text-red-500 normal-case tracking-normal" title="Obrigatória ao finalizar">*</span>
+          </label>
           <input
             data-testid="orc-validade-input"
             type="date"
+            required
             value={orc.validade || ""}
             min={orc.data || ymdHoje()}
             onChange={(e) => {
@@ -1074,6 +1251,7 @@ export default function OrcamentoDetail() {
                 toast.error("A validade não pode ser anterior à data do orçamento");
                 return;
               }
+              validadeAutoRef.current = false;
               upd({ validade });
             }}
             disabled={!editavel}
@@ -1126,6 +1304,30 @@ export default function OrcamentoDetail() {
               >
                 <td className="px-2 py-2.5 align-top">
                   <div className="flex items-start gap-1">
+                    {editavel && (
+                      <div className="flex flex-col shrink-0 mt-0.5" data-testid={`line-reorder-${i}`}>
+                        <button
+                          type="button"
+                          data-testid={`line-move-up-${i}`}
+                          disabled={i === 0}
+                          title="Mover para cima"
+                          onClick={(e) => { e.stopPropagation(); moveLinha(i, -1); }}
+                          className="p-0.5 rounded-sm text-gray-400 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent"
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`line-move-down-${i}`}
+                          disabled={i >= orc.linhas.length - 1}
+                          title="Mover para baixo"
+                          onClick={(e) => { e.stopPropagation(); moveLinha(i, 1); }}
+                          className="p-0.5 rounded-sm text-gray-400 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent"
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
                       data-testid={`line-ops-toggle-${i}`}
@@ -1146,7 +1348,7 @@ export default function OrcamentoDetail() {
                     </button>
                     <div className="flex-1 min-w-0">
                       <LinhaCodigoSelect
-                        artigos={artigos}
+                        artigos={artigosParaSelector(artigos)}
                         linha={l}
                         testid={`line-codigo-${i}`}
                         onArtigosRefresh={reloadArtigos}
@@ -1171,13 +1373,23 @@ export default function OrcamentoDetail() {
                   <div className="flex items-start gap-2">
                     <ImagemUpload value={l.imagem} onChange={(p) => updLinha(i, { imagem: p })} size={36} editable={false} testid={`line-imagem-${i}`} />
                     <div className="flex-1 min-w-0">
-                      <LinhaDescricaoInput
-                        value={l.artigo_nome}
-                        codigo={l.artigo_codigo || (artigos.find((a) => a.id === l.artigo_id) || {}).codigo}
-                        showRef={!!l.descricao_livre || l.tipo_linha === "descritor" || isDiversosArtigo(artigos.find((a) => a.id === l.artigo_id))}
-                        testid={`line-descricao-${i}`}
-                        onChange={(v) => updLinha(i, { artigo_nome: v, descricao_livre: true })}
-                      />
+                      <div className="flex items-start gap-1">
+                        <div className="flex-1 min-w-0">
+                          <LinhaDescricaoInput
+                            value={l.artigo_nome}
+                            codigo={l.artigo_codigo || (artigos.find((a) => a.id === l.artigo_id) || {}).codigo}
+                            showRef={!!l.descricao_livre || l.tipo_linha === "descritor" || isDiversosArtigo(artigos.find((a) => a.id === l.artigo_id))}
+                            testid={`line-descricao-${i}`}
+                            onChange={(v) => updLinha(i, { artigo_nome: v, descricao_livre: true })}
+                          />
+                        </div>
+                        <LinhaArteButton
+                          linha={l}
+                          canEdit={editavel}
+                          testid={`line-arte-${i}`}
+                          onChange={(patch) => updLinha(i, patch)}
+                        />
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -1628,7 +1840,75 @@ export default function OrcamentoDetail() {
         isM2={isM2}
       />
 
-      <OrcamentoTotais subtotalVenda={subtotalVenda} totalPers={totalPers} totalMateriais={totalMateriais} descontoLinhas={descontoLinhas} descTotal={orc.desconto_total} descTotalTipo={orc.desconto_total_tipo} descTotalVal={descTotalVal} onDescTotal={(v) => upd({ desconto_total: v })} onDescTotalTipo={(t) => upd({ desconto_total_tipo: t })} custoProducao={subtotalCusto + custoMateriais} lucro={lucro} total={total} ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)} ivaIsento={!!empresa.iva_isento} condicoesPagamento={empresa.condicoes_pagamento} />
+      <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4" data-testid="orc-notas-bloco">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Notas e condições</label>
+          {can("definicoes", "view") && (
+            <Link to="/definicoes" className="text-[11px] text-gray-400 hover:text-gray-700 hover:underline">
+              Gerir templates
+            </Link>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5 mb-2" data-testid="orc-notas-templates">
+          {notasTemplates.length === 0 && (
+            <p className="text-xs text-gray-400 w-full">
+              Sem templates. Configure em Definições → Empresa → Templates de notas.
+            </p>
+          )}
+          {notasTemplates.map((t) => (
+            <button
+              key={t.id || t.nome}
+              type="button"
+              data-testid={`orc-notas-tpl-${t.id || t.nome}`}
+              disabled={!editavel || !(t.texto || "").trim()}
+              title={t.texto || ""}
+              onClick={() => {
+                const texto = (t.texto || "").trim();
+                if (!texto) return;
+                const prev = (orc.notas || "").trim();
+                upd({ notas: prev ? `${prev}\n${texto}` : texto });
+              }}
+              className="text-xs px-2 py-1 rounded-sm border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+            >
+              {t.nome || "Sem nome"}
+            </button>
+          ))}
+        </div>
+        <textarea
+          data-testid="orc-notas-input"
+          value={orc.notas || ""}
+          onChange={(e) => upd({ notas: e.target.value })}
+          disabled={!editavel}
+          rows={3}
+          placeholder="Notas para o cliente ou internas…"
+          className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-50 resize-y min-h-[4.5rem]"
+        />
+      </div>
+
+      <OrcamentoTotais
+        subtotalVenda={subtotalVenda}
+        totalPers={totalPers}
+        totalMateriais={totalMateriais}
+        descontoLinhas={descontoLinhas}
+        descTotal={orc.desconto_total}
+        descTotalTipo={orc.desconto_total_tipo}
+        descTotalVal={descTotalVal}
+        onDescTotal={editavel ? (v) => upd({ desconto_total: v }) : undefined}
+        onDescTotalTipo={editavel ? (t) => upd({ desconto_total_tipo: t }) : undefined}
+        portes={portes}
+        onPortes={editavel ? (v) => upd({ portes: v }) : undefined}
+        descontoGlobal={descontoGlobal}
+        descontoGlobalPct={descontoGlobalPct}
+        margemPct={margemPct}
+        margemSaudavel={Number(empresa.margem_saudavel_pct) || 40}
+        margemRisco={Number(empresa.margem_risco_pct) || 20}
+        custoProducao={subtotalCusto + custoMateriais}
+        lucro={lucro}
+        total={total}
+        ivaTaxa={empresa.iva_isento ? 0 : (Number(empresa.iva_taxa) || 0)}
+        ivaIsento={!!empresa.iva_isento}
+        condicoesPagamento={empresa.condicoes_pagamento}
+      />
       </div>
 
       {temNumero && (
@@ -1690,62 +1970,13 @@ export default function OrcamentoDetail() {
         <HistoricoTimeline tipo="orcamento" id={id} hideTitle />
       )}
 
-      <Dialog open={showConverterPrecos} onOpenChange={setShowConverterPrecos}>
-        <DialogContent className="max-w-lg sm:rounded-sm" data-testid="converter-precos-dialog">
-          <DialogHeader>
-            <DialogTitle>Criar encomenda</DialogTitle>
-            <DialogDescription>
-              Podes aumentar os preços relativamente ao orçamento. Não é permitido diminuir.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[50vh] overflow-auto -mx-1 px-1">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">
-                  <th className="py-2 pr-2">Artigo</th>
-                  <th className="py-2 px-2 text-right">Orçamento</th>
-                  <th className="py-2 pl-2 text-right">Encomenda</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(orc.linhas || []).filter(orcLinhaPronta).map((l) => {
-                  const piso = Number(l.preco_unit) || 0;
-                  const val = precosEncomenda[l.id] ?? piso;
-                  const abaixo = Number(val) + 0.001 < piso;
-                  return (
-                    <tr key={l.id} data-testid={`converter-preco-row-${l.id}`} className="border-t border-gray-100">
-                      <td className="py-2 pr-2">
-                        <div className="font-medium text-gray-900 truncate max-w-[12rem]" title={l.artigo_nome}>{l.artigo_nome || "—"}</div>
-                        <div className="text-[11px] text-gray-400 tabular-nums">{l.quantidade || 1} un</div>
-                      </td>
-                      <td className="py-2 px-2 text-right tabular-nums text-gray-600">{eur(piso)}</td>
-                      <td className="py-2 pl-2 text-right">
-                        <input
-                          data-testid={`converter-preco-input-${l.id}`}
-                          type="number"
-                          min={piso}
-                          step="0.01"
-                          value={val}
-                          onChange={(e) => setPrecosEncomenda((prev) => ({ ...prev, [l.id]: e.target.value }))}
-                          className={`w-24 text-right border rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20 ${abaixo ? "border-red-400" : "border-gray-300"}`}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <DialogFooter className="gap-2">
-            <button type="button" data-testid="converter-precos-cancel" onClick={() => setShowConverterPrecos(false)} className="border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium">
-              Cancelar
-            </button>
-            <button type="button" data-testid="converter-precos-confirm" disabled={converting} onClick={confirmarConverter} className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 rounded-sm px-3 py-1.5 text-sm font-medium">
-              {converting ? "A criar…" : "Criar encomenda"}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SelecionarVariantesDialog
+        open={!!variantesPick}
+        onOpenChange={(o) => { if (!o) setVariantesPick(null); }}
+        paiId={variantesPick?.pai?.id}
+        paiNome={variantesPick?.pai?.nome || ""}
+        onConfirm={applyVariantesNaLinha}
+      />
     </div>
   );
 }

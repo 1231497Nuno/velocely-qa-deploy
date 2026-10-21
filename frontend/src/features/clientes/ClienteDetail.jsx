@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -108,6 +109,11 @@ export default function ClienteDetail() {
   const [contactoOpen, setContactoOpen] = useState(false);
   const [contactoForm, setContactoForm] = useState(emptyContacto());
   const [contactoEditId, setContactoEditId] = useState(null);
+  const saveContactoRef = useRef(null);
+  useUnsavedChanges({
+    dirty: contactoOpen,
+    onSave: async () => (saveContactoRef.current ? saveContactoRef.current() : true),
+  });
 
   const canEdit = can("clientes", "edit");
 
@@ -166,13 +172,22 @@ export default function ClienteDetail() {
   };
 
   const saveContacto = async () => {
-    if (!(contactoForm.nome || "").trim()) return toast.error("Nome do contacto obrigatório");
-    const next = contactoEditId
-      ? contactos.map((ct) => (ct.id === contactoEditId ? { ...contactoForm } : ct))
-      : [...contactos, { ...contactoForm }];
-    await saveCliente({ contactos: next }, "Contacto guardado");
-    setContactoOpen(false);
+    if (!(contactoForm.nome || "").trim()) {
+      toast.error("Nome do contacto obrigatório");
+      return false;
+    }
+    try {
+      const next = contactoEditId
+        ? contactos.map((ct) => (ct.id === contactoEditId ? { ...contactoForm } : ct))
+        : [...contactos, { ...contactoForm }];
+      await saveCliente({ contactos: next }, "Contacto guardado");
+      setContactoOpen(false);
+      return true;
+    } catch {
+      return false;
+    }
   };
+  saveContactoRef.current = saveContacto;
 
   const removeContacto = async (ct) => {
     if (!window.confirm(`Eliminar contacto «${ct.nome}»?`)) return;

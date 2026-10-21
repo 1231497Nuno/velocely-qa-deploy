@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
@@ -29,6 +30,11 @@ export default function TiposPersonalizacao() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty: open,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const openNew = () => {
     setForm(empty);
@@ -42,14 +48,24 @@ export default function TiposPersonalizacao() {
   };
 
   const save = async () => {
-    if (!form.nome.trim()) return toast.error("Indique o nome");
-    const body = { nome: form.nome, descricao: form.descricao, valor: Number(form.valor) || 0, tempo: Number(form.tempo) || 0 };
-    if (editId) await api.put(`/tipos-personalizacao/${editId}`, body);
-    else await api.post("/tipos-personalizacao", body);
-    toast.success("Tipo guardado");
-    setOpen(false);
-    reload();
+    if (!form.nome.trim()) {
+      toast.error("Indique o nome");
+      return false;
+    }
+    try {
+      const body = { nome: form.nome, descricao: form.descricao, valor: Number(form.valor) || 0, tempo: Number(form.tempo) || 0 };
+      if (editId) await api.put(`/tipos-personalizacao/${editId}`, body);
+      else await api.post("/tipos-personalizacao", body);
+      toast.success("Tipo guardado");
+      setOpen(false);
+      reload();
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
+    }
   };
+  saveRef.current = save;
 
   const remove = async (id) => {
     await api.del(`/tipos-personalizacao/${id}`);

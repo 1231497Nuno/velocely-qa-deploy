@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
@@ -88,6 +89,11 @@ export default function Clientes() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [configOpen, setConfigOpen] = useState(false);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty: open,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const onSort = (field) => {
     if (sortBy === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -123,7 +129,10 @@ export default function Clientes() {
   };
   const save = async () => {
     const err = validarFormCliente(form);
-    if (err) return toast.error(err);
+    if (err) {
+      toast.error(err);
+      return false;
+    }
     const payload = {
       ...form,
       desconto_comercial_pct: form.desconto_comercial_pct === "" ? null : Number(form.desconto_comercial_pct),
@@ -136,10 +145,13 @@ export default function Clientes() {
       toast.success("Cliente guardado");
       setOpen(false);
       reload();
+      return true;
     } catch (e) {
       toast.error(apiDetail(e) || "Erro ao guardar cliente");
+      return false;
     }
   };
+  saveRef.current = save;
   const remove = async (c) => {
     if (c.sistema) return toast.error("Não é possível eliminar o cliente de sistema");
     try {

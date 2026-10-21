@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
@@ -30,6 +31,11 @@ export default function Maquinas() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty: open,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const openNew = () => {
     setForm(empty);
@@ -47,18 +53,28 @@ export default function Maquinas() {
   };
 
   const save = async () => {
-    if (!form.nome.trim()) return toast.error("Indique o nome da máquina");
-    const body = {
-      nome: form.nome,
-      custo_amortizacao_hora: Number(form.custo_amortizacao_hora) || 0,
-      custo_energia_hora: Number(form.custo_energia_hora) || 0,
-    };
-    if (editId) await api.put(`/maquinas/${editId}`, body);
-    else await api.post("/maquinas", body);
-    toast.success("Máquina guardada");
-    setOpen(false);
-    reload();
+    if (!form.nome.trim()) {
+      toast.error("Indique o nome da máquina");
+      return false;
+    }
+    try {
+      const body = {
+        nome: form.nome,
+        custo_amortizacao_hora: Number(form.custo_amortizacao_hora) || 0,
+        custo_energia_hora: Number(form.custo_energia_hora) || 0,
+      };
+      if (editId) await api.put(`/maquinas/${editId}`, body);
+      else await api.post("/maquinas", body);
+      toast.success("Máquina guardada");
+      setOpen(false);
+      reload();
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
+    }
   };
+  saveRef.current = save;
 
   const remove = async (id) => {
     await api.del(`/maquinas/${id}`);

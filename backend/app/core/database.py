@@ -4,7 +4,15 @@ import uuid
 
 from app.core import config
 
-client = AsyncIOMotorClient(config.MONGO_URL)
+_mongo_kwargs = {}
+# Python/macOS: garantir CA bundle (evita SSL: CERTIFICATE_VERIFY_FAILED no Atlas)
+try:
+    import certifi
+    _mongo_kwargs["tlsCAFile"] = certifi.where()
+except Exception:
+    pass
+
+client = AsyncIOMotorClient(config.MONGO_URL, **_mongo_kwargs)
 db = client[config.DB_NAME]
 
 

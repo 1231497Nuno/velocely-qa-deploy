@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
@@ -30,6 +31,11 @@ export default function MaoObra() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [uso, setUso] = useState(null);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty: open,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const openNew = () => {
     setForm(empty);
@@ -43,14 +49,24 @@ export default function MaoObra() {
   };
 
   const save = async () => {
-    if (!form.nome.trim()) return toast.error("Indique a função");
-    const body = { nome: form.nome, custo_hora: Number(form.custo_hora) || 0, responsavel_personalizacoes: !!form.responsavel_personalizacoes };
-    if (editId) await api.put(`/mao-obra/${editId}`, body);
-    else await api.post("/mao-obra", body);
-    toast.success("Mão de obra guardada");
-    setOpen(false);
-    reload();
+    if (!form.nome.trim()) {
+      toast.error("Indique a função");
+      return false;
+    }
+    try {
+      const body = { nome: form.nome, custo_hora: Number(form.custo_hora) || 0, responsavel_personalizacoes: !!form.responsavel_personalizacoes };
+      if (editId) await api.put(`/mao-obra/${editId}`, body);
+      else await api.post("/mao-obra", body);
+      toast.success("Mão de obra guardada");
+      setOpen(false);
+      reload();
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
+    }
   };
+  saveRef.current = save;
 
   const remove = async (id) => {
     await api.del(`/mao-obra/${id}`);

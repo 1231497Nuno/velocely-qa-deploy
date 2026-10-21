@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -69,12 +70,23 @@ export default function OrdemCompraDetail() {
   const [form, setForm] = useState(null);
   const [editing, setEditing] = useState(!!location.state?.edit);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty: editing && dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     const data = await api.get(`/ordens-compra/${id}`);
     setOc(data);
     setForm(formFromOc(data));
+    setDirty(false);
   }, [id]);
 
   useEffect(() => { load().catch(() => setOc(null)); }, [load]);
@@ -94,8 +106,12 @@ export default function OrdemCompraDetail() {
     return <div className="text-sm text-gray-500">{oc === null ? "Ordem não encontrada." : "A carregar..."}</div>;
   }
 
-  const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const set = (key, val) => {
+    setDirty(true);
+    setForm((f) => ({ ...f, [key]: val }));
+  };
   const setLinha = (idx, key, val) => {
+    setDirty(true);
     setForm((f) => {
       const linhas = [...(f.linhas || [])];
       linhas[idx] = { ...linhas[idx], [key]: val };
@@ -103,11 +119,18 @@ export default function OrdemCompraDetail() {
     });
   };
 
-  const addLinha = () => setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
-  const removeLinha = (idx) => setForm((f) => ({ ...f, linhas: f.linhas.filter((_, i) => i !== idx) }));
+  const addLinha = () => {
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
+  };
+  const removeLinha = (idx) => {
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: f.linhas.filter((_, i) => i !== idx) }));
+  };
 
   const onFornecedor = (fid) => {
     const f = fornecedores.find((x) => x.id === fid);
+    setDirty(true);
     setForm((prev) => ({
       ...prev,
       fornecedor_id: fid || null,
@@ -117,16 +140,18 @@ export default function OrdemCompraDetail() {
 
   const startEdit = () => {
     setForm(formFromOc(oc));
+    setDirty(false);
     setEditing(true);
   };
 
   const cancelEdit = () => {
     setForm(formFromOc(oc));
+    setDirty(false);
     setEditing(false);
   };
 
   const save = async () => {
-    if (!can("ordens_compra", "edit")) return;
+    if (!can("ordens_compra", "edit")) return false;
     setSaving(true);
     try {
       const payload = {
@@ -172,14 +197,18 @@ export default function OrdemCompraDetail() {
       const updated = await api.put(`/ordens-compra/${id}`, payload);
       setOc(updated);
       setForm(formFromOc(updated));
+      setDirty(false);
       setEditing(false);
       toast.success("Ordem guardada");
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  saveForLeaveRef.current = save;
 
   const linhasTotal = (form.linhas || []).reduce(
     (s, l) => s + (Number(l.quantidade) || 0) * (Number(l.preco_unit) || 0) - (Number(l.desconto) || 0),

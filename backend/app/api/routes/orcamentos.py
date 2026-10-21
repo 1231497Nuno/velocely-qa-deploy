@@ -1,11 +1,10 @@
 from io import BytesIO
 from typing import Optional
 import copy
-import json
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -13,7 +12,7 @@ from app.core.database import now_iso, new_id, next_sequence, round2
 from app.core.security import get_current_user, require_perm
 from app.core.pagination import parse_page, page_payload, text_search, apply_status_filter
 from app.domain.models import OrcamentoInput, Orcamento, Encomenda, STATUS_PT
-from app.repositories import orcamentos_repo, encomendas_repo
+from app.repositories import orcamentos_repo, encomendas_repo, empresa_repo
 from app.services.costing import (
     compute_orcamento_totais, fill_linha_custos, fill_materiais, compute_encomenda,
 )
@@ -25,8 +24,11 @@ from app.services import contactos as contactos_svc
 
 _ORC_CAMPOS = [
     "cliente", "descricao", "numero_encomenda", "validade", "margem", "notas", "desconto_total",
-    "contacto_id", "contacto_nome",
+    "portes", "contacto_id", "contacto_nome",
 ]
+
+# Estados em que a grelha/conteúdo comercial é editável
+_EDITAVEL = ("rascunho", "negociado")
 
 router = APIRouter()
 
@@ -94,11 +96,85 @@ def _snapshot(orc: dict) -> dict:
         "materiais": copy.deepcopy(orc.get("materiais") or []),
         "desconto_total": orc.get("desconto_total") or 0,
         "desconto_total_tipo": orc.get("desconto_total_tipo") or "pct",
+        "portes": orc.get("portes") or 0,
+        "notas": orc.get("notas") or "",
         "imagens": list(orc.get("imagens") or []),
         "anexos": copy.deepcopy(orc.get("anexos") or []),
         "total": tot.get("total"),
+        "lucro": tot.get("lucro"),
+        "margem_pct": tot.get("margem_pct"),
         "status": _status(orc),
     }
+
+
+def _preco_linha_efectivo(l: dict) -> float:
+    """Preço unitário comercial da linha (o que o cliente vê / deve ir para a ENC)."""
+    if not l:
+        return 0.0
+    origem = (l.get("preco_origem") or "").strip().lower()
+    if l.get("preco_unit_manual") or origem == "manual":
+        return round2(float(l.get("preco_unit") or 0))
+    cat = l.get("preco_venda_catalogo")
+    if cat is not None and cat != "":
+        try:
+            v = float(cat)
+            if v > 0:
+                return round2(v)
+        except (TypeError, ValueError):
+            pass
+    if origem == "calculado":
+        custo = float(l.get("custo_producao_unit") or 0)
+        margem = float(l.get("margem") or 0)
+        if custo > 0:
+            return round2(custo * (1 + margem / 100.0))
+    return round2(float(l.get("preco_unit") or 0))
+
+
+def _sincronizar_precos_linhas(linhas: list) -> list:
+    """Garante que preco_unit = preço efectivo (catalogo/calculado/manual)."""
+    out = []
+    for l in linhas or []:
+        row = dict(l)
+        row["preco_unit"] = _preco_linha_efectivo(row)
+        out.append(row)
+    return out
+
+
+def _congelar_custos(linhas: list) -> list:
+    out = []
+    for l in _sincronizar_precos_linhas(linhas or []):
+        row = dict(l)
+        row["custo_congelado"] = True
+        out.append(row)
+    return out
+
+
+def _descongelar_custos(linhas: list) -> list:
+    out = []
+    for l in linhas or []:
+        row = dict(l)
+        row["custo_congelado"] = False
+        out.append(row)
+    return out
+
+
+async def _validade_default(data_ymd: str) -> str:
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    dias = int(settings.get("orcamento_validade_dias") or 15)
+    try:
+        base = date.fromisoformat(data_ymd[:10])
+    except Exception:
+        base = date.fromisoformat(_hoje())
+    return (base + timedelta(days=max(1, dias))).isoformat()
+
+
+def _orc_editavel(orc: dict) -> bool:
+    return _status(orc) in _EDITAVEL
+
+
+async def _margem_minima() -> float:
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    return float(settings.get("margem_risco_pct") if settings.get("margem_risco_pct") is not None else 20)
 
 
 def _ymd(v) -> str:
@@ -125,6 +201,8 @@ def requisitos_datas(orc: dict, *, ao_finalizar: bool = False) -> list[str]:
             faltas.append("Indique a data do orçamento")
         elif data != hoje:
             faltas.append("A data do orçamento tem de ser o dia de hoje")
+        if not validade:
+            faltas.append("Indique a validade do orçamento")
     return faltas
 
 
@@ -136,6 +214,13 @@ def requisitos_finalizar(orc: dict) -> list[str]:
         faltas.append("Adicione pelo menos uma linha para finalizar o orçamento")
     faltas.extend(requisitos_datas(orc, ao_finalizar=True))
     return faltas
+
+
+def orc_expirado(orc: dict) -> bool:
+    validade = _ymd(orc.get("validade"))
+    if not validade:
+        return False
+    return validade < _hoje()
 
 
 def requisitos_encomenda(orc: dict) -> list[str]:
@@ -157,6 +242,8 @@ class EnviarEmailBody(BaseModel):
     to: Optional[str] = None
     template_id: Optional[str] = None
     mensagem: str = Field(default="", max_length=2000)
+    # Força envio apesar de margem crítica (< risco) — requer autorização
+    autorizar_margem_baixa: bool = False
 
 
 @router.get("/orcamentos")
@@ -189,7 +276,9 @@ async def get_orcamento(oid: str, _u: dict = Depends(require_perm("orcamentos", 
     o = await orcamentos_repo.get(oid)
     if not o:
         raise HTTPException(404, "Orçamento não encontrado")
-    return compute_orcamento_totais(o)
+    tot = compute_orcamento_totais(o)
+    tot["expirado"] = orc_expirado(o)
+    return tot
 
 
 @router.get("/orcamentos/{oid}/pdf")
@@ -223,6 +312,21 @@ async def enviar_orcamento_email(
     if not _tem_numero(o):
         raise HTTPException(400, "Finalize o orçamento antes de enviar. Só depois de finalizado recebe número.")
     o = compute_orcamento_totais(o)
+    margem_min = await _margem_minima()
+    margem = float(o.get("margem_pct") or 0)
+    if margem < margem_min and not body.autorizar_margem_baixa:
+        raise HTTPException(
+            400,
+            detail={
+                "code": "margem_critica",
+                "message": (
+                    f"Margem {margem:.1f}% abaixo do mínimo ({margem_min:.0f}%). "
+                    "Peça autorização superior para enviar ao cliente."
+                ),
+                "margem_pct": margem,
+                "margem_minima": margem_min,
+            },
+        )
     cliente = await fetch_cliente(o.get("cliente_id"))
     to = contactos_svc.resolve_email_destinatario(
         o, cliente, explicit_to=body.to or "",
@@ -283,6 +387,8 @@ async def create_orcamento(data: OrcamentoInput, user: dict = Depends(require_pe
     o.status = "rascunho"
     if not o.data:
         o.data = _hoje()
+    if not o.validade:
+        o.validade = await _validade_default(o.data)
     faltas = requisitos_datas(o.model_dump())
     if faltas:
         raise HTTPException(400, detail="; ".join(faltas))
@@ -291,6 +397,7 @@ async def create_orcamento(data: OrcamentoInput, user: dict = Depends(require_pe
     doc = await contactos_svc.apply_contacto_denorm(doc)
     doc["materiais"] = fill_materiais(doc.get("materiais", []))
     doc["linhas"] = await fill_linha_custos(doc.get("linhas", []), doc.get("materiais", []))
+    doc["updated_at"] = now_iso()
     await orcamentos_repo.insert(doc)
     doc.pop("_id", None)
     await audit.registar("orcamento", o.id, "criado", user, "Orçamento rascunho criado", "")
@@ -310,12 +417,31 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
         "enviado", "ganho", "perdido", "criado", "negociado",
     ):
         raise HTTPException(400, "Finalize o orçamento (obtém número) antes de alterar o estado")
+
+    # Após enviado/criado/ganho/perdido: grelha bloqueada — só estado e metadados leves
+    if not _orc_editavel(existing):
+        for k in (
+            "linhas", "materiais", "desconto_total", "desconto_total_tipo",
+            "portes", "margem", "cliente", "cliente_id", "descricao",
+            "numero_encomenda", "data", "validade",
+            "contacto_id", "contacto_nome", "contacto_email",
+            "contacto_telefone", "contacto_cargo", "contacto_departamento",
+        ):
+            if k in existing:
+                update[k] = existing.get(k)
+        # notas podem actualizar; status vem do body
+
     faltas = requisitos_datas(update)
     if faltas:
         raise HTTPException(400, detail="; ".join(faltas))
     update = await contactos_svc.apply_contacto_denorm(update)
-    update["materiais"] = fill_materiais(update.get("materiais", []))
-    update["linhas"] = await fill_linha_custos(update.get("linhas", []), update.get("materiais", []))
+    if _orc_editavel(existing):
+        update["materiais"] = fill_materiais(update.get("materiais", []))
+        update["linhas"] = await fill_linha_custos(update.get("linhas", []), update.get("materiais", []))
+        # Fotografia de custos em cada gravação (versão negociada / rascunho com custos actuais)
+        if _tem_numero(existing) or _status(existing) == "negociado":
+            update["linhas"] = _congelar_custos(update["linhas"])
+    update["updated_at"] = now_iso()
     alteracoes = audit.diff_campos(existing, update, _ORC_CAMPOS)
     estado_mudou = existing.get("status") != update.get("status")
     await orcamentos_repo.update(oid, update)
@@ -328,7 +454,9 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
         )
     if alteracoes:
         await audit.registar("orcamento", oid, "editado", user, f"Orçamento {numero or 'rascunho'} editado", numero, alteracoes)
-    return compute_orcamento_totais(existing)
+    tot = compute_orcamento_totais(existing)
+    tot["expirado"] = orc_expirado(existing)
+    return tot
 
 
 @router.delete("/orcamentos/{oid}")
@@ -343,9 +471,11 @@ async def delete_orcamento(oid: str, user: dict = Depends(require_perm("orcament
 
 @router.post("/orcamentos/{oid}/duplicar")
 async def duplicar_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "create"))):
+    """Novo rascunho com a mesma estrutura e custos actualizados do catálogo."""
     orc = await orcamentos_repo.get(oid)
     if not orc:
         raise HTTPException(404, "Orçamento não encontrado")
+    data_hoje = _hoje()
     novo = {**orc}
     novo.update({
         "id": new_id(),
@@ -355,12 +485,18 @@ async def duplicar_orcamento(oid: str, user: dict = Depends(require_perm("orcame
         "of_numero": None,
         "encomenda_id": None,
         "encomenda_numero": None,
-        "numero_encomenda": "",
+        "numero_encomenda": orc.get("numero_encomenda") or "",
         "versao": 0,
         "versoes": [],
         "created_at": now_iso(),
-        "data": _hoje(),
+        "updated_at": now_iso(),
+        "data": data_hoje,
+        "validade": await _validade_default(data_hoje),
     })
+    # Recalcular custos à data de hoje (estrutura mantida)
+    novo["linhas"] = _descongelar_custos(copy.deepcopy(orc.get("linhas") or []))
+    novo["materiais"] = fill_materiais(copy.deepcopy(orc.get("materiais") or []))
+    novo["linhas"] = await fill_linha_custos(novo["linhas"], novo["materiais"])
     await orcamentos_repo.insert(novo)
     await audit.registar("orcamento", novo["id"], "duplicado", user,
                          f"Rascunho criado a partir de {orc.get('numero') or 'rascunho'}", "")
@@ -375,28 +511,40 @@ async def finalizar_orcamento(oid: str, user: dict = Depends(require_perm("orcam
         raise HTTPException(404, "Orçamento não encontrado")
     if _tem_numero(orc):
         return compute_orcamento_totais(orc)
+    if not _ymd(orc.get("validade")):
+        orc["validade"] = await _validade_default(orc.get("data") or _hoje())
+        await orcamentos_repo.update(oid, {"validade": orc["validade"]})
     faltas = requisitos_finalizar(orc)
     if faltas:
         raise HTTPException(400, detail="; ".join(faltas))
     numero = await next_sequence("ORC")
-    patch = {"numero": numero, "status": "criado", "versao": 1}
+    # Fotografia de custos/preços — catálogo futuro não altera este ORC
+    mats = fill_materiais(list(orc.get("materiais") or []))
+    linhas = await fill_linha_custos(list(orc.get("linhas") or []), mats)
+    linhas = _congelar_custos(linhas)
+    patch = {
+        "numero": numero, "status": "criado", "versao": 1,
+        "linhas": linhas, "materiais": mats, "updated_at": now_iso(),
+        "validade": orc.get("validade"),
+    }
     await orcamentos_repo.update(oid, patch)
     orc.update(patch)
     await audit.registar(
         "orcamento", oid, "estado_alterado", user,
-        f"Orçamento criado → {numero}", numero,
+        f"Orçamento criado → {numero} (custos congelados)", numero,
     )
     return compute_orcamento_totais(orc)
 
 
+@router.post("/orcamentos/{oid}/nova-versao")
 @router.post("/orcamentos/{oid}/negociar")
-async def negociar_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "edit"))):
-    """Arquiva a versão actual e abre uma nova (V2, V3, …) em negociação."""
+async def nova_versao_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "edit"))):
+    """Arquiva a versão actual e abre V2/V3… editável (protege histórico de negociação)."""
     orc = await orcamentos_repo.get(oid)
     if not orc:
         raise HTTPException(404, "Orçamento não encontrado")
     if not _tem_numero(orc):
-        raise HTTPException(400, "Finalize o orçamento antes de negociar")
+        raise HTTPException(400, "Finalize o orçamento antes de criar uma nova versão")
     if _is_ganho(orc) and orc.get("encomenda_id"):
         raise HTTPException(400, "Este orçamento já gerou encomenda")
     snap = _snapshot(orc)
@@ -404,41 +552,52 @@ async def negociar_orcamento(oid: str, user: dict = Depends(require_perm("orcame
     if not any(int(v.get("versao") or 0) == snap["versao"] for v in versoes):
         versoes.append(snap)
     nova = _versao(orc) + 1
-    patch = {"versoes": versoes, "versao": nova, "status": "negociado"}
+    # Nova versão editável; custos da versão anterior ficam no snapshot
+    linhas = _descongelar_custos(copy.deepcopy(orc.get("linhas") or []))
+    linhas = await fill_linha_custos(linhas, orc.get("materiais") or [])
+    patch = {
+        "versoes": versoes,
+        "versao": nova,
+        "status": "negociado",
+        "linhas": linhas,
+        "updated_at": now_iso(),
+    }
     await orcamentos_repo.update(oid, patch)
     orc.update(patch)
     label = _numero_label(orc)
     await audit.registar(
         "orcamento", oid, "estado_alterado", user,
-        f"Negociação {label} (versão anterior {snap['label']} arquivada)",
+        f"Nova versão {label} (anterior {snap['label']} arquivada)",
         orc.get("numero"),
     )
     return compute_orcamento_totais(orc)
 
 
-def _precos_converter(request_body: bytes) -> dict:
-    if not request_body:
-        return {}
-    try:
-        data = json.loads(request_body)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    raw = data.get("precos") or {}
-    if not isinstance(raw, dict):
-        return {}
-    out = {}
-    for k, v in raw.items():
-        try:
-            out[str(k)] = float(v)
-        except (TypeError, ValueError):
-            continue
-    return out
+@router.post("/orcamentos/{oid}/recalcular-custos")
+async def recalcular_custos_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "edit"))):
+    """Recalcula custos do catálogo actual (ex.: orçamento expirado). Só se editável."""
+    orc = await orcamentos_repo.get(oid)
+    if not orc:
+        raise HTTPException(404, "Orçamento não encontrado")
+    if not _orc_editavel(orc):
+        raise HTTPException(400, "Crie uma nova versão para recalcular os custos")
+    linhas = _descongelar_custos(list(orc.get("linhas") or []))
+    mats = fill_materiais(list(orc.get("materiais") or []))
+    linhas = await fill_linha_custos(linhas, mats)
+    if _tem_numero(orc):
+        linhas = _congelar_custos(linhas)
+    patch = {"linhas": linhas, "materiais": mats, "updated_at": now_iso()}
+    await orcamentos_repo.update(oid, patch)
+    orc.update(patch)
+    await audit.registar(
+        "orcamento", oid, "editado", user,
+        f"Custos recalculados em {_numero_label(orc)}", orc.get("numero"),
+    )
+    return compute_orcamento_totais(orc)
 
 
 @router.post("/orcamentos/{oid}/converter")
-async def converter_orcamento(oid: str, request: Request, user: dict = Depends(require_perm("orcamentos", "edit"))):
+async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcamentos", "edit"))):
     """Converte o orçamento numa ENCOMENDA (as OFs são criadas depois a partir da encomenda)."""
     orc = await orcamentos_repo.get(oid)
     if not orc:
@@ -457,36 +616,47 @@ async def converter_orcamento(oid: str, request: Request, user: dict = Depends(r
     if faltas:
         raise HTTPException(400, detail="; ".join(faltas))
 
-    precos = _precos_converter(await request.body())
+    # Valores comerciais exactos do orçamento (não editáveis depois na ENC)
+    mats = fill_materiais(list(orc.get("materiais") or []))
+    linhas = list(orc.get("linhas") or [])
+    # Se ainda não estavam congeladas, calcula e sincroniza preços efectivos
+    if not any(l.get("custo_congelado") for l in linhas):
+        linhas = await fill_linha_custos(linhas, mats)
+    linhas = _sincronizar_precos_linhas(linhas)
+    orc = {**orc, "linhas": linhas, "materiais": mats}
     orc_t = compute_orcamento_totais(orc)
     enc_artigos = []
-    for l in orc.get("linhas", []):
+    for l in linhas:
         if not _linha_pronta(l):
             continue
-        piso = round2(float(l.get("preco_unit") or 0))
-        preco = piso
-        lid = str(l.get("id") or "")
-        if lid and lid in precos:
-            preco = round2(precos[lid])
-            if preco + 0.001 < piso:
-                nome = (l.get("artigo_nome") or "artigo").strip() or "artigo"
-                raise HTTPException(
-                    400,
-                    f"O preço de «{nome}» não pode ser inferior ao do orçamento ({piso:.2f} €)",
-                )
+        piso = _preco_linha_efectivo(l)
         enc_artigos.append({
             "id": new_id(),
             "artigo_id": l.get("artigo_id"),
             "artigo_nome": l.get("artigo_nome", ""),
             "imagem": l.get("imagem") or "",
-            "quantidade": l.get("quantidade", 1),
-            "preco_unit": preco,
+            "quantidade": float(l.get("quantidade") or 1),
+            "preco_unit": piso,
             "preco_unit_orcamento": piso,
-            "desconto": l.get("desconto") or 0,
+            "desconto": float(l.get("desconto") or 0),
             "desconto_tipo": l.get("desconto_tipo") or "pct",
             "desconto_base": l.get("desconto_base") or "linha",
-            "personalizacoes": l.get("personalizacoes") or [],
+            "personalizacoes": [
+                {
+                    "id": p.get("id"),
+                    "nome": p.get("nome") or "",
+                    "valor": float(p.get("valor") or 0),
+                    "tempo": float(p.get("tempo") or 0),
+                }
+                for p in (l.get("personalizacoes") or [])
+                if isinstance(p, dict)
+            ],
+            "arte_path": l.get("arte_path") or "",
+            "arte_nome": l.get("arte_nome") or "",
+            "arte_content_type": l.get("arte_content_type") or "",
         })
+    if not enc_artigos:
+        raise HTTPException(400, "O orçamento não tem linhas prontas para encomenda")
     enc = Encomenda(
         cliente=orc.get("cliente", ""),
         cliente_id=orc.get("cliente_id"),
@@ -497,16 +667,18 @@ async def converter_orcamento(oid: str, request: Request, user: dict = Depends(r
         contacto_cargo=orc.get("contacto_cargo") or "",
         contacto_departamento=orc.get("contacto_departamento") or "",
         descricao=orc.get("descricao", ""),
+        referencia_cliente=orc.get("numero_encomenda") or "",
         data=now_iso()[:10],
         estado="aberta",
         notas=f"Gerada a partir do orçamento {orc.get('numero')}",
         artigos=enc_artigos,
         imagens=orc.get("imagens") or [],
         anexos=list(orc.get("anexos") or []),
-        desconto_total=orc.get("desconto_total") or 0,
+        desconto_total=float(orc.get("desconto_total") or 0),
         desconto_total_tipo=orc.get("desconto_total_tipo") or "pct",
-        envio=orc_t.get("total_materiais") or 0,
+        envio=float(orc.get("portes") or 0),
         valor_total=orc_t.get("total"),
+        valor_total_manual=False,
     )
     enc.numero = await next_sequence("ENC")
     enc.orcamento_id = orc["id"]

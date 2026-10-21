@@ -52,7 +52,16 @@ export const EncKPIs = ({ enc }) => {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
       <KpiCard testid="enc-kpi-valor" label="Valor da Encomenda" value={eur(enc.valor_total)} />
       <KpiCard testid="enc-kpi-pago" label="Recebido" value={eur(enc.valor_pago)} valueClass="text-emerald-600" sub={`${pctLabel ? `${pctLabel} · ` : ""}A receber ${eur(enc.valor_pendente)}`} />
-      <KpiCard testid="enc-kpi-custo-real" label="Custo Produção (real)" value={eur(enc.custo_producao_real)} sub={`Estimado ${eur(enc.custo_producao_estimado)}`} />
+      <KpiCard
+        testid="enc-kpi-custo-real"
+        label="Custo Produção (real)"
+        value={eur(enc.custo_producao_real)}
+        sub={
+          Number(enc.custo_desperdicio_nc) > 0
+            ? `Estimado ${eur(enc.custo_producao_estimado)} · NC ${eur(enc.custo_desperdicio_nc)}`
+            : `Estimado ${eur(enc.custo_producao_estimado)}`
+        }
+      />
       <KpiCard testid="enc-kpi-margem" label="Margem (valor − custo real)" value={eur(enc.margem_producao)} valueClass={enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"} />
     </div>
   );
@@ -129,7 +138,7 @@ export const EncRegistarPagamento = ({
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm space-y-3" data-testid="enc-registar-pagamento">
+    <div className="bg-white border border-gray-200 rounded-sm p-5 w-full max-w-sm ml-auto space-y-3" data-testid="enc-registar-pagamento">
       <div className="flex items-center justify-between text-sm">
         <span className="text-gray-500">Recebido</span>
         <span className="tabular-nums font-medium text-emerald-600" data-testid="enc-totais-recebido">{eur(pago)}</span>
@@ -260,6 +269,7 @@ export const EncClienteCampos = ({
   onPrazoChange, onPrazoBlur,
   onEntregaToggle, onDataEntregaChange, onDataEntregaBlur,
   onDescricaoChange, onDescricaoBlur,
+  onReferenciaChange, onReferenciaBlur,
 }) => {
   const isEmpresa = cliente?.tipo === "empresa" || (!cliente?.tipo && cliente?.nif);
   const showAtencao = isEmpresa || (cliente?.contactos || []).length > 0 || enc.contacto_nome;
@@ -364,6 +374,21 @@ export const EncClienteCampos = ({
           />
         ) : (
           <span className="truncate" title={enc.descricao || ""}>{enc.descricao || "—"}</span>
+        )}
+      </FieldRow>
+      <FieldRow label="Referência cliente" testid="enc-campo-referencia" full>
+        {canEdit ? (
+          <input
+            data-testid="enc-referencia-input"
+            type="text"
+            value={enc.referencia_cliente || ""}
+            onChange={onReferenciaChange}
+            onBlur={onReferenciaBlur}
+            placeholder="PO / nota de encomenda"
+            className="w-full max-w-md border border-gray-300 rounded-sm px-2 py-1 text-sm text-right bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+          />
+        ) : (
+          <span className="truncate" title={enc.referencia_cliente || ""}>{enc.referencia_cliente || "—"}</span>
         )}
       </FieldRow>
     </FieldGrid>
@@ -564,6 +589,12 @@ export const NcsPanel = ({ ncs, embedded = false }) => (
             <span className="min-w-0 truncate">
               <span className="font-medium mono text-gray-900">{n.numero}</span>
               <span className="text-xs text-gray-500 ml-2">{n.artigo_codigo || n.artigo_nome}</span>
+              {Number(n.quantidade) > 0 && (
+                <span className="text-xs text-gray-400 ml-2 tabular-nums">{Number(n.quantidade)} un.</span>
+              )}
+              {Number(n.custo_desperdicio) > 0 && (
+                <span className="text-xs text-red-600 ml-2 tabular-nums">+{eur(n.custo_desperdicio)}</span>
+              )}
             </span>
             <StatusBadge status={n.estado} />
           </Link>

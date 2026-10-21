@@ -216,8 +216,8 @@ def _enc_put(enc, **overrides):
     return body
 
 
-class TestConverterPrecosNaoDescem:
-    def test_converter_guarda_piso_e_permite_aumentar(self, client):
+class TestConverterPrecosCongeladosDoOrcamento:
+    def test_converter_copia_precos_exactos_e_bloqueia_edicao(self, client):
         art = _artigo(client)
         r = client.post(f"{API}/orcamentos", json={
             "cliente": "teste-piso-preco",
@@ -228,41 +228,47 @@ class TestConverterPrecosNaoDescem:
                 "preco_unit": 10.0,
                 "preco_unit_manual": True,
             }],
+            "desconto_total": 5,
+            "desconto_total_tipo": "eur",
+            "portes": 3.5,
         })
         assert r.status_code == 200, r.text
         oid = r.json()["id"]
         enc_id = None
         try:
             orc = client.get(f"{API}/orcamentos/{oid}").json()
-            lid = orc["linhas"][0]["id"]
             piso = float(orc["linhas"][0]["preco_unit"])
             finalizar_e_aceitar(client, API, oid)
-            rc = client.post(f"{API}/orcamentos/{oid}/converter", json={"precos": {lid: piso + 3}})
+            rc = client.post(f"{API}/orcamentos/{oid}/converter")
             assert rc.status_code == 200, rc.text
             enc = rc.json()
             enc_id = enc["id"]
             art0 = enc["artigos"][0]
             assert art0["preco_unit_orcamento"] == piso
-            assert art0["preco_unit"] == piso + 3
+            assert art0["preco_unit"] == piso
+            assert enc.get("orcamento_id") == oid
+            assert float(enc.get("desconto_total") or 0) == 5.0
+            assert float(enc.get("envio") or 0) == 3.5
             assert enc.get("valor_orcamento") is not None
-            assert abs(enc["valor_total"] - (float(enc["valor_orcamento"]) + 3 * 2)) < 0.02
+            assert abs(float(enc["valor_total"]) - float(enc["valor_orcamento"])) < 0.02
 
             enc = client.get(f"{API}/encomendas/{enc_id}").json()
-            arts = [{**enc["artigos"][0], "preco_unit": piso - 1}]
-            ru = client.put(f"{API}/encomendas/{enc_id}", json=_enc_put(enc, artigos=arts))
-            assert ru.status_code == 400, ru.text
-            assert "inferior" in (ru.json().get("detail") or "").lower()
-
-            arts = [{**enc["artigos"][0], "preco_unit": piso + 5}]
-            ru = client.put(f"{API}/encomendas/{enc_id}", json=_enc_put(enc, artigos=arts))
+            arts = [{**enc["artigos"][0], "preco_unit": piso + 5, "quantidade": 99}]
+            ru = client.put(f"{API}/encomendas/{enc_id}", json=_enc_put(
+                enc, artigos=arts, desconto_total=0, envio=99,
+            ))
             assert ru.status_code == 200, ru.text
-            assert ru.json()["artigos"][0]["preco_unit"] == piso + 5
+            out = ru.json()
+            assert out["artigos"][0]["preco_unit"] == piso
+            assert out["artigos"][0]["quantidade"] == 2
+            assert float(out.get("desconto_total") or 0) == 5.0
+            assert float(out.get("envio") or 0) == 3.5
         finally:
             if enc_id:
                 client.delete(f"{API}/encomendas/{enc_id}")
             client.delete(f"{API}/orcamentos/{oid}")
 
-    def test_converter_rejeita_preco_abaixo_do_orcamento(self, client):
+    def test_converter_ignora_precos_enviados_no_body(self, client):
         art = _artigo(client)
         r = client.post(f"{API}/orcamentos", json={
             "cliente": "teste-piso-baixo",
@@ -276,13 +282,18 @@ class TestConverterPrecosNaoDescem:
         })
         assert r.status_code == 200, r.text
         oid = r.json()["id"]
+        enc_id = None
         try:
             orc = client.get(f"{API}/orcamentos/{oid}").json()
             lid = orc["linhas"][0]["id"]
             piso = float(orc["linhas"][0]["preco_unit"])
             finalizar_e_aceitar(client, API, oid)
             rc = client.post(f"{API}/orcamentos/{oid}/converter", json={"precos": {lid: piso - 0.5}})
-            assert rc.status_code == 400, rc.text
-            assert "inferior" in (rc.json().get("detail") or "").lower()
+            assert rc.status_code == 200, rc.text
+            enc = rc.json()
+            enc_id = enc["id"]
+            assert enc["artigos"][0]["preco_unit"] == piso
         finally:
+            if enc_id:
+                client.delete(f"{API}/encomendas/{enc_id}")
             client.delete(f"{API}/orcamentos/{oid}")
