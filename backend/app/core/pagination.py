@@ -118,7 +118,7 @@ def _accent_insensitive_regex(q: str) -> str:
 
 
 def text_search_artigo(q: str) -> Optional[dict]:
-    """Pesquisa de artigos — substring em codigo|||nome, sem ligar a acentos."""
+    """Pesquisa de artigos — Nome, Nº produto e Cód. fornecedor (sem ligar a acentos)."""
     ql = (q or "").strip()
     if not ql:
         return None
@@ -133,6 +133,8 @@ def text_search_artigo(q: str) -> Optional[dict]:
                         {"$ifNull": ["$codigo", ""]},
                         "|||",
                         {"$ifNull": ["$nome", ""]},
+                        "|||",
+                        {"$ifNull": ["$cod_fornecedor", ""]},
                     ]
                 },
                 "regex": pattern,

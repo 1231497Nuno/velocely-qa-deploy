@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
@@ -22,6 +23,10 @@ import BlocosShell from "@/components/BlocosShell";
 import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
 import AbrirNaoConformidadeDialog from "@/features/nao_conformidades/AbrirNaoConformidadeDialog";
 import { ymdHoje } from "@/lib/orcamento";
+import SelecionarVariantesDialog, {
+  artigosParaSelector,
+  artigoTemVariantes,
+} from "@/components/SelecionarVariantesDialog";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 
@@ -68,12 +73,24 @@ export default function EncomendaDetail() {
   const [ncOpen, setNcOpen] = useState(false);
   const [ncLinha, setNcLinha] = useState(null);
   const [pagRegistering, setPagRegistering] = useState(false);
+  const [variantesPick, setVariantesPick] = useState(null); // { pai }
+  const [dirty, setDirty] = useState(false);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     try {
       setLoadError(null);
       const e = await api.get(`/encomendas/${id}`);
       setEnc(e);
+      setDirty(false);
       const [arts, tiposData, cs, hist, docsData, ncsData, empresaData, orcsData] = await Promise.all([
         api.get("/artigos?lite=1"),
         api.get("/tipos-personalizacao"),
@@ -125,7 +142,14 @@ export default function EncomendaDetail() {
   }
   if (!enc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  const upd = (patch) => setEnc({ ...enc, ...patch });
+  /** Encomenda gerada de orçamento: preços/qtd/descontos congelados. */
+  const valoresDoOrc = !!enc.orcamento_id;
+  const canEditValores = can("encomendas", "edit") && !valoresDoOrc;
+
+  const upd = (patch) => {
+    setDirty(true);
+    setEnc({ ...enc, ...patch });
+  };
 
   const persUnitOf = (a) => (a.personalizacoes || []).reduce((x, p) => x + (Number(p.valor) || 0), 0);
   const lineGross = (a) => ((Number(a.preco_unit) || 0) + persUnitOf(a)) * (Number(a.quantidade) || 0);
@@ -141,6 +165,11 @@ export default function EncomendaDetail() {
     return tipo === "eur" ? Math.min(d, base) : (base * d) / 100;
   };
   const lineNet = (a) => lineGross(a) - lineDisc(a);
+  const lineUnitAposDesc = (a) => {
+    const qtd = Number(a.quantidade) || 0;
+    if (qtd <= 0) return 0;
+    return lineNet(a) / qtd;
+  };
 
   const subtotalVenda = (enc.artigos || []).reduce((s, a) => s + (Number(a.preco_unit) || 0) * (Number(a.quantidade) || 0), 0);
   const totalPers = (enc.artigos || []).reduce((s, a) => s + persUnitOf(a) * (Number(a.quantidade) || 0), 0);
@@ -166,6 +195,7 @@ export default function EncomendaDetail() {
     contacto_cargo: e.contacto_cargo || "",
     contacto_departamento: e.contacto_departamento || "",
     descricao: e.descricao || "",
+    referencia_cliente: e.referencia_cliente || "",
     data: e.data,
     prazo_entrega: e.prazo_entrega || null,
     estado: e.estado,
@@ -199,6 +229,7 @@ export default function EncomendaDetail() {
     try {
       const updated = await api.put(`/encomendas/${id}`, bodyFrom(next));
       setEnc(updated);
+      setDirty(false);
       if (msg) toast.success(msg);
       return updated;
     } catch (e) {
@@ -208,33 +239,141 @@ export default function EncomendaDetail() {
       return null;
     }
   };
-  const save = () => persist({}, "Encomenda guardada");
+  const save = async () => {
+    const updated = await persist({}, "Encomenda guardada");
+    return !!updated;
+  };
+  saveForLeaveRef.current = save;
+
+  const linhaFromArtigo = (a, quantidade = 1) => ({
+    id: crypto.randomUUID(),
+    artigo_id: a.id,
+    artigo_nome: a.nome,
+    imagem: a.imagem || "",
+    quantidade: Number(quantidade) || 1,
+    preco_unit: Number(a.preco_venda) || 0,
+    desconto: 0,
+    desconto_tipo: "pct",
+    desconto_base: "linha",
+    personalizacoes: [],
+  });
 
   const addArtigo = (artigoId) => {
+    if (valoresDoOrc) {
+      toast.error("Os artigos desta encomenda vêm do orçamento e não podem ser alterados");
+      return;
+    }
     const a = artigos.find((x) => x.id === artigoId);
     if (!a) return;
-    persist({ artigos: [...(enc.artigos || []), { id: crypto.randomUUID(), artigo_id: a.id, artigo_nome: a.nome, imagem: a.imagem || "", quantidade: 1, preco_unit: Number(a.preco_venda) || 0, desconto: 0, desconto_tipo: "pct", desconto_base: "linha", personalizacoes: [] }] }, "Artigo adicionado");
+    if (artigoTemVariantes(a)) {
+      setVariantesPick({ pai: a });
+      return;
+    }
+    persist({ artigos: [...(enc.artigos || []), linhaFromArtigo(a)] }, "Artigo adicionado");
   };
+
+  const addVariantes = async (picked) => {
+    if (valoresDoOrc) {
+      toast.error("Os artigos desta encomenda vêm do orçamento e não podem ser alterados");
+      return;
+    }
+    if (!picked?.length) return;
+    const novas = [];
+    for (const p of picked) {
+      let a = artigos.find((x) => x.id === p.id);
+      if (!a) {
+        try {
+          a = await api.get(`/artigos/${p.id}`);
+        } catch {
+          a = p;
+        }
+      }
+      novas.push(linhaFromArtigo(
+        { ...a, nome: a.nome || p.nome, preco_venda: a.preco_venda ?? p.preco_venda, imagem: a.imagem || p.imagem },
+        p.quantidade,
+      ));
+    }
+    persist(
+      { artigos: [...(enc.artigos || []), ...novas] },
+      picked.length === 1 ? "Variante adicionada" : `${picked.length} variantes adicionadas`,
+    );
+    setVariantesPick(null);
+  };
+  const ofQtyByArtigo = (enc.ordens_fabrico || []).reduce((acc, o) => {
+    (o.itens || []).forEach((it) => {
+      if (it.artigo_id) acc[it.artigo_id] = (acc[it.artigo_id] || 0) + (Number(it.quantidade) || 0);
+    });
+    return acc;
+  }, {});
+
+  const qtdMinOf = (artigoId, artigosList, skipIndex) => {
+    if (!artigoId) return 1;
+    const alocado = ofQtyByArtigo[artigoId] || 0;
+    if (alocado <= 0) return 1;
+    const outras = (artigosList || []).reduce((s, a, idx) => {
+      if (idx === skipIndex) return s;
+      if (a.artigo_id !== artigoId) return s;
+      return s + (Number(a.quantidade) || 0);
+    }, 0);
+    return Math.max(1, alocado - outras);
+  };
+
   const updArtigo = (i, patch) => {
+    if (valoresDoOrc) return;
     const list = [...enc.artigos];
-    list[i] = { ...list[i], ...patch };
+    const next = { ...list[i], ...patch };
+    if (patch.quantidade != null) {
+      const minQ = qtdMinOf(next.artigo_id, list, i);
+      const q = Number(patch.quantidade);
+      if (Number.isFinite(q) && q < minQ) {
+        toast.error(
+          `Quantidade mínima ${minQ} — já alocada em OFs. Elimine ou ajuste a ordem de fabrico primeiro.`,
+        );
+        next.quantidade = minQ;
+      }
+    }
+    list[i] = next;
     upd({ artigos: list });
   };
-  const delArtigo = (i) => persist({ artigos: enc.artigos.filter((_, idx) => idx !== i) }, "Artigo removido");
+  const delArtigo = (i) => {
+    if (valoresDoOrc) {
+      toast.error("Os artigos desta encomenda vêm do orçamento e não podem ser alterados");
+      return;
+    }
+    const a = enc.artigos[i];
+    const aid = a?.artigo_id;
+    const alocado = aid ? (ofQtyByArtigo[aid] || 0) : 0;
+    if (alocado > 0) {
+      const restantes = (enc.artigos || []).reduce((s, x, idx) => {
+        if (idx === i || x.artigo_id !== aid) return s;
+        return s + (Number(x.quantidade) || 0);
+      }, 0);
+      if (restantes + 1e-9 < alocado) {
+        toast.error(
+          `Não é possível remover «${a.artigo_nome || "artigo"}» — tem ${alocado} un. em OFs. Elimine a OF primeiro.`,
+        );
+        return;
+      }
+    }
+    persist({ artigos: enc.artigos.filter((_, idx) => idx !== i) }, "Artigo removido");
+  };
 
   const artUnidade = (artigoId) => (artigos.find((a) => a.id === artigoId) || {}).unidade || "un";
   const addPers = (i, tipoId) => {
+    if (valoresDoOrc) return;
     const t = tipos.find((x) => x.id === tipoId);
     if (!t) return;
     const list = enc.artigos.map((a, idx) => idx === i ? { ...a, personalizacoes: [...(a.personalizacoes || []), { id: t.id, nome: t.nome, valor: Number(t.valor) || 0, tempo: Number(t.tempo) || 0 }] } : a);
     persist({ artigos: list }, "Personalização adicionada");
   };
   const updPers = (i, pi, patch) => {
+    if (valoresDoOrc) return;
     const list = [...(enc.artigos[i].personalizacoes || [])];
     list[pi] = { ...list[pi], ...patch };
     updArtigo(i, { personalizacoes: list });
   };
   const delPers = (i, pi) => {
+    if (valoresDoOrc) return;
     const list = enc.artigos.map((a, idx) => idx === i ? { ...a, personalizacoes: (a.personalizacoes || []).filter((_, x) => x !== pi) } : a);
     persist({ artigos: list }, "Personalização removida");
   };
@@ -243,8 +382,15 @@ export default function EncomendaDetail() {
     const itens = (enc.artigos || [])
       .filter((a) => a.artigo_id && (Number(ofQtys[a.id]) || 0) > 0)
       .map((a) => ({
-        artigo_id: a.artigo_id, artigo_nome: a.artigo_nome, imagem: a.imagem || "", quantidade: Number(ofQtys[a.id]) || 0,
-        personalizacoes: a.personalizacoes || [], operacoes: [],
+        artigo_id: a.artigo_id,
+        artigo_nome: a.artigo_nome,
+        imagem: a.imagem || "",
+        quantidade: Number(ofQtys[a.id]) || 0,
+        personalizacoes: a.personalizacoes || [],
+        operacoes: [],
+        arte_path: a.arte_path || "",
+        arte_nome: a.arte_nome || "",
+        arte_content_type: a.arte_content_type || "",
       }));
     if (itens.length === 0) return toast.error("Indica pelo menos uma quantidade a produzir");
     const of = await api.post(`/encomendas/${id}/ordens-fabrico`, { cliente: enc.cliente, itens, imagens: enc.imagens || [] });
@@ -252,12 +398,6 @@ export default function EncomendaDetail() {
     nav(`/ordens-fabrico/${of.id}`);
   };
 
-  const ofQtyByArtigo = (enc.ordens_fabrico || []).reduce((acc, o) => {
-    (o.itens || []).forEach((it) => {
-      if (it.artigo_id) acc[it.artigo_id] = (acc[it.artigo_id] || 0) + (Number(it.quantidade) || 0);
-    });
-    return acc;
-  }, {});
   const remaining = (a) => Math.max(0, (Number(a.quantidade) || 0) - (ofQtyByArtigo[a.artigo_id] || 0));
 
   const openCriarOF = () => {
@@ -267,7 +407,11 @@ export default function EncomendaDetail() {
     setOfOpen(true);
   };
 
-  const artigoOptions = artigos.map((a) => ({ value: a.id, label: a.nome, hint: eur(a.preco_venda) }));
+  const artigoOptions = artigosParaSelector(artigos).map((a) => ({
+    value: a.id,
+    label: a.tem_variantes ? `${a.nome} (variantes)` : a.nome,
+    hint: eur(a.preco_venda),
+  }));
   const podeProduzir = enc.pode_produzir;
 
   return (
@@ -380,6 +524,8 @@ export default function EncomendaDetail() {
                       onDataEntregaBlur={() => persist({}, "Data de entrega atualizada")}
                       onDescricaoChange={(e) => upd({ descricao: e.target.value })}
                       onDescricaoBlur={() => persist({}, "Descrição atualizada")}
+                      onReferenciaChange={(e) => upd({ referencia_cliente: e.target.value })}
+                      onReferenciaBlur={() => persist({}, "Referência cliente atualizada")}
                     />
                   );
                 }
@@ -387,8 +533,15 @@ export default function EncomendaDetail() {
                   return (
           <div className="overflow-hidden flex flex-col" data-testid="enc-artigos-bloco">
             <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 border-b border-gray-100">
-              <span className="text-xs tabular-nums text-gray-400">{(enc.artigos || []).length} artigo(s)</span>
-              {can("encomendas", "edit") && (
+              <div className="min-w-0">
+                <span className="text-xs tabular-nums text-gray-400">{(enc.artigos || []).length} artigo(s)</span>
+                {valoresDoOrc && (
+                  <p className="text-[11px] text-sky-700 mt-0.5" data-testid="enc-valores-orc-hint">
+                    Valores do orçamento {enc.orcamento_numero || ""} — não editáveis
+                  </p>
+                )}
+              </div>
+              {canEditValores && (
                 <div className="sm:w-72">
                   <Combobox options={artigoOptions} value="" onChange={(v) => addArtigo(v)} placeholder="+ Adicionar artigo..." searchPlaceholder="Pesquisar artigo..." emptyText="Nenhum artigo." testid="enc-add-artigo" optionTestidPrefix="enc-artigo-option" />
                 </div>
@@ -398,7 +551,7 @@ export default function EncomendaDetail() {
               <p className="text-sm text-gray-400 py-8 text-center px-5">Sem artigos. Adicione artigos ou converta um orçamento.</p>
             ) : (
               <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]" data-testid="enc-artigos-scroll">
-                <table className="w-full text-sm min-w-[820px]" data-testid="enc-artigos-table">
+                <table className="w-full text-sm min-w-[920px]" data-testid="enc-artigos-table">
                   <thead className="sticky top-0 z-10 bg-gray-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Artigo</th>
@@ -407,6 +560,7 @@ export default function EncomendaDetail() {
                       <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Preço Unit.</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Unit. c/Pers</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Desconto</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Unit. após desc.</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Subtotal</th>
                       <th className="px-4 py-2.5 w-12 bg-gray-50"></th>
                     </tr>
@@ -427,12 +581,21 @@ export default function EncomendaDetail() {
                               {(a.personalizacoes || []).map((p, pi) => (
                                 <div key={`${p.id || p.nome}-${pi}`} data-testid={`enc-artigo-pers-${i}-${pi}`} className="flex items-center gap-1.5 bg-gray-100 rounded-sm pl-2 pr-1 py-1">
                                   <span className="flex-1 text-xs text-gray-700 truncate" title={p.nome}>{p.nome}</span>
-                                  <input data-testid={`enc-artigo-pers-valor-${i}-${pi}`} type="number" step="0.01" value={p.valor ?? 0} onChange={(e) => updPers(i, pi, { valor: e.target.value })} onBlur={() => persist({})} className="w-14 text-right border border-gray-300 rounded-sm px-1 py-0.5 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20" />
-                                  <span className="text-[10px] text-gray-400">€</span>
-                                  <button data-testid={`enc-artigo-pers-del-${i}-${pi}`} onClick={() => delPers(i, pi)} className="p-0.5 rounded-sm hover:bg-red-100 text-red-600"><X size={12} /></button>
+                                  {canEditValores ? (
+                                    <>
+                                      <input data-testid={`enc-artigo-pers-valor-${i}-${pi}`} type="number" step="0.01" value={p.valor ?? 0} onChange={(e) => updPers(i, pi, { valor: e.target.value })} onBlur={() => persist({})} className="w-14 text-right border border-gray-300 rounded-sm px-1 py-0.5 text-xs tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20" />
+                                      <span className="text-[10px] text-gray-400">€</span>
+                                      <button data-testid={`enc-artigo-pers-del-${i}-${pi}`} onClick={() => delPers(i, pi)} className="p-0.5 rounded-sm hover:bg-red-100 text-red-600"><X size={12} /></button>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs tabular-nums text-gray-600 shrink-0">{eur(p.valor)}</span>
+                                  )}
                                 </div>
                               ))}
-                              {can("encomendas", "edit") && (
+                              {(a.personalizacoes || []).length === 0 && valoresDoOrc && (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                              {canEditValores && (
                                 <select data-testid={`enc-artigo-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
                                   <option value="">+ Personalização…</option>
                                   {tipos.map((t) => <option key={t.id} value={t.id}>{`${t.nome} (${eur(t.valor)})`}</option>)}
@@ -442,7 +605,19 @@ export default function EncomendaDetail() {
                           </td>
                           <td className="px-4 py-2.5 text-right align-top">
                             <div className="flex items-center gap-1.5 justify-end">
-                              <input data-testid={`enc-artigo-qtd-${i}`} type="number" min="1" value={a.quantidade} onChange={(e) => updArtigo(i, { quantidade: e.target.value })} onBlur={() => persist({})} className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                              {canEditValores ? (
+                                <input
+                                  data-testid={`enc-artigo-qtd-${i}`}
+                                  type="number"
+                                  min={qtdMinOf(a.artigo_id, enc.artigos, i)}
+                                  value={a.quantidade}
+                                  onChange={(e) => updArtigo(i, { quantidade: e.target.value })}
+                                  onBlur={() => persist({})}
+                                  className="w-16 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20"
+                                />
+                              ) : (
+                                <span className="tabular-nums font-medium text-gray-900" data-testid={`enc-artigo-qtd-${i}`}>{a.quantidade}</span>
+                              )}
                               <span className="text-xs text-gray-400 shrink-0">{artUnidade(a.artigo_id)}</span>
                             </div>
                             {(() => {
@@ -466,44 +641,32 @@ export default function EncomendaDetail() {
                             })()}
                           </td>
                           <td className="px-4 py-2.5 text-right align-top">
-                            <input
-                              data-testid={`enc-artigo-preco-${i}`}
-                              type="number"
-                              step="0.01"
-                              min={a.preco_unit_orcamento != null && a.preco_unit_orcamento !== "" ? a.preco_unit_orcamento : 0}
-                              value={a.preco_unit}
-                              onChange={(e) => updArtigo(i, { preco_unit: e.target.value })}
-                              onBlur={() => {
-                                const floor = a.preco_unit_orcamento != null && a.preco_unit_orcamento !== "" ? Number(a.preco_unit_orcamento) : null;
-                                const pu = Number(a.preco_unit);
-                                if (floor != null && (Number.isNaN(pu) || pu + 0.001 < floor)) {
-                                  toast.error(`O preço não pode ser inferior ao do orçamento (${eur(floor)})`);
-                                  const artigosNext = enc.artigos.map((x, idx) => (idx === i ? { ...x, preco_unit: floor } : x));
-                                  upd({ artigos: artigosNext });
-                                  persist({ artigos: artigosNext });
-                                  return;
-                                }
-                                persist({});
-                              }}
-                              className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20"
-                            />
-                            {a.preco_unit_orcamento != null && a.preco_unit_orcamento !== "" && (
-                              <div className="text-[10px] text-gray-400 text-right mt-0.5" data-testid={`enc-preco-piso-${i}`}>
-                                Mín. orçamento {eur(a.preco_unit_orcamento)}
+                            {canEditValores ? (
+                              <input
+                                data-testid={`enc-artigo-preco-${i}`}
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                value={a.preco_unit}
+                                onChange={(e) => updArtigo(i, { preco_unit: e.target.value })}
+                                onBlur={() => persist({})}
+                                className="w-24 text-right border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20"
+                              />
+                            ) : (
+                              <span className="tabular-nums font-medium text-gray-900" data-testid={`enc-artigo-preco-${i}`}>{eur(a.preco_unit)}</span>
+                            )}
+                            {valoresDoOrc && (
+                              <div className="text-[10px] text-sky-600 text-right mt-0.5" data-testid={`enc-preco-piso-${i}`}>
+                                Do orçamento
                               </div>
                             )}
-                            {precoHist[a.artigo_id] && (
+                            {canEditValores && precoHist[a.artigo_id] && (
                               <button
                                 type="button"
                                 data-testid={`enc-preco-hint-${i}`}
                                 title="Aplicar o último preço praticado a este cliente"
                                 onClick={() => {
-                                  const floor = a.preco_unit_orcamento != null && a.preco_unit_orcamento !== "" ? Number(a.preco_unit_orcamento) : null;
-                                  let p = Number(precoHist[a.artigo_id].ultimo_preco);
-                                  if (floor != null && p + 0.001 < floor) {
-                                    toast.error(`O último preço (${eur(p)}) é inferior ao do orçamento (${eur(floor)})`);
-                                    return;
-                                  }
+                                  const p = Number(precoHist[a.artigo_id].ultimo_preco);
                                   const artigosNext = enc.artigos.map((x, idx) => (idx === i ? { ...x, preco_unit: p } : x));
                                   upd({ artigos: artigosNext });
                                   persist({ artigos: artigosNext });
@@ -516,35 +679,46 @@ export default function EncomendaDetail() {
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`enc-artigo-unit-pers-${i}`}>{eur(unitPers)}</td>
                           <td className="px-4 py-2.5 text-right align-top">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center gap-1 justify-end">
-                                <input data-testid={`enc-artigo-desc-${i}`} type="number" min="0" step="0.01" value={a.desconto ?? 0} onChange={(e) => updArtigo(i, { desconto: e.target.value })} onBlur={() => persist({})} className="w-14 text-right border border-gray-300 rounded-sm px-1.5 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
-                                <select data-testid={`enc-artigo-desc-tipo-${i}`} value={a.desconto_tipo || "pct"} onChange={(e) => updArtigo(i, { desconto_tipo: e.target.value })} onBlur={() => persist({})} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                                  <option value="pct">%</option>
-                                  <option value="eur">€</option>
-                                </select>
+                            {canEditValores ? (
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1 justify-end">
+                                  <input data-testid={`enc-artigo-desc-${i}`} type="number" min="0" step="0.01" value={a.desconto ?? 0} onChange={(e) => updArtigo(i, { desconto: e.target.value })} onBlur={() => persist({})} className="w-14 text-right border border-gray-300 rounded-sm px-1.5 py-1 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
+                                  <select data-testid={`enc-artigo-desc-tipo-${i}`} value={a.desconto_tipo || "pct"} onChange={(e) => updArtigo(i, { desconto_tipo: e.target.value })} onBlur={() => persist({})} className="border border-gray-300 rounded-sm px-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
+                                    <option value="pct">%</option>
+                                    <option value="eur">€</option>
+                                  </select>
+                                </div>
+                                <label
+                                  className="inline-flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer select-none"
+                                  title="Se marcado, o desconto em € aplica-se por unidade; senão ao total da linha"
+                                >
+                                  <input
+                                    data-testid={`enc-artigo-desc-unit-${i}`}
+                                    type="checkbox"
+                                    checked={(a.desconto_base || "linha") === "unit"}
+                                    onChange={(e) => {
+                                      const base = e.target.checked ? "unit" : "linha";
+                                      const artigos = enc.artigos.map((x, idx) => (idx === i ? { ...x, desconto_base: base } : x));
+                                      upd({ artigos });
+                                      persist({ artigos });
+                                    }}
+                                    className="w-3 h-3 accent-black"
+                                  />
+                                  por un.
+                                </label>
+                                {lineDisc(a) > 0 && <div className="text-[10px] text-red-500 text-right">- {eur(lineDisc(a))}</div>}
                               </div>
-                              <label
-                                className="inline-flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer select-none"
-                                title="Se marcado, o desconto em € aplica-se por unidade; senão ao total da linha"
-                              >
-                                <input
-                                  data-testid={`enc-artigo-desc-unit-${i}`}
-                                  type="checkbox"
-                                  checked={(a.desconto_base || "linha") === "unit"}
-                                  onChange={(e) => {
-                                    const base = e.target.checked ? "unit" : "linha";
-                                    const artigos = enc.artigos.map((x, idx) => (idx === i ? { ...x, desconto_base: base } : x));
-                                    upd({ artigos });
-                                    persist({ artigos });
-                                  }}
-                                  className="w-3 h-3 accent-black"
-                                />
-                                por un.
-                              </label>
-                              {lineDisc(a) > 0 && <div className="text-[10px] text-red-500 text-right">- {eur(lineDisc(a))}</div>}
-                            </div>
+                            ) : (
+                              <div className="tabular-nums text-gray-700" data-testid={`enc-artigo-desc-${i}`}>
+                                {lineDisc(a) > 0 ? (
+                                  <span className="text-red-600">- {eur(lineDisc(a))}</span>
+                                ) : (
+                                  <span className="text-gray-400">—</span>
+                                )}
+                              </div>
+                            )}
                           </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900 align-top" data-testid={`enc-artigo-unit-apos-desc-${i}`}>{eur(lineUnitAposDesc(a))}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-medium align-top" data-testid={`enc-artigo-subtotal-${i}`}>{eur(lineNet(a))}</td>
                           <td className="px-4 py-2.5 align-top">
                             <div className="flex items-center justify-end gap-0.5">
@@ -552,15 +726,16 @@ export default function EncomendaDetail() {
                                 <button
                                   type="button"
                                   data-testid={`enc-artigo-nc-${i}`}
-                                  title={enc.entregue ? "Abrir não conformidade" : "Só depois de marcar o material como entregue"}
-                                  disabled={!enc.entregue}
-                                  onClick={() => { if (!enc.entregue) return; setNcLinha(a); setNcOpen(true); }}
-                                  className={`p-1.5 rounded-sm ${enc.entregue ? "hover:bg-amber-50 text-amber-700" : "text-gray-300 cursor-not-allowed"}`}
+                                  title="Abrir não conformidade (abate stock e soma ao custo real)"
+                                  onClick={() => { setNcLinha(a); setNcOpen(true); }}
+                                  className="p-1.5 rounded-sm hover:bg-amber-50 text-amber-700"
                                 >
                                   <AlertTriangle size={15} />
                                 </button>
                               )}
-                              <button data-testid={`enc-artigo-del-${i}`} onClick={() => delArtigo(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                              {canEditValores && (
+                                <button data-testid={`enc-artigo-del-${i}`} onClick={() => delArtigo(i)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -570,7 +745,11 @@ export default function EncomendaDetail() {
                 </table>
               </div>
             )}
-            <p className="shrink-0 text-xs text-gray-400 px-5 py-3 border-t border-gray-100">As alterações aos artigos são guardadas automaticamente e o valor é recalculado. Em encomendas geradas de um orçamento o preço pode subir, mas não pode ficar abaixo do cotado.</p>
+            <p className="shrink-0 text-xs text-gray-400 px-5 py-3 border-t border-gray-100">
+              {valoresDoOrc
+                ? "Esta encomenda herdou os valores do orçamento (preços, quantidades e descontos). Não são editáveis."
+                : "As alterações aos artigos são guardadas automaticamente e o valor é recalculado."}
+            </p>
           </div>
                   );
                 }
@@ -598,19 +777,19 @@ export default function EncomendaDetail() {
               }}
             />
           </div>
-          <div className="mt-4 space-y-3 flex flex-col items-end">
+          <div className="mt-4 space-y-3 w-full flex flex-col items-stretch sm:items-end">
             <OrcamentoTotais
               subtotalVenda={subtotalVenda}
               totalPers={totalPers}
               envio={enc.envio ?? 0}
-              onEnvio={can("encomendas", "edit") ? (v) => upd({ envio: v }) : undefined}
+              onEnvio={canEditValores ? (v) => upd({ envio: v }) : undefined}
               descontoLinhas={descontoLinhas}
               descTotal={enc.desconto_total}
               descTotalTipo={enc.desconto_total_tipo || "pct"}
               descTotalVal={descTotalVal}
-              onDescTotal={can("encomendas", "edit") ? (v) => upd({ desconto_total: v }) : undefined}
-              onDescTotalTipo={can("encomendas", "edit") ? (t) => persist({ desconto_total_tipo: t }, "Desconto atualizado") : undefined}
-              onDescBlur={can("encomendas", "edit") ? () => persist({}, "Totais atualizados") : undefined}
+              onDescTotal={canEditValores ? (v) => upd({ desconto_total: v }) : undefined}
+              onDescTotalTipo={canEditValores ? (t) => persist({ desconto_total_tipo: t }, "Desconto atualizado") : undefined}
+              onDescBlur={canEditValores ? () => persist({}, "Totais atualizados") : undefined}
               custoProducao={custoProducao}
               lucro={lucro}
               total={precoFinal}
@@ -750,6 +929,7 @@ export default function EncomendaDetail() {
           artigoCodigo={(artigos.find((x) => x.id === ncLinha?.artigo_id) || {}).codigo || ""}
           onCreated={(nc) => {
             setNcs((prev) => [nc, ...prev]);
+            load();
             if (nc?.id) nav(`/nao-conformidades/${nc.id}`);
           }}
         />
@@ -765,6 +945,14 @@ export default function EncomendaDetail() {
           onEmitted={() => load()}
         />
       )}
+
+      <SelecionarVariantesDialog
+        open={!!variantesPick}
+        onOpenChange={(o) => { if (!o) setVariantesPick(null); }}
+        paiId={variantesPick?.pai?.id}
+        paiNome={variantesPick?.pai?.nome || ""}
+        onConfirm={addVariantes}
+      />
     </div>
   );
 }

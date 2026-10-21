@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate, API, getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -41,10 +42,21 @@ export default function ContaDetail() {
   const [conta, setConta] = useState(null);
   const [fornecedores, setFornecedores] = useState([]);
   const [busyFile, setBusyFile] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const fileRef = useRef(null);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     setConta(await api.get(`/contas/${id}`));
+    setDirty(false);
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -58,7 +70,10 @@ export default function ContaDetail() {
 
   if (!conta) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  const upd = (patch) => setConta({ ...conta, ...patch });
+  const upd = (patch) => {
+    setDirty(true);
+    setConta({ ...conta, ...patch });
+  };
   const anulada = conta.estado === "anulada";
   const backTipo = conta.tipo === "pagar" ? "pagar" : "receber";
 
@@ -80,12 +95,16 @@ export default function ContaDetail() {
         estado: conta.estado,
       });
       setConta(updated);
+      setDirty(false);
       toast.success("Conta guardada");
+      return true;
     } catch (e) {
       const d = e?.response?.data?.detail;
       toast.error(typeof d === "string" ? d : "Não foi possível guardar");
+      return false;
     }
   };
+  saveForLeaveRef.current = save;
 
   const anular = async () => {
     if (!window.confirm("Anular esta conta?")) return;

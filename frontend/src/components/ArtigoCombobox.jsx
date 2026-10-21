@@ -10,10 +10,27 @@ import {
   CommandList,
 } from "./ui/command";
 import { eur } from "../lib/api";
+import SelecionarVariantesDialog, {
+  artigosParaSelector,
+  artigoTemVariantes,
+} from "@/components/SelecionarVariantesDialog";
 
-export default function ArtigoCombobox({ artigos, value, onChange, testid, placeholder = "Pesquisar artigo..." }) {
+/**
+ * onChange(artigo) — artigo único
+ * onChangeMulti?.(picked[]) — quando o pai tem variantes (várias qtds)
+ */
+export default function ArtigoCombobox({
+  artigos,
+  value,
+  onChange,
+  onChangeMulti,
+  testid,
+  placeholder = "Pesquisar artigo...",
+}) {
   const [open, setOpen] = useState(false);
-  const selected = artigos.find((a) => a.id === value);
+  const [variantesPick, setVariantesPick] = useState(null);
+  const list = artigosParaSelector(artigos);
+  const selected = artigos.find((a) => a.id === value) || list.find((a) => a.id === value);
 
   // Mesma lógica que clientes/fornecedores: começa pelo nome *ou* pelo código.
   const filter = (itemValue, search) => {
@@ -23,6 +40,7 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid, place
   };
 
   return (
+  <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
@@ -42,14 +60,18 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid, place
           <CommandList>
             <CommandEmpty>Nenhum artigo encontrado.</CommandEmpty>
             <CommandGroup>
-              {artigos.map((a) => (
+              {list.map((a) => (
                 <CommandItem
                   key={a.id}
                   value={`${a.nome || ""}|||${a.codigo || ""}`}
                   data-testid={`artigo-option-${a.id}`}
                   onSelect={() => {
-                    onChange(a);
                     setOpen(false);
+                    if (artigoTemVariantes(a)) {
+                      setVariantesPick(a);
+                      return;
+                    }
+                    onChange(a);
                   }}
                   className="flex items-center justify-between gap-2"
                 >
@@ -58,7 +80,12 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid, place
                       size={15}
                       className={value === a.id ? "opacity-100 shrink-0" : "opacity-0 shrink-0"}
                     />
-                    <span className="truncate">{a.nome}</span>
+                    <span className="truncate">
+                      {a.nome}
+                      {a.tem_variantes && (
+                        <span className="ml-1 text-[10px] font-medium text-violet-600">variantes</span>
+                      )}
+                    </span>
                   </span>
                   <span className="text-xs text-gray-500 tabular-nums shrink-0">
                     {a.codigo ? `${a.codigo} · ` : ""}{eur(a.preco_venda)}
@@ -70,5 +97,21 @@ export default function ArtigoCombobox({ artigos, value, onChange, testid, place
         </Command>
       </PopoverContent>
     </Popover>
+
+    <SelecionarVariantesDialog
+      open={!!variantesPick}
+      onOpenChange={(o) => { if (!o) setVariantesPick(null); }}
+      paiId={variantesPick?.id}
+      paiNome={variantesPick?.nome || ""}
+      onConfirm={(picked) => {
+        setVariantesPick(null);
+        if (onChangeMulti) {
+          onChangeMulti(picked);
+          return;
+        }
+        if (picked[0]) onChange(picked[0]);
+      }}
+    />
+  </>
   );
 }

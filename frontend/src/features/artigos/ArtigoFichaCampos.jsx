@@ -49,6 +49,7 @@ export default function ArtigoFichaCampos({
   onPatch,
   onSetTipo,
   onSetProduzido,
+  onSetTemVariantes,
   onSetCategoria,
   onSetSubcategoria,
   precoVenda,
@@ -156,6 +157,22 @@ export default function ArtigoFichaCampos({
               </label>
             </FieldRow>
           )}
+          {show("variantes") && !(editing ? draft?.pai_id : artigo?.pai_id) && (
+            <FieldRow label="Variantes" testid="ficha-variantes">
+              <label className="inline-flex items-center justify-end gap-2 cursor-pointer" data-testid="artigo-variantes-check">
+                <input
+                  type="checkbox"
+                  checked={editing ? !!draft?.tem_variantes : !!artigo?.tem_variantes}
+                  disabled={editing ? false : !canEdit}
+                  onChange={(e) => onSetTemVariantes?.(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  {(editing ? draft?.tem_variantes : artigo?.tem_variantes) ? "Sim" : "Não"}
+                </span>
+              </label>
+            </FieldRow>
+          )}
           {show("fabricante") && (
             <FieldRow label="Fabricante" testid="ficha-fabricante">
               {editing ? (
@@ -166,10 +183,10 @@ export default function ArtigoFichaCampos({
             </FieldRow>
           )}
           {show("categoria") && (
-            <FieldRow label="Categoria de produto" testid="ficha-categoria">
+            <FieldRow label="Categoria de produto *" testid="ficha-categoria">
               {editing ? (
-                <select value={draft?.categoria_id || ""} onChange={(e) => onSetCategoria?.(e.target.value)} className={fieldCls} data-testid="artigo-categoria-select">
-                  <option value="">— Sem categoria —</option>
+                <select value={draft?.categoria_id || ""} onChange={(e) => onSetCategoria?.(e.target.value)} className={fieldCls} data-testid="artigo-categoria-select" required>
+                  <option value="">— Escolher categoria —</option>
                   {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               ) : (
@@ -177,9 +194,10 @@ export default function ArtigoFichaCampos({
                   value={artigo?.categoria_id}
                   display={artigo?.categoria_nome}
                   canEdit={canEdit}
+                  allowEmpty={false}
                   options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
                   onSave={(v) => onSetCategoria?.(v)}
-                  emptyLabel="— Sem categoria —"
+                  emptyLabel="— Escolher categoria —"
                   testid="artigo-categoria"
                 />
               )}
@@ -195,7 +213,7 @@ export default function ArtigoFichaCampos({
             </FieldRow>
           )}
           {show("subcategoria") && (
-            <FieldRow label="Sub categoria" testid="ficha-subcategoria">
+            <FieldRow label="Sub categoria *" testid="ficha-subcategoria">
               {editing ? (
                 <select
                   value={draft?.subcategoria_id || ""}
@@ -203,8 +221,9 @@ export default function ArtigoFichaCampos({
                   onChange={(e) => onSetSubcategoria?.(e.target.value)}
                   className={`${fieldCls} disabled:bg-gray-50`}
                   data-testid="artigo-subcategoria-select"
+                  required
                 >
-                  <option value="">— Sem subcategoria —</option>
+                  <option value="">— Escolher subcategoria —</option>
                   {subsDaCat.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                 </select>
               ) : (
@@ -212,10 +231,11 @@ export default function ArtigoFichaCampos({
                   value={artigo?.subcategoria_id}
                   display={artigo?.subcategoria_nome}
                   canEdit={canEdit}
+                  allowEmpty={false}
                   disabled={!artigo?.categoria_id}
                   options={subcategorias.filter((s) => s.categoria_id === artigo?.categoria_id).map((s) => ({ value: s.id, label: s.nome }))}
                   onSave={(v) => onSetSubcategoria?.(v)}
-                  emptyLabel="— Sem subcategoria —"
+                  emptyLabel="— Escolher subcategoria —"
                   testid="artigo-subcategoria"
                 />
               )}
@@ -260,9 +280,27 @@ export default function ArtigoFichaCampos({
           {show("plano_contas") && (
             <FieldRow label="Plano de contas" testid="ficha-plano">
               {editing ? (
-                <input value={draft?.plano_contas || ""} onChange={(e) => onChange?.({ plano_contas: e.target.value })} className={fieldCls} />
+                <input value={draft?.plano_contas || ""} onChange={(e) => onChange?.({ plano_contas: e.target.value })} className={fieldCls} placeholder="ex.: 31" />
               ) : (
                 <InlineField value={artigo?.plano_contas || ""} canEdit={canEdit} onSave={patchStr("plano_contas")} testid="artigo-plano" />
+              )}
+            </FieldRow>
+          )}
+          {show("conta_proveitos") && (
+            <FieldRow label="Conta de proveitos" testid="ficha-conta-proveitos">
+              {editing ? (
+                <input value={draft?.conta_proveitos || ""} onChange={(e) => onChange?.({ conta_proveitos: e.target.value })} className={fieldCls} placeholder="ex.: 711 / 712" data-testid="artigo-conta-proveitos-input" />
+              ) : (
+                <InlineField value={artigo?.conta_proveitos || ""} canEdit={canEdit} onSave={patchStr("conta_proveitos")} testid="artigo-conta-proveitos" />
+              )}
+            </FieldRow>
+          )}
+          {show("iva_taxa") && (
+            <FieldRow label="Taxa IVA (%)" testid="ficha-iva">
+              {editing ? (
+                <input type="number" step="0.01" value={draft?.iva_taxa ?? ""} onChange={(e) => onChange?.({ iva_taxa: e.target.value === "" ? "" : Number(e.target.value) })} className={fieldCls} placeholder="ex.: 23 (vazio = empresa)" data-testid="artigo-iva-input" />
+              ) : (
+                <InlineField value={artigo?.iva_taxa == null ? "" : String(artigo.iva_taxa)} canEdit={canEdit} onSave={(v) => onPatch?.({ iva_taxa: v === "" || v == null ? null : Number(v) })} testid="artigo-iva" />
               )}
             </FieldRow>
           )}
@@ -285,6 +323,11 @@ export default function ArtigoFichaCampos({
                 <span className="tabular-nums font-medium">{artigo?.updated_at ? dayjs(artigo.updated_at).format("DD-MM-YYYY HH:mm:ss") : "—"}</span>
                 <RelBadge iso={artigo?.updated_at} />
               </span>
+            </FieldRow>
+          )}
+          {show("updated_by") && (
+            <FieldRow label="Modificado por" testid="ficha-updated-by">
+              <span className="font-medium">{artigo?.updated_by_nome || "—"}</span>
             </FieldRow>
           )}
         </FieldGrid>

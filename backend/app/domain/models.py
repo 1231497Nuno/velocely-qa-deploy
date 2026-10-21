@@ -253,6 +253,10 @@ class Artigo(BaseModel):
     website: str = ""
     ficha_produto: str = ""
     plano_contas: str = ""
+    # Conta de proveitos (ex.: 711 Mercadorias, 712 Produtos acabados) — exportação SAF-T / faturação
+    conta_proveitos: str = ""
+    # Taxa IVA do artigo (ex.: 23). None = herdar da empresa.
+    iva_taxa: Optional[float] = None
     codigo_produto: str = ""
     comprimento_mm: float = 0.0
     largura_mm: float = 0.0
@@ -267,12 +271,24 @@ class Artigo(BaseModel):
     qtd_stock: float = 0.0
     nivel_reabastecimento: float = 0.0
     qtd_ultima_compra: float = 0.0
+    # Variantes livres: artigo pai + filhos com etiqueta/atributos definidos pelo utilizador
+    pai_id: Optional[str] = None
+    pai_codigo: str = ""
+    variante_label: str = ""
+    # Atributos livres, ex.: {"Tamanho": "M", "Cor": "Preto"} ou {"Pack": "50"}
+    variante_atributos: dict = Field(default_factory=dict)
+    # Legado (mantido para dados antigos)
+    variante_tamanho: str = ""
+    variante_cor: str = ""
+    tem_variantes: bool = False
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
     created_by: Optional[str] = None
     created_by_nome: str = ""
+    updated_by: Optional[str] = None
+    updated_by_nome: str = ""
 
 
 class ArtigoInput(BaseModel):
@@ -302,6 +318,8 @@ class ArtigoInput(BaseModel):
     website: str = ""
     ficha_produto: str = ""
     plano_contas: str = ""
+    conta_proveitos: str = ""
+    iva_taxa: Optional[float] = None
     codigo_produto: str = ""
     comprimento_mm: float = 0.0
     largura_mm: float = 0.0
@@ -316,6 +334,13 @@ class ArtigoInput(BaseModel):
     qtd_stock: float = 0.0
     nivel_reabastecimento: float = 0.0
     qtd_ultima_compra: float = 0.0
+    pai_id: Optional[str] = None
+    pai_codigo: str = ""
+    variante_label: str = ""
+    variante_atributos: dict = Field(default_factory=dict)
+    variante_tamanho: str = ""
+    variante_cor: str = ""
+    tem_variantes: bool = False
     codigo_origem: str = ""
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
@@ -434,6 +459,12 @@ class OrcamentoLinha(BaseModel):
     eh_servico: bool = False
     eh_producao: bool = False
     modo_calculo: str = ""  # diversos | materia_prima | servico | compra | producao
+    # Snapshot de custo — true após gravar/finalizar; catálogo futuro não altera
+    custo_congelado: bool = False
+    # Arte / maqueta da linha (PDF/JPEG) — transita para ENC e OF
+    arte_path: str = ""
+    arte_nome: str = ""
+    arte_content_type: str = ""
 
 
 class MaterialLinha(BaseModel):
@@ -755,6 +786,8 @@ class OrcamentoInput(BaseModel):
     notas: str = ""
     desconto_total: float = 0.0
     desconto_total_tipo: str = "pct"  # pct | eur
+    # Portes de envio (isolados do custo de produção fabril)
+    portes: float = 0.0
     linhas: List[OrcamentoLinha] = Field(default_factory=list)
     materiais: List[MaterialLinha] = Field(default_factory=list)
     imagens: List[str] = Field(default_factory=list)
@@ -771,6 +804,7 @@ class Orcamento(OrcamentoInput):
     encomenda_id: Optional[str] = None
     encomenda_numero: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
 
 
 class OFOperacao(BaseModel):
@@ -805,10 +839,17 @@ class OFItem(BaseModel):
     quantidade: float = 1
     unidade: str = "un"
     preco_unit: float = 0.0
+    # Snapshot de custo no momento da criação da OF (não recalcular com preços futuros)
+    custo_compra_unit: float = 0.0
+    custo_producao_unit: float = 0.0
+    custo_congelado: bool = False
     tipo_personalizacao_id: Optional[str] = None
     tipo_personalizacao_nome: Optional[str] = None
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
     operacoes: List[OFOperacao] = Field(default_factory=list)
+    arte_path: str = ""
+    arte_nome: str = ""
+    arte_content_type: str = ""
 
 
 class OrdemFabricoInput(BaseModel):
@@ -850,6 +891,10 @@ class EncomendaArtigo(BaseModel):
     desconto_tipo: str = "pct"  # pct | eur
     desconto_base: str = "linha"  # linha | unit — € unitário vs total da linha
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
+    # Arte / maqueta herdada do orçamento
+    arte_path: str = ""
+    arte_nome: str = ""
+    arte_content_type: str = ""
 
 
 class Pagamento(BaseModel):
@@ -875,6 +920,8 @@ class EncomendaInput(BaseModel):
     contacto_cargo: str = ""
     contacto_departamento: str = ""
     descricao: str = ""
+    # PO / Nota de Encomenda do cliente B2B (herda de orçamento.numero_encomenda)
+    referencia_cliente: str = ""
     data: Optional[str] = None
     prazo_entrega: Optional[str] = None
     estado: str = "aberta"
@@ -925,6 +972,8 @@ class DocumentoFinanceiroInput(BaseModel):
     cliente_id: Optional[str] = None
     encomenda_id: Optional[str] = None
     encomenda_numero: Optional[str] = None
+    # PO do cliente — obrigatório em faturas corporate
+    referencia_cliente: str = ""
     fatura_id: Optional[str] = None  # recibo → fatura mãe
     fatura_numero: Optional[str] = None
     data: Optional[str] = None
@@ -963,6 +1012,13 @@ class EmpresaSettings(BaseModel):
     iva_taxa: float = 23.0
     iva_isento: bool = False
     condicoes_pagamento: str = ""
+    # Orçamentos: validade auto = data + N dias
+    orcamento_validade_dias: int = 15
+    # Semáforo de margem (lucro / total venda)
+    margem_saudavel_pct: float = 40.0
+    margem_risco_pct: float = 20.0
+    # Templates de notas/disclaimers para PDF
+    orcamento_notas_templates: List[dict] = Field(default_factory=list)
 
 
 class PdfTemplateInput(BaseModel):
@@ -1020,6 +1076,10 @@ class NaoConformidadeInput(BaseModel):
     estado: str = "aberta"
     notas: str = ""
     anexos: List[Anexo] = Field(default_factory=list)
+    # Snapshot do custo unitário no momento do registo (desperdício de produção)
+    custo_unitario: float = 0.0
+    custo_desperdicio: float = 0.0
+    stock_abatido: bool = False
 
 
 class NaoConformidade(NaoConformidadeInput):

@@ -204,7 +204,12 @@ export function LinhaCodigoSelect({
                   >
                     <Check size={14} className={linha.artigo_id === a.id ? "opacity-100 shrink-0" : "opacity-0 shrink-0"} />
                     <span className="tabular-nums text-xs text-gray-500 w-16 shrink-0">{a.codigo}</span>
-                    <span className="truncate flex-1">{a.nome}</span>
+                    <span className="truncate flex-1">
+                      {a.nome}
+                      {a.tem_variantes && !a.pai_id && (
+                        <span className="ml-1 text-[10px] font-medium text-violet-600">variantes</span>
+                      )}
+                    </span>
                     <span className="text-xs text-gray-400 tabular-nums shrink-0">{eur(precoLista(a))}</span>
                   </CommandItem>
                 ))}

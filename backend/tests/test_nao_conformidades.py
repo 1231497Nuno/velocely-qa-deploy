@@ -37,10 +37,16 @@ def _artigo(client):
 class TestNaoConformidades:
     def test_abrir_nc_na_referencia_da_encomenda(self, client):
         art = _artigo(client)
+        art_id = art["id"]
+        full = client.get(f"{API}/artigos/{art_id}")
+        art_full = full.json() if full.status_code == 200 else {}
+        stock_antes = float(art_full.get("qtd_stock") or 0) if art_full else None
+        is_servico = (art_full.get("tipo") or art.get("tipo") or "") == "servico"
+
         r = client.post(f"{API}/encomendas", json={
             "cliente": "Teste NC",
             "artigos": [{
-                "artigo_id": art["id"],
+                "artigo_id": art_id,
                 "artigo_nome": art.get("nome") or "Artigo",
                 "quantidade": 4,
                 "preco_unit": 10,
@@ -58,33 +64,11 @@ class TestNaoConformidades:
             })
             assert bad.status_code == 400, bad.text
 
-            blocked = client.post(f"{API}/encomendas/{eid}/nao-conformidades", json={
-                "encomenda_artigo_id": linha["id"],
-                "tipo": "defeito",
-                "descricao": "Cor fora do padrão",
-                "quantidade": 1,
-            })
-            assert blocked.status_code == 400, blocked.text
-            detail = ((blocked.json() or {}).get("detail") or "").lower()
-            assert "entregue" in detail
-
-            put_keys = (
-                "cliente", "cliente_id", "descricao", "data", "prazo_entrega", "estado", "notas",
-                "desconto_total", "desconto_total_tipo", "artigos", "imagens", "pagamentos",
-                "valor_total", "valor_total_manual", "valor_pago", "autorizada_producao",
-            )
-            put_body = {k: enc[k] for k in put_keys if k in enc}
-            put_body["entregue"] = True
-            put_body["data_entrega"] = (enc.get("data") or "")[:10] or None
-            rp = client.put(f"{API}/encomendas/{eid}", json=put_body)
-            assert rp.status_code == 200, rp.text
-            assert rp.json().get("entregue") is True
-
             rc = client.post(f"{API}/encomendas/{eid}/nao-conformidades", json={
                 "encomenda_artigo_id": linha["id"],
                 "tipo": "defeito",
                 "descricao": "Cor fora do padrão",
-                "quantidade": 1,
+                "quantidade": 3,
             })
             assert rc.status_code == 200, rc.text
             nc = rc.json()
@@ -92,9 +76,28 @@ class TestNaoConformidades:
             assert (nc.get("numero") or "").startswith("NC-")
             assert nc["encomenda_id"] == eid
             assert nc["encomenda_artigo_id"] == linha["id"]
-            assert nc["artigo_id"] == art["id"]
+            assert nc["artigo_id"] == art_id
             assert nc["estado"] == "aberta"
+            assert float(nc.get("quantidade") or 0) == 3
+            assert nc.get("stock_abatido") is True
             assert "Cor fora do padrão" in (nc.get("descricao") or "")
+            assert float(nc.get("custo_desperdicio") or 0) >= 0
+
+            if stock_antes is not None and not is_servico:
+                after = client.get(f"{API}/artigos/{art_id}")
+                assert after.status_code == 200
+                stock_depois = float((after.json() or {}).get("qtd_stock") or 0)
+                assert abs(stock_depois - (stock_antes - 3)) < 0.01
+
+            enc2 = client.get(f"{API}/encomendas/{eid}")
+            assert enc2.status_code == 200
+            enc_data = enc2.json()
+            assert float(enc_data.get("custo_desperdicio_nc") or 0) == pytest.approx(
+                float(nc.get("custo_desperdicio") or 0), abs=0.02
+            )
+            assert float(enc_data.get("custo_producao_real") or 0) >= float(
+                enc_data.get("custo_desperdicio_nc") or 0
+            )
 
             lista = client.get(f"{API}/encomendas/{eid}/nao-conformidades")
             assert lista.status_code == 200

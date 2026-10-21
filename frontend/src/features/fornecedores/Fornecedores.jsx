@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
@@ -80,6 +81,11 @@ export default function Fornecedores() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
+  const saveRef = useRef(null);
+  useUnsavedChanges({
+    dirty: open,
+    onSave: async () => (saveRef.current ? saveRef.current() : true),
+  });
 
   const onSort = (field) => {
     if (sortBy === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -112,17 +118,23 @@ export default function Fornecedores() {
   };
   const save = async () => {
     const err = validarFormFornecedor(form);
-    if (err) return toast.error(err);
+    if (err) {
+      toast.error(err);
+      return false;
+    }
     try {
       if (editId) await api.put(`/fornecedores/${editId}`, form);
       else await api.post("/fornecedores", form);
       toast.success("Fornecedor guardado");
       setOpen(false);
       reload();
+      return true;
     } catch (e) {
       toast.error(apiDetail(e) || "Erro ao guardar fornecedor");
+      return false;
     }
   };
+  saveRef.current = save;
   const remove = async (e, id) => {
     e.stopPropagation();
     await api.del(`/fornecedores/${id}`);

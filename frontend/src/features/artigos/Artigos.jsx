@@ -28,6 +28,10 @@ export default function Artigos() {
   const [filtroProduzido, setFiltroProduzido] = useState("");
   const [categorias, setCategorias] = useState([]);
   const [subcategorias, setSubcategorias] = useState([]);
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkPct, setBulkPct] = useState("5");
+  const [bulkForn, setBulkForn] = useState("");
 
   const extraParams = useMemo(() => {
     const p = {};
@@ -61,6 +65,10 @@ export default function Artigos() {
     })();
   }, []);
 
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, filtroTipo, filtroCategoria, filtroSubcategoria, filtroProduzido, q]);
+
   const subsFiltradas = useMemo(
     () => (filtroCategoria
       ? subcategorias.filter((s) => s.categoria_id === filtroCategoria)
@@ -92,8 +100,8 @@ export default function Artigos() {
   const produzidoOptions = useMemo(
     () => [
       { value: "", label: "Produzido / compra" },
-      { value: "sim", label: "Só produzidos" },
-      { value: "nao", label: "Só compra / sem receita" },
+      { value: "sim", label: "Produzido: Sim" },
+      { value: "nao", label: "Produzido: Não" },
     ],
     [],
   );
@@ -117,9 +125,17 @@ export default function Artigos() {
   };
 
   const remove = async (id) => {
-    await api.del(`/artigos/${id}`);
-    toast.success("Artigo eliminado");
-    reload();
+    try {
+      const res = await api.del(`/artigos/${id}`);
+      if (res?.soft) {
+        toast.success(res.motivo || "Artigo inactivado (em uso no histórico)");
+      } else {
+        toast.success("Artigo eliminado");
+      }
+      reload();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e?.message || "Erro ao eliminar");
+    }
   };
 
   const duplicar = async (id) => {
@@ -130,6 +146,39 @@ export default function Artigos() {
   };
 
   const rows = apply(items);
+  const allIds = rows.map((r) => r.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
+  const someSelected = selected.size > 0;
+
+  const toggleOne = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(allIds));
+  };
+
+  const runBulk = async (action, extra = {}) => {
+    const ids = [...selected];
+    if (!ids.length) return toast.error("Selecione artigos na grelha");
+    setBulkBusy(true);
+    try {
+      const res = await api.post("/artigos/bulk", { ids, action, ...extra });
+      toast.success(`${res.updated || 0} artigo(s) actualizado(s)`);
+      setSelected(new Set());
+      reload();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e?.message || "Erro na acção em massa");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   return (
     <>
@@ -170,7 +219,7 @@ export default function Artigos() {
             <SearchBar
               value={q}
               onChange={setQ}
-              placeholder="Pesquisar por código ou nome (qualquer parte)…"
+              placeholder="Nome, Nº produto ou Cód. fornecedor…"
               testid="search-artigos"
             />
             <div className="text-xs text-gray-500 sm:ml-auto">{loading ? "A carregar…" : rangeLabel}</div>
@@ -231,6 +280,68 @@ export default function Artigos() {
               </button>
             )}
           </div>
+          {can("artigos", "edit") && someSelected && (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2"
+              data-testid="artigos-bulk-bar"
+            >
+              <span className="text-sm font-medium text-amber-900">{selected.size} seleccionado(s)</span>
+              <button
+                type="button"
+                disabled={bulkBusy}
+                data-testid="artigos-bulk-inactivar"
+                onClick={() => runBulk("inactivar")}
+                className="px-2.5 py-1.5 text-xs font-medium border border-gray-300 bg-white rounded-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                Marcar Inactivo
+              </button>
+              <div className="inline-flex items-center gap-1">
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bulkPct}
+                  onChange={(e) => setBulkPct(e.target.value)}
+                  className="w-16 border border-gray-300 rounded-sm px-2 py-1 text-xs"
+                  data-testid="artigos-bulk-pct"
+                  title="% aumento custo"
+                />
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  data-testid="artigos-bulk-custo"
+                  onClick={() => runBulk("aumentar_custo_pct", { pct: Number(bulkPct) || 0 })}
+                  className="px-2.5 py-1.5 text-xs font-medium border border-gray-300 bg-white rounded-sm hover:bg-gray-50 disabled:opacity-50"
+                >
+                  +% Preço custo
+                </button>
+              </div>
+              <div className="inline-flex items-center gap-1">
+                <input
+                  value={bulkForn}
+                  onChange={(e) => setBulkForn(e.target.value)}
+                  placeholder="Fornecedor"
+                  className="w-36 border border-gray-300 rounded-sm px-2 py-1 text-xs"
+                  data-testid="artigos-bulk-fornecedor"
+                />
+                <button
+                  type="button"
+                  disabled={bulkBusy || !bulkForn.trim()}
+                  data-testid="artigos-bulk-set-fornecedor"
+                  onClick={() => runBulk("fornecedor", { fornecedor_nome: bulkForn.trim() })}
+                  className="px-2.5 py-1.5 text-xs font-medium border border-gray-300 bg-white rounded-sm hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Actualizar fornecedor
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="ml-auto text-xs text-gray-600 hover:underline"
+              >
+                Limpar selecção
+              </button>
+            </div>
+          )}
         </div>
       }
       footer={
@@ -249,6 +360,17 @@ export default function Artigos() {
         <table className="w-full text-sm min-w-[960px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr className="border-b border-gray-200 bg-gray-50">
+              {can("artigos", "edit") && (
+                <th className="px-3 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    data-testid="artigos-select-all"
+                    aria-label="Seleccionar todos"
+                  />
+                </th>
+              )}
               <SortTh label="Código" sortKey="codigo" sort={sort} onSort={toggle} />
               <SortTh label="Nome" sortKey="nome" sort={sort} onSort={toggle} />
               <SortTh label="Tipo" sortKey="tipo_artigo" sort={sort} onSort={toggle} />
@@ -271,6 +393,17 @@ export default function Artigos() {
                   onClick={() => nav(`/artigos/${a.id}`)}
                   className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                 >
+                  {can("artigos", "edit") && (
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(a.id)}
+                        onChange={() => toggleOne(a.id)}
+                        data-testid={`artigos-select-${a.id}`}
+                        aria-label={`Seleccionar ${a.codigo}`}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 mono tabular-nums text-gray-600">{a.codigo}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 min-w-0">
@@ -319,7 +452,7 @@ export default function Artigos() {
                         </button>
                       )}
                       {can("artigos", "delete") && (
-                        <button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600">
+                        <button data-testid={`delete-artigo-${a.id}`} onClick={() => remove(a.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600" title="Eliminar / Inactivar se em uso">
                           <Trash2 size={15} />
                         </button>
                       )}
@@ -329,7 +462,11 @@ export default function Artigos() {
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem artigos."}</td></tr>
+              <tr>
+                <td colSpan={can("artigos", "edit") ? 9 : 8} className="px-4 py-10 text-center text-gray-400 text-sm">
+                  {loading ? "A carregar…" : "Sem artigos."}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

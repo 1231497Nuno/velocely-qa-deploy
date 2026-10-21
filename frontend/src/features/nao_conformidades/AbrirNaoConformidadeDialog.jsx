@@ -71,7 +71,7 @@ export default function AbrirNaoConformidadeDialog({
         <DialogHeader>
           <DialogTitle className="font-display">Abrir não conformidade</DialogTitle>
           <DialogDescription>
-            Só sobre material já entregue ao cliente, nesta referência da encomenda.
+            Regista o desperdício nesta referência: abate stock e soma o custo ao Custo Produção (real).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-1">

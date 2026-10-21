@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -69,12 +70,23 @@ export default function PedidoCotacaoDetail() {
   const [form, setForm] = useState(null);
   const [editing, setEditing] = useState(!!location.state?.edit);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty: editing && dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     const data = await api.get(`/pedidos-cotacao/${id}`);
     setPc(data);
     setForm(formFromPc(data));
+    setDirty(false);
   }, [id]);
 
   useEffect(() => { load().catch(() => setPc(null)); }, [load]);
@@ -97,19 +109,30 @@ export default function PedidoCotacaoDetail() {
   const locked = form.estado === "adjudicado" || form.estado === "cancelado";
   const podeEditar = can("pedidos_cotacao", "edit") && !locked;
 
-  const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const set = (key, val) => {
+    setDirty(true);
+    setForm((f) => ({ ...f, [key]: val }));
+  };
   const setLinha = (idx, key, val) => {
+    setDirty(true);
     setForm((f) => {
       const linhas = [...(f.linhas || [])];
       linhas[idx] = { ...linhas[idx], [key]: val };
       return { ...f, linhas };
     });
   };
-  const addLinha = () => setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
-  const removeLinha = (idx) => setForm((f) => ({ ...f, linhas: f.linhas.filter((_, i) => i !== idx) }));
+  const addLinha = () => {
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
+  };
+  const removeLinha = (idx) => {
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: f.linhas.filter((_, i) => i !== idx) }));
+  };
 
   const onFornecedor = (fid) => {
     const f = fornecedores.find((x) => x.id === fid);
+    setDirty(true);
     setForm((prev) => ({
       ...prev,
       fornecedor_id: fid || null,
@@ -119,11 +142,13 @@ export default function PedidoCotacaoDetail() {
 
   const startEdit = () => {
     setForm(formFromPc(pc));
+    setDirty(false);
     setEditing(true);
   };
 
   const cancelEdit = () => {
     setForm(formFromPc(pc));
+    setDirty(false);
     setEditing(false);
   };
 
@@ -157,22 +182,24 @@ export default function PedidoCotacaoDetail() {
   });
 
   const save = async (extra = {}, opts = {}) => {
-    if (!can("pedidos_cotacao", "edit")) return;
+    if (!can("pedidos_cotacao", "edit")) return false;
     setSaving(true);
     try {
       const updated = await api.put(`/pedidos-cotacao/${id}`, buildPayload(extra));
       setPc(updated);
       setForm(formFromPc(updated));
+      setDirty(false);
       if (!opts.keepEditing) setEditing(false);
       toast.success(opts.msg || "Pedido guardado");
-      return updated;
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
-      return null;
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  saveForLeaveRef.current = () => save();
 
   const setEstado = async (estado, msg) => {
     if (editing) {

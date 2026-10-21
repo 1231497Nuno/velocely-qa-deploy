@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
@@ -43,6 +44,16 @@ export default function Categorias() {
   const [catEditId, setCatEditId] = useState(null);
   const [subForm, setSubForm] = useState({ nome: "", categoria_id: "" });
   const [subEditId, setSubEditId] = useState(null);
+  const saveCatRef = useRef(null);
+  const saveSubRef = useRef(null);
+  useUnsavedChanges({
+    dirty: openCat || openSub,
+    onSave: async () => {
+      if (openCat && saveCatRef.current) return saveCatRef.current();
+      if (openSub && saveSubRef.current) return saveSubRef.current();
+      return true;
+    },
+  });
 
   const cats = useServerPagedList("/categorias", { enabled: tab === "categorias" });
   const subExtra = useMemo(() => (filtroCat ? { categoria_id: filtroCat } : {}), [filtroCat]);
@@ -63,7 +74,10 @@ export default function Categorias() {
   const openNewCat = () => { setCatNome(""); setCatEditId(null); setOpenCat(true); };
   const openEditCat = (c) => { setCatNome(c.nome || ""); setCatEditId(c.id); setOpenCat(true); };
   const saveCat = async () => {
-    if (!catNome.trim()) return toast.error("Indique o nome da categoria");
+    if (!catNome.trim()) {
+      toast.error("Indique o nome da categoria");
+      return false;
+    }
     try {
       if (catEditId) await api.put(`/categorias/${catEditId}`, { nome: catNome.trim() });
       else await api.post("/categorias", { nome: catNome.trim() });
@@ -71,10 +85,13 @@ export default function Categorias() {
       setOpenCat(false);
       cats.reload();
       loadCatsSelect();
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
     }
   };
+  saveCatRef.current = saveCat;
   const removeCat = async (id) => {
     try {
       await api.del(`/categorias/${id}`);
@@ -97,8 +114,14 @@ export default function Categorias() {
     setOpenSub(true);
   };
   const saveSub = async () => {
-    if (!subForm.nome.trim()) return toast.error("Indique o nome da subcategoria");
-    if (!subForm.categoria_id) return toast.error("Selecione a categoria");
+    if (!subForm.nome.trim()) {
+      toast.error("Indique o nome da subcategoria");
+      return false;
+    }
+    if (!subForm.categoria_id) {
+      toast.error("Selecione a categoria");
+      return false;
+    }
     try {
       const body = { nome: subForm.nome.trim(), categoria_id: subForm.categoria_id };
       if (subEditId) await api.put(`/subcategorias/${subEditId}`, body);
@@ -107,10 +130,13 @@ export default function Categorias() {
       setOpenSub(false);
       subs.reload();
       if (tab === "categorias") cats.reload();
+      return true;
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Erro ao guardar");
+      return false;
     }
   };
+  saveSubRef.current = saveSub;
   const removeSub = async (id) => {
     try {
       await api.del(`/subcategorias/${id}`);

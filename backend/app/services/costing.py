@@ -7,7 +7,7 @@ from app.core.database import round2, new_id
 from app.domain.models import OFOperacao
 from app.repositories import (
     artigos_repo, consumiveis_repo, maquinas_repo, mao_obra_repo, tipos_repo,
-    orcamentos_repo, ordens_repo, empresa_repo,
+    orcamentos_repo, ordens_repo, empresa_repo, nao_conformidades_repo,
 )
 
 
@@ -303,6 +303,10 @@ def artigo_lite(artigo: dict) -> dict:
         "subcategoria_id": artigo.get("subcategoria_id"),
         "subcategoria_nome": artigo.get("subcategoria_nome") or "",
         "preco_venda": round2(custo * (1 + float(margem) / 100.0)),
+        "pai_id": artigo.get("pai_id"),
+        "variante_label": artigo.get("variante_label") or "",
+        "tem_variantes": bool(artigo.get("tem_variantes")),
+        "imagem": artigo.get("imagem") or "",
         "lite": True,
     }
 
@@ -470,20 +474,31 @@ def compute_orcamento_totais(orc: dict) -> dict:
     venda_materiais = round2(venda_materiais)
     desconto_linhas = round2(desconto_linhas)
     subtotal_custo = round2(subtotal_custo + custo_materiais)
+    portes = round2(float(orc.get("portes") or 0))
     subtotal_liquido = round2(subtotal_venda + total_pers + venda_materiais - desconto_linhas)
     desc_total_val = desconto_valor(subtotal_liquido, orc.get("desconto_total"), orc.get("desconto_total_tipo"))
-    total = round2(subtotal_liquido - desc_total_val)
+    total_antes_portes = round2(subtotal_liquido - desc_total_val)
+    total = round2(total_antes_portes + portes)
+    bruto_venda = round2(subtotal_venda + total_pers + venda_materiais)
+    desconto_global = round2(desconto_linhas + desc_total_val)
+    desconto_global_pct = round2((desconto_global / bruto_venda) * 100) if bruto_venda > 0 else 0.0
+    lucro = round2(total_antes_portes - subtotal_custo)  # portes sem custo fabril
+    margem_pct = round2((lucro / total_antes_portes) * 100) if total_antes_portes > 0 else 0.0
     orc = {**orc}
     orc["subtotal_custo"] = subtotal_custo
     orc["subtotal_venda"] = subtotal_venda
     orc["total_personalizacao"] = total_pers
     orc["custo_materiais"] = custo_materiais
     orc["total_materiais"] = venda_materiais
+    orc["portes"] = portes
     orc["desconto_linhas"] = desconto_linhas
     orc["subtotal_liquido"] = subtotal_liquido
     orc["desconto_total_valor"] = desc_total_val
+    orc["desconto_global"] = desconto_global
+    orc["desconto_global_pct"] = desconto_global_pct
     orc["total"] = total
-    orc["lucro"] = round2(total - subtotal_custo)
+    orc["lucro"] = lucro
+    orc["margem_pct"] = margem_pct
     return orc
 
 
@@ -549,6 +564,11 @@ async def fill_linha_custos(linhas: List[dict], materiais: Optional[List[dict]] 
             l["eh_materia_prima"] = modo == "materia_prima"
             l["eh_servico"] = modo == "servico"
             l["eh_producao"] = modo == "producao"
+
+            # Linha já congelada (orçamento finalizado / OF) — não recalcular com preço actual do catálogo
+            if l.get("custo_congelado") and l.get("custo_producao_unit") is not None:
+                out.append(l)
+                continue
 
             if livre or modo == "diversos":
                 l["margem"] = 0
@@ -678,21 +698,67 @@ def recompute_of_status(of: dict) -> dict:
     return of
 
 
+async def herdar_bom_do_pai(a: dict) -> dict:
+    """Variante sem receita/ops herda materiais e roteiro do artigo pai."""
+    if not a:
+        return a
+    pai_id = a.get("pai_id")
+    if not pai_id:
+        return a
+    needs_mat = not (a.get("materiais") or [])
+    needs_rot = not (a.get("roteiro") or [])
+    if not needs_mat and not needs_rot:
+        return a
+    pai = await artigos_repo.get(pai_id)
+    if not pai:
+        return a
+    out = dict(a)
+    if needs_mat:
+        out["materiais"] = list(pai.get("materiais") or [])
+    if needs_rot:
+        out["roteiro"] = list(pai.get("roteiro") or [])
+    return out
+
+
 async def build_of_itens(itens: List[dict]) -> List[dict]:
-    """Auto-load roteiro de operações from artigo for each item."""
+    """Auto-load roteiro de operações from artigo for each item.
+
+    Congela custo_compra_unit / custo_producao_unit no momento da criação da OF
+    para que alterações futuras no catálogo não recalculem OFs antigas.
+    """
     out = []
     for it in itens:
         if not it.get("id"):
             it["id"] = new_id()
         a = await artigos_repo.get(it.get("artigo_id"))
+        if a:
+            a = await herdar_bom_do_pai(a)
         operacoes = it.get("operacoes")
         if a:
             it["artigo_nome"] = a.get("nome", it.get("artigo_nome", ""))
             it["unidade"] = a.get("unidade") or it.get("unidade") or "un"
             if not it.get("imagem") and a.get("imagem"):
                 it["imagem"] = a.get("imagem")
+            # Preserva arte da linha (já vem da encomenda/orçamento)
+            it.setdefault("arte_path", it.get("arte_path") or "")
+            it.setdefault("arte_nome", it.get("arte_nome") or "")
+            it.setdefault("arte_content_type", it.get("arte_content_type") or "")
+            bd = await artigo_breakdown(a)
             if not it.get("preco_unit"):
-                it["preco_unit"] = (await artigo_breakdown(a)).get("preco_venda") or 0
+                it["preco_unit"] = bd.get("preco_venda") or 0
+            # Snapshot de custo — só na 1.ª vez (não sobrescrever OF já congelada)
+            if not it.get("custo_congelado"):
+                it["custo_compra_unit"] = round2(
+                    it.get("custo_compra_unit")
+                    if it.get("custo_compra_unit")
+                    else (bd.get("custo_artigo") or custo_unitario_compra(a) or 0)
+                )
+                it["custo_producao_unit"] = round2(
+                    it.get("custo_producao_unit")
+                    if it.get("custo_producao_unit")
+                    else (bd.get("custo_producao_total") or it["custo_compra_unit"])
+                )
+                it["custo_congelado"] = True
             if not operacoes:
                 operacoes = []
                 for op in a.get("roteiro", []):
@@ -916,7 +982,8 @@ async def compute_encomenda(enc: dict) -> dict:
     orc = None
     if enc.get("orcamento_id"):
         orc = await orcamentos_repo.get(enc["orcamento_id"])
-    return _compute_encomenda_core(enc, ofs, settings, orc)
+    ncs = await nao_conformidades_repo.find({"encomenda_id": enc["id"]}, limit=500)
+    return _compute_encomenda_core(enc, ofs, settings, orc, ncs=ncs)
 
 
 async def compute_encomendas_many(
@@ -941,6 +1008,14 @@ async def compute_encomendas_many(
         eid = o.get("encomenda_id")
         if eid and (not idset or eid in idset):
             ofs_by.setdefault(eid, []).append(o)
+    ncs_by: dict = {}
+    if ids:
+        for n in await nao_conformidades_repo.find(
+            {"encomenda_id": {"$in": ids}}, limit=max(5000, len(ids) * 20)
+        ):
+            eid = n.get("encomenda_id")
+            if eid and (not idset or eid in idset):
+                ncs_by.setdefault(eid, []).append(n)
     orc_by = {}
     if include_orcamento:
         orc_ids = list({e["orcamento_id"] for e in encs if e.get("orcamento_id")})
@@ -954,6 +1029,7 @@ async def compute_encomendas_many(
             ofs_by.get(e.get("id"), []),
             settings,
             orc_by.get(e.get("orcamento_id")) if include_orcamento else None,
+            ncs=ncs_by.get(e.get("id"), []),
         )
         for e in encs
     ]
@@ -1050,7 +1126,13 @@ async def compute_encomendas_alertas(encs: list, ofs_all: Optional[list] = None)
     return out
 
 
-def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[dict] = None) -> dict:
+def _compute_encomenda_core(
+    enc: dict,
+    ofs: list,
+    settings: dict,
+    orc: Optional[dict] = None,
+    ncs: Optional[list] = None,
+) -> dict:
     enc = {**enc}
     ofs = [recompute_of_status(o) for o in ofs]
     enc["num_ofs"] = len(ofs)
@@ -1092,8 +1174,10 @@ def _compute_encomenda_core(enc: dict, ofs: list, settings: dict, orc: Optional[
             for op in it.get("operacoes", []):
                 custo_est += op.get("custo_estimado") or 0
                 custo_real += op_custo_real(op)
+    custo_nc = sum(float(n.get("custo_desperdicio") or 0) for n in (ncs or []))
+    enc["custo_desperdicio_nc"] = round2(custo_nc)
     enc["custo_producao_estimado"] = round2(custo_est)
-    enc["custo_producao_real"] = round2(custo_real)
+    enc["custo_producao_real"] = round2(custo_real + custo_nc)
 
     valor_orcamento = None
     if enc.get("orcamento_id") and orc:

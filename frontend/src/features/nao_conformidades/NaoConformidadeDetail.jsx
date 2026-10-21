@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -23,15 +24,29 @@ export default function NaoConformidadeDetail() {
   const nav = useNavigate();
   const [tab, setTab] = useDetailTab(["nc", "ficheiros", "historico"], "nc");
   const [nc, setNc] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     setNc(await api.get(`/nao-conformidades/${id}`));
+    setDirty(false);
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
   if (!nc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  const upd = (patch) => setNc({ ...nc, ...patch });
+  const upd = (patch) => {
+    setDirty(true);
+    setNc({ ...nc, ...patch });
+  };
 
   const save = async () => {
     try {
@@ -44,12 +59,16 @@ export default function NaoConformidadeDetail() {
         notas: nc.notas || "",
       });
       setNc(updated);
+      setDirty(false);
       toast.success("Não conformidade guardada");
+      return true;
     } catch (e) {
       const d = e?.response?.data?.detail;
       toast.error(typeof d === "string" ? d : "Não foi possível guardar");
+      return false;
     }
   };
+  saveForLeaveRef.current = save;
 
   const remove = async () => {
     if (!window.confirm("Eliminar esta não conformidade?")) return;

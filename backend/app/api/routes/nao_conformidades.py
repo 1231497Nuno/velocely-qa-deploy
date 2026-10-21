@@ -3,20 +3,25 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.database import round2
 from app.core.security import require_perm
 from app.core.pagination import parse_page, page_payload, text_search
 from app.domain.models import (
     NaoConformidade, NaoConformidadeInput, NC_ESTADO_PT, NC_TIPO_PT,
 )
 from app.repositories import (
-    nao_conformidades_repo, encomendas_repo, artigos_repo,
+    nao_conformidades_repo, encomendas_repo, artigos_repo, ordens_repo,
 )
 from app.services.numeracao import next_codigo
+from app.services.costing import custo_unitario_compra, artigo_breakdown
 from app.services import audit
 
 router = APIRouter()
 
-_NC_CAMPOS = ["tipo", "descricao", "acao_corretiva", "estado", "quantidade", "notas"]
+_NC_CAMPOS = [
+    "tipo", "descricao", "acao_corretiva", "estado", "quantidade", "notas",
+    "custo_unitario", "custo_desperdicio", "stock_abatido",
+]
 _ESTADOS = set(NC_ESTADO_PT)
 _TIPOS = set(NC_TIPO_PT)
 
@@ -51,6 +56,45 @@ async def _fill_referencia(enc: dict, data: NaoConformidadeInput) -> NaoConformi
     if (data.quantidade or 0) <= 0:
         data.quantidade = float(linha.get("quantidade") or 0) or 1
     return data
+
+
+async def _custo_unit_desperdicio(artigo_id: Optional[str], encomenda_id: str) -> float:
+    """Custo unitário do desperdício: snapshot da OF se existir, senão custo do artigo."""
+    if not artigo_id:
+        return 0.0
+    ofs = await ordens_repo.find({"encomenda_id": encomenda_id}, limit=200)
+    for o in ofs:
+        for it in o.get("itens") or []:
+            if it.get("artigo_id") != artigo_id:
+                continue
+            cu = float(it.get("custo_producao_unit") or 0) or float(it.get("custo_compra_unit") or 0)
+            if cu > 0:
+                return round2(cu)
+    art = await artigos_repo.get(artigo_id)
+    if not art:
+        return 0.0
+    try:
+        bd = await artigo_breakdown(art)
+        cu = float(bd.get("custo_producao_total") or 0) or float(bd.get("custo_artigo") or 0)
+        if cu > 0:
+            return round2(cu)
+    except Exception:
+        pass
+    return round2(custo_unitario_compra(art) or 0)
+
+
+async def _abater_stock(artigo_id: Optional[str], delta: float) -> None:
+    """Abate (delta>0) ou repõe (delta<0) stock do artigo."""
+    if not artigo_id or abs(delta) < 1e-9:
+        return
+    art = await artigos_repo.get(artigo_id)
+    if not art:
+        return
+    # Serviços não têm stock físico
+    if (art.get("tipo") or "") == "servico":
+        return
+    atual = float(art.get("qtd_stock") or 0)
+    await artigos_repo.update(artigo_id, {"qtd_stock": round2(atual - delta)})
 
 
 @router.get("/nao-conformidades")
@@ -111,13 +155,19 @@ async def create_nc_encomenda(
         raise HTTPException(404, "Encomenda não encontrada")
     if enc.get("estado") == "cancelada":
         raise HTTPException(400, "Não é possível abrir não conformidades numa encomenda cancelada")
-    if not enc.get("entregue"):
-        raise HTTPException(400, "Só é possível abrir não conformidades sobre material já entregue.")
     if data.tipo not in _TIPOS:
         raise HTTPException(400, f"Tipo inválido. Use: {', '.join(NC_TIPO_PT)}")
     if not (data.descricao or "").strip():
         raise HTTPException(400, "Descreva a não conformidade")
     data = await _fill_referencia(enc, data)
+    qtd = float(data.quantidade or 0)
+    if qtd <= 0:
+        raise HTTPException(400, "A quantidade da não conformidade deve ser positiva")
+
+    custo_unit = await _custo_unit_desperdicio(data.artigo_id, eid)
+    custo_desp = round2(custo_unit * qtd)
+    await _abater_stock(data.artigo_id, qtd)
+
     payload = data.model_dump()
     payload.update({
         "encomenda_id": eid,
@@ -126,6 +176,9 @@ async def create_nc_encomenda(
         "cliente_id": enc.get("cliente_id"),
         "created_by": user.get("id"),
         "created_by_nome": _user_nome(user),
+        "custo_unitario": custo_unit,
+        "custo_desperdicio": custo_desp,
+        "stock_abatido": True,
     })
     nc = NaoConformidade(**payload)
     nc.numero = await next_codigo("nao_conformidade")
@@ -134,12 +187,14 @@ async def create_nc_encomenda(
     ref = nc.artigo_codigo or nc.artigo_nome or "referência"
     await audit.registar(
         "nao_conformidade", nc.id, "criado", user,
-        f"Não conformidade {nc.numero} aberta na encomenda {nc.encomenda_numero} · {ref}",
+        f"Não conformidade {nc.numero} aberta na encomenda {nc.encomenda_numero} · {ref}"
+        + (f" · desperdício {custo_desp:.2f} €" if custo_desp else ""),
         nc.numero,
     )
     await audit.registar(
         "encomenda", eid, "nao_conformidade", user,
-        f"Não conformidade {nc.numero} aberta na referência {ref}",
+        f"Não conformidade {nc.numero} aberta na referência {ref}"
+        + (f" (−{qtd:g} stock, +{custo_desp:.2f} € custo)" if qtd else ""),
         enc.get("numero"),
     )
     return dumped
@@ -159,9 +214,27 @@ async def update_nao_conformidade(
     if data.estado and data.estado not in _ESTADOS:
         raise HTTPException(400, f"Estado inválido. Use: {', '.join(NC_ESTADO_PT)}")
     patch = data.model_dump(exclude_unset=True)
-    patch = {k: patch[k] for k in _NC_CAMPOS if k in patch}
+    patch = {k: patch[k] for k in _NC_CAMPOS if k in patch and k not in (
+        "custo_unitario", "custo_desperdicio", "stock_abatido",
+    )}
     if not patch:
         return existing
+
+    # Ajuste de stock/custo se a quantidade mudar
+    if "quantidade" in patch and existing.get("stock_abatido"):
+        old_q = float(existing.get("quantidade") or 0)
+        new_q = float(patch.get("quantidade") or 0)
+        if new_q <= 0:
+            raise HTTPException(400, "A quantidade da não conformidade deve ser positiva")
+        delta = new_q - old_q
+        if abs(delta) > 1e-9:
+            await _abater_stock(existing.get("artigo_id"), delta)
+        custo_unit = float(existing.get("custo_unitario") or 0)
+        if custo_unit <= 0 and existing.get("encomenda_id"):
+            custo_unit = await _custo_unit_desperdicio(existing.get("artigo_id"), existing["encomenda_id"])
+            patch["custo_unitario"] = custo_unit
+        patch["custo_desperdicio"] = round2(custo_unit * new_q)
+
     await nao_conformidades_repo.update(nid, patch)
     merged = {**existing, **patch}
     alteracoes = audit.diff_campos(existing, merged, _NC_CAMPOS)
@@ -189,6 +262,8 @@ async def delete_nao_conformidade(
     existing = await nao_conformidades_repo.get(nid)
     await nao_conformidades_repo.delete({"id": nid})
     if existing:
+        if existing.get("stock_abatido"):
+            await _abater_stock(existing.get("artigo_id"), -float(existing.get("quantidade") or 0))
         await audit.registar(
             "nao_conformidade", nid, "eliminado", user,
             f"Não conformidade {existing.get('numero')} eliminada",

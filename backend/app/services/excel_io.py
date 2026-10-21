@@ -1460,6 +1460,7 @@ async def _upsert_row(
             "website": _norm_str(row.get("website")),
             "ficha_produto": _norm_str(row.get("ficha_produto")),
             "plano_contas": _norm_code(row.get("plano_contas")),
+            "conta_proveitos": _norm_code(row.get("conta_proveitos")),
             "codigo_produto": _norm_code(row.get("codigo_produto")),
             "comprimento_mm": _parse_float(row.get("comprimento_mm")),
             "largura_mm": _parse_float(row.get("largura_mm")),
@@ -1477,7 +1478,16 @@ async def _upsert_row(
             "diversos": _parse_bool(row.get("diversos")),
             "ativo": ativo,
         }
-        existing = await artigos_repo.find_one({"codigo": codigo}) if codigo else None
+        if row.get("iva_taxa") not in (None, ""):
+            patch["iva_taxa"] = _parse_float(row.get("iva_taxa"))
+        # Upsert: Nº produto OU Cód. fornecedor — nunca só pelo nome
+        existing = None
+        if codigo:
+            existing = await artigos_repo.find_one({"codigo": codigo})
+        if not existing:
+            cod_forn = _norm_code(row.get("cod_fornecedor"))
+            if cod_forn:
+                existing = await artigos_repo.find_one({"cod_fornecedor": cod_forn})
         if existing:
             if not allow_update:
                 return "skip", {"codigo": existing.get("codigo") or codigo, "nome": existing.get("nome") or nome, "motivo": "já existe"}

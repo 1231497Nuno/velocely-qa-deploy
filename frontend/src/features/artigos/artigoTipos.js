@@ -76,42 +76,45 @@ export function blocosVisiveis(tipo, produzido) {
 }
 
 /** Campos do bloco «detalhes» visíveis por tipo. */
+const DETALHES_AUDIT = ["created_at", "created_by", "updated_at", "updated_by"];
+const DETALHES_CONTAB = ["plano_contas", "conta_proveitos", "iva_taxa"];
+
 const DETALHES_MP = [
   "nome", "codigo", "tipo_artigo",
   "fabricante", "categoria", "fornecedor", "subcategoria",
-  "cod_fornecedor", "cod_fabricante", "plano_contas", "descricao", "imagem",
-  "created_at", "created_by", "updated_at",
+  "cod_fornecedor", "cod_fabricante", ...DETALHES_CONTAB, "descricao", "imagem",
+  ...DETALHES_AUDIT,
 ];
 
 const DETALHES_BY_TIPO = {
   ativo: [
-    "nome", "codigo", "tipo_artigo", "produzido",
+    "nome", "codigo", "tipo_artigo", "produzido", "variantes",
     "fabricante", "categoria", "fornecedor", "subcategoria",
     "cod_fornecedor", "website", "ficha_produto", "cod_fabricante",
-    "plano_contas", "descricao", "imagem",
-    "created_at", "created_by", "updated_at",
+    ...DETALHES_CONTAB, "descricao", "imagem",
+    ...DETALHES_AUDIT,
   ],
   materia_prima: DETALHES_MP,
   consumivel: DETALHES_MP,
   servico: [
     "nome", "codigo", "tipo_artigo",
-    "categoria", "subcategoria", "website", "ficha_produto", "plano_contas",
+    "categoria", "subcategoria", "website", "ficha_produto", ...DETALHES_CONTAB,
     "descricao", "imagem",
-    "created_at", "created_by", "updated_at",
+    ...DETALHES_AUDIT,
   ],
   nao_utilizado: [
     "nome", "codigo", "tipo_artigo",
     "fabricante", "categoria", "fornecedor", "subcategoria",
     "cod_fornecedor", "website", "ficha_produto", "cod_fabricante",
-    "plano_contas", "descricao", "imagem",
-    "created_at", "created_by", "updated_at",
+    ...DETALHES_CONTAB, "descricao", "imagem",
+    ...DETALHES_AUDIT,
   ],
   inativo: [
     "nome", "codigo", "tipo_artigo",
     "fabricante", "categoria", "fornecedor", "subcategoria",
     "cod_fornecedor", "website", "ficha_produto", "cod_fabricante",
-    "plano_contas", "descricao", "imagem",
-    "created_at", "created_by", "updated_at",
+    ...DETALHES_CONTAB, "descricao", "imagem",
+    ...DETALHES_AUDIT,
   ],
 };
 
@@ -188,6 +191,7 @@ export function isMateriaPrima(tipoOuArtigo) {
 export const emptyArtigoForm = {
   tipo_artigo: "ativo",
   produzido: false,
+  tem_variantes: false,
   nome: "",
   descricao: "",
   unidade: "un",
@@ -209,6 +213,8 @@ export const emptyArtigoForm = {
   website: "",
   ficha_produto: "",
   plano_contas: "",
+  conta_proveitos: "",
+  iva_taxa: "",
   codigo_produto: "",
   comprimento_mm: 0,
   largura_mm: 0,
@@ -228,6 +234,14 @@ export const emptyArtigoForm = {
   diversos: false,
 };
 
+/** Valida taxonomia obrigatória (exceto artigos diversos). */
+export function validateArtigoTaxonomia(form) {
+  if (form?.diversos) return null;
+  if (!form?.categoria_id) return "Categoria de produto é obrigatória";
+  if (!form?.subcategoria_id) return "Sub categoria é obrigatória";
+  return null;
+}
+
 export function buildArtigoBody(form) {
   let tipo = form.tipo_artigo || "ativo";
   if (tipo === "produzido") tipo = "ativo";
@@ -240,6 +254,7 @@ export function buildArtigoBody(form) {
     imagem: form.imagem || "",
     tipo_artigo: tipo,
     produzido,
+    tem_variantes: !!form.tem_variantes,
     custo_artigo: Number(formPlaca.custo_artigo) || 0,
     preco_compra: isMateriaPrima(tipo) ? (Number(form.preco_compra) || 0) : 0,
     margem: form.diversos ? 0 : (Number(form.margem) || 0),
@@ -257,6 +272,8 @@ export function buildArtigoBody(form) {
     website: form.website || "",
     ficha_produto: form.ficha_produto || "",
     plano_contas: form.plano_contas || "",
+    conta_proveitos: form.conta_proveitos || "",
+    iva_taxa: form.iva_taxa === "" || form.iva_taxa == null ? null : Number(form.iva_taxa),
     codigo_produto: form.codigo_produto || "",
     comprimento_mm: tipo === "servico" ? 0 : (Number(form.comprimento_mm) || 0),
     largura_mm: tipo === "servico" ? 0 : (Number(form.largura_mm) || 0),

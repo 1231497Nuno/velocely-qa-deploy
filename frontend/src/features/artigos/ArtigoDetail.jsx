@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -21,16 +22,26 @@ import {
   isMateriaPrima,
   buildArtigoBody,
   mostraCampo,
+  validateArtigoTaxonomia,
 } from "@/features/artigos/artigoTipos";
 import ArtigoBlocosShell from "@/features/artigos/ArtigoBlocosShell";
 import { unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
 import ArtigoFichaCampos from "@/features/artigos/ArtigoFichaCampos";
 import ArtigoMateriaisReceita from "@/features/artigos/ArtigoMateriaisReceita";
+import ArtigoVariantesEditor from "@/features/artigos/ArtigoVariantesEditor";
+import PropagaPrecoVariantesDialog from "@/features/artigos/PropagaPrecoVariantesDialog";
 import { materialLinhaCusto, normalizeMateriaisReceita } from "@/features/artigos/artigoMateriais";
 import { InlineField, fieldCls, contentWidthCh, fitInputCls, fitSelectCls } from "@/features/artigos/ArtigoInlineEdit";
 
 const toHours = (val, unit) => (Number(val) || 0) / (unit === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
+
+const CAMPOS_PRECO = ["margem", "custo_artigo", "preco_compra"];
+
+function camposPrecoAlterados(antes, depois) {
+  if (!antes || !depois) return [];
+  return CAMPOS_PRECO.filter((k) => Number(antes[k]) !== Number(depois[k]));
+}
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
   <div data-testid={testid} className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden">
@@ -57,6 +68,7 @@ function artigoToDraft(a) {
     imagem: a.imagem || "",
     tipo_artigo: tipo,
     produzido,
+    tem_variantes: !!a.tem_variantes,
     custo_artigo: a.custo_artigo ?? 0,
     preco_compra: a.preco_compra ?? 0,
     margem: isDiversosArtigo(a) ? 0 : (a.margem ?? 30),
@@ -74,6 +86,8 @@ function artigoToDraft(a) {
     website: a.website || "",
     ficha_produto: a.ficha_produto || "",
     plano_contas: a.plano_contas || "",
+    conta_proveitos: a.conta_proveitos || "",
+    iva_taxa: a.iva_taxa == null ? "" : a.iva_taxa,
     codigo_produto: a.codigo_produto || "",
     comprimento_mm: a.comprimento_mm ?? 0,
     largura_mm: a.largura_mm ?? 0,
@@ -123,8 +137,18 @@ export default function ArtigoDetail() {
   const [fieldSaving, setFieldSaving] = useState(false);
   const [lookupsReady, setLookupsReady] = useState(false);
   const [usoOpen, setUsoOpen] = useState(false);
+  const [propagaPreco, setPropagaPreco] = useState(null); // { campos, precoVenda }
   const fieldRefs = useRef({});
   const artigoRef = useRef(null);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty: editing,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -207,6 +231,16 @@ export default function ArtigoDetail() {
     setDraft(artigoToDraft(artigo));
   }, []);
 
+  const maybeAskPropagaPreco = useCallback((antes, depois, artigoSaved) => {
+    if (!depois?.tem_variantes || depois?.pai_id) return;
+    const mudou = camposPrecoAlterados(antes, depois);
+    if (!mudou.length) return;
+    setPropagaPreco({
+      campos: mudou,
+      precoVenda: artigoSaved?.preco_venda,
+    });
+  }, []);
+
   /** Gravação rápida de 1 campo (fora do modo edição completo). */
   const saveFieldPatch = useCallback(async (patch) => {
     if (!canEdit || editing) return;
@@ -217,17 +251,23 @@ export default function ArtigoDetail() {
       toast.error("Indique o nome do artigo");
       return;
     }
+    const taxErr = validateArtigoTaxonomia(next);
+    if (taxErr) {
+      toast.error(taxErr);
+      return;
+    }
     setFieldSaving(true);
     try {
       await api.put(`/artigos/${id}`, buildArtigoBody(next));
       const artigo = await api.get(`/artigos/${id}`);
       applyArtigo(artigo);
+      maybeAskPropagaPreco(base, next, artigo);
     } catch (e) {
-      toast.error(e?.message || "Erro ao guardar");
+      toast.error(e?.response?.data?.detail || e?.message || "Erro ao guardar");
     } finally {
       setFieldSaving(false);
     }
-  }, [canEdit, editing, id, applyArtigo]);
+  }, [canEdit, editing, id, applyArtigo, maybeAskPropagaPreco]);
 
   const startFullEdit = async () => {
     if (!canEdit || !data?.artigo) return;
@@ -242,8 +282,17 @@ export default function ArtigoDetail() {
   };
 
   const saveEdit = async () => {
-    if (!draft) return;
-    if (!String(draft.nome || "").trim()) return toast.error("Indique o nome do artigo");
+    if (!draft) return false;
+    if (!String(draft.nome || "").trim()) {
+      toast.error("Indique o nome do artigo");
+      return false;
+    }
+    const taxErr = validateArtigoTaxonomia(draft);
+    if (taxErr) {
+      toast.error(taxErr);
+      return false;
+    }
+    const antes = artigoToDraft(artigoRef.current || data?.artigo);
     setSaving(true);
     try {
       await api.put(`/artigos/${id}`, buildArtigoBody(draft));
@@ -251,16 +300,20 @@ export default function ArtigoDetail() {
       applyArtigo(artigo);
       setEditing(false);
       toast.success("Artigo guardado");
+      maybeAskPropagaPreco(antes, draft, artigo);
       api.get(`/artigos/${id}/resumo`).then((resumo) => {
         setData({ ...resumo, _parcial: false });
         setDraft(artigoToDraft(resumo.artigo));
       }).catch(() => null);
+      return true;
     } catch (e) {
-      toast.error(e?.message || "Erro ao guardar");
+      toast.error(e?.response?.data?.detail || e?.message || "Erro ao guardar");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  saveForLeaveRef.current = saveEdit;
 
   if (loading && !data) return <div className="text-sm text-gray-500">A carregar...</div>;
   if (!data) return <div className="text-sm text-gray-500">Artigo não encontrado.</div>;
@@ -379,6 +432,12 @@ export default function ArtigoDetail() {
       materiais: checked ? (prev.materiais || []) : [],
       roteiro: checked ? (prev.roteiro || []) : [],
     });
+    if (editing) setDraft((prev) => apply(prev));
+    else saveFieldPatch(apply(artigoToDraft(a)));
+  };
+
+  const setTemVariantes = (checked) => {
+    const apply = (prev) => ({ ...prev, tem_variantes: checked });
     if (editing) setDraft((prev) => apply(prev));
     else saveFieldPatch(apply(artigoToDraft(a)));
   };
@@ -512,6 +571,30 @@ export default function ArtigoDetail() {
             <KPI icon={TrendingUp} label="Ganho estimado" value={kpiVal(stats.ganho, true)} sub="Receita − custo de produção" testid="artigo-kpi-ganho" />
           </div>
 
+          {!a?.pai_id && (editing ? draft?.tem_variantes : a?.tem_variantes) && (
+            <div className="mb-6">
+              <ArtigoVariantesEditor
+                paiId={id}
+                paiNome={a?.nome || ""}
+                canEdit={can("artigos", "create") || canEdit}
+              />
+            </div>
+          )}
+          {a?.pai_id && (
+            <div className="mb-4 rounded-sm border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900" data-testid="artigo-variante-badge">
+              Variante de{" "}
+              <button type="button" className="font-medium underline" onClick={() => nav(`/artigos/${a.pai_id}`)}>
+                {a.pai_codigo || "artigo pai"}
+              </button>
+              {(a.variante_label || a.variante_cor || a.variante_tamanho) ? (
+                <span>
+                  {" "}— {a.variante_label
+                    || [a.variante_cor, a.variante_tamanho].filter(Boolean).join(" / ")}
+                </span>
+              ) : null}
+            </div>
+          )}
+
           <ArtigoBlocosShell
             tipo={tipoAtual}
             produzido={produzido}
@@ -531,6 +614,7 @@ export default function ArtigoDetail() {
                     onPatch={saveFieldPatch}
                     onSetTipo={setTipo}
                     onSetProduzido={setProduzido}
+                    onSetTemVariantes={setTemVariantes}
                     onSetCategoria={setCategoria}
                     onSetSubcategoria={setSubcategoria}
                   />
@@ -912,6 +996,15 @@ export default function ArtigoDetail() {
         endpoint={id ? `/artigos/${id}/utilizacoes` : null}
         titulo={a ? `Onde é usado: ${a.nome}` : "Onde é usado"}
         subtitulo="Artigos produzidos que usam esta matéria-prima na receita, e documentos onde aparece."
+      />
+
+      <PropagaPrecoVariantesDialog
+        open={!!propagaPreco}
+        onOpenChange={(v) => { if (!v) setPropagaPreco(null); }}
+        paiId={id}
+        paiNome={a?.nome}
+        campos={propagaPreco?.campos || CAMPOS_PRECO}
+        precoVenda={propagaPreco?.precoVenda}
       />
     </div>
   );

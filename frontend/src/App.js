@@ -1,7 +1,8 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/features/auth/Login";
@@ -50,62 +51,72 @@ function Protected({ children, adminOnly, modulo }) {
   return <Layout><ErrorBoundary>{children}</ErrorBoundary></Layout>;
 }
 
-function AppRoutes() {
+/** Layout raiz: provider de alterações por guardar (precisa de data router). */
+function RootLayout() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/definir-password" element={<DefinirPassword />} />
-      <Route path="/" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/calendario" element={<Protected modulo="calendario"><Calendario /></Protected>} />
-      <Route path="/clientes" element={<Protected modulo="clientes"><Clientes /></Protected>} />
-      <Route path="/clientes/:id" element={<Protected modulo="clientes"><ClienteDetail /></Protected>} />
-      <Route path="/fornecedores" element={<Protected modulo="fornecedores"><Fornecedores /></Protected>} />
-      <Route path="/fornecedores/:id" element={<Protected modulo="fornecedores"><FornecedorDetail /></Protected>} />
-      <Route path="/ordens-compra" element={<Protected modulo="ordens_compra"><OrdensCompra /></Protected>} />
-      <Route path="/ordens-compra/:id" element={<Protected modulo="ordens_compra"><OrdemCompraDetail /></Protected>} />
-      <Route path="/pedidos-cotacao" element={<Protected modulo="pedidos_cotacao"><PedidosCotacao /></Protected>} />
-      <Route path="/pedidos-cotacao/:id" element={<Protected modulo="pedidos_cotacao"><PedidoCotacaoDetail /></Protected>} />
-      <Route path="/encomendas" element={<Protected modulo="encomendas"><Encomendas /></Protected>} />
-      <Route path="/encomendas/:id" element={<Protected modulo="encomendas"><EncomendaDetail /></Protected>} />
-      <Route path="/nao-conformidades" element={<Protected modulo="nao_conformidades"><NaoConformidades /></Protected>} />
-      <Route path="/nao-conformidades/:id" element={<Protected modulo="nao_conformidades"><NaoConformidadeDetail /></Protected>} />
-      <Route path="/financeiro" element={<Protected modulo="financeiro"><Financeiro /></Protected>} />
-      <Route path="/financeiro/:id" element={<Protected modulo="financeiro"><DocumentoFinanceiroDetail /></Protected>} />
-      <Route path="/contas" element={<Protected modulo="contas"><Contas /></Protected>} />
-      <Route path="/contas/:id" element={<Protected modulo="contas"><ContaDetail /></Protected>} />
-      <Route path="/artigos" element={<Protected modulo="artigos"><Artigos /></Protected>} />
-      <Route path="/artigos/novo" element={<Protected modulo="artigos"><ArtigoNovo /></Protected>} />
-      <Route path="/artigos/:id" element={<Protected modulo="artigos"><ArtigoDetail /></Protected>} />
-      <Route path="/categorias" element={<Protected modulo="artigos"><Categorias /></Protected>} />
-      <Route path="/subcategorias" element={<Navigate to="/categorias" replace />} />
-      <Route path="/maquinas" element={<Protected modulo="maquinas"><Maquinas /></Protected>} />
-      <Route path="/materiais" element={<Navigate to="/artigos" replace />} />
-      <Route path="/mao-obra" element={<Protected modulo="mao_obra"><MaoObra /></Protected>} />
-      <Route path="/personalizacao" element={<Protected modulo="personalizacao"><TiposPersonalizacao /></Protected>} />
-      <Route path="/orcamentos" element={<Protected modulo="orcamentos"><Orcamentos /></Protected>} />
-      <Route path="/orcamentos/:id" element={<Protected modulo="orcamentos"><OrcamentoDetail /></Protected>} />
-      <Route path="/ordens-fabrico" element={<Protected modulo="ordens_fabrico"><OrdensFabrico /></Protected>} />
-      <Route path="/ordens-fabrico/:id" element={<Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected>} />
-      <Route path="/analise-producao" element={<Protected modulo="analise_producao"><AnaliseProducao /></Protected>} />
-      <Route path="/rentabilidade-clientes" element={<Protected modulo="rentabilidade"><RentabilidadeClientes /></Protected>} />
-      <Route path="/utilizadores" element={<Protected adminOnly><GestaoUtilizadores /></Protected>} />
-      <Route path="/historico" element={<Protected modulo="historico"><Historico /></Protected>} />
-      <Route path="/definicoes" element={<Protected modulo="definicoes"><Definicoes /></Protected>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <UnsavedChangesProvider>
+      <Outlet />
+    </UnsavedChangesProvider>
   );
 }
 
+const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    children: [
+      { path: "/login", element: <Login /> },
+      { path: "/definir-password", element: <DefinirPassword /> },
+      { path: "/", element: <Protected><Dashboard /></Protected> },
+      { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
+      { path: "/clientes", element: <Protected modulo="clientes"><Clientes /></Protected> },
+      { path: "/clientes/:id", element: <Protected modulo="clientes"><ClienteDetail /></Protected> },
+      { path: "/fornecedores", element: <Protected modulo="fornecedores"><Fornecedores /></Protected> },
+      { path: "/fornecedores/:id", element: <Protected modulo="fornecedores"><FornecedorDetail /></Protected> },
+      { path: "/ordens-compra", element: <Protected modulo="ordens_compra"><OrdensCompra /></Protected> },
+      { path: "/ordens-compra/:id", element: <Protected modulo="ordens_compra"><OrdemCompraDetail /></Protected> },
+      { path: "/pedidos-cotacao", element: <Protected modulo="pedidos_cotacao"><PedidosCotacao /></Protected> },
+      { path: "/pedidos-cotacao/:id", element: <Protected modulo="pedidos_cotacao"><PedidoCotacaoDetail /></Protected> },
+      { path: "/encomendas", element: <Protected modulo="encomendas"><Encomendas /></Protected> },
+      { path: "/encomendas/:id", element: <Protected modulo="encomendas"><EncomendaDetail /></Protected> },
+      { path: "/nao-conformidades", element: <Protected modulo="nao_conformidades"><NaoConformidades /></Protected> },
+      { path: "/nao-conformidades/:id", element: <Protected modulo="nao_conformidades"><NaoConformidadeDetail /></Protected> },
+      { path: "/financeiro", element: <Protected modulo="financeiro"><Financeiro /></Protected> },
+      { path: "/financeiro/:id", element: <Protected modulo="financeiro"><DocumentoFinanceiroDetail /></Protected> },
+      { path: "/contas", element: <Protected modulo="contas"><Contas /></Protected> },
+      { path: "/contas/:id", element: <Protected modulo="contas"><ContaDetail /></Protected> },
+      { path: "/artigos", element: <Protected modulo="artigos"><Artigos /></Protected> },
+      { path: "/artigos/novo", element: <Protected modulo="artigos"><ArtigoNovo /></Protected> },
+      { path: "/artigos/:id", element: <Protected modulo="artigos"><ArtigoDetail /></Protected> },
+      { path: "/categorias", element: <Protected modulo="artigos"><Categorias /></Protected> },
+      { path: "/subcategorias", element: <Navigate to="/categorias" replace /> },
+      { path: "/maquinas", element: <Protected modulo="maquinas"><Maquinas /></Protected> },
+      { path: "/materiais", element: <Navigate to="/artigos" replace /> },
+      { path: "/mao-obra", element: <Protected modulo="mao_obra"><MaoObra /></Protected> },
+      { path: "/personalizacao", element: <Protected modulo="personalizacao"><TiposPersonalizacao /></Protected> },
+      { path: "/orcamentos", element: <Protected modulo="orcamentos"><Orcamentos /></Protected> },
+      { path: "/orcamentos/:id", element: <Protected modulo="orcamentos"><OrcamentoDetail /></Protected> },
+      { path: "/ordens-fabrico", element: <Protected modulo="ordens_fabrico"><OrdensFabrico /></Protected> },
+      { path: "/ordens-fabrico/:id", element: <Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected> },
+      { path: "/analise-producao", element: <Protected modulo="analise_producao"><AnaliseProducao /></Protected> },
+      { path: "/rentabilidade-clientes", element: <Protected modulo="rentabilidade"><RentabilidadeClientes /></Protected> },
+      { path: "/utilizadores", element: <Protected adminOnly><GestaoUtilizadores /></Protected> },
+      { path: "/historico", element: <Protected modulo="historico"><Historico /></Protected> },
+      { path: "/definicoes", element: <Protected modulo="definicoes"><Definicoes /></Protected> },
+      { path: "*", element: <Navigate to="/" replace /> },
+    ],
+  },
+]);
+
 function App() {
   return (
-    <BrowserRouter>
+    <>
       <Toaster position="top-right" richColors />
       <ErrorBoundary>
         <AuthProvider>
-          <AppRoutes />
+          <RouterProvider router={router} />
         </AuthProvider>
       </ErrorBoundary>
-    </BrowserRouter>
+    </>
   );
 }
 

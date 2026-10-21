@@ -1,5 +1,6 @@
 from io import BytesIO
 from typing import Optional
+import copy
 
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -26,6 +27,18 @@ _ENC_CAMPOS = [
     "cliente", "descricao", "prazo_entrega", "notas", "valor_total", "desconto_total", "envio",
     "entregue", "data_entrega", "contacto_id", "contacto_nome",
 ]
+
+def _artigos_congelados_do_orcamento(existing: dict, novo_artigos: list) -> list:
+    """Mantém valores do ORC; só permite actualizar imagem (não comercial)."""
+    new_by_id = {a.get("id"): a for a in (novo_artigos or []) if a.get("id")}
+    out = []
+    for old in existing.get("artigos") or []:
+        row = copy.deepcopy(old)
+        n = new_by_id.get(old.get("id")) or {}
+        if "imagem" in n:
+            row["imagem"] = n.get("imagem") or row.get("imagem") or ""
+        out.append(row)
+    return out
 
 PAG_METODO_PT = {
     "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
@@ -210,6 +223,41 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_pe
     return await _attach_ofs(await compute_encomenda(enc.model_dump()))
 
 
+async def _assert_qtd_nao_abaixo_ofs(eid: str, artigos: list) -> None:
+    """Impede reduzir quantidades da encomenda abaixo do já lançado em OFs."""
+    ofs = await ordens_repo.find({"encomenda_id": eid}, limit=500)
+    of_qty: dict = {}
+    nome_of: dict = {}
+    for o in ofs:
+        for it in o.get("itens") or []:
+            aid = it.get("artigo_id")
+            if not aid:
+                continue
+            of_qty[aid] = of_qty.get(aid, 0.0) + float(it.get("quantidade") or 0)
+            if aid not in nome_of:
+                nome_of[aid] = (it.get("artigo_nome") or "").strip()
+    enc_qty: dict = {}
+    nome_enc: dict = {}
+    for a in artigos or []:
+        aid = a.get("artigo_id")
+        if not aid:
+            continue
+        enc_qty[aid] = enc_qty.get(aid, 0.0) + float(a.get("quantidade") or 0)
+        if aid not in nome_enc:
+            nome_enc[aid] = (a.get("artigo_nome") or "").strip()
+    for aid, alocado in of_qty.items():
+        if alocado <= 0:
+            continue
+        tem = enc_qty.get(aid, 0.0)
+        if tem + 1e-9 < alocado:
+            nome = nome_enc.get(aid) or nome_of.get(aid) or "artigo"
+            raise HTTPException(
+                400,
+                f"Não é possível reduzir a quantidade de «{nome}» abaixo do já alocado em OFs "
+                f"({alocado:g}). Elimine ou ajuste a ordem de fabrico primeiro.",
+            )
+
+
 @router.put("/encomendas/{eid}")
 async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(require_perm("encomendas", "edit"))):
     existing = await encomendas_repo.get(eid)
@@ -224,19 +272,22 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     novo = await contactos_svc.apply_contacto_denorm(novo)
     orc = None
     if existing.get("orcamento_id"):
+        # Valores comerciais vêm do orçamento e não são editáveis
         orc = await orcamentos_repo.get(existing["orcamento_id"])
         backfill_pisos_preco_orcamento(existing, orc)
-    erros = aplicar_pisos_preco_orcamento(existing, novo)
-    if erros:
-        raise HTTPException(400, " ".join(erros))
-    if existing.get("orcamento_id") and novo.get("valor_total_manual") and orc:
-        piso_total = round2(compute_orcamento_totais(orc)["total"])
-        vt = round2(float(novo.get("valor_total") or 0))
-        if vt + 0.001 < piso_total:
-            raise HTTPException(
-                400,
-                f"O valor total não pode ser inferior ao do orçamento ({piso_total:.2f} €)",
-            )
+        novo["artigos"] = _artigos_congelados_do_orcamento(existing, novo.get("artigos") or [])
+        novo["desconto_total"] = existing.get("desconto_total") or 0
+        novo["desconto_total_tipo"] = existing.get("desconto_total_tipo") or "pct"
+        novo["envio"] = existing.get("envio") or 0
+        novo["valor_total_manual"] = False
+        novo["valor_total"] = None
+        novo["orcamento_id"] = existing.get("orcamento_id")
+        novo["orcamento_numero"] = existing.get("orcamento_numero")
+    else:
+        erros = aplicar_pisos_preco_orcamento(existing, novo)
+        if erros:
+            raise HTTPException(400, " ".join(erros))
+        await _assert_qtd_nao_abaixo_ofs(eid, novo.get("artigos") or [])
     numero = existing.get("numero")
     await encomendas_repo.update(eid, novo)
     # pagamento

@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import PdfExportButton from "@/components/PdfExportButton";
@@ -9,9 +10,9 @@ import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
-import ImagemUpload from "@/components/ImagemUpload";
+import ImagemUpload, { imagemUrl } from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -30,6 +31,16 @@ export default function OrdemFabricoDetail() {
   const [, setTick] = useState(0);
   const [itemAberto, setItemAberto] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const saveForLeaveRef = useRef(null);
+
+  useUnsavedChanges({
+    dirty,
+    onSave: async () => {
+      if (saveForLeaveRef.current) return saveForLeaveRef.current();
+      return true;
+    },
+  });
 
   const load = useCallback(async () => {
     try {
@@ -43,6 +54,7 @@ export default function OrdemFabricoDetail() {
         api.get("/utilizadores-lista").catch(() => []),
       ]);
       setOf(ofData);
+      setDirty(false);
       setArtigos(arts);
       setTipos(tipos);
       setMaquinas(maqs);
@@ -72,7 +84,10 @@ export default function OrdemFabricoDetail() {
   }
   if (!of) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  const upd = (patch) => setOf({ ...of, ...patch });
+  const upd = (patch) => {
+    setDirty(true);
+    setOf({ ...of, ...patch });
+  };
 
   const addItem = () => {
     upd({ itens: [...of.itens, { artigo_id: "", artigo_nome: "", quantidade: 1, personalizacoes: [], operacoes: [] }] });
@@ -140,10 +155,18 @@ export default function OrdemFabricoDetail() {
   });
 
   const save = async () => {
-    const updated = await api.put(`/ordens-fabrico/${id}`, bodyFrom(of));
-    setOf(updated);
-    toast.success("OF guardada · roteiro carregado");
+    try {
+      const updated = await api.put(`/ordens-fabrico/${id}`, bodyFrom(of));
+      setOf(updated);
+      setDirty(false);
+      toast.success("OF guardada · roteiro carregado");
+      return true;
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível guardar");
+      return false;
+    }
   };
+  saveForLeaveRef.current = save;
 
   const toggleOp = async (itemId, opId, concluida) => {
     const updated = await api.post(`/ordens-fabrico/${id}/toggle-operacao`, {
@@ -207,7 +230,7 @@ export default function OrdemFabricoDetail() {
   return (
     <div>
       {/* Barra sticky: ações + dados gerais (não saem com o scroll) */}
-      <div className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white border-b border-gray-200">
+      <div className="sticky top-14 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto flex flex-col gap-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="min-w-0 flex items-center gap-2 sm:gap-3">
@@ -388,6 +411,31 @@ export default function OrdemFabricoDetail() {
                             {nOps > 0 && (
                               <span className="tabular-nums shrink-0 text-gray-400">{nDone}/{nOps} ops</span>
                             )}
+                            {it.arte_path && (
+                              <span
+                                role="link"
+                                tabIndex={0}
+                                data-testid={`of-item-arte-${i}`}
+                                title={it.arte_nome || "Ver arte"}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const url = imagemUrl(it.arte_path);
+                                  if (url) window.open(url, "_blank", "noopener,noreferrer");
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const url = imagemUrl(it.arte_path);
+                                    if (url) window.open(url, "_blank", "noopener,noreferrer");
+                                  }
+                                }}
+                                className="inline-flex items-center gap-0.5 shrink-0 text-violet-700 hover:underline cursor-pointer"
+                              >
+                                <Paperclip size={11} />
+                                <span className="truncate max-w-[6rem]">{it.arte_nome || "Arte"}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div
@@ -409,7 +457,38 @@ export default function OrdemFabricoDetail() {
                               artigos={artigos}
                               value={it.artigo_id}
                               testid={`of-item-artigo-${i}`}
-                              onChange={(a) => updItem(i, { artigo_id: a.id, artigo_nome: a.nome, imagem: it.imagem || a.imagem || "", operacoes: [] })}
+                              onChange={(a) => updItem(i, {
+                                artigo_id: a.id,
+                                artigo_nome: a.nome,
+                                imagem: it.imagem || a.imagem || "",
+                                unidade: a.unidade || it.unidade || "un",
+                                operacoes: [],
+                              })}
+                              onChangeMulti={(picked) => {
+                                if (!picked?.length) return;
+                                const first = picked[0];
+                                const rest = picked.slice(1).map((p) => ({
+                                  artigo_id: p.id,
+                                  artigo_nome: p.nome,
+                                  imagem: p.imagem || "",
+                                  quantidade: Number(p.quantidade) || 1,
+                                  unidade: p.unidade || "un",
+                                  personalizacoes: [],
+                                  operacoes: [],
+                                }));
+                                const itens = [...of.itens];
+                                itens[i] = {
+                                  ...itens[i],
+                                  artigo_id: first.id,
+                                  artigo_nome: first.nome,
+                                  imagem: itens[i].imagem || first.imagem || "",
+                                  quantidade: Number(first.quantidade) || 1,
+                                  unidade: first.unidade || "un",
+                                  operacoes: [],
+                                };
+                                upd({ itens: [...itens.slice(0, i + 1), ...rest, ...itens.slice(i + 1)] });
+                                toast.success(picked.length === 1 ? "Variante selecionada" : `${picked.length} variantes adicionadas`);
+                              }}
                             />
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">

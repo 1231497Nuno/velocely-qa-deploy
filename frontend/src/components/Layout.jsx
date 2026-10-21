@@ -352,7 +352,7 @@ export default function Layout({ children }) {
       </aside>
 
       <main className="flex-1 lg:ml-64 min-w-0 pt-14 lg:pt-0">
-        <div className="hidden lg:flex sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
+        <div className="hidden lg:flex sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-1">
             <MiniCalendarButton />
