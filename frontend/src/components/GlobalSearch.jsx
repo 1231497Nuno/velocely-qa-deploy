@@ -10,7 +10,7 @@ const ICON = {
   "A receber": Scale, "A pagar": Scale,
 };
 
-export default function GlobalSearch({ onNavigate }) {
+export default function GlobalSearch({ onNavigate, autoFocus = false }) {
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [res, setRes] = useState([]);
@@ -19,6 +19,12 @@ export default function GlobalSearch({ onNavigate }) {
   const [panelStyle, setPanelStyle] = useState(null);
   const boxRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    const t = setTimeout(() => inputRef.current?.focus?.(), 50);
+    return () => clearTimeout(t);
+  }, [autoFocus]);
 
   const updatePanelPos = () => {
     const el = boxRef.current;

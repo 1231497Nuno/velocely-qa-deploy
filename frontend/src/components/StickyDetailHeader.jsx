@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 
 /**
  * Barra sticky de detalhe: identificação + ações ficam visíveis ao fazer scroll.
- * Alinha sob a top-bar da app (top-14).
+ * Em mobile alinha sob o header (top-14 + safe-area); em desktop sob a top-bar.
  */
 export function StickyDetailHeader({
   back,
@@ -16,17 +16,17 @@ export function StickyDetailHeader({
 }) {
   return (
     <div
-      className={`sticky top-14 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-4 bg-white border-b border-gray-200 ${className}`}
+      className={`sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] lg:top-14 z-10 -mx-3 sm:-mx-6 lg:-mx-8 px-3 sm:px-6 lg:px-8 py-2.5 mb-3 sm:mb-4 bg-white/95 backdrop-blur border-b border-gray-200 ${className}`}
       data-testid="sticky-detail-header"
     >
       <div className="max-w-[1400px] mx-auto flex flex-col gap-2">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div className="min-w-0 flex items-center gap-2 sm:gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex items-start sm:items-center gap-2 sm:gap-3">
             {back}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 {typeof title === "string" ? (
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight font-display mono">{title}</h1>
+                  <h1 className="text-base sm:text-xl font-bold tracking-tight font-display mono break-all">{title}</h1>
                 ) : (
                   title
                 )}
@@ -42,7 +42,9 @@ export function StickyDetailHeader({
             </div>
           </div>
           {actions ? (
-            <div className="flex items-center gap-2 shrink-0 flex-wrap sm:justify-end">{actions}</div>
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap sm:justify-end overflow-x-auto scroll-touch -mx-0.5 px-0.5 pb-0.5">
+              {actions}
+            </div>
           ) : null}
         </div>
         {meta}
@@ -58,11 +60,11 @@ export function StickyBackButton({ onClick, testid, label = "Voltar" }) {
       type="button"
       onClick={onClick}
       data-testid={testid}
-      className="shrink-0 p-1.5 rounded-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+      className="shrink-0 p-2 rounded-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 min-h-10 min-w-10 inline-flex items-center justify-center"
       title={label}
       aria-label={label}
     >
-      <ArrowLeft size={16} />
+      <ArrowLeft size={18} />
     </button>
   );
 }

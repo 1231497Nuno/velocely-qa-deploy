@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
@@ -134,7 +134,7 @@ export default function Encomendas() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[680px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -191,6 +191,47 @@ export default function Encomendas() {
           </tbody>
         </table>
       </ScrollableTable>
+
+      <MobileCards testid="encomendas-cards">
+        {rows.map((e) => (
+          <MobileCard key={e.id} testid={`encomenda-card-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="mono tabular-nums font-semibold text-gray-900 inline-flex items-center gap-1.5">
+                  {e.numero}
+                  {e.tem_artigos_sem_of && <AlertTriangle size={14} className="text-red-500" />}
+                </div>
+                <div className="text-sm text-gray-700 truncate mt-0.5">{e.cliente}</div>
+              </div>
+              <StatusBadge status={e.estado} />
+            </div>
+            <div className="mt-2.5 flex items-center gap-2" title={`${e.qtd_em_ofs || 0}/${e.qtd_total || 0} un em OFs`}>
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full ${((e.progresso_producao || 0) >= 100) ? "bg-emerald-500" : "bg-blue-500"}`} style={{ width: `${Math.min(100, e.progresso_producao || 0)}%` }} />
+              </div>
+              <span className="text-xs tabular-nums text-gray-500">{e.progresso_producao || 0}%</span>
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+              <div className="text-xs text-gray-500 min-w-0">
+                <div>{fmtDate(e.data)}{e.prazo_entrega ? ` · prazo ${fmtDate(e.prazo_entrega)}` : ""}</div>
+                <div className="mt-0.5"><StatusBadge status={payBadge[e.status_pagamento]} /></div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0" onClick={(ev) => ev.stopPropagation()}>
+                <span className="tabular-nums font-semibold text-gray-900">{eur(e.valor_total)}</span>
+                {can("encomendas", "create") && (
+                  <button data-testid={`duplicate-encomenda-mobile-${e.id}`} onClick={(ev) => duplicar(ev, e.id)} className="p-2 rounded-sm hover:bg-gray-100 text-gray-500"><Copy size={16} /></button>
+                )}
+                {can("encomendas", "delete") && (
+                  <button data-testid={`delete-encomenda-mobile-${e.id}`} onClick={(ev) => remove(ev, e.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+                )}
+              </div>
+            </div>
+          </MobileCard>
+        ))}
+        {rows.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">Sem encomendas.</div>
+        )}
+      </MobileCards>
     </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>

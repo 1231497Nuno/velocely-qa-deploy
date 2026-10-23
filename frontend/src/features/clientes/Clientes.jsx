@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import BlocosShell, { FieldGrid, FieldRow } from "@/components/BlocosShell";
 import { Plus, Pencil, Trash2, ArrowDown, ArrowUp, ArrowUpDown, Settings } from "lucide-react";
 import { toast } from "sonner";
@@ -206,7 +206,7 @@ export default function Clientes() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[780px] table-fixed">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -261,6 +261,33 @@ export default function Clientes() {
           </tbody>
         </table>
       </ScrollableTable>
+
+      <MobileCards testid="clientes-cards">
+        {items.map((c) => (
+          <MobileCard key={c.id} testid={`cliente-card-${c.id}`} onClick={() => nav(`/clientes/${c.id}`)}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 truncate" title={c.nome}>{c.nome}</div>
+                <div className="text-xs text-gray-500 mono mt-0.5">{c.codigo || "—"} · {(c.tipo === "empresa" || (!c.tipo && c.nif)) ? "Empresa" : "Particular"}</div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                {can("clientes", "edit") && <button data-testid={`edit-cliente-mobile-${c.id}`} onClick={() => openEdit(c)} className="p-2 rounded-sm hover:bg-gray-100 text-gray-600"><Pencil size={16} /></button>}
+                {can("clientes", "delete") && !c.sistema && (
+                  <button data-testid={`delete-cliente-mobile-${c.id}`} onClick={() => remove(c)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+                )}
+              </div>
+            </div>
+            <div className="mt-2.5 text-xs text-gray-600 space-y-0.5">
+              {(c.cidade || c.contacto) && <div className="truncate">{[c.cidade, c.contacto].filter(Boolean).join(" · ")}</div>}
+              {c.email && <div className="truncate">{c.email}</div>}
+              {c.nif && <div className="mono text-gray-500">NIF {c.nif}</div>}
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem clientes."}</div>
+        )}
+      </MobileCards>
     </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>

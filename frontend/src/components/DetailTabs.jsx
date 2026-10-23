@@ -15,7 +15,10 @@ export function useDetailTab(allowed, defaultTab) {
 
 export default function DetailTabs({ tabs, value, onChange, testid = "detail-tabs" }) {
   return (
-    <div className="flex items-center gap-1 border-b border-gray-200 mb-4 overflow-x-auto" data-testid={testid}>
+    <div
+      className="flex items-center gap-0.5 sm:gap-1 border-b border-gray-200 mb-3 sm:mb-4 overflow-x-auto scroll-touch -mx-3 px-3 sm:mx-0 sm:px-0"
+      data-testid={testid}
+    >
       {tabs.map((t) => {
         const active = value === t.id;
         return (
@@ -24,7 +27,7 @@ export default function DetailTabs({ tabs, value, onChange, testid = "detail-tab
             type="button"
             data-testid={t.testid || `detail-tab-${t.id}`}
             onClick={() => onChange(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3 sm:px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap shrink-0 min-h-11 ${
               active ? "border-black text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"
             }`}
           >

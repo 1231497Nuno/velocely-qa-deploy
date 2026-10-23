@@ -205,11 +205,11 @@ export default function ListPagination({
           data-testid={`${testid}-prev`}
           disabled={!canPrev}
           onClick={() => onPageChange(page - 1)}
-          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none ${
+          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none min-h-10 ${
             compact ? "px-2 py-1 text-xs" : "px-2.5 py-1.5"
           }`}
         >
-          <ChevronLeft size={14} /> Anterior
+          <ChevronLeft size={14} /> <span className="hidden xs:inline sm:inline">Anterior</span>
         </button>
         <span className={`px-2 tabular-nums text-gray-500 ${compact ? "text-xs" : ""}`} data-testid={`${testid}-page`}>
           {page} / {pages}
@@ -219,11 +219,11 @@ export default function ListPagination({
           data-testid={`${testid}-next`}
           disabled={!canNext}
           onClick={() => onPageChange(page + 1)}
-          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none ${
+          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none min-h-10 ${
             compact ? "px-2 py-1 text-xs" : "px-2.5 py-1.5"
           }`}
         >
-          Seguinte <ChevronRight size={14} />
+          <span className="hidden xs:inline sm:inline">Seguinte</span> <ChevronRight size={14} />
         </button>
       </div>
     </div>

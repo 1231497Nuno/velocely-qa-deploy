@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -110,7 +110,7 @@ export default function PedidosCotacao() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[780px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -167,6 +167,33 @@ export default function PedidosCotacao() {
           </tbody>
         </table>
       </ScrollableTable>
+
+      <MobileCards testid="pedidos-cotacao-cards">
+        {items.map((o) => (
+          <MobileCard key={o.id} testid={`pedido-cotacao-card-${o.id}`} onClick={() => nav(`/pedidos-cotacao/${o.id}`)}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="mono font-semibold text-gray-900">{o.codigo}</div>
+                <div className="text-sm text-gray-700 truncate mt-0.5">{o.fornecedor_nome || "—"}</div>
+                {o.assunto && <div className="text-xs text-gray-500 truncate mt-0.5">{o.assunto}</div>}
+              </div>
+              <StatusBadge status={o.estado} />
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+              <div className="text-xs text-gray-500">{fmtDate(o.data)}{o.prazo_resposta ? ` · prazo ${fmtDate(o.prazo_resposta)}` : ""}</div>
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <span className="tabular-nums font-semibold">{o.valor_cotado != null ? eur(o.valor_cotado) : "—"}</span>
+                {can("pedidos_cotacao", "delete") && o.estado !== "adjudicado" && (
+                  <button data-testid={`delete-pedido-cotacao-mobile-${o.id}`} onClick={(e) => remove(e, o.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+                )}
+              </div>
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem pedidos de cotação."}</div>
+        )}
+      </MobileCards>
     </ListPage>
   );
 }

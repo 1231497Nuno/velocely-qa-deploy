@@ -187,8 +187,10 @@ export default function Layout({ children }) {
     })).filter((g) => g.items.length > 0);
   }, [isAdmin, can]);
 
-  // Garantir que o grupo da página actual fica aberto
+  // Fechar menu/pesquisa ao navegar; garantir grupo da página aberto
   useEffect(() => {
+    setOpen(false);
+    setSearchOpen(false);
     setExpanded((prev) => {
       const next = { ...prev };
       groups.forEach((g) => {
@@ -196,7 +198,12 @@ export default function Layout({ children }) {
       });
       return next;
     });
-  }, [location.pathname, groups]);
+  }, [location.pathname, location.search, groups]);
+
+  useEffect(() => {
+    document.body.classList.toggle("mobile-nav-open", open);
+    return () => document.body.classList.remove("mobile-nav-open");
+  }, [open]);
 
   const toggleGroup = (id) => {
     setExpanded((prev) => {
@@ -236,38 +243,46 @@ export default function Layout({ children }) {
     </NavLink>
   );
 
+  const mobileHeaderOffset = searchOpen ? "top-[calc(3.5rem+env(safe-area-inset-top,0px))]" : "";
+
   return (
-    <div className="min-h-screen flex bg-[#F8F9FA]">
-      <header className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-gray-200 z-30 flex items-center justify-between px-4">
-        <Link to="/" data-testid="mobile-logo-link">
-          <img src="/logo-full.png" alt="Velocely" className="h-7 w-auto max-w-[10.5rem] object-contain object-left" />
-        </Link>
-        <div className="flex items-center gap-1">
-          <MiniCalendarButton />
-          <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
-          <UserAvatarMenu />
-          <button
-            data-testid="mobile-search-toggle"
-            onClick={() => setSearchOpen((v) => !v)}
-            className="p-2 rounded-sm text-gray-700 hover:bg-gray-100"
-            aria-label="Pesquisar"
-          >
-            <Search size={22} />
-          </button>
-          <button
-            data-testid="mobile-menu-toggle"
-            onClick={() => setOpen(true)}
-            className="p-2 -mr-2 rounded-sm text-gray-700 hover:bg-gray-100"
-            aria-label="Abrir menu"
-          >
-            <Menu size={24} />
-          </button>
+    <div className="min-h-screen min-h-[100dvh] flex bg-[#F8F9FA] overflow-x-hidden">
+      <header className="lg:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-gray-200 safe-top safe-x">
+        <div className="h-14 flex items-center justify-between px-3 sm:px-4 gap-2">
+          <Link to="/" data-testid="mobile-logo-link" className="min-w-0 shrink">
+            <img src="/logo-full.png" alt="Velocely" className="h-7 w-auto max-w-[9.5rem] object-contain object-left" />
+          </Link>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <MiniCalendarButton />
+            <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
+            <UserAvatarMenu />
+            <button
+              data-testid="mobile-search-toggle"
+              onClick={() => setSearchOpen((v) => !v)}
+              className={`p-2.5 rounded-sm text-gray-700 hover:bg-gray-100 min-h-11 min-w-11 inline-flex items-center justify-center ${searchOpen ? "bg-gray-100" : ""}`}
+              aria-label="Pesquisar"
+              aria-expanded={searchOpen}
+            >
+              <Search size={20} />
+            </button>
+            <button
+              data-testid="mobile-menu-toggle"
+              onClick={() => setOpen(true)}
+              className="p-2.5 -mr-1 rounded-sm text-gray-700 hover:bg-gray-100 min-h-11 min-w-11 inline-flex items-center justify-center"
+              aria-label="Abrir menu"
+            >
+              <Menu size={22} />
+            </button>
+          </div>
         </div>
       </header>
 
       {searchOpen && (
-        <div className="lg:hidden fixed top-14 inset-x-0 z-30 bg-white border-b border-gray-200 p-3" data-testid="mobile-search-bar">
-          <GlobalSearch onNavigate={() => setSearchOpen(false)} />
+        <div
+          className={`lg:hidden fixed inset-x-0 z-30 bg-white border-b border-gray-200 p-3 safe-x ${mobileHeaderOffset || "top-[calc(3.5rem+env(safe-area-inset-top,0px))]"}`}
+          data-testid="mobile-search-bar"
+        >
+          <GlobalSearch onNavigate={() => setSearchOpen(false)} autoFocus />
         </div>
       )}
 
@@ -280,12 +295,12 @@ export default function Layout({ children }) {
       )}
 
       <aside
-        className={`w-64 shrink-0 border-r border-gray-200 bg-white flex flex-col fixed h-screen z-50 transition-transform duration-300 lg:translate-x-0 ${
+        className={`w-[min(18rem,88vw)] shrink-0 border-r border-gray-200 bg-white flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-300 lg:w-64 lg:translate-x-0 safe-top safe-bottom ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="px-6 py-5 border-b border-gray-200 flex items-start justify-between">
-          <div>
+        <div className="px-5 py-4 border-b border-gray-200 flex items-start justify-between gap-2">
+          <div className="min-w-0">
             <Link to="/" data-testid="sidebar-logo-link" onClick={() => setOpen(false)}>
               <img src="/logo-full.png" alt="Velocely" className="h-8 w-auto max-w-[11.5rem] object-contain object-left" />
             </Link>
@@ -294,14 +309,14 @@ export default function Layout({ children }) {
           <button
             data-testid="mobile-menu-close"
             onClick={() => setOpen(false)}
-            className="lg:hidden p-1.5 -mr-2 rounded-sm text-gray-500 hover:bg-gray-100"
+            className="lg:hidden p-2 -mr-1 rounded-sm text-gray-500 hover:bg-gray-100 min-h-10 min-w-10 inline-flex items-center justify-center"
             aria-label="Fechar menu"
           >
             <X size={20} />
           </button>
         </div>
 
-        <nav className="flex-1 p-3 overflow-y-auto space-y-3" data-testid="sidebar-nav">
+        <nav className="flex-1 p-3 overflow-y-auto overscroll-contain space-y-3" data-testid="sidebar-nav">
           <div className="space-y-0.5 mb-1">
             {renderLink(DASHBOARD_ITEM)}
           </div>
@@ -313,7 +328,7 @@ export default function Layout({ children }) {
                   type="button"
                   data-testid={`nav-group-toggle-${g.id}`}
                   onClick={() => toggleGroup(g.id)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 hover:text-gray-600 transition-colors"
+                  className="w-full flex items-center justify-between px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <span>{g.label}</span>
                   <ChevronDown
@@ -331,7 +346,7 @@ export default function Layout({ children }) {
           })}
         </nav>
 
-        <div className="border-t border-gray-200 p-3">
+        <div className="border-t border-gray-200 p-3 safe-bottom">
           {user && (
             <div className="px-2 py-1.5 mb-1" data-testid="current-user">
               <div className="text-sm font-medium text-gray-900 truncate">{user.name || user.email}</div>
@@ -344,14 +359,14 @@ export default function Layout({ children }) {
           <button
             data-testid="logout-btn"
             onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors min-h-11"
           >
             <LogOut size={18} strokeWidth={1.8} /> Terminar sessão
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 lg:ml-64 min-w-0 pt-14 lg:pt-0">
+      <main className={`flex-1 lg:ml-64 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top,0px))] lg:pt-0 ${searchOpen ? "max-lg:pt-[calc(3.5rem+4.25rem+env(safe-area-inset-top,0px))]" : ""}`}>
         <div className="hidden lg:flex sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-1">
@@ -360,7 +375,7 @@ export default function Layout({ children }) {
             <UserAvatarMenu />
           </div>
         </div>
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">{children}</div>
+        <div className="p-3 sm:p-6 lg:p-8 max-w-[1400px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom,0px))]">{children}</div>
       </main>
     </div>
   );
