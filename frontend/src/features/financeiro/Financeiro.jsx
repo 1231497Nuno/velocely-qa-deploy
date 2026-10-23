@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
 import { FileText, FileSpreadsheet, ScrollText, Trash2, ExternalLink, ChevronRight, ChevronDown } from "lucide-react";
@@ -104,24 +105,34 @@ export default function Financeiro() {
       toolbar={
         <>
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou encomenda..." testid="financeiro-search" />
-          <div className="flex items-center gap-2 flex-wrap" data-testid="financeiro-tabs">
-            {FILTROS.map((t) => {
-              const active = filtro === t.id;
-              return (
-                <button
-                  key={t.id}
-                  data-testid={`fin-tab-${t.id}`}
-                  onClick={() => setFiltro(t.id)}
-                  className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-                >
-                  {t.label}
-                  {active && (
-                    <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <MobileFiltersButton
+            testid="financeiro-filtros"
+            activeCount={filtro !== "todas" ? 1 : 0}
+            onClear={() => setFiltro("todas")}
+            title="Filtrar documentos"
+            description="Tipo de documento fiscal."
+          >
+            {({ mobile }) => (
+              <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"} data-testid="financeiro-tabs">
+                {FILTROS.map((t) => {
+                  const active = filtro === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      data-testid={`fin-tab-${t.id}`}
+                      onClick={() => setFiltro(t.id)}
+                      className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+                    >
+                      {t.label}
+                      {active && (
+                        <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </MobileFiltersButton>
         </>
       }
       footer={

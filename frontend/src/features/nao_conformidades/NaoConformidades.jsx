@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge from "@/components/StatusBadge";
 import { Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -57,20 +58,28 @@ export default function NaoConformidades() {
         />
       }
       toolbar={
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex-1 min-w-0">
-            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo nº, encomenda ou referência..." testid="nc-search" />
-          </div>
-          <select
-            data-testid="nc-filtro-estado"
-            value={estadoFilter}
-            onChange={(e) => setEstadoFilter(e.target.value)}
-            className="text-sm border border-gray-300 rounded-sm px-2 py-1.5 bg-white shrink-0"
+        <div className="flex flex-col gap-3">
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo nº, encomenda ou referência..." testid="nc-search" />
+          <MobileFiltersButton
+            testid="nc-filtros"
+            activeCount={estadoFilter ? 1 : 0}
+            onClear={() => setEstadoFilter("")}
+            title="Filtrar não conformidades"
+            description="Estado da não conformidade."
           >
-            {ESTADOS.map((e) => (
-              <option key={e.id || "all"} value={e.id}>{e.label}</option>
-            ))}
-          </select>
+            {({ mobile }) => (
+              <select
+                data-testid="nc-filtro-estado"
+                value={estadoFilter}
+                onChange={(e) => setEstadoFilter(e.target.value)}
+                className={`${mobile ? "w-full" : ""} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white shrink-0 min-h-11`}
+              >
+                {ESTADOS.map((e) => (
+                  <option key={e.id || "all"} value={e.id}>{e.label}</option>
+                ))}
+              </select>
+            )}
+          </MobileFiltersButton>
         </div>
       }
       footer={

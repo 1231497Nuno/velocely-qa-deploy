@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge from "@/components/StatusBadge";
 import ClienteSelector from "@/components/ClienteSelector";
 import Combobox from "@/components/Combobox";
@@ -161,39 +162,47 @@ export default function Contas() {
       }
       toolbar={
         <>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1 min-w-0">
-              <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo nº, entidade, descrição ou referência..." testid="contas-search" />
-            </div>
-            <select
-              data-testid="contas-filtro-estado"
-              value={estadoFilter}
-              onChange={(e) => setEstadoFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded-sm px-2 py-1.5 bg-white shrink-0"
-            >
-              {ESTADOS.map((e) => (
-                <option key={e.id || "all"} value={e.id}>{e.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap" data-testid="contas-tabs">
-            {FILTROS.map((t) => {
-              const active = filtro === t.id;
-              return (
-                <button
-                  key={t.id}
-                  data-testid={`contas-tab-${t.id}`}
-                  onClick={() => setFiltro(t.id)}
-                  className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+          <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo nº, entidade, descrição ou referência..." testid="contas-search" />
+          <MobileFiltersButton
+            testid="contas-filtros"
+            activeCount={(filtro !== "receber" ? 1 : 0) + (estadoFilter ? 1 : 0)}
+            onClear={() => { setFiltro("receber"); setEstadoFilter(""); }}
+            title="Filtrar contas"
+            description="Tipo (receber / pagar) e estado."
+          >
+            {({ mobile }) => (
+              <div className={mobile ? "flex flex-col gap-3" : "flex flex-col gap-3 sm:flex-row sm:items-center w-full"} data-testid="contas-tabs">
+                <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"}>
+                  {FILTROS.map((t) => {
+                    const active = filtro === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        data-testid={`contas-tab-${t.id}`}
+                        onClick={() => setFiltro(t.id)}
+                        className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+                      >
+                        {t.label}
+                        {active && (
+                          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <select
+                  data-testid="contas-filtro-estado"
+                  value={estadoFilter}
+                  onChange={(e) => setEstadoFilter(e.target.value)}
+                  className={`${mobile ? "w-full" : "sm:ml-auto shrink-0"} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white min-h-11`}
                 >
-                  {t.label}
-                  {active && (
-                    <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  {ESTADOS.map((e) => (
+                    <option key={e.id || "all"} value={e.id}>{e.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </MobileFiltersButton>
         </>
       }
       footer={
