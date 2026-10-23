@@ -141,7 +141,7 @@ export default function MiniCalendarButton() {
         onClick={() => setOpen(false)}
       />
       <div
-        className="fixed z-[61] left-3 right-3 top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] max-h-[min(78dvh,34rem)] overflow-y-auto bg-white border border-gray-200 rounded-sm shadow-xl safe-x"
+        className="fixed z-[61] left-3 right-3 top-[calc(var(--mobile-header-h)+env(safe-area-inset-top,0px)+0.5rem)] max-h-[min(78dvh,34rem)] overflow-y-auto bg-white border border-gray-200 rounded-sm shadow-xl safe-x"
         data-testid="mini-calendar-panel"
       >
         {panelBody}

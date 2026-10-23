@@ -216,13 +216,13 @@ export default function Encomendas() {
               </div>
               <StatusBadge status={e.estado} />
             </div>
-            <div className="mt-2.5 flex items-center gap-2" title={`${e.qtd_em_ofs || 0}/${e.qtd_total || 0} un em OFs`}>
+            <div className="mt-1.5 flex items-center gap-2" title={`${e.qtd_em_ofs || 0}/${e.qtd_total || 0} un em OFs`}>
               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className={`h-full ${((e.progresso_producao || 0) >= 100) ? "bg-emerald-500" : "bg-blue-500"}`} style={{ width: `${Math.min(100, e.progresso_producao || 0)}%` }} />
               </div>
               <span className="text-xs tabular-nums text-gray-500">{e.progresso_producao || 0}%</span>
             </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 gap-2">
               <div className="text-xs text-gray-500 min-w-0">
                 <div>{fmtDate(e.data)}{e.prazo_entrega ? ` · prazo ${fmtDate(e.prazo_entrega)}` : ""}</div>
                 <div className="mt-0.5"><StatusBadge status={payBadge[e.status_pagamento]} /></div>

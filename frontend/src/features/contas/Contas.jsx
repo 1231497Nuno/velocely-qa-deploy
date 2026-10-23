@@ -283,7 +283,7 @@ export default function Contas() {
               </div>
               <StatusBadge status={c.estado} />
             </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 gap-2">
               <div className="text-xs text-gray-500">Venc. {fmtDate(c.vencimento) || "—"}</div>
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <div className="text-right">

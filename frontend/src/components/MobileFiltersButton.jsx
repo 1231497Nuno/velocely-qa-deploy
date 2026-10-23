@@ -48,13 +48,13 @@ export default function MobileFiltersButton({
           type="button"
           data-testid={`${testid}-btn`}
           onClick={() => setOpen(true)}
-          className={`inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm border min-h-11 transition-colors ${
+          className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium rounded-sm border min-h-[var(--touch)] transition-colors ${
             count > 0
               ? "bg-gray-900 text-white border-gray-900"
               : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
           }`}
         >
-          <SlidersHorizontal size={16} />
+          <SlidersHorizontal size={15} />
           Filtros
           {count > 0 && (
             <span
@@ -70,7 +70,7 @@ export default function MobileFiltersButton({
             type="button"
             data-testid={`${testid}-clear-inline`}
             onClick={onClear}
-            className="inline-flex items-center gap-1 px-2.5 py-2.5 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50 min-h-11"
+            className="inline-flex items-center gap-1 px-2 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50 min-h-[var(--touch)]"
           >
             <X size={14} /> Limpar
           </button>

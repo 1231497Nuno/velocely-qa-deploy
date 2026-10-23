@@ -188,7 +188,7 @@ export default function PedidosCotacao() {
               </div>
               <StatusBadge status={o.estado} />
             </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 gap-2">
               <div className="text-xs text-gray-500">{fmtDate(o.data)}{o.prazo_resposta ? ` · prazo ${fmtDate(o.prazo_resposta)}` : ""}</div>
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <span className="tabular-nums font-semibold">{o.valor_cotado != null ? eur(o.valor_cotado) : "—"}</span>

@@ -171,12 +171,12 @@ export default function ListPagination({
   return (
     <div
       data-testid={testid}
-      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 text-sm text-gray-600 ${
-        compact ? "py-1.5" : "py-3 gap-3"
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-0.5 sm:px-1 text-sm text-gray-600 ${
+        compact ? "py-1" : "py-1.5 sm:py-3 sm:gap-3"
       }`}
     >
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className={`tabular-nums text-gray-500 ${compact ? "text-xs" : ""}`} data-testid={`${testid}-range`}>
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <span className={`tabular-nums text-gray-500 text-xs sm:text-sm ${compact ? "text-xs" : ""}`} data-testid={`${testid}-range`}>
           {rangeLabel || `${total} resultados`}
         </span>
         {onPageSizeChange && (
@@ -205,13 +205,13 @@ export default function ListPagination({
           data-testid={`${testid}-prev`}
           disabled={!canPrev}
           onClick={() => onPageChange(page - 1)}
-          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none min-h-10 ${
-            compact ? "px-2 py-1 text-xs" : "px-2.5 py-1.5"
+          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none min-h-[var(--touch)] ${
+            compact ? "px-2 py-1 text-xs" : "px-2 py-1.5 sm:px-2.5"
           }`}
         >
           <ChevronLeft size={14} /> <span className="hidden xs:inline sm:inline">Anterior</span>
         </button>
-        <span className={`px-2 tabular-nums text-gray-500 ${compact ? "text-xs" : ""}`} data-testid={`${testid}-page`}>
+        <span className={`px-2 tabular-nums text-gray-500 text-xs sm:text-sm ${compact ? "text-xs" : ""}`} data-testid={`${testid}-page`}>
           {page} / {pages}
         </span>
         <button
@@ -219,8 +219,8 @@ export default function ListPagination({
           data-testid={`${testid}-next`}
           disabled={!canNext}
           onClick={() => onPageChange(page + 1)}
-          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none min-h-10 ${
-            compact ? "px-2 py-1 text-xs" : "px-2.5 py-1.5"
+          className={`inline-flex items-center gap-1 border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none min-h-[var(--touch)] ${
+            compact ? "px-2 py-1 text-xs" : "px-2 py-1.5 sm:px-2.5"
           }`}
         >
           <span className="hidden xs:inline sm:inline">Seguinte</span> <ChevronRight size={14} />

@@ -243,14 +243,17 @@ export default function Layout({ children }) {
     </NavLink>
   );
 
-  const mobileHeaderOffset = searchOpen ? "top-[calc(3.5rem+env(safe-area-inset-top,0px))]" : "";
+  const mobileHeaderTop = "top-[calc(var(--mobile-header-h)+env(safe-area-inset-top,0px))]";
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex bg-[#F8F9FA] overflow-x-hidden">
       <header className="lg:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-gray-200 safe-top safe-x">
-        <div className="h-14 flex items-center justify-between px-2.5 sm:px-4 gap-1.5">
+        <div
+          className="flex items-center justify-between px-2 sm:px-4 gap-1"
+          style={{ height: "var(--mobile-header-h)" }}
+        >
           <Link to="/" data-testid="mobile-logo-link" className="min-w-0 shrink">
-            <img src="/logo-full.png" alt="Velocely" className="h-6 sm:h-7 w-auto max-w-[7.5rem] sm:max-w-[9.5rem] object-contain object-left" />
+            <img src="/logo-full.png" alt="Velocely" className="h-5 sm:h-7 w-auto max-w-[7rem] sm:max-w-[9.5rem] object-contain object-left" />
           </Link>
           <div className="flex items-center shrink-0" data-testid="mobile-header-actions">
             <div className="flex items-center">
@@ -258,23 +261,23 @@ export default function Layout({ children }) {
               <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
               <UserAvatarMenu />
             </div>
-            <span className="mx-1 h-5 w-px bg-gray-200 shrink-0" aria-hidden />
+            <span className="mx-0.5 sm:mx-1 h-5 w-px bg-gray-200 shrink-0" aria-hidden />
             <button
               data-testid="mobile-search-toggle"
               onClick={() => setSearchOpen((v) => !v)}
-              className={`relative inline-flex items-center justify-center h-10 w-10 rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 ${searchOpen ? "bg-gray-100 text-gray-900" : ""}`}
+              className={`touch-target relative inline-flex items-center justify-center rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 ${searchOpen ? "bg-gray-100 text-gray-900" : ""}`}
               aria-label="Pesquisar"
               aria-expanded={searchOpen}
             >
-              <Search size={19} strokeWidth={1.8} />
+              <Search size={18} strokeWidth={1.8} />
             </button>
             <button
               data-testid="mobile-menu-toggle"
               onClick={() => setOpen(true)}
-              className="relative inline-flex items-center justify-center h-10 w-10 rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              className="touch-target relative inline-flex items-center justify-center rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               aria-label="Abrir menu"
             >
-              <Menu size={20} strokeWidth={1.8} />
+              <Menu size={19} strokeWidth={1.8} />
             </button>
           </div>
         </div>
@@ -282,7 +285,7 @@ export default function Layout({ children }) {
 
       {searchOpen && (
         <div
-          className={`lg:hidden fixed inset-x-0 z-30 bg-white border-b border-gray-200 p-3 safe-x ${mobileHeaderOffset || "top-[calc(3.5rem+env(safe-area-inset-top,0px))]"}`}
+          className={`lg:hidden fixed inset-x-0 z-30 bg-white border-b border-gray-200 px-3 py-2 safe-x ${mobileHeaderTop}`}
           data-testid="mobile-search-bar"
         >
           <GlobalSearch onNavigate={() => setSearchOpen(false)} autoFocus />
@@ -369,7 +372,11 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      <main className={`flex-1 lg:ml-64 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top,0px))] lg:pt-0 ${searchOpen ? "max-lg:pt-[calc(3.5rem+4.25rem+env(safe-area-inset-top,0px))]" : ""}`}>
+      <main
+        className={`flex-1 lg:ml-64 min-w-0 pt-[calc(var(--mobile-header-h)+env(safe-area-inset-top,0px))] lg:pt-0 ${
+          searchOpen ? "max-lg:pt-[calc(var(--mobile-header-h)+3.5rem+env(safe-area-inset-top,0px))]" : ""
+        }`}
+      >
         <div className="hidden lg:flex sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-0.5" data-testid="desktop-header-actions">
@@ -378,7 +385,7 @@ export default function Layout({ children }) {
             <UserAvatarMenu />
           </div>
         </div>
-        <div className="p-3 sm:p-6 lg:p-8 max-w-[1400px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom,0px))]">{children}</div>
+        <div className="app-shell-pad max-w-[1400px] mx-auto">{children}</div>
       </main>
     </div>
   );
@@ -386,12 +393,12 @@ export default function Layout({ children }) {
 
 export function PageHeader({ title, subtitle, actions, className = "" }) {
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 ${className}`}>
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 font-display">
+    <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 section-gap ${className}`}>
+      <div className="min-w-0">
+        <h1 className="page-title font-bold tracking-tight text-gray-900 font-display">
           {title}
         </h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0 flex-wrap">{actions}</div>}
     </div>

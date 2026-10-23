@@ -210,7 +210,7 @@ export default function Financeiro() {
                 </div>
                 {!isProforma && <StatusBadge status={d.status_pagamento || "pendente"} />}
               </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 gap-2">
                 <div className="text-xs text-gray-500">
                   {isProforma ? "Pro forma" : (Number(d.valor_pendente) > 0 ? <>Pendente {eur(d.valor_pendente)}</> : "Liquidado")}
                 </div>
