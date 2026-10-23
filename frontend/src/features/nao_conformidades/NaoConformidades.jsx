@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import StatusBadge from "@/components/StatusBadge";
 import { Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -86,7 +86,7 @@ export default function NaoConformidades() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[820px]" data-testid="nc-table">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -135,6 +135,31 @@ export default function NaoConformidades() {
           </tbody>
         </table>
       </ScrollableTable>
+
+      <MobileCards testid="nc-cards">
+        {items.map((n) => (
+          <MobileCard key={n.id} testid={`nc-card-${n.id}`} onClick={() => nav(`/nao-conformidades/${n.id}`)}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="mono font-semibold text-gray-900">{n.numero}</div>
+                <div className="text-sm text-gray-700 truncate mt-0.5">{n.encomenda_numero || "—"} · {n.artigo_codigo || n.artigo_nome || "—"}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{TIPO_PT[n.tipo] || n.tipo} · {fmtDate(n.created_at)}</div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <StatusBadge status={n.estado} />
+                {can("nao_conformidades", "delete") && (
+                  <button data-testid={`nc-del-mobile-${n.id}`} onClick={(e) => remove(e, n.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+                )}
+              </div>
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">
+            Sem não conformidades. Abra-as a partir do artigo da encomenda.
+          </div>
+        )}
+      </MobileCards>
     </ListPage>
   );
 }

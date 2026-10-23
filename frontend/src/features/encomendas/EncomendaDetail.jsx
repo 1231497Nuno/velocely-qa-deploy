@@ -550,8 +550,8 @@ export default function EncomendaDetail() {
             {(enc.artigos || []).length === 0 ? (
               <p className="text-sm text-gray-400 py-8 text-center px-5">Sem artigos. Adicione artigos ou converta um orçamento.</p>
             ) : (
-              <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]" data-testid="enc-artigos-scroll">
-                <table className="w-full text-sm min-w-[920px]" data-testid="enc-artigos-table">
+              <div className="overflow-x-auto overflow-y-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)] -mx-1 px-1 scroll-touch" data-testid="enc-artigos-scroll">
+                <table className="w-full text-sm min-w-[720px] sm:min-w-[920px]" data-testid="enc-artigos-table">
                   <thead className="sticky top-0 z-10 bg-gray-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 bg-gray-50">Artigo</th>

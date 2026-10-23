@@ -1274,8 +1274,8 @@ export default function OrcamentoDetail() {
             <span className="text-xs font-normal tabular-nums text-gray-400">{orc.linhas.length}</span>
           </div>
         </div>
-        <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)] isolate">
-        <table className="w-full text-sm min-w-[920px]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)] isolate -mx-1 px-1 scroll-touch">
+        <table className="w-full text-sm min-w-[720px] sm:min-w-[920px]">
           <thead className="sticky top-0 z-20 bg-white shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
             <tr className="border-b border-gray-200">
               <th className="text-left px-2 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-[9rem] bg-white sticky top-0 z-20">Código</th>

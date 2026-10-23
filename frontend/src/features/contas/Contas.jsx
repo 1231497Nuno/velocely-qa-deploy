@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import StatusBadge from "@/components/StatusBadge";
 import ClienteSelector from "@/components/ClienteSelector";
 import Combobox from "@/components/Combobox";
@@ -209,7 +209,7 @@ export default function Contas() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[920px]" data-testid="contas-table">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -259,6 +259,41 @@ export default function Contas() {
           </tbody>
         </table>
       </ScrollableTable>
+
+      <MobileCards testid="contas-cards">
+        {items.map((c) => (
+          <MobileCard key={c.id} testid={`conta-card-${c.id}`} onClick={() => nav(`/contas/${c.id}`)}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="mono font-semibold text-gray-900">{c.numero}</div>
+                <div className="text-sm text-gray-800 truncate mt-0.5">{c.entidade || "—"}</div>
+                <div className="text-xs text-gray-500 mt-0.5 truncate">
+                  {CONTA_TIPO_PT[c.tipo] || c.tipo}
+                  {c.descricao ? ` · ${c.descricao}` : ""}
+                </div>
+              </div>
+              <StatusBadge status={c.estado} />
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+              <div className="text-xs text-gray-500">Venc. {fmtDate(c.vencimento) || "—"}</div>
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="text-right">
+                  <div className="tabular-nums font-semibold text-gray-900">{eur(c.valor)}</div>
+                  {Number(c.valor_pendente) > 0 && (
+                    <div className="text-[11px] text-amber-700 tabular-nums">pend. {eur(c.valor_pendente)}</div>
+                  )}
+                </div>
+                {can("contas", "delete") && (
+                  <button data-testid={`conta-del-mobile-${c.id}`} onClick={(e) => remove(e, c.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={16} /></button>
+                )}
+              </div>
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">Sem contas neste filtro.</div>
+        )}
+      </MobileCards>
     </ListPage>
 
     <Dialog open={open} onOpenChange={setOpen}>

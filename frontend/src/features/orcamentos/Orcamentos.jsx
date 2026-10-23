@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import StatusBadge, { STATUS_META } from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Trash2, Copy, LayoutGrid, List } from "lucide-react";
@@ -219,7 +219,7 @@ export default function Orcamentos() {
 
       {view === "lista" && (
         <>
-          <ScrollableTable className="hidden md:block">
+          <ScrollableTable className="hidden md:flex md:flex-col">
             <table className="w-full text-sm min-w-[680px]">
               <thead className={TABLE_HEAD_STICKY}>
                 <tr>
@@ -278,9 +278,9 @@ export default function Orcamentos() {
             </table>
           </ScrollableTable>
 
-          <div className="md:hidden flex-1 min-h-0 overflow-auto space-y-3" data-testid="orcamentos-cards">
+          <MobileCards testid="orcamentos-cards" className="space-y-3">
             {rows.map((o) => (
-              <div key={o.id} data-testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="bg-white border border-gray-200 rounded-sm p-4 cursor-pointer active:bg-gray-50">
+              <MobileCard key={o.id} testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="mono tabular-nums font-semibold text-gray-900">{orcNumeroLabel(o)}</div>
@@ -317,12 +317,12 @@ export default function Orcamentos() {
                     )}
                   </div>
                 </div>
-              </div>
+              </MobileCard>
             ))}
             {rows.length === 0 && (
               <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">{emptyMsg}</div>
             )}
-          </div>
+          </MobileCards>
         </>
       )}
     </ListPage>

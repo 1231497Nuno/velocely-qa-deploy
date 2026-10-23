@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Pencil, Trash2, Copy, Settings, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -17,7 +17,7 @@ import Combobox from "@/components/Combobox";
 import { TIPOS_ARTIGO, TIPO_ARTIGO_PT, normalizarTipo, isProduzido, isMateriaPrima } from "@/features/artigos/artigoTipos";
 import { unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
 
-const filtroCls = "w-[11.5rem] sm:w-[13rem]";
+const filtroCls = "w-full sm:w-[11.5rem] lg:w-[13rem]";
 
 export default function Artigos() {
   const { can } = useAuth();
@@ -350,13 +350,14 @@ export default function Artigos() {
           pages={pages}
           total={total}
           pageSize={pageSize}
-          onPage={setPage}
-          onPageSize={setPageSize}
-          testid="artigos"
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rangeLabel={rangeLabel}
+          testid="artigos-pagination"
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[960px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr className="border-b border-gray-200 bg-gray-50">
@@ -471,6 +472,60 @@ export default function Artigos() {
           </tbody>
         </table>
       </ScrollableTable>
+
+      <MobileCards testid="artigos-cards">
+        {rows.map((a) => {
+          const tipo = normalizarTipo(a);
+          return (
+            <MobileCard key={a.id} testid={`artigo-card-${a.id}`} onClick={() => nav(`/artigos/${a.id}`)}>
+              <div className="flex items-start gap-3">
+                {can("artigos", "edit") && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(a.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setSelected((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(a.id)) next.delete(a.id);
+                        else next.add(a.id);
+                        return next;
+                      });
+                    }}
+                    className="mt-1 shrink-0"
+                    aria-label={`Seleccionar ${a.nome}`}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-gray-900 truncate">{a.nome}</div>
+                  <div className="text-xs text-gray-500 mono mt-0.5 truncate">
+                    {a.codigo || "—"} · {TIPO_ARTIGO_PT[tipo] || tipo}
+                    {a.categoria_nome ? ` · ${a.categoria_nome}` : ""}
+                  </div>
+                  <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-100 gap-2">
+                    <div className="text-xs text-gray-500">
+                      <span className="tabular-nums">Custo {eur(a.custo_producao_total ?? a.custo_artigo)}</span>
+                    </div>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <span className="tabular-nums font-semibold text-gray-900 mr-1">{eur(a.preco_venda)}</span>
+                      {can("artigos", "create") && (
+                        <button data-testid={`dup-artigo-mobile-${a.id}`} onClick={() => duplicar(a.id)} className="p-2 rounded-sm hover:bg-gray-100 text-gray-600"><Copy size={15} /></button>
+                      )}
+                      {can("artigos", "delete") && (
+                        <button data-testid={`delete-artigo-mobile-${a.id}`} onClick={() => remove(a.id)} className="p-2 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </MobileCard>
+          );
+        })}
+        {rows.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-sm px-4 py-10 text-center text-gray-400 text-sm">{loading ? "A carregar…" : "Sem artigos."}</div>
+        )}
+      </MobileCards>
     </ListPage>
 
     <ArtigosDiversosConfig open={diversosOpen} onOpenChange={setDiversosOpen} onSaved={reload} />
