@@ -7,6 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, Star, LayoutGrid, List, UserCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -157,35 +158,45 @@ export default function OrdensFabrico() {
             <div className="flex-1 min-w-0">
               <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou encomenda..." testid="ofs-search" />
             </div>
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <button
-                data-testid="of-filter-minhas"
-                onClick={() => setMine((m) => !m)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-sm flex items-center gap-1.5 border transition-colors ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-              >
-                <UserCheck size={14} /> As minhas
-              </button>
-              <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden">
-                <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-2.5 py-1.5 flex items-center ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
-                <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-2.5 py-1.5 flex items-center ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
-              </div>
+            <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden shrink-0 self-end sm:self-auto">
+              <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
+              <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
             </div>
           </div>
-          {view === "lista" && (
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <Tab id="ativas" label="Ativas" />
-                <Tab id="concluidas" label="Concluídas" />
-              </div>
-              {tab === "ativas" && (
-                <div className="flex items-center gap-3 text-[11px] text-gray-500">
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-400" /> Por iniciar</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Em curso</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Em pausa</span>
+          <MobileFiltersButton
+            testid="ofs-filtros"
+            activeCount={(mine ? 1 : 0) + (view === "lista" && tab !== "ativas" ? 1 : 0)}
+            onClear={() => { setMine(false); setTab("ativas"); }}
+            title="Filtrar ordens de fabrico"
+            description="Responsável e estado da OF."
+          >
+            {({ mobile }) => (
+              <div className={mobile ? "flex flex-col gap-3" : "flex items-center justify-between gap-2 flex-wrap w-full"}>
+                <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-1.5 flex-wrap"}>
+                  <button
+                    data-testid="of-filter-minhas"
+                    onClick={() => setMine((m) => !m)}
+                    className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-1.5 border transition-colors min-h-11 ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                  >
+                    <UserCheck size={14} /> As minhas
+                  </button>
+                  {view === "lista" && (
+                    <>
+                      <Tab id="ativas" label="Ativas" />
+                      <Tab id="concluidas" label="Concluídas" />
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+                {!mobile && view === "lista" && tab === "ativas" && (
+                  <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-400" /> Por iniciar</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Em curso</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Em pausa</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </MobileFiltersButton>
         </div>
       }
       footer={

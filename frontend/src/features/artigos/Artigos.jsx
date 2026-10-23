@@ -6,6 +6,7 @@ import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Pencil, Trash2, Copy, Settings, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -17,7 +18,8 @@ import Combobox from "@/components/Combobox";
 import { TIPOS_ARTIGO, TIPO_ARTIGO_PT, normalizarTipo, isProduzido, isMateriaPrima } from "@/features/artigos/artigoTipos";
 import { unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
 
-const filtroCls = "w-full sm:w-[11.5rem] lg:w-[13rem]";
+const filtroClsDesktop = "w-[11.5rem] lg:w-[13rem]";
+const filtroClsMobile = "w-full";
 
 export default function Artigos() {
   const { can } = useAuth();
@@ -224,62 +226,75 @@ export default function Artigos() {
             />
             <div className="text-xs text-gray-500 sm:ml-auto">{loading ? "A carregar…" : rangeLabel}</div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Combobox
-              testid="artigos-filtro-tipo"
-              optionTestidPrefix="artigos-filtro-tipo"
-              options={tipoOptions}
-              value={filtroTipo}
-              onChange={(v) => setFiltroTipo(v || "")}
-              placeholder="Todos os tipos"
-              searchPlaceholder="Escrever para filtrar tipo…"
-              matchPrefix={false}
-              className={filtroCls}
-            />
-            <Combobox
-              testid="artigos-filtro-categoria"
-              optionTestidPrefix="artigos-filtro-categoria"
-              options={categoriaOptions}
-              value={filtroCategoria}
-              onChange={onCategoriaChange}
-              placeholder="Todas as categorias"
-              searchPlaceholder="Escrever para filtrar categoria…"
-              matchPrefix={false}
-              className={filtroCls}
-            />
-            <Combobox
-              testid="artigos-filtro-subcategoria"
-              optionTestidPrefix="artigos-filtro-subcategoria"
-              options={subcategoriaOptions}
-              value={filtroSubcategoria}
-              onChange={(v) => setFiltroSubcategoria(v || "")}
-              placeholder="Todas as subcategorias"
-              searchPlaceholder="Escrever para filtrar subcategoria…"
-              matchPrefix={false}
-              className={filtroCls}
-            />
-            <Combobox
-              testid="artigos-filtro-produzido"
-              optionTestidPrefix="artigos-filtro-produzido"
-              options={produzidoOptions}
-              value={filtroProduzido}
-              onChange={(v) => setFiltroProduzido(v || "")}
-              placeholder="Produzido / compra"
-              searchPlaceholder="Escrever para filtrar…"
-              matchPrefix={false}
-              className={filtroCls}
-            />
-            {temFiltros && (
-              <button
-                type="button"
-                data-testid="artigos-limpar-filtros"
-                onClick={limparFiltros}
-                className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </div>
+          <MobileFiltersButton
+            testid="artigos-filtros"
+            activeCount={[filtroTipo, filtroCategoria, filtroSubcategoria, filtroProduzido].filter(Boolean).length}
+            onClear={limparFiltros}
+            title="Filtrar artigos"
+            description="Tipo, categoria, subcategoria e origem (produzido / compra)."
+          >
+            {({ mobile }) => {
+              const cls = mobile ? filtroClsMobile : filtroClsDesktop;
+              return (
+                <>
+                  <Combobox
+                    testid="artigos-filtro-tipo"
+                    optionTestidPrefix="artigos-filtro-tipo"
+                    options={tipoOptions}
+                    value={filtroTipo}
+                    onChange={(v) => setFiltroTipo(v || "")}
+                    placeholder="Todos os tipos"
+                    searchPlaceholder="Escrever para filtrar tipo…"
+                    matchPrefix={false}
+                    className={cls}
+                  />
+                  <Combobox
+                    testid="artigos-filtro-categoria"
+                    optionTestidPrefix="artigos-filtro-categoria"
+                    options={categoriaOptions}
+                    value={filtroCategoria}
+                    onChange={onCategoriaChange}
+                    placeholder="Todas as categorias"
+                    searchPlaceholder="Escrever para filtrar categoria…"
+                    matchPrefix={false}
+                    className={cls}
+                  />
+                  <Combobox
+                    testid="artigos-filtro-subcategoria"
+                    optionTestidPrefix="artigos-filtro-subcategoria"
+                    options={subcategoriaOptions}
+                    value={filtroSubcategoria}
+                    onChange={(v) => setFiltroSubcategoria(v || "")}
+                    placeholder="Todas as subcategorias"
+                    searchPlaceholder="Escrever para filtrar subcategoria…"
+                    matchPrefix={false}
+                    className={cls}
+                  />
+                  <Combobox
+                    testid="artigos-filtro-produzido"
+                    optionTestidPrefix="artigos-filtro-produzido"
+                    options={produzidoOptions}
+                    value={filtroProduzido}
+                    onChange={(v) => setFiltroProduzido(v || "")}
+                    placeholder="Produzido / compra"
+                    searchPlaceholder="Escrever para filtrar…"
+                    matchPrefix={false}
+                    className={cls}
+                  />
+                  {!mobile && temFiltros && (
+                    <button
+                      type="button"
+                      data-testid="artigos-limpar-filtros"
+                      onClick={limparFiltros}
+                      className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50"
+                    >
+                      Limpar filtros
+                    </button>
+                  )}
+                </>
+              );
+            }}
+          </MobileFiltersButton>
           {can("artigos", "edit") && someSelected && (
             <div
               className="flex flex-wrap items-center gap-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2"

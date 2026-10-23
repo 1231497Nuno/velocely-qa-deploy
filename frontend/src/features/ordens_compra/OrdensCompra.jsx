@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -93,24 +94,36 @@ export default function OrdensCompra() {
       }
       toolbar={
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip id="" label="Todas" />
-            <Chip id="compra" label="Compra" />
-            <Chip id="despesa_normal" label="Despesa" />
-            <Chip id="despesa_diversa" label="Despesa diversa" />
-            <select
-              data-testid="oc-filtro-estado"
-              value={estadoFilter}
-              onChange={(e) => setEstadoFilter(e.target.value)}
-              className="ml-auto text-sm border border-gray-300 rounded-sm px-2 py-1.5 bg-white"
-            >
-              <option value="">Todos os estados</option>
-              <option value="criada">Criada</option>
-              <option value="recebida">Recebida</option>
-              <option value="cancelada">Cancelada</option>
-            </select>
-          </div>
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código, assunto ou fornecedor..." testid="ordens-compra-search" />
+          <MobileFiltersButton
+            testid="ordens-compra-filtros"
+            activeCount={(tipoFilter ? 1 : 0) + (estadoFilter ? 1 : 0)}
+            onClear={() => { setTipoFilter(""); setEstadoFilter(""); }}
+            title="Filtrar ordens de compra"
+            description="Tipo de despesa e estado."
+          >
+            {({ mobile }) => (
+              <div className={mobile ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2 w-full"}>
+                <div className={mobile ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2"}>
+                  <Chip id="" label="Todas" />
+                  <Chip id="compra" label="Compra" />
+                  <Chip id="despesa_normal" label="Despesa" />
+                  <Chip id="despesa_diversa" label="Despesa diversa" />
+                </div>
+                <select
+                  data-testid="oc-filtro-estado"
+                  value={estadoFilter}
+                  onChange={(e) => setEstadoFilter(e.target.value)}
+                  className={`${mobile ? "w-full" : "ml-auto"} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white min-h-11`}
+                >
+                  <option value="">Todos os estados</option>
+                  <option value="criada">Criada</option>
+                  <option value="recebida">Recebida</option>
+                  <option value="cancelada">Cancelada</option>
+                </select>
+              </div>
+            )}
+          </MobileFiltersButton>
         </div>
       }
       footer={

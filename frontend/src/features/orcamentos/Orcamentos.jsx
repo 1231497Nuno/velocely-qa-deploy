@@ -7,6 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge, { STATUS_META } from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
 import { Plus, Trash2, Copy, LayoutGrid, List } from "lucide-react";
@@ -122,21 +123,29 @@ export default function Orcamentos() {
         <>
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou referência..." testid="orcamentos-search" />
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              {view === "lista" && (
-                <>
-                  <Tab id="todos" label="Todos" />
-                  <Tab id="abertos" label="Abertos" />
-                  <Tab id="ganho" label="Ganhos" />
-                  <Tab id="perdido" label="Perdidos" />
-                </>
-              )}
-            </div>
-            <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden">
-              <button data-testid="orc-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+            {view === "lista" ? (
+              <MobileFiltersButton
+                testid="orcamentos-filtros"
+                activeCount={tab !== "todos" ? 1 : 0}
+                onClear={() => setTab("todos")}
+                title="Filtrar orçamentos"
+                description="Estado do orçamento."
+              >
+                {({ mobile }) => (
+                  <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"}>
+                    <Tab id="todos" label="Todos" />
+                    <Tab id="abertos" label="Abertos" />
+                    <Tab id="ganho" label="Ganhos" />
+                    <Tab id="perdido" label="Perdidos" />
+                  </div>
+                )}
+              </MobileFiltersButton>
+            ) : <div />}
+            <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden ml-auto">
+              <button data-testid="orc-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-3 py-2 flex items-center gap-1.5 text-sm min-h-11 ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
                 <List size={15} />
               </button>
-              <button data-testid="orc-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-3 py-2 flex items-center gap-1.5 text-sm ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              <button data-testid="orc-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-3 py-2 flex items-center gap-1.5 text-sm min-h-11 ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
                 <LayoutGrid size={15} />
               </button>
             </div>

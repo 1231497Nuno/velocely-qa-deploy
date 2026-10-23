@@ -7,6 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import MobileFiltersButton from "@/components/MobileFiltersButton";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
@@ -102,23 +103,33 @@ export default function Encomendas() {
       toolbar={
         <>
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou orçamento..." testid="encomendas-search" />
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Tab id="pendentes" label="Pendentes" />
-              <Tab id="concluidas" label="Concluídas" />
-              <Tab id="todas" label="Todas" />
-            </div>
-            <button
-              data-testid="enc-filtro-sem-of"
-              onClick={() => setSoSemOf((v) => !v)}
-              className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-            >
-              <AlertTriangle size={15} className={soSemOf ? "text-white" : "text-red-500"} /> Artigos por produzir
-              {numSemOf > 0 && (
-                <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${soSemOf ? "bg-white/20" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>
-              )}
-            </button>
-          </div>
+          <MobileFiltersButton
+            testid="encomendas-filtros"
+            activeCount={(estadoFilter !== "pendentes" ? 1 : 0) + (soSemOf ? 1 : 0)}
+            onClear={() => { setEstadoFilter("pendentes"); setSoSemOf(false); }}
+            title="Filtrar encomendas"
+            description="Estado e alertas de produção."
+          >
+            {({ mobile }) => (
+              <div className={mobile ? "flex flex-col gap-2" : "flex items-center justify-between gap-3 flex-wrap w-full"}>
+                <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"}>
+                  <Tab id="pendentes" label="Pendentes" />
+                  <Tab id="concluidas" label="Concluídas" />
+                  <Tab id="todas" label="Todas" />
+                </div>
+                <button
+                  data-testid="enc-filtro-sem-of"
+                  onClick={() => setSoSemOf((v) => !v)}
+                  className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                >
+                  <AlertTriangle size={15} className={soSemOf ? "text-white" : "text-red-500"} /> Artigos por produzir
+                  {numSemOf > 0 && (
+                    <span className={`text-xs tabular-nums rounded-full px-1.5 py-0.5 ${soSemOf ? "bg-white/20" : "bg-red-100 text-red-700"}`}>{numSemOf}</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </MobileFiltersButton>
         </>
       }
       footer={
