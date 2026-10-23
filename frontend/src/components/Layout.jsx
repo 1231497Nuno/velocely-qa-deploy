@@ -248,30 +248,33 @@ export default function Layout({ children }) {
   return (
     <div className="min-h-screen min-h-[100dvh] flex bg-[#F8F9FA] overflow-x-hidden">
       <header className="lg:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-gray-200 safe-top safe-x">
-        <div className="h-14 flex items-center justify-between px-3 sm:px-4 gap-2">
+        <div className="h-14 flex items-center justify-between px-2.5 sm:px-4 gap-1.5">
           <Link to="/" data-testid="mobile-logo-link" className="min-w-0 shrink">
-            <img src="/logo-full.png" alt="Velocely" className="h-7 w-auto max-w-[9.5rem] object-contain object-left" />
+            <img src="/logo-full.png" alt="Velocely" className="h-6 sm:h-7 w-auto max-w-[7.5rem] sm:max-w-[9.5rem] object-contain object-left" />
           </Link>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <MiniCalendarButton />
-            <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
-            <UserAvatarMenu />
+          <div className="flex items-center shrink-0" data-testid="mobile-header-actions">
+            <div className="flex items-center">
+              <MiniCalendarButton />
+              <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
+              <UserAvatarMenu />
+            </div>
+            <span className="mx-1 h-5 w-px bg-gray-200 shrink-0" aria-hidden />
             <button
               data-testid="mobile-search-toggle"
               onClick={() => setSearchOpen((v) => !v)}
-              className={`p-2.5 rounded-sm text-gray-700 hover:bg-gray-100 min-h-11 min-w-11 inline-flex items-center justify-center ${searchOpen ? "bg-gray-100" : ""}`}
+              className={`relative inline-flex items-center justify-center h-10 w-10 rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 ${searchOpen ? "bg-gray-100 text-gray-900" : ""}`}
               aria-label="Pesquisar"
               aria-expanded={searchOpen}
             >
-              <Search size={20} />
+              <Search size={19} strokeWidth={1.8} />
             </button>
             <button
               data-testid="mobile-menu-toggle"
               onClick={() => setOpen(true)}
-              className="p-2.5 -mr-1 rounded-sm text-gray-700 hover:bg-gray-100 min-h-11 min-w-11 inline-flex items-center justify-center"
+              className="relative inline-flex items-center justify-center h-10 w-10 rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               aria-label="Abrir menu"
             >
-              <Menu size={22} />
+              <Menu size={20} strokeWidth={1.8} />
             </button>
           </div>
         </div>
@@ -369,7 +372,7 @@ export default function Layout({ children }) {
       <main className={`flex-1 lg:ml-64 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top,0px))] lg:pt-0 ${searchOpen ? "max-lg:pt-[calc(3.5rem+4.25rem+env(safe-area-inset-top,0px))]" : ""}`}>
         <div className="hidden lg:flex sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
           <GlobalSearch />
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-0.5" data-testid="desktop-header-actions">
             <MiniCalendarButton />
             <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />
             <UserAvatarMenu />

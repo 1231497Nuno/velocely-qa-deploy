@@ -8,6 +8,7 @@ import axios from "axios";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { HEADER_ICON_BTN } from "@/components/HeaderIconBadge";
 
 function initials(user) {
   const n = (user?.name || user?.login || user?.email || "?").trim();
@@ -191,12 +192,13 @@ export default function UserAvatarMenu() {
         type="button"
         data-testid="user-avatar-btn"
         onClick={() => setMenuOpen((o) => !o)}
-        className="rounded-full ring-offset-2 hover:ring-2 hover:ring-gray-200 transition-shadow"
+        className={`${HEADER_ICON_BTN} rounded-full`}
         aria-label="Perfil"
+        aria-expanded={menuOpen}
       >
-        <Avatar className="h-8 w-8">
+        <Avatar className="h-7 w-7">
           <AvatarImage src={avatarSrc(user.avatar)} alt={user.name || user.login} />
-          <AvatarFallback className="bg-gray-900 text-white text-xs font-semibold">
+          <AvatarFallback className="bg-gray-900 text-white text-[10px] font-semibold">
             {initials(user)}
           </AvatarFallback>
         </Avatar>
