@@ -287,10 +287,10 @@ export default function Orcamentos() {
             </table>
           </ScrollableTable>
 
-          <MobileCards testid="orcamentos-cards" className="space-y-3">
+          <MobileCards testid="orcamentos-cards">
             {rows.map((o) => (
-              <MobileCard key={o.id} testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="p-4">
-                <div className="flex items-start justify-between gap-3">
+              <MobileCard key={o.id} testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)}>
+                <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="mono tabular-nums font-semibold text-gray-900">{orcNumeroLabel(o)}</div>
                     {o.encomenda_numero && (
@@ -303,11 +303,11 @@ export default function Orcamentos() {
                         {o.encomenda_numero}
                       </button>
                     )}
-                    <div className="text-gray-700 truncate">{o.cliente}</div>
+                    <div className="text-sm text-gray-700 truncate">{o.cliente}</div>
                   </div>
                   <StatusBadge status={o.status} />
                 </div>
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
                     <div>{fmtDate(o.data)}{o.validade ? ` · val. ${fmtDate(o.validade)}` : ""}</div>
                     {o.numero_encomenda && <div className="mono mt-0.5">Ref. {o.numero_encomenda}</div>}

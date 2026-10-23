@@ -2,6 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Densidade adaptativa: escala padding/gaps/tipografia com a largura e
+ * altura do ecrã para caber mais informação em telemóveis pequenos
+ * e respirar um pouco em ecrãs maiores — sem layouts fixos.
+ */
+:root {
+    --mobile-header-h: 3.25rem;
+    --app-pad-x: clamp(0.5rem, 2.8vw, 1.25rem);
+    --app-pad-y: clamp(0.45rem, 1.4vh, 0.9rem);
+    --card-pad: clamp(0.5rem, 0.3rem + 1.5vw, 0.85rem);
+    --card-gap: clamp(0.25rem, 0.15rem + 0.7vh, 0.5rem);
+    --section-gap: clamp(0.4rem, 0.25rem + 0.9vh, 0.75rem);
+    --touch: clamp(2.25rem, 2rem + 1vw, 2.75rem);
+    --title-size: clamp(1.1rem, 0.95rem + 1.5vw, 1.65rem);
+    --body-size: clamp(0.8125rem, 0.75rem + 0.35vw, 0.875rem);
+    /* header + safe + padding vertical da shell (lista ocupa o resto) */
+    --list-chrome: calc(
+        var(--mobile-header-h) + env(safe-area-inset-top, 0px) +
+        var(--app-pad-y) * 2 + env(safe-area-inset-bottom, 0px)
+    );
+}
+
+/* Tablets / desktop (largura) */
+@media (min-width: 640px) {
+    :root {
+        --app-pad-x: clamp(1rem, 2vw, 1.5rem);
+        --app-pad-y: clamp(0.85rem, 1.5vh, 1.5rem);
+        --card-pad: 1rem;
+        --card-gap: 0.75rem;
+        --title-size: clamp(1.5rem, 1.25rem + 0.8vw, 1.875rem);
+    }
+}
+
+@media (min-width: 1024px) {
+    :root {
+        --mobile-header-h: 3.5rem;
+        --app-pad-x: 2rem;
+        --app-pad-y: 2rem;
+        --list-chrome: 7.5rem;
+    }
+}
+
+/*
+ * Densidade por altura — depois das regras de largura, para landscape
+ * em telemóveis largos (≥640px) não herdar padding de tablet.
+ */
+@media (max-height: 700px) and (max-width: 1023px) {
+    :root {
+        --mobile-header-h: 2.875rem;
+        --app-pad-y: 0.35rem;
+        --app-pad-x: clamp(0.5rem, 2vw, 1rem);
+        --card-pad: 0.5rem;
+        --card-gap: 0.25rem;
+        --section-gap: 0.35rem;
+        --title-size: 1.05rem;
+        --touch: 2.25rem;
+    }
+}
+
+@media (min-height: 800px) and (max-width: 639px) {
+    :root {
+        --app-pad-y: clamp(0.65rem, 1.8vh, 1.1rem);
+        --card-pad: clamp(0.7rem, 0.4rem + 1.8vw, 1rem);
+        --card-gap: clamp(0.4rem, 0.9vh, 0.65rem);
+    }
+}
+
 html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -24,6 +91,7 @@ body {
     color: #111827;
     overflow-x: hidden;
     overscroll-behavior-y: none;
+    font-size: var(--body-size);
 }
 
 /* Evita zoom automático no iOS ao focar inputs (<16px). */
@@ -59,6 +127,41 @@ body {
 body.mobile-nav-open {
     overflow: hidden;
     touch-action: none;
+}
+
+@layer components {
+    .app-shell-pad {
+        padding-left: max(var(--app-pad-x), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--app-pad-x), env(safe-area-inset-right, 0px));
+        padding-top: var(--app-pad-y);
+        padding-bottom: max(var(--app-pad-y), env(safe-area-inset-bottom, 0px));
+    }
+
+    .app-list-height {
+        height: calc(100dvh - var(--list-chrome));
+    }
+
+    .mobile-card {
+        padding: var(--card-pad);
+    }
+
+    .mobile-cards-stack {
+        gap: var(--card-gap);
+    }
+
+    .page-title {
+        font-size: var(--title-size);
+        line-height: 1.2;
+    }
+
+    .section-gap {
+        margin-bottom: var(--section-gap);
+    }
+
+    .touch-target {
+        min-height: var(--touch);
+        min-width: var(--touch);
+    }
 }
 
 h1,

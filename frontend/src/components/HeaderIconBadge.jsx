@@ -22,4 +22,4 @@ export default function HeaderIconBadge({ count, critical = false, testid }) {
 }
 
 export const HEADER_ICON_BTN =
-  "relative inline-flex items-center justify-center h-10 w-10 rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 shrink-0";
+  "relative inline-flex items-center justify-center touch-target rounded-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 shrink-0";

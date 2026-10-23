@@ -215,7 +215,7 @@ export default function OrdensCompra() {
               </div>
               <StatusBadge status={o.estado} />
             </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 gap-2">
               <div className="text-xs text-gray-500">{fmtDate(o.data)}</div>
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <span className="tabular-nums font-semibold">{eur(o.total)}</span>

@@ -18,12 +18,16 @@ export function ListPage({ header, toolbar, footer, children, className = "" }) 
   return (
     <div
       data-testid="list-page"
-      className={`flex flex-col min-h-0 h-[calc(100dvh-5.5rem-env(safe-area-inset-top,0px))] sm:h-[calc(100dvh-6.5rem-env(safe-area-inset-top,0px))] lg:h-[calc(100dvh-7.5rem)] ${className}`}
+      className={`flex flex-col min-h-0 app-list-height ${className}`}
     >
       {header && <div className="shrink-0">{header}</div>}
-      {toolbar && <div className="shrink-0 space-y-2 mb-2">{toolbar}</div>}
+      {toolbar && <div className="shrink-0 space-y-1.5 mb-1.5 sm:space-y-2 sm:mb-2">{toolbar}</div>}
       <div className="flex-1 min-h-0 flex flex-col">{children}</div>
-      {footer && <div className="shrink-0 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom,0px))]">{footer}</div>}
+      {footer && (
+        <div className="shrink-0 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom,0px))]">
+          {footer}
+        </div>
+      )}
     </div>
   );
 }
@@ -45,7 +49,7 @@ export function MobileCards({ children, className = "", testid }) {
   return (
     <div
       data-testid={testid}
-      className={`md:hidden flex-1 min-h-0 overflow-auto space-y-2.5 -mx-0.5 px-0.5 ${className}`}
+      className={`md:hidden flex-1 min-h-0 overflow-auto mobile-cards-stack flex flex-col -mx-0.5 px-0.5 ${className}`}
     >
       {children}
     </div>
@@ -69,7 +73,7 @@ export function MobileCard({ children, onClick, testid, className = "" }) {
             }
           : undefined
       }
-      className={`bg-white border border-gray-200 rounded-sm p-3.5 ${onClick ? "cursor-pointer active:bg-gray-50" : ""} ${className}`}
+      className={`bg-white border border-gray-200 rounded-sm mobile-card ${onClick ? "cursor-pointer active:bg-gray-50" : ""} ${className}`}
     >
       {children}
     </div>
