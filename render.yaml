@@ -18,11 +18,14 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /docs
+    # /docs está desligado em QA/prod — branding é público e leve
+    healthCheckPath: /api/branding
     autoDeployTrigger: commit
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
+      - key: APP_ENV
+        value: qa
       - key: DB_NAME
         value: velocely_qa
       - key: UPLOAD_DIR
