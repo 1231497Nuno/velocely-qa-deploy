@@ -30,7 +30,14 @@ IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID")
 # local | qa | prod — controla docs e política de segredos
 APP_ENV = (os.environ.get("APP_ENV") or os.environ.get("ENV") or ("qa" if IS_RENDER else "local")).strip().lower()
 ALLOW_INSECURE_DEFAULTS = os.environ.get("ALLOW_INSECURE_DEFAULTS", "").lower() in ("1", "true", "yes")
-ENABLE_DOCS = os.environ.get("ENABLE_DOCS", "").lower() in ("1", "true", "yes") or APP_ENV == "local"
+# ENABLE_DOCS: 1/0 força; senão docs em local+qa (Render free ainda pode probe /docs)
+_docs_env = os.environ.get("ENABLE_DOCS", "").strip().lower()
+if _docs_env in ("1", "true", "yes"):
+    ENABLE_DOCS = True
+elif _docs_env in ("0", "false", "no"):
+    ENABLE_DOCS = False
+else:
+    ENABLE_DOCS = APP_ENV in ("local", "qa")
 
 
 def assert_secure_secrets() -> None:
