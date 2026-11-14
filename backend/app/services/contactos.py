@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from app.domain.models import PAPEL_CONTACTO_PT, PAPEIS_CONTACTO
 from app.repositories import clientes_repo
 
 
@@ -30,6 +31,43 @@ def find_contacto(cliente: Optional[dict], contacto_id: Optional[str]) -> Option
     return None
 
 
+def contacto_papeis(contacto: Optional[dict]) -> List[str]:
+    if not contacto:
+        return []
+    raw = contacto.get("papeis")
+    if isinstance(raw, str):
+        raw = [raw]
+    out = []
+    for p in raw or []:
+        key = str(p or "").strip().lower()
+        if key in PAPEIS_CONTACTO and key not in out:
+            out.append(key)
+    # Legado: cargo livre com palavras-chave
+    if not out:
+        cargo = (contacto.get("cargo") or "").strip().lower()
+        if any(x in cargo for x in ("financ", "conta", "tesour")):
+            out.append("financeiro")
+        if any(x in cargo for x in ("compra", "decisor", "aprov", "diretor", "director", "gestor")):
+            out.append("decisor")
+        if any(x in cargo for x in ("tecnic", "design", "arte", "pre-press", "prepress", "graf")):
+            out.append("tecnico")
+    return out
+
+
+def label_papeis(contacto: Optional[dict]) -> str:
+    return " · ".join(PAPEL_CONTACTO_PT.get(p, p) for p in contacto_papeis(contacto))
+
+
+def find_contacto_por_papel(cliente: Optional[dict], papel: str) -> Optional[dict]:
+    papel = (papel or "").strip().lower()
+    if papel not in PAPEIS_CONTACTO:
+        return None
+    for c in contactos_activos(cliente):
+        if papel in contacto_papeis(c) and (c.get("email") or "").strip():
+            return c
+    return None
+
+
 def denorm_contacto(contacto: Optional[dict]) -> Dict[str, Any]:
     if not contacto:
         return {
@@ -39,6 +77,7 @@ def denorm_contacto(contacto: Optional[dict]) -> Dict[str, Any]:
             "contacto_telefone": "",
             "contacto_cargo": "",
             "contacto_departamento": "",
+            "contacto_papeis": [],
         }
     return {
         "contacto_id": contacto.get("id"),
@@ -47,6 +86,7 @@ def denorm_contacto(contacto: Optional[dict]) -> Dict[str, Any]:
         "contacto_telefone": (contacto.get("telefone") or "").strip(),
         "contacto_cargo": (contacto.get("cargo") or "").strip(),
         "contacto_departamento": (contacto.get("departamento") or "").strip(),
+        "contacto_papeis": contacto_papeis(contacto),
     }
 
 
@@ -55,12 +95,14 @@ def resolve_email_destinatario(
     cliente: Optional[dict],
     *,
     explicit_to: str = "",
+    prefer_papel: str = "",
 ) -> str:
     """
     Destinatário por ordem:
     1. explicit_to (body do pedido)
     2. contacto «à atenção de» do documento
-    3. email geral da empresa/cliente
+    3. contacto activo com o papel preferido (ex.: financeiro para faturas)
+    4. email geral da empresa/cliente
     """
     to = (explicit_to or "").strip()
     if to and "@" in to:
@@ -70,6 +112,14 @@ def resolve_email_destinatario(
         cemail = (doc.get("contacto_email") or "").strip()
         if cemail and "@" in cemail:
             return cemail
+
+    papel = (prefer_papel or "").strip().lower()
+    if papel:
+        c = find_contacto_por_papel(cliente, papel)
+        if c:
+            email = (c.get("email") or "").strip()
+            if email and "@" in email:
+                return email
 
     fallback = ((cliente or {}).get("email") or "").strip()
     return fallback if fallback and "@" in fallback else ""
@@ -101,4 +151,5 @@ def copy_contacto_fields(src: dict) -> Dict[str, Any]:
         "contacto_telefone": src.get("contacto_telefone") or "",
         "contacto_cargo": src.get("contacto_cargo") or "",
         "contacto_departamento": src.get("contacto_departamento") or "",
+        "contacto_papeis": list(src.get("contacto_papeis") or []),
     }

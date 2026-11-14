@@ -20,6 +20,8 @@ export default function SelecionarVariantesDialog({
   paiId,
   paiNome = "",
   onConfirm,
+  /** Quando não há variantes criadas, permite usar o artigo pai na linha. */
+  onUsePai,
 }) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]);
@@ -105,8 +107,11 @@ export default function SelecionarVariantesDialog({
             <div className="px-4 py-8 text-center text-sm text-gray-400">A carregar…</div>
           )}
           {!loading && rows.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-gray-400">
-              Este artigo ainda não tem variantes.
+            <div className="px-4 py-8 text-center text-sm text-gray-500 space-y-3" data-testid="variante-pick-empty">
+              <p>Este artigo ainda não tem variantes.</p>
+              {onUsePai && (
+                <p className="text-xs text-gray-400">Pode usar o artigo pai directamente no orçamento.</p>
+              )}
             </div>
           )}
           {!loading && rows.length > 0 && (
@@ -174,15 +179,29 @@ export default function SelecionarVariantesDialog({
           >
             Cancelar
           </button>
-          <button
-            type="button"
-            onClick={confirm}
-            disabled={loading || selectedCount === 0}
-            className="rounded-sm bg-black text-white px-3 py-1.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-            data-testid="variante-pick-confirm"
-          >
-            Adicionar{selectedCount > 0 ? ` (${selectedCount})` : ""}
-          </button>
+          {!loading && rows.length === 0 && onUsePai ? (
+            <button
+              type="button"
+              onClick={() => {
+                onUsePai();
+                onOpenChange?.(false);
+              }}
+              className="rounded-sm bg-black text-white px-3 py-1.5 text-sm font-medium hover:bg-gray-800"
+              data-testid="variante-pick-use-pai"
+            >
+              Usar artigo pai
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={loading || selectedCount === 0}
+              className="rounded-sm bg-black text-white px-3 py-1.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              data-testid="variante-pick-confirm"
+            >
+              Adicionar{selectedCount > 0 ? ` (${selectedCount})` : ""}
+            </button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

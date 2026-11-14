@@ -329,7 +329,7 @@ async def enviar_orcamento_email(
         )
     cliente = await fetch_cliente(o.get("cliente_id"))
     to = contactos_svc.resolve_email_destinatario(
-        o, cliente, explicit_to=body.to or "",
+        o, cliente, explicit_to=body.to or "", prefer_papel="decisor",
     )
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")

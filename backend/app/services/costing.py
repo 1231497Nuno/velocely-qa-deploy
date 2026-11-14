@@ -316,7 +316,19 @@ async def artigo_custo_total(artigo: dict) -> float:
 
 
 def enrich_artigo(artigo: dict, breakdown: dict) -> dict:
-    return {**artigo, **breakdown}
+    out = {**artigo, **breakdown}
+    # Dados legados sem tipo/produzido → defaults estáveis para UI/orçamentos
+    if not (out.get("tipo_artigo") or "").strip():
+        out["tipo_artigo"] = "ativo"
+    if out.get("produzido") is None:
+        out["produzido"] = bool(out.get("materiais") or out.get("roteiro"))
+    if out.get("preco_compra") is None:
+        out["preco_compra"] = 0.0
+    if out.get("conta_proveitos") is None:
+        out["conta_proveitos"] = ""
+    if out.get("custo_artigo") is None:
+        out["custo_artigo"] = 0.0
+    return out
 
 
 # ----------------------- Personalizações -----------------------

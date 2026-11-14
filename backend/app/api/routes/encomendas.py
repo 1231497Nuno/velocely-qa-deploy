@@ -421,7 +421,7 @@ async def _enviar_encomenda_notificacao(eid: str, body: EnviarEmailBody, user: d
     cliente = await fetch_cliente(e.get("cliente_id"))
     # Preferir «à atenção de», senão email da empresa
     to = contactos_svc.resolve_email_destinatario(
-        e, cliente, explicit_to=body.to or "",
+        e, cliente, explicit_to=body.to or "", prefer_papel="financeiro",
     )
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")

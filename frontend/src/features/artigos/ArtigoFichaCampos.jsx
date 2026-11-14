@@ -505,6 +505,9 @@ export default function ArtigoFichaCampos({
                     {eur(src?.preco_compra)} ÷ {areaM2.toLocaleString("pt-PT", { maximumFractionDigits: 4 })} {un}
                   </div>
                 )}
+                <div className="text-[10px] text-amber-700 mt-1">
+                  Derivado do preço da placa — altere o campo «Preço da placa» acima.
+                </div>
               </div>
             ) : editing ? (
               <div className="inline-flex items-center gap-1.5 justify-end">
