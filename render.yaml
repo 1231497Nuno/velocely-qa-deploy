@@ -18,8 +18,8 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
-    # /docs está desligado em QA/prod — branding é público e leve
-    healthCheckPath: /api/branding
+    # Preferir /health (sempre on). branding/docs são fallbacks legados.
+    healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
       - key: PYTHON_VERSION

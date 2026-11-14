@@ -126,6 +126,12 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
+@app.get("/health", include_in_schema=False)
+async def health():
+    """Probe de plataforma (Render, etc.) — sem auth e independente de /docs."""
+    return {"ok": True, "env": config.APP_ENV}
+
+
 @app.on_event("startup")
 async def _startup_seed_admin() -> None:
     try:
