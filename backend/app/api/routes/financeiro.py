@@ -1,7 +1,7 @@
 """Rotas do módulo opcional de faturas e recibos (fatura, proforma, fatura-recibo)."""
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from io import BytesIO
@@ -12,7 +12,7 @@ from app.domain.models import DOC_TIPOS_PRINCIPAIS, DOC_TIPO_PT
 from app.repositories import documentos_financeiros_repo, encomendas_repo
 from app.services.financeiro import (
     emitir_from_encomenda, emitir_recibo_from_fatura, enrich_documento, enrich_documentos_many,
-    resumo_faturacao_encomenda, LinhaParcialInput,
+    resumo_faturacao_encomenda, LinhaParcialInput, reverter_efeitos_documento,
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, build_documento_financeiro_pdf
 from app.services import audit
@@ -96,21 +96,9 @@ async def emitir_recibo_fatura(
 @router.get("/financeiro/documentos/{did}/pdf")
 async def documento_pdf(
     did: str,
-    authorization: str = Header(None),
-    auth: str = Query(None),
+    _u: dict = Depends(require_perm("financeiro", "view")),
 ):
-    """Aceita Bearer header ou ?auth= (abertura em nova tab)."""
-    import jwt
-    from app.core import config
-
-    header = authorization or (f"Bearer {auth}" if auth else None)
-    if not header or not header.startswith("Bearer "):
-        raise HTTPException(401, "Não autenticado")
-    try:
-        jwt.decode(header[7:], config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Não autenticado")
-
+    """PDF do documento — exige Bearer + permissão financeiro.view (sem JWT na query)."""
     doc = await documentos_financeiros_repo.get(did)
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
@@ -132,12 +120,16 @@ async def anular_documento(did: str, user: dict = Depends(require_perm("financei
         raise HTTPException(404, "Documento não encontrado")
     if doc.get("estado") == "anulada":
         return await enrich_documento(doc)
+    efeitos = await reverter_efeitos_documento(doc)
     await documentos_financeiros_repo.update(did, {"estado": "anulada"})
     doc["estado"] = "anulada"
     label = DOC_TIPO_PT.get(doc.get("tipo"), doc.get("tipo"))
+    extra = ""
+    if efeitos.get("pagamentos_revertidos"):
+        extra = f" · {efeitos['pagamentos_revertidos']} pagamento(s) revertido(s) na encomenda"
     await audit.registar(
         "documento_financeiro", did, "estado_alterado", user,
-        f"{label} {doc.get('numero')} anulado",
+        f"{label} {doc.get('numero')} anulado{extra}",
         doc.get("numero"),
     )
     return await enrich_documento(doc)
@@ -148,18 +140,22 @@ async def delete_documento(did: str, user: dict = Depends(require_perm("financei
     doc = await documentos_financeiros_repo.get(did)
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
-    # Ao apagar fatura, apaga também recibos associados
+    efeitos = await reverter_efeitos_documento(doc)
+    # Ao apagar fatura, apaga também recibos associados (já anulados na reversão)
     if doc.get("tipo") in ("fatura", "fatura_recibo"):
         for r in await documentos_financeiros_repo.find({"fatura_id": did}, limit=500):
             await documentos_financeiros_repo.delete({"id": r["id"]})
     await documentos_financeiros_repo.delete({"id": did})
     label = DOC_TIPO_PT.get(doc.get("tipo"), doc.get("tipo"))
+    extra = ""
+    if efeitos.get("pagamentos_revertidos"):
+        extra = f" · {efeitos['pagamentos_revertidos']} pagamento(s) revertido(s) na encomenda"
     await audit.registar(
         "documento_financeiro", did, "eliminado", user,
-        f"{label} {doc.get('numero')} eliminado",
+        f"{label} {doc.get('numero')} eliminado{extra}",
         doc.get("numero"),
     )
-    return {"ok": True}
+    return {"ok": True, **efeitos}
 
 
 @router.post("/encomendas/{eid}/documentos")

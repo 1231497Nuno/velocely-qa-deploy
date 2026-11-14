@@ -625,6 +625,8 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
     linhas = _sincronizar_precos_linhas(linhas)
     orc = {**orc, "linhas": linhas, "materiais": mats}
     orc_t = compute_orcamento_totais(orc)
+    from app.services.financeiro import assert_limite_credito
+    await assert_limite_credito(orc.get("cliente_id"), float(orc_t.get("total") or 0))
     enc_artigos = []
     for l in linhas:
         if not _linha_pronta(l):

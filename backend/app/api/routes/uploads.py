@@ -1,15 +1,13 @@
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from fastapi.responses import Response
 
-from app.core import config
 from app.core.security import get_current_user
 from app.core.database import new_id, now_iso
 from app.repositories import Repository
 from app.services import storage
-import jwt
 
 router = APIRouter()
 
@@ -78,21 +76,9 @@ async def upload_ficheiro(file: UploadFile = File(...), _u: dict = Depends(get_c
     return await store_upload(file)
 
 
-def _valid_token(auth_header):
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return False
-    try:
-        jwt.decode(auth_header[7:], config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
-        return True
-    except jwt.InvalidTokenError:
-        return False
-
-
 @router.get("/files/{path:path}")
-async def download_file(path: str, authorization: str = Header(None), auth: str = Query(None)):
-    header = authorization or (f"Bearer {auth}" if auth else None)
-    if not _valid_token(header):
-        raise HTTPException(401, "Não autenticado")
+async def download_file(path: str, _u: dict = Depends(get_current_user)):
+    """Download autenticado (Bearer; ?auth= só legado)."""
     record = await files_repo.find_one({"storage_path": path, "is_deleted": False})
     if not record:
         raise HTTPException(404, "Ficheiro não encontrado")

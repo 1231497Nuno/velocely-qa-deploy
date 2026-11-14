@@ -14,9 +14,12 @@ from fastapi.openapi.utils import get_openapi
 from starlette.middleware.cors import CORSMiddleware
 
 from app.core import config
+from app.core.config import assert_secure_secrets, ENABLE_DOCS
 from app.core.database import client
 from app.core.security import auth_router
 from app.services.bootstrap import seed_perfis, seed_admin, seed_user_logins, seed_categorias
+
+assert_secure_secrets()
 from app.services.numeracao import backfill_codigos
 from app.services.cliente_default import ensure_consumidor_final
 from app.repositories import (
@@ -70,11 +73,11 @@ app = FastAPI(
     title="Velocely API",
     description=API_DESCRIPTION,
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
     swagger_ui_parameters={
         "persistAuthorization": True,
-    },
+    } if ENABLE_DOCS else None,
 )
 
 api_router = APIRouter(prefix="/api")

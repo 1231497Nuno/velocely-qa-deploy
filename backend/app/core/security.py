@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Callable, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -194,10 +194,12 @@ def _decode_token(token: str) -> dict:
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    auth: Optional[str] = Query(None, description="Legado: JWT em query (preferir Authorization Bearer)"),
 ) -> dict:
-    if not credentials or not credentials.credentials:
+    token = (credentials.credentials if credentials and credentials.credentials else None) or (auth or "").strip() or None
+    if not token:
         raise HTTPException(status_code=401, detail="Não autenticado")
-    payload = _decode_token(credentials.credentials)
+    payload = _decode_token(token)
     if payload.get("type") == "activate":
         raise HTTPException(status_code=401, detail="Conclua a definição da password")
     if payload.get("type") not in (None, "access"):

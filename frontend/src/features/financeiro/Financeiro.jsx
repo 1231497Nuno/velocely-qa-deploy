@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { api, fmtDate, eur, API, getToken } from "@/lib/api";
+import { api, fmtDate, eur } from "@/lib/api";
+import { openAuthenticated, pdfDocumentoUrl } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
@@ -11,6 +12,14 @@ import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
 import { FileText, FileSpreadsheet, ScrollText, Trash2, ExternalLink, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+
+async function openPdf(docId) {
+  try {
+    await openAuthenticated(pdfDocumentoUrl(docId));
+  } catch (e) {
+    toast.error(e?.message || "Erro ao abrir PDF");
+  }
+}
 
 /** Tipos emitíveis a partir da encomenda / filtros. */
 export const DOC_TIPOS = [
@@ -277,15 +286,14 @@ function FaturaGroup({ d, idx, hasKids, open, isProforma, recibos, canDelete, on
         <td className="px-4 py-3 text-right tabular-nums font-medium">{eur(d.total)}</td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <a
-              href={`${API}/financeiro/documentos/${d.id}/pdf?auth=${getToken()}`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => openPdf(d.id)}
               className="p-1.5 rounded-sm hover:bg-gray-100 text-gray-500"
               title="Abrir PDF"
             >
               <ExternalLink size={15} />
-            </a>
+            </button>
             {canDelete && (
               <button onClick={(e) => onRemove(e, d.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600" title="Eliminar">
                 <Trash2 size={15} />
@@ -320,15 +328,14 @@ function FaturaGroup({ d, idx, hasKids, open, isProforma, recibos, canDelete, on
           </td>
           <td className="px-4 py-2.5">
             <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
-              <a
-                href={`${API}/financeiro/documentos/${r.id}/pdf?auth=${getToken()}`}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => openPdf(r.id)}
                 className="p-1.5 rounded-sm hover:bg-gray-100 text-gray-500"
                 title="PDF do recibo"
               >
                 <ExternalLink size={14} />
-              </a>
+              </button>
             </div>
           </td>
         </tr>

@@ -114,6 +114,60 @@ async def enrich_documentos_many(docs: list) -> list:
     return out
 
 
+async def exposicao_credito_cliente(cliente_id: Optional[str], *, excluir_encomenda_id: Optional[str] = None) -> float:
+    """Soma aproximada de valores em aberto das encomendas activas do cliente."""
+    if not cliente_id:
+        return 0.0
+    encs = await encomendas_repo.find(
+        {"cliente_id": cliente_id, "estado": {"$nin": ["cancelada"]}},
+        limit=5000,
+    )
+    total = 0.0
+    for e in encs:
+        if excluir_encomenda_id and e.get("id") == excluir_encomenda_id:
+            continue
+        if e.get("estado") == "concluida" and float(e.get("valor_pago") or 0) >= float(e.get("valor_total") or 0) - 0.009:
+            continue
+        valor = float(e.get("valor_total") or e.get("total_com_iva") or 0)
+        pago = float(e.get("valor_pago") or 0)
+        total += max(0.0, valor - pago)
+    return round2(total)
+
+
+async def assert_limite_credito(
+    cliente_id: Optional[str],
+    novo_valor: float,
+    *,
+    excluir_encomenda_id: Optional[str] = None,
+) -> None:
+    """Bloqueia se exposição + novo_valor exceder limite_credito do cliente."""
+    if not cliente_id:
+        return
+    from app.repositories import clientes_repo
+    cli = await clientes_repo.get(cliente_id)
+    if not cli:
+        return
+    limite = cli.get("limite_credito")
+    if limite is None:
+        return
+    try:
+        limite = float(limite)
+    except (TypeError, ValueError):
+        return
+    if limite < 0:
+        return
+    exposicao = await exposicao_credito_cliente(cliente_id, excluir_encomenda_id=excluir_encomenda_id)
+    projectado = round2(exposicao + max(0.0, float(novo_valor or 0)))
+    if projectado > limite + 0.009:
+        raise HTTPException(
+            400,
+            (
+                f"Limite de crédito do cliente excedido "
+                f"(limite {limite:.2f}€ · em aberto {exposicao:.2f}€ · novo {float(novo_valor or 0):.2f}€)."
+            ),
+        )
+
+
 async def _registar_pagamento_encomenda(enc_id: Optional[str], valor: float, metodo: str, recibo_numero: str, data: str):
     if not enc_id or valor <= 0:
         return
@@ -132,6 +186,76 @@ async def _registar_pagamento_encomenda(enc_id: Optional[str], valor: float, met
     pagamentos = (enc.get("pagamentos") or []) + [pag.model_dump()]
     total_pago = soma_valor_pago(pagamentos)
     await encomendas_repo.update(enc_id, {"pagamentos": pagamentos, "valor_pago": total_pago})
+
+
+async def _reverter_pagamento_encomenda_por_recibo(enc_id: Optional[str], recibo_numero: Optional[str]) -> int:
+    """Remove da encomenda o pagamento gerado por um recibo fiscal. Devolve quantos removeu."""
+    if not enc_id or not (recibo_numero or "").strip():
+        return 0
+    enc = await encomendas_repo.get(enc_id)
+    if not enc:
+        return 0
+    numero = (recibo_numero or "").strip()
+    before = enc.get("pagamentos") or []
+    after = [
+        p for p in before
+        if not (
+            isinstance(p, dict)
+            and p.get("origem") == "fatura"
+            and (p.get("recibo_numero") or "").strip() == numero
+        )
+    ]
+    removed = len(before) - len(after)
+    if removed <= 0:
+        return 0
+    total_pago = soma_valor_pago(after)
+    await encomendas_repo.update(enc_id, {"pagamentos": after, "valor_pago": total_pago})
+    return removed
+
+
+async def reverter_efeitos_documento(doc: dict) -> dict:
+    """
+    Ao anular/apagar um documento fiscal, reverte pagamentos na encomenda.
+    - recibo: remove o pagamento ligado ao nº do recibo
+    - fatura / fatura_recibo: anula/reverte todos os recibos filhos + pagamentos
+    """
+    if not doc:
+        return {"recibos_revertidos": 0, "pagamentos_revertidos": 0}
+
+    tipo = doc.get("tipo")
+    enc_id = doc.get("encomenda_id")
+    pagamentos_revertidos = 0
+    recibos_revertidos = 0
+
+    if tipo == "recibo":
+        pagamentos_revertidos += await _reverter_pagamento_encomenda_por_recibo(
+            enc_id, doc.get("numero"),
+        )
+        return {"recibos_revertidos": 0, "pagamentos_revertidos": pagamentos_revertidos}
+
+    if tipo in ("fatura", "fatura_recibo"):
+        recibos = await documentos_financeiros_repo.find(
+            {"tipo": "recibo", "fatura_id": doc.get("id")},
+            limit=500,
+        )
+        for r in recibos:
+            if r.get("estado") != "anulada":
+                await documentos_financeiros_repo.update(r["id"], {"estado": "anulada"})
+                recibos_revertidos += 1
+            pagamentos_revertidos += await _reverter_pagamento_encomenda_por_recibo(
+                enc_id or r.get("encomenda_id"),
+                r.get("numero"),
+            )
+        # Legado: fatura-recibo sem recibo filho mas com valor_pago directo
+        if tipo == "fatura_recibo" and pagamentos_revertidos == 0 and (doc.get("valor_pago") or 0) > 0:
+            pagamentos_revertidos += await _reverter_pagamento_encomenda_por_recibo(
+                enc_id, doc.get("numero"),
+            )
+
+    return {
+        "recibos_revertidos": recibos_revertidos,
+        "pagamentos_revertidos": pagamentos_revertidos,
+    }
 
 
 async def qtd_ja_faturada_por_linha(encomenda_id: str) -> dict:

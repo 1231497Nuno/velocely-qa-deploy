@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, fmtDate, eur, API, getToken } from "@/lib/api";
+import { api, fmtDate, eur } from "@/lib/api";
+import { openAuthenticated, pdfDocumentoUrl } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
@@ -12,6 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Ban, FileDown, Trash2, Receipt, Plus, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+
+async function openPdf(docId) {
+  try {
+    await openAuthenticated(pdfDocumentoUrl(docId));
+  } catch (e) {
+    toast.error(e?.message || "Erro ao abrir PDF");
+  }
+}
 
 const METODO_PT = {
   transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY",
@@ -133,15 +142,14 @@ export default function DocumentoFinanceiroDetail() {
         }
         actions={
           <>
-            <a
-              href={`${API}/financeiro/documentos/${id}/pdf?auth=${getToken()}`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
               data-testid="doc-pdf-btn"
+              onClick={() => openPdf(id)}
               className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
             >
               <FileDown size={15} /> PDF
-            </a>
+            </button>
             {can("financeiro", "create") && isFatura && doc.estado !== "anulada" && pendente > 0 && (
               <button
                 data-testid="doc-emitir-recibo-btn"
@@ -304,15 +312,14 @@ export default function DocumentoFinanceiroDetail() {
                       <td className="px-3 py-2 text-gray-600">{METODO_PT[r.metodo_pagamento] || r.metodo_pagamento || "—"}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{eur(r.valor_pago || r.total)}</td>
                       <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                        <a
-                          href={`${API}/financeiro/documentos/${r.id}/pdf?auth=${getToken()}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openPdf(r.id)}
                           className="inline-flex p-1 text-gray-400 hover:text-gray-900"
                           title="PDF do recibo"
                         >
                           <ExternalLink size={14} />
-                        </a>
+                        </button>
                       </td>
                     </tr>
                   ))}
