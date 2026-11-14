@@ -38,8 +38,9 @@ export default function StatusBadge({ status, testid }) {
   return (
     <span
       data-testid={testid}
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${m.cls}`}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${m.cls}`}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80 shrink-0" aria-hidden />
       {m.label}
     </span>
   );

@@ -89,7 +89,7 @@ export default function Encomendas() {
       header={
         <PageHeader
           title="Encomendas"
-          subtitle="Encomendas de clientes e respetivas ordens de fabrico"
+          subtitle="Acompanha prazos, pagamento e produção. O aviso vermelho significa artigos ainda sem ordem de fabrico."
           actions={
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="encomendas" ids={pageItems.map((e) => e.id)} />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, CalendarClock, AlertTriangle } from "lucide-react";
@@ -73,6 +74,8 @@ export default function Dashboard() {
     return items;
   }, [d, alertas, canEnc, canCal, canOF]);
 
+  const [showAnalise, setShowAnalise] = useState(false);
+
   if (!d || !derived) return <div className="text-sm text-gray-500">A carregar...</div>;
 
   return (
@@ -85,8 +88,6 @@ export default function Dashboard() {
       </div>
 
       <QuickActions />
-
-      {canFluxo && <FluxoMensalChart fluxo={derived.fluxo} />}
 
       <AttentionCenter items={attentionItems} />
 
@@ -137,32 +138,54 @@ export default function Dashboard() {
         {canArt && <Stat icon={Boxes} label="Artigos" value={d.total_artigos} sub={`Custo médio ${eur(d.custo_medio)}`} tid="stat-artigos" />}
       </div>
 
-      {/* Análise rápida + Atividade */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {canEnc && <QuickAnalysis d={d} />}
-        {canHist && <RecentActivity />}
-      </div>
-
-      {canEnc && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          <EncValorCustoChart data={derived.encValorCusto} />
-          <PagamentoPie data={derived.pay} />
+      {canHist && (
+        <div className="mb-4">
+          <RecentActivity />
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {canOrc && <MensalArea data={derived.mensal} />}
-        {canOF && <OFEstadoChart data={derived.ofData} totalOfs={d.total_ofs} />}
-      </div>
+      <button
+        type="button"
+        data-testid="dash-toggle-analise"
+        onClick={() => setShowAnalise((v) => !v)}
+        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-sm px-3 py-2"
+      >
+        <ChevronDown size={16} className={`transition-transform ${showAnalise ? "rotate-180" : ""}`} />
+        {showAnalise ? "Ocultar análise do ano" : "Ver análise do ano"}
+      </button>
 
-      {canAnalise && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          <TempoChart data={derived.tempo} />
-          <TempoCustoTotais tEst={derived.tEst} tReal={derived.tReal} desvioTempo={derived.desvioTempo} custoEst={d.custo_estimado_encomendas} custoReal={d.custo_real_encomendas} desvioCusto={derived.desvioCusto} />
+      {showAnalise && (
+        <div data-testid="dash-analise">
+          {canFluxo && <FluxoMensalChart fluxo={derived.fluxo} />}
+
+          {canEnc && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <QuickAnalysis d={d} />
+            </div>
+          )}
+
+          {canEnc && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <EncValorCustoChart data={derived.encValorCusto} />
+              <PagamentoPie data={derived.pay} />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            {canOrc && <MensalArea data={derived.mensal} />}
+            {canOF && <OFEstadoChart data={derived.ofData} totalOfs={d.total_ofs} />}
+          </div>
+
+          {canAnalise && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <TempoChart data={derived.tempo} />
+              <TempoCustoTotais tEst={derived.tEst} tReal={derived.tReal} desvioTempo={derived.desvioTempo} custoEst={d.custo_estimado_encomendas} custoReal={d.custo_real_encomendas} desvioCusto={derived.desvioCusto} />
+            </div>
+          )}
+
+          {canArt && <TopArtigosChart data={derived.top} />}
         </div>
       )}
-
-      {canArt && <TopArtigosChart data={derived.top} />}
     </div>
   );
 }

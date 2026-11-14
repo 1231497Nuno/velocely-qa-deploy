@@ -636,6 +636,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
             "id": new_id(),
             "artigo_id": l.get("artigo_id"),
             "artigo_nome": l.get("artigo_nome", ""),
+            "artigo_codigo": l.get("artigo_codigo") or "",
             "imagem": l.get("imagem") or "",
             "quantidade": float(l.get("quantidade") or 1),
             "preco_unit": piso,
@@ -668,11 +669,17 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
         contacto_telefone=orc.get("contacto_telefone") or "",
         contacto_cargo=orc.get("contacto_cargo") or "",
         contacto_departamento=orc.get("contacto_departamento") or "",
+        contacto_papeis=list(orc.get("contacto_papeis") or []),
         descricao=orc.get("descricao", ""),
         referencia_cliente=orc.get("numero_encomenda") or "",
         data=now_iso()[:10],
         estado="aberta",
-        notas=f"Gerada a partir do orçamento {orc.get('numero')}",
+        notas="\n\n".join(
+            p for p in (
+                (orc.get("notas") or "").strip(),
+                f"Gerada a partir do orçamento {orc.get('numero')}",
+            ) if p
+        ),
         artigos=enc_artigos,
         imagens=orc.get("imagens") or [],
         anexos=list(orc.get("anexos") or []),

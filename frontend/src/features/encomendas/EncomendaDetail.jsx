@@ -384,8 +384,10 @@ export default function EncomendaDetail() {
       .map((a) => ({
         artigo_id: a.artigo_id,
         artigo_nome: a.artigo_nome,
+        artigo_codigo: a.artigo_codigo || "",
         imagem: a.imagem || "",
         quantidade: Number(ofQtys[a.id]) || 0,
+        preco_unit: Number(a.preco_unit) || 0,
         personalizacoes: a.personalizacoes || [],
         operacoes: [],
         arte_path: a.arte_path || "",
@@ -393,7 +395,20 @@ export default function EncomendaDetail() {
         arte_content_type: a.arte_content_type || "",
       }));
     if (itens.length === 0) return toast.error("Indica pelo menos uma quantidade a produzir");
-    const of = await api.post(`/encomendas/${id}/ordens-fabrico`, { cliente: enc.cliente, itens, imagens: enc.imagens || [] });
+    const resumo = itens.map((i) => `• ${i.artigo_nome || "Artigo"}: ${i.quantidade}`).join("\n");
+    const avisoAuth = enc.autorizada_producao ? "" : "\n\nA produção ainda não está autorizada.";
+    if (!window.confirm(
+      `Criar ordem de fabrico?\n\n${resumo}${avisoAuth}\n\nSeguem artigos, quantidades, personalizações, artes e preços da encomenda.`,
+    )) return;
+    const of = await api.post(`/encomendas/${id}/ordens-fabrico`, {
+      cliente: enc.cliente,
+      descricao: enc.descricao || "",
+      notas: enc.notas || "",
+      prazo_entrega: enc.prazo_entrega || null,
+      numero_encomenda: enc.referencia_cliente || enc.numero || "",
+      itens,
+      imagens: enc.imagens || [],
+    });
     toast.success("Ordem de fabrico criada");
     nav(`/ordens-fabrico/${of.id}`);
   };
@@ -860,7 +875,14 @@ export default function EncomendaDetail() {
                       </div>
                     </div>
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                      <input data-testid="enc-autorizar-check" type="checkbox" checked={!!enc.autorizada_producao} onChange={(e) => persist({ autorizada_producao: e.target.checked }, e.target.checked ? "Produção autorizada" : "Autorização removida")} className="w-4 h-4 accent-emerald-600" />
+                      <input data-testid="enc-autorizar-check" type="checkbox" checked={!!enc.autorizada_producao} onChange={(e) => {
+                        const next = e.target.checked;
+                        const ok = next
+                          ? window.confirm("Autorizar a produção desta encomenda? As ordens de fabrico passam a poder avançar.")
+                          : window.confirm("Retirar a autorização de produção?");
+                        if (!ok) return;
+                        persist({ autorizada_producao: next }, next ? "Produção autorizada" : "Autorização removida");
+                      }} className="w-4 h-4 accent-emerald-600" />
                       Autorizar produção manualmente (override pagamento)
                     </label>
                   </div>

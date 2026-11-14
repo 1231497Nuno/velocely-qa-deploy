@@ -144,6 +144,7 @@ export default function OrdemFabricoDetail() {
     descricao: o.descricao || "",
     numero_encomenda: o.numero_encomenda || "",
     data: o.data,
+    prazo_entrega: o.prazo_entrega || null,
     status: o.status,
     notas: o.notas || "",
     prioritaria: !!o.prioritaria,
@@ -193,6 +194,7 @@ export default function OrdemFabricoDetail() {
     setOf(await api.post(`/ordens-fabrico/${id}/operacao/nota`, { item_id: itemId, operacao_id: opId, nota }));
   };
   const finalizar = async () => {
+    if (!window.confirm(`Finalizar a ordem ${of.numero || ""}? As operações em aberto ficam concluídas.`)) return;
     setOf(await api.post(`/ordens-fabrico/${id}/finalizar`));
     toast.success("Ordem de fabrico finalizada");
   };
