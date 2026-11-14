@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { API, getToken } from "@/lib/api";
-import { imagemUrl } from "@/components/ImagemUpload";
+import { useAuthFileUrl } from "@/lib/authFileUrl";
+import AuthImg from "@/components/AuthImg";
 import { ImagePlus, X, Loader2, Images } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -34,6 +35,7 @@ export default function ImagensGaleria({ value = [], onChange, editable = true, 
   };
 
   const remove = (p) => onChange(imgs.filter((x) => x !== p));
+  const previewSrc = useAuthFileUrl(preview);
 
   return (
     <section className="mt-6" data-testid="imagens-galeria">
@@ -45,7 +47,7 @@ export default function ImagensGaleria({ value = [], onChange, editable = true, 
         <div className="flex flex-wrap gap-3">
           {imgs.map((p) => (
             <div key={p} className="relative group" style={{ width: 96, height: 96 }} data-testid={`galeria-item-${p.split("/").pop()}`}>
-              <img src={imagemUrl(p)} alt="anexo" style={{ width: 96, height: 96 }} onClick={() => setPreview(p)} className="object-cover rounded-sm border border-gray-200 cursor-zoom-in" />
+              <AuthImg path={p} alt="anexo" style={{ width: 96, height: 96 }} onClick={() => setPreview(p)} className="object-cover rounded-sm border border-gray-200 cursor-zoom-in" />
               {editable && (
                 <button type="button" onClick={() => remove(p)} data-testid="galeria-remove" className="absolute -top-2 -right-2 bg-white border border-gray-300 rounded-full p-0.5 text-gray-500 hover:text-red-600 hover:border-red-300 shadow-sm" aria-label="Remover">
                   <X size={13} />
@@ -72,9 +74,9 @@ export default function ImagensGaleria({ value = [], onChange, editable = true, 
         </div>
       </div>
 
-      {preview && (
+      {preview && previewSrc && (
         <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-6" onClick={() => setPreview(null)} data-testid="galeria-preview">
-          <img src={imagemUrl(preview)} alt="anexo" className="max-h-[85vh] max-w-[85vw] object-contain rounded-sm" />
+          <img src={previewSrc} alt="anexo" className="max-h-[85vh] max-w-[85vw] object-contain rounded-sm" />
           <button className="absolute top-4 right-4 text-white/80 hover:text-white" aria-label="Fechar"><X size={28} /></button>
         </div>
       )}

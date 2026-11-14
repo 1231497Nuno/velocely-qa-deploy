@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, API, getToken, fmtDate } from "@/lib/api";
-import { imagemUrl } from "@/components/ImagemUpload";
+import { api, fmtDate } from "@/lib/api";
+import { fileApiUrl } from "@/lib/authFileUrl";
+import { openAuthenticated } from "@/lib/openAuthenticated";
+import AuthImg from "@/components/AuthImg";
 import { toast } from "sonner";
 import { FileText, Image as ImageIcon, Loader2, Paperclip, X, ExternalLink } from "lucide-react";
-
-function fileHref(path) {
-  return path ? `${API}/files/${path}?auth=${getToken()}` : null;
-}
 
 function fmtSize(n) {
   const b = Number(n) || 0;
@@ -18,20 +16,29 @@ function fmtSize(n) {
 }
 
 function ItemCard({ item, canDelete, onDelete }) {
-  const href = fileHref(item.path);
+  const hasPath = !!item.path;
   const isImg = item.kind === "imagem";
   const [preview, setPreview] = useState(false);
+  const openFile = async (e) => {
+    e?.preventDefault?.();
+    if (!item.path) return;
+    try {
+      await openAuthenticated(fileApiUrl(item.path), { filename: item.nome });
+    } catch (err) {
+      toast.error(err?.message || "Não foi possível abrir o ficheiro");
+    }
+  };
   return (
     <li className="relative group border border-gray-200 rounded-sm bg-white overflow-hidden">
-      {isImg && href ? (
+      {isImg && hasPath ? (
         <button type="button" onClick={() => setPreview(true)} className="block w-full" data-testid={`ficheiro-img-${item.id}`}>
-          <img src={imagemUrl(item.path)} alt={item.nome} className="w-full h-28 object-cover bg-gray-50" />
+          <AuthImg path={item.path} alt={item.nome} className="w-full h-28 object-cover bg-gray-50" />
         </button>
       ) : (
-        <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-3 py-3 min-h-[4.5rem]">
+        <button type="button" onClick={openFile} className="flex items-center gap-2 px-3 py-3 min-h-[4.5rem] w-full text-left">
           <FileText size={18} className="text-gray-400 shrink-0" />
           <span className="text-sm text-gray-900 truncate">{item.nome}</span>
-        </a>
+        </button>
       )}
       <div className="px-3 py-2 border-t border-gray-100 flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -46,9 +53,9 @@ function ItemCard({ item, canDelete, onDelete }) {
           </button>
         )}
       </div>
-      {preview && href && (
+      {preview && hasPath && (
         <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-6" onClick={() => setPreview(false)}>
-          <img src={imagemUrl(item.path)} alt={item.nome} className="max-h-[85vh] max-w-[85vw] object-contain rounded-sm" />
+          <AuthImg path={item.path} alt={item.nome} className="max-h-[85vh] max-w-[85vw] object-contain rounded-sm" />
         </div>
       )}
     </li>

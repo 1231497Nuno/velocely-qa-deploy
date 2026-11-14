@@ -1,15 +1,20 @@
 import { useRef, useState } from "react";
 import { API, getToken } from "@/lib/api";
+import { fileApiUrl, useAuthFileUrl } from "@/lib/authFileUrl";
+import { openAuthenticated } from "@/lib/openAuthenticated";
+import AuthImg from "@/components/AuthImg";
 import { ImagePlus, X, Loader2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 
-export const imagemUrl = (path) => (path ? `${API}/files/${path}?auth=${getToken()}` : null);
+/** @deprecated Preferir fileApiUrl + AuthImg / openAuthenticated (sem JWT na query). */
+export const imagemUrl = (path) => fileApiUrl(path);
 
 export default function ImagemUpload({ value, onChange, editable = true, size = 44, testid }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
+  const previewSrc = useAuthFileUrl(preview ? value : null);
 
   const pick = () => inputRef.current?.click();
 
@@ -34,16 +39,16 @@ export default function ImagemUpload({ value, onChange, editable = true, size = 
     }
   };
 
-  const url = imagemUrl(value);
+  const has = !!value;
   const box = { width: size, height: size };
 
   return (
     <div className="inline-flex items-center" data-testid={testid}>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={handleFile} data-testid={testid ? `${testid}-input` : undefined} />
-      {url ? (
+      {has ? (
         <div className="relative group" style={box}>
-          <img
-            src={url}
+          <AuthImg
+            path={value}
             alt="artigo"
             style={box}
             onClick={() => setPreview(true)}
@@ -77,12 +82,17 @@ export default function ImagemUpload({ value, onChange, editable = true, size = 
         </div>
       )}
 
-      {preview && url && (
+      {preview && previewSrc && (
         <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-6" onClick={() => setPreview(false)} data-testid={testid ? `${testid}-preview` : undefined}>
-          <img src={url} alt="artigo" className="max-h-[85vh] max-w-[85vw] object-contain rounded-sm" />
+          <img src={previewSrc} alt="artigo" className="max-h-[85vh] max-w-[85vw] object-contain rounded-sm" />
           <button className="absolute top-4 right-4 text-white/80 hover:text-white" aria-label="Fechar"><X size={28} /></button>
         </div>
       )}
     </div>
   );
+}
+
+export async function openArteFile(path, filename) {
+  if (!path) return;
+  await openAuthenticated(fileApiUrl(path), { filename });
 }

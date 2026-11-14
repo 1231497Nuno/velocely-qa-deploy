@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, API, getToken } from "@/lib/api";
+import { useAuthFileUrl } from "@/lib/authFileUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, LogOut, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -17,9 +18,9 @@ function initials(user) {
   return n.slice(0, 2).toUpperCase();
 }
 
-function avatarSrc(path) {
-  if (!path) return "";
-  return `${API}/files/${path}?auth=${getToken()}`;
+function AuthAvatarImage({ path, alt, className }) {
+  const src = useAuthFileUrl(path);
+  return <AvatarImage src={src || undefined} alt={alt} className={className} />;
 }
 
 export default function UserAvatarMenu() {
@@ -197,7 +198,7 @@ export default function UserAvatarMenu() {
         aria-expanded={menuOpen}
       >
         <Avatar className="h-7 w-7">
-          <AvatarImage src={avatarSrc(user.avatar)} alt={user.name || user.login} />
+          <AuthAvatarImage path={user.avatar} alt={user.name || user.login} />
           <AvatarFallback className="bg-gray-900 text-white text-[10px] font-semibold">
             {initials(user)}
           </AvatarFallback>
@@ -231,7 +232,7 @@ export default function UserAvatarMenu() {
           <div className="space-y-4 py-1">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={avatarSrc(form.avatar)} alt="" />
+                <AuthAvatarImage path={form.avatar} alt="" />
                 <AvatarFallback className="bg-gray-900 text-white text-lg font-semibold">{initials(form)}</AvatarFallback>
               </Avatar>
               <div className="space-y-1.5">

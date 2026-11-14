@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, model_validator
-from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, model_validator, field_validator
+from typing import Any, List, Optional, Literal
 
 from app.core.database import new_id, now_iso
 from app.domain.modules import MODULE_KEYS
@@ -345,6 +345,36 @@ class ArtigoInput(BaseModel):
     materiais: List[ArtigoMaterial] = Field(default_factory=list)
     roteiro: List[Operacao] = Field(default_factory=list)
 
+    @field_validator(
+        "descricao", "unidade", "imagem", "categoria_nome", "subcategoria_nome",
+        "fabricante", "cod_fabricante", "fornecedor_nome", "cod_fornecedor",
+        "website", "ficha_produto", "plano_contas", "conta_proveitos",
+        "codigo_produto", "comprimento_unidade", "largura_unidade",
+        "espessura_unidade", "peso_unidade", "responsavel", "pai_codigo",
+        "variante_label", "variante_tamanho", "variante_cor", "codigo_origem",
+        mode="before",
+    )
+    @classmethod
+    def _null_str_to_empty(cls, v: Any):
+        return "" if v is None else v
+
+    @field_validator(
+        "custo_artigo", "preco_compra", "margem", "comissao_pct",
+        "comprimento_mm", "largura_mm", "espessura_mm", "peso_kg",
+        "qtd_uni", "qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra",
+        mode="before",
+    )
+    @classmethod
+    def _null_float_to_zero(cls, v: Any):
+        if v is None or v == "":
+            return 0.0
+        return v
+
+    @field_validator("produzido", "ativo", "diversos", "tem_variantes", mode="before")
+    @classmethod
+    def _null_bool_to_false(cls, v: Any):
+        return False if v is None else v
+
     @model_validator(mode="after")
     def _normalizar_tipo_artigo(self):
         t = (self.tipo_artigo or TIPO_ARTIGO_ATIVO).strip().lower()
@@ -492,11 +522,22 @@ class MaterialLinha(BaseModel):
     eh_materia_prima_linha: bool = False
 
 
+# Papéis do contacto na empresa — definem comunicação automática / portal.
+PAPEIS_CONTACTO = ("financeiro", "decisor", "tecnico")
+PAPEL_CONTACTO_PT = {
+    "financeiro": "Financeiro",
+    "decisor": "Decisor / Comprador",
+    "tecnico": "Técnico / Designer",
+}
+
+
 class ClienteContacto(BaseModel):
-    """Pessoa de contacto da empresa (cargo preenchido manualmente)."""
+    """Pessoa de contacto da empresa (filha da ficha Empresa)."""
     id: str = Field(default_factory=new_id)
     nome: str = ""
-    cargo: str = ""
+    cargo: str = ""  # título livre (ex.: Directora Financeira)
+    # Papéis inteligentes (pode acumular vários)
+    papeis: List[str] = Field(default_factory=list)
     email: str = ""
     telefone: str = ""
     departamento: str = ""
@@ -505,6 +546,24 @@ class ClienteContacto(BaseModel):
     # Fase 2 (portal B2B)
     user_id: Optional[str] = None
     portal_ativo: bool = False
+
+    @field_validator("papeis", mode="before")
+    @classmethod
+    def _coerce_papeis(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            v = [v]
+        out = []
+        for p in v or []:
+            key = str(p or "").strip().lower()
+            if key in ("comprador", "buyer", "decisor_comprador"):
+                key = "decisor"
+            if key in ("designer", "técnico", "tecnico_designer"):
+                key = "tecnico"
+            if key in PAPEIS_CONTACTO and key not in out:
+                out.append(key)
+        return out
 
     @model_validator(mode="after")
     def _normalizar_contacto(self):
@@ -777,6 +836,7 @@ class OrcamentoInput(BaseModel):
     contacto_telefone: str = ""
     contacto_cargo: str = ""
     contacto_departamento: str = ""
+    contacto_papeis: List[str] = Field(default_factory=list)
     descricao: str = ""
     numero_encomenda: str = ""
     data: Optional[str] = None
@@ -919,6 +979,7 @@ class EncomendaInput(BaseModel):
     contacto_telefone: str = ""
     contacto_cargo: str = ""
     contacto_departamento: str = ""
+    contacto_papeis: List[str] = Field(default_factory=list)
     descricao: str = ""
     # PO / Nota de Encomenda do cliente B2B (herda de orçamento.numero_encomenda)
     referencia_cliente: str = ""

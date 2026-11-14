@@ -19,7 +19,14 @@ export default function ContactoSelector({
     () => [
       { value: "", label: placeholder },
       ...activos.map((c) => {
-        const extra = [c.cargo, c.departamento].filter(Boolean).join(" · ");
+        const papeis = Array.isArray(c.papeis) ? c.papeis : [];
+        const papelPt = {
+          financeiro: "Financeiro",
+          decisor: "Decisor",
+          tecnico: "Técnico",
+        };
+        const papelTxt = papeis.map((p) => papelPt[p] || p).filter(Boolean).join(", ");
+        const extra = [papelTxt || c.cargo, c.departamento].filter(Boolean).join(" · ");
         return {
           value: c.id,
           label: extra ? `${c.nome} (${extra})` : c.nome,

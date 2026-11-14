@@ -25,9 +25,13 @@ jobs:
         run: pip install -r requirements.txt
       - name: Syntax / import check
         run: python -c "import server; print('ok', server.app.title)"
-      # Testes de integração precisam de API+Atlas; aqui só validamos o pacote.
       - name: Compile
         run: python -m compileall app server.py
+      - name: Unit smoke (sem Mongo/API)
+        run: python -m pytest tests/test_unit_smoke.py -q -o addopts= --noconftest
+        env:
+          APP_ENV: local
+          ALLOW_INSECURE_DEFAULTS: "1"
 
   frontend:
     name: Frontend build

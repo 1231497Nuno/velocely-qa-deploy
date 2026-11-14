@@ -329,7 +329,7 @@ async def enviar_orcamento_email(
         )
     cliente = await fetch_cliente(o.get("cliente_id"))
     to = contactos_svc.resolve_email_destinatario(
-        o, cliente, explicit_to=body.to or "",
+        o, cliente, explicit_to=body.to or "", prefer_papel="decisor",
     )
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")
@@ -625,6 +625,8 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
     linhas = _sincronizar_precos_linhas(linhas)
     orc = {**orc, "linhas": linhas, "materiais": mats}
     orc_t = compute_orcamento_totais(orc)
+    from app.services.financeiro import assert_limite_credito
+    await assert_limite_credito(orc.get("cliente_id"), float(orc_t.get("total") or 0))
     enc_artigos = []
     for l in linhas:
         if not _linha_pronta(l):

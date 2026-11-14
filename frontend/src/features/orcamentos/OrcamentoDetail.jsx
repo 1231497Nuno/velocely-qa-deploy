@@ -1976,6 +1976,12 @@ export default function OrcamentoDetail() {
         paiId={variantesPick?.pai?.id}
         paiNome={variantesPick?.pai?.nome || ""}
         onConfirm={applyVariantesNaLinha}
+        onUsePai={() => {
+          if (!variantesPick) return;
+          const { pai, linhaIndex } = variantesPick;
+          setVariantesPick(null);
+          applyArtigoLinha(linhaIndex, pai, { skipVariantes: true });
+        }}
       />
     </div>
   );

@@ -3,7 +3,8 @@ import axios from "axios";
 import { Paperclip, X, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { API, getToken } from "@/lib/api";
-import { imagemUrl } from "@/components/ImagemUpload";
+import { fileApiUrl } from "@/lib/authFileUrl";
+import { openAuthenticated } from "@/lib/openAuthenticated";
 
 /** Anexa PDF/JPEG à linha do orçamento (maqueta / arte final). */
 export default function LinhaArteButton({ linha, onChange, canEdit, testid }) {
@@ -45,10 +46,13 @@ export default function LinhaArteButton({ linha, onChange, canEdit, testid }) {
     }
   };
 
-  const openArte = () => {
+  const openArte = async () => {
     if (!linha?.arte_path) return;
-    const url = imagemUrl(linha.arte_path);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    try {
+      await openAuthenticated(fileApiUrl(linha.arte_path), { filename: linha.arte_nome });
+    } catch (err) {
+      toast.error(err?.message || "Não foi possível abrir a arte");
+    }
   };
 
   return (

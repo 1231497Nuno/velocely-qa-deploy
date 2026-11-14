@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, eur, fmtDate, API, getToken } from "@/lib/api";
+import { api, eur, fmtDate } from "@/lib/api";
+import { fileApiUrl } from "@/lib/authFileUrl";
+import { openAuthenticated } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
@@ -22,10 +24,6 @@ const METODOS = [
   { id: "cartao", label: "Cartão" },
   { id: "outro", label: "Outro" },
 ];
-
-function fileUrl(path) {
-  return path ? `${API}/files/${path}?auth=${getToken()}` : null;
-}
 
 function fmtSize(n) {
   const b = Number(n) || 0;
@@ -345,14 +343,13 @@ export default function ContaDetail() {
                 {(conta.anexos || []).map((a) => (
                   <li key={a.id} className="flex items-center gap-3 py-2.5">
                     <FileText size={16} className="text-gray-400 shrink-0" />
-                    <a
-                      href={fileUrl(a.path)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 min-w-0 text-sm text-gray-900 hover:underline truncate"
+                    <button
+                      type="button"
+                      onClick={() => openAuthenticated(fileApiUrl(a.path), { filename: a.nome }).catch((err) => toast.error(err?.message || "Não foi possível abrir"))}
+                      className="flex-1 min-w-0 text-left text-sm text-gray-900 hover:underline truncate"
                     >
                       {a.nome || "Documento"}
-                    </a>
+                    </button>
                     <span className="text-xs text-gray-400 tabular-nums">{fmtSize(a.size)}</span>
                     <span className="text-xs text-gray-400">{fmtDate(a.created_at)}</span>
                     {can("contas", "edit") && !anulada && (

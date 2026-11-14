@@ -336,7 +336,7 @@ export default function Clientes() {
               if (id === "identificacao") {
                 return (
                   <FieldGrid>
-                    <FieldRow label={emp ? "Nome *" : "Nome *"} testid="cliente-campo-nome" full>
+                    <FieldRow label={emp ? "Razão social *" : "Nome *"} testid="cliente-campo-nome" full>
                       <input data-testid="cliente-nome-input" value={form.nome} onChange={(e) => set({ nome: e.target.value })} className={inputCls + " max-w-sm"} />
                     </FieldRow>
                     <FieldRow label={emp ? "NIF *" : "NIF"} testid="cliente-campo-nif">

@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Callable, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -116,13 +116,22 @@ def verify_invite_code(plain: str, hashed: str) -> bool:
 
 
 def _rate_limited(key: str, max_attempts: int = 8, window_sec: int = 900) -> bool:
+    """True se houve demasiadas falhas recentes (sucessos não contam)."""
     now = datetime.now(timezone.utc).timestamp()
     bucket = [t for t in _attempts[key] if now - t < window_sec]
     _attempts[key] = bucket
-    if len(bucket) >= max_attempts:
-        return True
-    _attempts[key].append(now)
-    return False
+    return len(bucket) >= max_attempts
+
+
+def _note_failed_auth(key: str, window_sec: int = 900) -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    bucket = [t for t in _attempts[key] if now - t < window_sec]
+    bucket.append(now)
+    _attempts[key] = bucket
+
+
+def _clear_auth_attempts(key: str) -> None:
+    _attempts.pop(key, None)
 
 
 async def resolve_perfil(user: dict) -> dict:
@@ -194,10 +203,12 @@ def _decode_token(token: str) -> dict:
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    auth: Optional[str] = Query(None, description="Legado: JWT em query (preferir Authorization Bearer)"),
 ) -> dict:
-    if not credentials or not credentials.credentials:
+    token = (credentials.credentials if credentials and credentials.credentials else None) or (auth or "").strip() or None
+    if not token:
         raise HTTPException(status_code=401, detail="Não autenticado")
-    payload = _decode_token(credentials.credentials)
+    payload = _decode_token(token)
     if payload.get("type") == "activate":
         raise HTTPException(status_code=401, detail="Conclua a definição da password")
     if payload.get("type") not in (None, "access"):
@@ -283,6 +294,7 @@ async def login(data: LoginInput, request: Request):
     bad = HTTPException(status_code=401, detail="Utilizador ou credenciais incorretos")
 
     if not user or user.get("status") == "disabled":
+        _note_failed_auth(rk)
         raise bad
 
     # --- Primeira activação: código de convite ---
@@ -299,7 +311,9 @@ async def login(data: LoginInput, request: Request):
             except Exception:
                 pass
         if not verify_invite_code(secret, user.get("invite_code_hash", "")):
+            _note_failed_auth(rk)
             raise bad
+        _clear_auth_attempts(rk)
         token = create_activation_token(user["id"])
         return {
             "must_set_password": True,
@@ -311,7 +325,9 @@ async def login(data: LoginInput, request: Request):
 
     # --- Login normal ---
     if not verify_password(secret, user.get("password_hash", "")):
+        _note_failed_auth(rk)
         raise bad
+    _clear_auth_attempts(rk)
     perfil = await resolve_perfil(user)
     role = "admin" if perfil.get("admin") else "colaborador"
     token = create_access_token(user["id"], user.get("email") or user.get("login"), role)

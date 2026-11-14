@@ -2,14 +2,12 @@ from io import BytesIO
 from typing import Optional
 import copy
 
-import jwt
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.core import config
 from app.core.database import now_iso, next_sequence, new_id, round2
-from app.core.security import get_current_user, require_perm
+from app.core.security import get_current_user, require_perm, resolve_perfil
 from app.core.pagination import parse_page, page_payload, text_search
 from app.domain.models import EncomendaInput, Encomenda, OrdemFabricoInput, OrdemFabrico, ENC_ESTADO_PT, Pagamento
 from app.repositories import encomendas_repo, ordens_repo, orcamentos_repo
@@ -145,21 +143,9 @@ async def delete_pagamento(eid: str, pid: str, user: dict = Depends(require_perm
     return await _attach_ofs(await compute_encomenda(enc))
 
 
-def _valid_token(authorization: Optional[str], auth: Optional[str]) -> bool:
-    header = authorization or (f"Bearer {auth}" if auth else None)
-    if not header or not header.startswith("Bearer "):
-        return False
-    try:
-        jwt.decode(header[7:], config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
-        return True
-    except jwt.InvalidTokenError:
-        return False
-
-
 @router.get("/encomendas/{eid}/pagamentos/{pid}/recibo")
-async def recibo_pdf(eid: str, pid: str, authorization: str = Header(None), auth: str = Query(None)):
-    if not _valid_token(authorization, auth):
-        raise HTTPException(401, "Não autenticado")
+async def recibo_pdf(eid: str, pid: str, _u: dict = Depends(require_perm("encomendas", "view"))):
+    """PDF do recibo — exige Bearer + encomendas.view (sem JWT na query)."""
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -218,6 +204,12 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_pe
     enc.numero = await next_sequence("ENC")
     if not enc.data:
         enc.data = now_iso()[:10]
+    preview = await compute_encomenda(enc.model_dump())
+    from app.services.financeiro import assert_limite_credito
+    await assert_limite_credito(
+        enc.cliente_id,
+        float(preview.get("valor_total") or preview.get("total_com_iva") or 0),
+    )
     await encomendas_repo.insert(enc.model_dump())
     await audit.registar("encomenda", enc.id, "criado", user, f"Encomenda {enc.numero} criada", enc.numero)
     return await _attach_ofs(await compute_encomenda(enc.model_dump()))
@@ -288,8 +280,28 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
         if erros:
             raise HTTPException(400, " ".join(erros))
         await _assert_qtd_nao_abaixo_ofs(eid, novo.get("artigos") or [])
+        if novo.get("valor_total_manual") and not existing.get("valor_total_manual"):
+            perfil = await resolve_perfil(user)
+            if not perfil.get("admin"):
+                raise HTTPException(
+                    403,
+                    "Só administradores podem activar valor total manual numa encomenda.",
+                )
     numero = existing.get("numero")
     await encomendas_repo.update(eid, novo)
+    if bool(existing.get("valor_total_manual")) != bool(novo.get("valor_total_manual")) or (
+        novo.get("valor_total_manual")
+        and round(float(existing.get("valor_total") or 0), 2) != round(float(novo.get("valor_total") or 0), 2)
+    ):
+        await audit.registar(
+            "encomenda", eid, "editado", user,
+            (
+                f"Valor total manual da encomenda {numero}: "
+                f"{'activado' if novo.get('valor_total_manual') else 'desactivado'}"
+                f" · {float(novo.get('valor_total') or 0):.2f}€"
+            ),
+            numero,
+        )
     # pagamento
     old_pago = existing.get("valor_pago") or 0
     new_pago = novo.get("valor_pago") or 0
@@ -421,7 +433,7 @@ async def _enviar_encomenda_notificacao(eid: str, body: EnviarEmailBody, user: d
     cliente = await fetch_cliente(e.get("cliente_id"))
     # Preferir «à atenção de», senão email da empresa
     to = contactos_svc.resolve_email_destinatario(
-        e, cliente, explicit_to=body.to or "",
+        e, cliente, explicit_to=body.to or "", prefer_papel="financeiro",
     )
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")

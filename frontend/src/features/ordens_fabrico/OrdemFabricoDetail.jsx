@@ -10,7 +10,9 @@ import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
-import ImagemUpload, { imagemUrl } from "@/components/ImagemUpload";
+import ImagemUpload from "@/components/ImagemUpload";
+import { fileApiUrl } from "@/lib/authFileUrl";
+import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
 import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
@@ -419,15 +421,13 @@ export default function OrdemFabricoDetail() {
                                 title={it.arte_nome || "Ver arte"}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const url = imagemUrl(it.arte_path);
-                                  if (url) window.open(url, "_blank", "noopener,noreferrer");
+                                  openAuthenticated(fileApiUrl(it.arte_path), { filename: it.arte_nome }).catch(() => toast.error("Não foi possível abrir a arte"));
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ") {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const url = imagemUrl(it.arte_path);
-                                    if (url) window.open(url, "_blank", "noopener,noreferrer");
+                                    openAuthenticated(fileApiUrl(it.arte_path), { filename: it.arte_nome }).catch(() => toast.error("Não foi possível abrir a arte"));
                                   }
                                 }}
                                 className="inline-flex items-center gap-0.5 shrink-0 text-violet-700 hover:underline cursor-pointer"

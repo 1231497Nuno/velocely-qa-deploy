@@ -32,16 +32,28 @@ const CLI_BLOCOS = [
   { id: "precos", label: "Histórico de preços" },
 ];
 
+export const PAPEIS_CONTACTO = [
+  { id: "financeiro", label: "Financeiro", hint: "Faturas e régua de cobranças" },
+  { id: "decisor", label: "Decisor / Comprador", hint: "Aprova orçamentos / portal" },
+  { id: "tecnico", label: "Técnico / Designer", hint: "Provas de cor e ficheiros" },
+];
+
 const emptyContacto = () => ({
   id: crypto.randomUUID?.() || `c-${Date.now()}`,
   nome: "",
   cargo: "",
+  papeis: [],
   email: "",
   telefone: "",
   departamento: "",
   notas: "",
   ativo: true,
 });
+
+function labelPapeis(ct) {
+  const set = new Set(ct?.papeis || []);
+  return PAPEIS_CONTACTO.filter((p) => set.has(p.id)).map((p) => p.label).join(" · ");
+}
 
 const KPI = ({ icon: Icon, label, value, sub, testid }) => (
   <div data-testid={testid} className="bg-white border border-gray-200 rounded-sm p-4 min-w-0 overflow-hidden">
@@ -87,6 +99,7 @@ function clientePayload(c) {
       id: ct.id,
       nome: (ct.nome || "").trim(),
       cargo: (ct.cargo || "").trim(),
+      papeis: Array.isArray(ct.papeis) ? ct.papeis.filter(Boolean) : [],
       email: (ct.email || "").trim(),
       telefone: (ct.telefone || "").trim(),
       departamento: (ct.departamento || "").trim(),
@@ -161,6 +174,7 @@ export default function ClienteDetail() {
       id: ct.id,
       nome: ct.nome || "",
       cargo: ct.cargo || "",
+      papeis: Array.isArray(ct.papeis) ? [...ct.papeis] : [],
       email: ct.email || "",
       telefone: ct.telefone || "",
       departamento: ct.departamento || "",
@@ -169,6 +183,15 @@ export default function ClienteDetail() {
     });
     setContactoEditId(ct.id);
     setContactoOpen(true);
+  };
+
+  const togglePapel = (papelId) => {
+    setContactoForm((prev) => {
+      const cur = new Set(prev.papeis || []);
+      if (cur.has(papelId)) cur.delete(papelId);
+      else cur.add(papelId);
+      return { ...prev, papeis: [...cur] };
+    });
   };
 
   const saveContacto = async () => {
@@ -278,13 +301,13 @@ export default function ClienteDetail() {
                     <FieldRow label="Código" testid="cli-campo-codigo">
                       <span className="tabular-nums mono">{c.codigo || "—"}</span>
                     </FieldRow>
-                    <FieldRow label="Nome" testid="cli-campo-nome" full>
+                    <FieldRow label={empresa ? "Razão social" : "Nome"} testid="cli-campo-nome" full>
                       {canEdit && !c.sistema ? (
                         <input
                           data-testid="cli-nome-input"
                           value={c.nome || ""}
                           onChange={(e) => setData((d) => ({ ...d, cliente: { ...c, nome: e.target.value } }))}
-                          onBlur={() => persistField({ nome: c.nome }, "Nome actualizado")}
+                          onBlur={() => persistField({ nome: c.nome }, empresa ? "Razão social actualizada" : "Nome actualizado")}
                           className={inputCls + " max-w-md"}
                         />
                       ) : (
@@ -453,20 +476,22 @@ export default function ClienteDetail() {
                       <table className="w-full text-sm min-w-[720px]">
                         <thead>
                           <tr className="border-b border-gray-200">
-                            <Th className="w-[18%]">Nome</Th>
-                            <Th className="w-[16%]">Cargo</Th>
-                            <Th className="w-[14%]">Departamento</Th>
-                            <Th className="w-[20%]">Email</Th>
-                            <Th className="w-[12%]">Telefone</Th>
-                            <Th className="w-[10%]" align="center">Estado</Th>
-                            <Th className="w-[10%]" />
+                            <Th className="w-[16%]">Nome</Th>
+                            <Th className="w-[14%]">Cargo</Th>
+                            <Th className="w-[18%]">Papel</Th>
+                            <Th className="w-[12%]">Departamento</Th>
+                            <Th className="w-[16%]">Email</Th>
+                            <Th className="w-[10%]">Telefone</Th>
+                            <Th className="w-[8%]" align="center">Estado</Th>
+                            <Th className="w-[6%]" />
                           </tr>
                         </thead>
                         <tbody data-testid="cliente-contactos-table">
                           {contactos.map((ct) => (
                             <tr key={ct.id} data-testid={`cliente-contacto-row-${ct.id}`} className="border-b border-gray-100 last:border-0">
                               <td className="px-4 py-2.5 font-medium text-gray-900 truncate max-w-[10rem]" title={ct.nome}>{ct.nome}</td>
-                              <td className="px-4 py-2.5 text-gray-600 truncate max-w-[9rem]" title={ct.cargo}>{ct.cargo || "—"}</td>
+                              <td className="px-4 py-2.5 text-gray-600 truncate max-w-[8rem]" title={ct.cargo}>{ct.cargo || "—"}</td>
+                              <td className="px-4 py-2.5 text-gray-600 text-xs" title={labelPapeis(ct)}>{labelPapeis(ct) || "—"}</td>
                               <td className="px-4 py-2.5 text-gray-600 truncate max-w-[8rem]" title={ct.departamento}>{ct.departamento || "—"}</td>
                               <td className="px-4 py-2.5 text-gray-600 truncate max-w-[12rem]" title={ct.email}>{ct.email || "—"}</td>
                               <td className="px-4 py-2.5 text-gray-600 tabular-nums whitespace-nowrap">{ct.telefone || "—"}</td>
@@ -482,7 +507,7 @@ export default function ClienteDetail() {
                             </tr>
                           ))}
                           {contactos.length === 0 && (
-                            <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">Sem contactos. Adicione pessoas desta empresa.</td></tr>
+                            <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">Sem contactos. Adicione pessoas desta empresa.</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -636,7 +661,7 @@ export default function ClienteDetail() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-display">{contactoEditId ? "Editar contacto" : "Novo contacto"}</DialogTitle>
-            <DialogDescription>Pessoa de contacto desta empresa.</DialogDescription>
+            <DialogDescription>Pessoa real desta empresa — atribua papéis para o Velocely saber a quem enviar faturas, orçamentos ou provas.</DialogDescription>
           </DialogHeader>
           <div className="border border-gray-200 rounded-sm overflow-hidden">
             <FieldGrid>
@@ -644,10 +669,32 @@ export default function ClienteDetail() {
                 <input data-testid="contacto-nome-input" value={contactoForm.nome} onChange={(e) => setContactoForm({ ...contactoForm, nome: e.target.value })} className={inputCls + " max-w-xs"} />
               </FieldRow>
               <FieldRow label="Cargo" testid="contacto-campo-cargo">
-                <input data-testid="contacto-cargo-input" value={contactoForm.cargo} onChange={(e) => setContactoForm({ ...contactoForm, cargo: e.target.value })} placeholder="ex.: Comprador" className={inputCls} />
+                <input data-testid="contacto-cargo-input" value={contactoForm.cargo} onChange={(e) => setContactoForm({ ...contactoForm, cargo: e.target.value })} placeholder="ex.: Directora Financeira" className={inputCls} />
               </FieldRow>
               <FieldRow label="Departamento" testid="contacto-campo-departamento">
                 <input data-testid="contacto-departamento-input" value={contactoForm.departamento} onChange={(e) => setContactoForm({ ...contactoForm, departamento: e.target.value })} placeholder="ex.: Compras" className={inputCls} />
+              </FieldRow>
+              <FieldRow label="Papéis" testid="contacto-campo-papeis" full>
+                <div className="flex flex-col gap-2 text-left py-1" data-testid="contacto-papeis-list">
+                  {PAPEIS_CONTACTO.map((p) => {
+                    const checked = (contactoForm.papeis || []).includes(p.id);
+                    return (
+                      <label key={p.id} className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          data-testid={`contacto-papel-${p.id}`}
+                          checked={checked}
+                          onChange={() => togglePapel(p.id)}
+                          className="mt-0.5 w-4 h-4"
+                        />
+                        <span>
+                          <span className="font-medium">{p.label}</span>
+                          <span className="block text-xs text-gray-500">{p.hint}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </FieldRow>
               <FieldRow label="Email" testid="contacto-campo-email">
                 <input data-testid="contacto-email-input" value={contactoForm.email} onChange={(e) => setContactoForm({ ...contactoForm, email: e.target.value })} className={inputCls} />
