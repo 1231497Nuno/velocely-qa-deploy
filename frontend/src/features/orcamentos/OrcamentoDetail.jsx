@@ -161,6 +161,7 @@ export default function OrcamentoDetail() {
   }, [load]);
 
   // Autosave silencioso em rascunho editável (a cada 30s se dirty)
+  const autosaveStatus = orc?.status;
   useEffect(() => {
     if (!orc) return undefined;
     if (!orcEditavel(orc) || orcStatus(orc) !== "rascunho") return undefined;
@@ -169,7 +170,9 @@ export default function OrcamentoDetail() {
       saveSilentRef.current?.();
     }, 30000);
     return () => clearInterval(timer);
-  }, [id, orc?.status, !!orc]);
+    // Reinicia só quando muda o documento ou o estado, não a cada campo editado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, autosaveStatus]);
 
   if (loadError && !orc) {
     return (

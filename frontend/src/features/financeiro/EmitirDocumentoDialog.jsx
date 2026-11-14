@@ -61,7 +61,7 @@ export default function EmitirDocumentoDialog({
 
   const preview = useMemo(() => {
     let sub = 0;
-    artigos.forEach((a) => {
+    (resumo?.artigos || []).forEach((a) => {
       const q = Number(qtys[a.encomenda_artigo_id]) || 0;
       if (q > 0) sub += q * (Number(a.preco_unit) || 0);
     });
@@ -69,7 +69,7 @@ export default function EmitirDocumentoDialog({
     const isento = !!enc?.iva_isento || ivaTaxa <= 0;
     const ivaFinal = isento ? 0 : (sub * ivaTaxa) / 100;
     return { subtotal: sub, total: sub + ivaFinal };
-  }, [artigos, qtys, enc]);
+  }, [resumo, qtys, enc]);
 
   const setQty = (id, v) => {
     const a = artigos.find((x) => x.encomenda_artigo_id === id);

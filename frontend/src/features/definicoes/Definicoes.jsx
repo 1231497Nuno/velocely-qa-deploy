@@ -749,7 +749,7 @@ function EmailsTab() {
     }
   };
 
-  useEffect(() => { load().catch(() => toast.error("Não foi possível carregar os templates")); }, []);
+  useEffect(() => { load().catch(() => toast.error("Não foi possível carregar os templates")); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = async (t) => {
     if (selected?.tipo === t.tipo) return;
