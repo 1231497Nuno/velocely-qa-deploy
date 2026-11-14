@@ -379,6 +379,7 @@ export const Greeting = ({ nome }) => {
         {saud}{nome ? `, ${nome.split(" ")[0]}` : ""}
       </h1>
       <p className="text-sm text-gray-500 mt-1 capitalize">{hoje}</p>
+      <p className="text-sm text-gray-600 mt-2">Começa pelo que precisa de ti hoje. A análise do ano fica mais abaixo.</p>
     </div>
   );
 };
@@ -407,20 +408,24 @@ export const QuickActions = () => {
   const actions = [
     can("orcamentos", "create") && { label: "Novo Orçamento", icon: FileText, onClick: novoOrcamento, tid: "qa-novo-orcamento" },
     can("encomendas", "create") && { label: "Nova Encomenda", icon: ClipboardList, onClick: novaEncomenda, tid: "qa-nova-encomenda" },
-    can("clientes", "create") && { label: "Novo Cliente", icon: Contact, onClick: () => nav("/clientes"), tid: "qa-novo-cliente" },
+    can("clientes", "create") && { label: "Novo Cliente", icon: Contact, onClick: () => nav("/clientes?novo=1"), tid: "qa-novo-cliente" },
     can("ordens_fabrico", "view") && { label: "Ordens de Fabrico", icon: Factory, onClick: () => nav("/ordens-fabrico"), tid: "qa-ver-ofs" },
   ].filter(Boolean);
   if (!actions.length) return null;
   return (
     <div className="flex flex-wrap gap-2 mb-6" data-testid="dash-quick-actions">
-      {actions.map((a) => (
+      {actions.map((a, i) => (
         <button
           key={a.tid}
           data-testid={a.tid}
           onClick={a.onClick}
-          className="group flex items-center gap-2 bg-white border border-gray-300 hover:border-gray-900 hover:bg-gray-900 hover:text-white text-gray-800 rounded-sm px-4 py-2.5 text-sm font-medium transition-colors"
+          className={
+            i === 0
+              ? "group flex items-center gap-2 bg-gray-900 hover:bg-black text-white rounded-sm px-4 py-2.5 text-sm font-medium transition-colors"
+              : "group flex items-center gap-2 bg-white border border-gray-300 hover:border-gray-900 hover:bg-gray-900 hover:text-white text-gray-800 rounded-sm px-4 py-2.5 text-sm font-medium transition-colors"
+          }
         >
-          <a.icon size={16} className="text-gray-400 group-hover:text-white transition-colors" />
+          <a.icon size={16} className={i === 0 ? "text-white/80" : "text-gray-400 group-hover:text-white transition-colors"} />
           {a.label}
         </button>
       ))}
@@ -447,7 +452,10 @@ const AttCard = ({ to, icon: Icon, count, label, tone }) => {
 };
 
 export const AttentionCenter = ({ items }) => {
-  const active = items.filter((i) => i.count > 0);
+  const rank = { red: 0, amber: 1, blue: 2 };
+  const active = items
+    .filter((i) => i.count > 0)
+    .sort((a, b) => (rank[a.tone] ?? 9) - (rank[b.tone] ?? 9) || b.count - a.count);
   return (
     <section className="mb-6" data-testid="dash-attention">
       <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2 uppercase tracking-[0.08em]">

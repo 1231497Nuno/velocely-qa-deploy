@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -107,6 +107,16 @@ export default function Clientes() {
 
   const openNew = () => { setForm(empty); setEditId(null); setOpen(true); };
   const openEdit = (c) => {
+
+  useEffect(() => {
+    if (params.get("novo") !== "1" || !can("clientes", "create")) return;
+    setForm(empty);
+    setEditId(null);
+    setOpen(true);
+    const next = new URLSearchParams(params);
+    next.delete("novo");
+    setParams(next, { replace: true });
+  }, [params, can, setParams]);
     setForm({
       nome: c.nome,
       tipo: c.tipo === "cliente_final" ? "particular" : (c.tipo || (c.nif ? "empresa" : "particular")),

@@ -899,6 +899,9 @@ export default function OrcamentoDetail() {
     : NOTAS_TEMPLATES_DEFAULT;
 
   const setStatus = async (status) => {
+    if (status === "ganho" && !window.confirm("Marcar este orçamento como ganho? Só depois podes criar a encomenda com estes valores.")) return;
+    if (status === "perdido" && !window.confirm("Marcar este orçamento como perdido? Deixa de poder ser convertido em encomenda.")) return;
+    if (status === "enviado" && !window.confirm("Marcar este orçamento como enviado ao cliente?")) return;
     try {
       await api.put(`/orcamentos/${id}`, payloadFrom({ ...orc, status }));
       toast.success(status === "ganho" ? "Orçamento ganho" : status === "perdido" ? "Orçamento perdido" : status === "enviado" ? "Marcado como enviado" : "Estado actualizado");
@@ -953,6 +956,10 @@ export default function OrcamentoDetail() {
       toast.error(requisitosFinalizar[0]);
       return;
     }
+    const nLinhas = (orc.linhas || []).filter((l) => (l.artigo_nome || l.artigo_id || "").toString().trim()).length;
+    if (!window.confirm(
+      `Finalizar o orçamento?\n\nCliente: ${orc.cliente || "—"}\nLinhas: ${nLinhas}\n\nRecebe número e fica pronto a enviar. Os valores ficam congelados.`,
+    )) return;
     try {
       const ok = await save({ silent: true });
       if (!ok) return;
@@ -975,7 +982,10 @@ export default function OrcamentoDetail() {
       toast.error(requisitosEncomenda[0]);
       return;
     }
-    // Valores exactos do orçamento — sem alteração de preços
+    const nLinhas = (orc.linhas || []).filter((l) => (l.artigo_id || l.artigo_nome || "").toString().trim()).length;
+    if (!window.confirm(
+      `Criar encomenda a partir deste orçamento?\n\nCliente: ${orc.cliente || "—"}\nLinhas: ${nLinhas}\n\nPassam quantidades, preços, descontos, personalizações, artes, contacto e notas. A ordem de fabrico cria-se depois, na encomenda.`,
+    )) return;
     setConverting(true);
     try {
       const enc = await api.post(`/orcamentos/${id}/converter`);

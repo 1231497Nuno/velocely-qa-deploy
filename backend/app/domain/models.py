@@ -895,6 +895,7 @@ class OFItem(BaseModel):
     id: str = Field(default_factory=new_id)
     artigo_id: str
     artigo_nome: str = ""
+    artigo_codigo: str = ""
     imagem: str = ""
     quantidade: float = 1
     unidade: str = "un"
@@ -919,6 +920,7 @@ class OrdemFabricoInput(BaseModel):
     descricao: str = ""
     numero_encomenda: str = ""
     data: Optional[str] = None
+    prazo_entrega: Optional[str] = None
     status: str = "pendente"
     notas: str = ""
     prioritaria: bool = False
@@ -942,6 +944,7 @@ class EncomendaArtigo(BaseModel):
     id: str = Field(default_factory=new_id)
     artigo_id: Optional[str] = None
     artigo_nome: str = ""
+    artigo_codigo: str = ""
     imagem: str = ""
     quantidade: float = 1
     preco_unit: float = 0.0

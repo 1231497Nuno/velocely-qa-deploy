@@ -382,11 +382,42 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
     payload["encomenda_id"] = eid
     payload["cliente"] = enc.get("cliente") or payload.get("cliente") or ""
     payload["cliente_id"] = enc.get("cliente_id")
+    if not (payload.get("descricao") or "").strip():
+        payload["descricao"] = enc.get("descricao") or ""
+    if not (payload.get("notas") or "").strip():
+        payload["notas"] = enc.get("notas") or ""
+    if not payload.get("prazo_entrega"):
+        payload["prazo_entrega"] = enc.get("prazo_entrega")
+    if not (payload.get("numero_encomenda") or "").strip():
+        payload["numero_encomenda"] = enc.get("referencia_cliente") or enc.get("numero") or ""
+    enc_por_id = {
+        a.get("artigo_id"): a
+        for a in (enc.get("artigos") or [])
+        if isinstance(a, dict) and a.get("artigo_id")
+    }
+    for it in payload.get("itens") or []:
+        src = enc_por_id.get(it.get("artigo_id")) or {}
+        if not it.get("artigo_nome"):
+            it["artigo_nome"] = src.get("artigo_nome") or ""
+        if not it.get("artigo_codigo"):
+            it["artigo_codigo"] = src.get("artigo_codigo") or ""
+        if not it.get("imagem"):
+            it["imagem"] = src.get("imagem") or ""
+        if not it.get("preco_unit"):
+            it["preco_unit"] = float(src.get("preco_unit") or 0)
+        if not it.get("personalizacoes"):
+            it["personalizacoes"] = src.get("personalizacoes") or []
+        if not it.get("arte_path"):
+            it["arte_path"] = src.get("arte_path") or ""
+            it["arte_nome"] = src.get("arte_nome") or ""
+            it["arte_content_type"] = src.get("arte_content_type") or ""
     if not payload.get("imagens"):
         payload["imagens"] = enc.get("imagens") or []
     if not payload.get("anexos"):
         payload["anexos"] = list(enc.get("anexos") or [])
     of = OrdemFabrico(**payload)
+    of.orcamento_id = enc.get("orcamento_id")
+    of.orcamento_numero = enc.get("orcamento_numero")
     of.numero = await next_sequence("OF")
     of.encomenda_numero = enc.get("numero")
     if not of.data:
