@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import PdfExportButton from "@/components/PdfExportButton";
@@ -20,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
 
 export default function OrdemFabricoDetail() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
   const [tab, setTab] = useDetailTab(["of", "ficheiros", "historico"], "of");
@@ -194,7 +196,11 @@ export default function OrdemFabricoDetail() {
     setOf(await api.post(`/ordens-fabrico/${id}/operacao/nota`, { item_id: itemId, operacao_id: opId, nota }));
   };
   const finalizar = async () => {
-    if (!window.confirm(`Finalizar a ordem ${of.numero || ""}? As operações em aberto ficam concluídas.`)) return;
+    if (!await confirmAction({
+      title: "Finalizar ordem de fabrico",
+      description: `${of.numero || "Esta ordem"} fica concluída, incluindo operações ainda em aberto.`,
+      confirmLabel: "Finalizar",
+    })) return;
     setOf(await api.post(`/ordens-fabrico/${id}/finalizar`));
     toast.success("Ordem de fabrico finalizada");
   };

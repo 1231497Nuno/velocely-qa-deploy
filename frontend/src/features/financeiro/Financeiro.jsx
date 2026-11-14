@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
 import { openAuthenticated, pdfDocumentoUrl } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
@@ -51,6 +52,7 @@ function PayDot({ status }) {
 }
 
 export default function Financeiro() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const [expanded, setExpanded] = useState({});
   const [searchParams, setSearchParams] = useSearchParams();
@@ -90,7 +92,7 @@ export default function Financeiro() {
 
   const remove = async (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Eliminar esta fatura e os recibos associados?")) return;
+    if (!await confirmAction({ title: "Eliminar fatura", description: "A fatura e os recibos associados são eliminados.", confirmLabel: "Eliminar", tone: "danger" })) return;
     await api.del(`/financeiro/documentos/${id}`);
     toast.success("Fatura eliminada");
     reload();

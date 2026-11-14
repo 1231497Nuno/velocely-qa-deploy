@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
@@ -21,6 +22,7 @@ const ESTADOS = [
 ];
 
 export default function PedidosCotacao() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
   const [estadoFilter, setEstadoFilter] = useState("");
@@ -52,7 +54,7 @@ export default function PedidosCotacao() {
 
   const remove = async (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Eliminar este pedido de cotação?")) return;
+    if (!await confirmAction({ title: "Eliminar pedido", description: "Este pedido de cotação é eliminado.", confirmLabel: "Eliminar", tone: "danger" })) return;
     try {
       await api.del(`/pedidos-cotacao/${id}`);
       toast.success("Pedido eliminado");

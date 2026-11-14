@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
 import { openAuthenticated, pdfDocumentoUrl } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -28,6 +29,7 @@ const METODO_PT = {
 };
 
 export default function DocumentoFinanceiroDetail() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
@@ -53,7 +55,12 @@ export default function DocumentoFinanceiroDetail() {
   const liquidado = Number(doc.valor_liquidado) || 0;
 
   const anular = async () => {
-    if (!window.confirm(isRecibo ? "Anular este recibo?" : "Anular esta fatura?")) return;
+    if (!await confirmAction({
+      title: isRecibo ? "Anular recibo" : "Anular fatura",
+      description: "O documento fica anulado e os pagamentos associados na encomenda são revertidos.",
+      confirmLabel: "Anular",
+      tone: "danger",
+    })) return;
     const updated = await api.post(`/financeiro/documentos/${id}/anular`);
     setDoc(updated);
     toast.success(isRecibo ? "Recibo anulado" : "Fatura anulada");
@@ -63,7 +70,7 @@ export default function DocumentoFinanceiroDetail() {
     const msg = isFatura
       ? "Eliminar esta fatura e os recibos associados?"
       : "Eliminar este recibo definitivamente?";
-    if (!window.confirm(msg)) return;
+    if (!await confirmAction({ title: "Eliminar documento", description: msg, confirmLabel: "Eliminar", tone: "danger" })) return;
     await api.del(`/financeiro/documentos/${id}`);
     toast.success(isFatura ? "Fatura eliminada" : "Recibo eliminado");
     if (isRecibo && doc.fatura_id) nav(`/financeiro/${doc.fatura_id}`);

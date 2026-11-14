@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { toast } from "sonner";
 import { Building2, FileText, Plus, Pencil, Trash2, Save, Upload, Image as ImageIcon, Hash, FileSpreadsheet, Download, Loader2, Mail, RotateCcw, Layers } from "lucide-react";
 import { exportExcel, downloadImportTemplate, importExcel } from "@/lib/excelIo";
@@ -720,6 +721,7 @@ export default function Definicoes() {
 }
 
 function EmailsTab() {
+  const confirmAction = useConfirm();
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ subject: "", body: "" });
@@ -792,7 +794,7 @@ function EmailsTab() {
 
   const reset = async () => {
     if (!selected) return;
-    if (!window.confirm("Repor o texto original deste template?")) return;
+    if (!await confirmAction({ title: "Repor template", description: "O texto volta ao original. As alterações deste modelo perdem-se.", confirmLabel: "Repor", tone: "danger" })) return;
     setBusy(true);
     try {
       const updated = await api.post(`/settings/email-templates/${selected.tipo}/repor`);
@@ -918,6 +920,7 @@ function EmailsTab() {
 }
 
 function DadosTab() {
+  const confirmAction = useConfirm();
   const [entities, setEntities] = useState([]);
   const [selected, setSelected] = useState({});
   const [exporting, setExporting] = useState(false);
@@ -984,15 +987,19 @@ function DadosTab() {
   const runImport = async (dryRun) => {
     if (!file) return toast.error("Escolha um ficheiro .xlsx");
     if (!dryRun && importMode === "update") {
-      const ok = window.confirm(
-        "Modo Actualizar: registos com o mesmo código/número vão ser alterados. Continuar?"
-      );
+      const ok = await confirmAction({
+        title: "Actualizar registos",
+        description: "Registos com o mesmo código ou número vão ser alterados.",
+        confirmLabel: "Continuar",
+      });
       if (!ok) return;
     }
     if (!dryRun && preview && !preview.ok && ((preview.created || 0) + (preview.updated || 0) > 0)) {
-      const ok = window.confirm(
-        `Há ${preview.errors?.length || 0} erro(s) na validação. As linhas válidas serão importadas e as com erro ignoradas. Continuar?`
-      );
+      const ok = await confirmAction({
+        title: "Importar com erros",
+        description: `Há ${preview.errors?.length || 0} erro(s) na validação. As linhas válidas são importadas e as com erro ficam de fora.`,
+        confirmLabel: "Importar",
+      });
       if (!ok) return;
     }
 

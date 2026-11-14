@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
+import { useConfirm } from "@/hooks/useConfirm";
 import AuthImg from "@/components/AuthImg";
 import { toast } from "sonner";
 import { FileText, Image as ImageIcon, Loader2, Paperclip, X, ExternalLink } from "lucide-react";
@@ -63,6 +64,7 @@ function ItemCard({ item, canDelete, onDelete }) {
 }
 
 export default function FicheirosTab({ tipo, id, canEdit = false, addLabel = "Adicionar ficheiro ou foto" }) {
+  const confirmAction = useConfirm();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
@@ -96,7 +98,7 @@ export default function FicheirosTab({ tipo, id, canEdit = false, addLabel = "Ad
   };
 
   const remove = async (item) => {
-    if (!window.confirm(`Remover «${item.nome}»?`)) return;
+    if (!await confirmAction({ title: "Remover ficheiro", description: item.nome ? `«${item.nome}»` : "Este ficheiro é removido.", confirmLabel: "Remover", tone: "danger" })) return;
     try {
       const next = await api.del(`/ficheiros/${tipo}/${id}?item=${encodeURIComponent(item.id)}`);
       setData(next);
