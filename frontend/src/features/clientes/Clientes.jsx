@@ -106,7 +106,6 @@ export default function Clientes() {
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   const openNew = () => { setForm(empty); setEditId(null); setOpen(true); };
-  const openEdit = (c) => {
 
   useEffect(() => {
     if (params.get("novo") !== "1" || !can("clientes", "create")) return;
@@ -116,7 +115,10 @@ export default function Clientes() {
     const next = new URLSearchParams(params);
     next.delete("novo");
     setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, can, setParams]);
+
+  const openEdit = (c) => {
     setForm({
       nome: c.nome,
       tipo: c.tipo === "cliente_final" ? "particular" : (c.tipo || (c.nif ? "empresa" : "particular")),

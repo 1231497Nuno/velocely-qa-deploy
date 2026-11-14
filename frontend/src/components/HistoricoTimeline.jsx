@@ -66,7 +66,7 @@ export default function HistoricoTimeline({ tipo, id, refreshKey = 0, hideTitle 
     }
   }, [tipo, id]);
 
-  useEffect(() => { if (tipo && id) load(); }, [load, refreshKey]);
+  useEffect(() => { if (tipo && id) load(); }, [tipo, id, load, refreshKey]);
 
   return (
     <section className={hideTitle ? "" : "mt-6"} data-testid="historico-timeline">
