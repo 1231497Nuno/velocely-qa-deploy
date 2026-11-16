@@ -23,6 +23,14 @@ _PC_ESTADOS = set(PC_ESTADO_PT.keys())
 
 router = APIRouter()
 
+def _exigir_artigos_nas_linhas(linhas: list, existentes: list) -> None:
+    """Linhas novas têm de ser artigos do catálogo (linhas livres antigas mantêm-se)."""
+    antigas = {l.get("id") for l in existentes or [] if not l.get("artigo_id")}
+    for l in linhas or []:
+        if not (l.get("artigo_id") or "").strip() and l.get("id") not in antigas:
+            raise HTTPException(400, "Cada linha tem de ter um artigo do catálogo. Escolha o artigo ou use um artigo «Diversos».")
+
+
 
 async def _resolve_fornecedor(data: PedidoCotacaoInput) -> PedidoCotacaoInput:
     if data.fornecedor_id:
@@ -106,6 +114,7 @@ async def create_pedido_cotacao(
     data = await _resolve_fornecedor(data)
     if not data.data:
         data.data = now_iso()[:10]
+    _exigir_artigos_nas_linhas([l.model_dump() for l in (data.linhas or [])], [])
     pc = PedidoCotacao(**data.model_dump())
     pc.codigo = await next_codigo("pedido_cotacao")
     valor = _recalc_valor_cotado(pc.linhas)
@@ -138,6 +147,7 @@ async def update_pedido_cotacao(
         data.ordem_compra_codigo = existing.get("ordem_compra_codigo") or ""
 
     novo = await campos_svc.aplicar("pedidos_cotacao", data.model_dump(), "guardar", existing)
+    _exigir_artigos_nas_linhas(novo.get("linhas") or [], existing.get("linhas") or [])
     novo.pop("anexos", None)
     valor = _recalc_valor_cotado(novo.get("linhas") or [])
     if valor is not None:

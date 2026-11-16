@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
+import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API, fmtDate } from "@/lib/api";
@@ -1335,9 +1336,13 @@ export default function OrcamentoDetail() {
                   setOpenOps((o) => ({ ...o, [i]: !o[i] }));
                 }}
                 data-testid={`line-row-${i}`}
+                style={estiloLinhaCor(l.cor)}
               >
                 <td className="px-2 py-2.5 align-top">
                   <div className="flex items-start gap-1">
+                    <div className="mt-1 shrink-0">
+                      <CorLinhaPicker value={l.cor || ""} disabled={!editavel} onChange={(cor) => updLinha(i, { cor })} testid={`line-cor-${i}`} />
+                    </div>
                     {editavel && (
                       <div className="flex flex-col shrink-0 mt-0.5" data-testid={`line-reorder-${i}`}>
                         <button

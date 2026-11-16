@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import ArtigoCombobox from "@/components/ArtigoCombobox";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
@@ -71,14 +72,15 @@ export default function PedidoCotacaoDetail() {
   const { can } = useAuth();
   const [pc, setPc] = useState(null);
   const [form, setForm] = useState(null);
-  const [editing, setEditing] = useState(!!location.state?.edit);
+  // Ficha sempre editável (padrão do ERP): o modo «Editar» deixou de existir.
+  const setEditing = () => {};
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
   const saveForLeaveRef = useRef(null);
 
   useUnsavedChanges({
-    dirty: editing && dirty,
+    dirty,
     onSave: async () => {
       if (saveForLeaveRef.current) return saveForLeaveRef.current();
       return true;
@@ -99,6 +101,14 @@ export default function PedidoCotacaoDetail() {
       nav(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, nav]);
+  const [artigos, setArtigos] = useState([]);
+  const carregarArtigos = useCallback(async () => {
+    try {
+      const r = await api.get("/artigos?lite=1");
+      setArtigos(Array.isArray(r) ? r : (r.items || []));
+    } catch { /* sem catálogo disponível */ }
+  }, []);
+  useEffect(() => { carregarArtigos(); }, [carregarArtigos]);
   useEffect(() => {
     api.get("/fornecedores").then((r) => {
       setFornecedores(Array.isArray(r) ? r : (r.items || []));
@@ -111,6 +121,7 @@ export default function PedidoCotacaoDetail() {
 
   const locked = form.estado === "adjudicado" || form.estado === "cancelado";
   const podeEditar = can("pedidos_cotacao", "edit") && !locked;
+  const editing = podeEditar;
 
   const set = (key, val) => {
     setDirty(true);
@@ -127,6 +138,34 @@ export default function PedidoCotacaoDetail() {
   const addLinha = () => {
     setDirty(true);
     setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
+  };
+  /** Linhas só com artigos do catálogo (seletor único do ERP). */
+  const linhaDoArtigo = (a, quantidade) => ({
+    artigo_id: a.id,
+    artigo_nome: a.nome || "",
+    nome: a.nome || "",
+    unidade: a.unidade || "un",
+    ...(quantidade ? { quantidade } : {}),
+  });
+  const escolherArtigo = (idx, a) => {
+    setDirty(true);
+    setForm((f) => {
+      const linhas = [...(f.linhas || [])];
+      linhas[idx] = { ...linhas[idx], ...linhaDoArtigo(a) };
+      return { ...f, linhas };
+    });
+  };
+  const escolherVariantes = (idx, picked) => {
+    if (!picked?.length) return;
+    setDirty(true);
+    setForm((f) => {
+      const linhas = [...(f.linhas || [])];
+      const [primeira, ...resto] = picked;
+      linhas[idx] = { ...linhas[idx], ...linhaDoArtigo(primeira, primeira.quantidade) };
+      const novas = resto.map((p) => ({ ...emptyLinha(), ...linhaDoArtigo(p, p.quantidade) }));
+      linhas.splice(idx + 1, 0, ...novas);
+      return { ...f, linhas };
+    });
   };
   const removeLinha = (idx) => {
     setDirty(true);
@@ -274,22 +313,22 @@ export default function PedidoCotacaoDetail() {
         ) : (form.assunto || null)}
         actions={
           <>
-            {podeEditar && !editing && form.estado === "rascunho" && (
+            {podeEditar && !dirty && form.estado === "rascunho" && (
               <button type="button" data-testid="pc-enviar-btn" disabled={saving} onClick={() => setEstado("enviado", "Marcado como enviado")} className="border border-indigo-300 text-indigo-800 hover:bg-indigo-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Send size={15} /> Marcar enviado
               </button>
             )}
-            {podeEditar && !editing && (form.estado === "enviado" || form.estado === "rascunho") && (
-              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => { startEdit(); toast.message("Preenche os preços cotados e guarda como Respondido"); }} className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+            {podeEditar && !dirty && (form.estado === "enviado" || form.estado === "rascunho") && (
+              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => toast.message("Preencha os preços cotados nas linhas e carregue em «Guardar como respondido»")} className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <CheckCircle2 size={15} /> Registar resposta
               </button>
             )}
-            {podeEditar && !editing && form.estado === "respondido" && temPrecos && (
+            {podeEditar && !dirty && form.estado === "respondido" && temPrecos && (
               <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <ShoppingCart size={15} /> Adjudicar → OC
               </button>
             )}
-            {podeEditar && !editing && form.estado !== "cancelado" && (
+            {podeEditar && !dirty && form.estado !== "cancelado" && (
               <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={async () => { if (await confirmAction({ title: "Cancelar pedido", description: "Este pedido deixa de poder ser adjudicado.", confirmLabel: "Cancelar pedido", tone: "danger" })) setEstado("cancelado", "Pedido cancelado"); }} className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Ban size={15} /> Cancelar
               </button>
@@ -297,15 +336,17 @@ export default function PedidoCotacaoDetail() {
             {podeEditar && (
               editing ? (
                 <>
-                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
-                    <X size={15} /> Cancelar
-                  </button>
+                  {dirty && (
+                    <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
+                      <X size={15} /> Descartar alterações
+                    </button>
+                  )}
                   {(form.estado === "enviado" || form.estado === "rascunho") && (
                     <button type="button" data-testid="pc-save-respondido-btn" disabled={saving || !temPrecos} onClick={() => save({ estado: "respondido" }, { msg: "Resposta registada" })} className="border border-amber-400 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
                       <CheckCircle2 size={15} /> Guardar como respondido
                     </button>
                   )}
-                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving || !dirty} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
                     <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                   </button>
                 </>
@@ -453,7 +494,16 @@ export default function PedidoCotacaoDetail() {
                     <td className="px-4 py-2">
                       {editing ? (
                         <>
-                          <input className={inputCls} value={l.nome || ""} onChange={(e) => setLinha(idx, "nome", e.target.value)} placeholder="Nome do item" />
+                          <ArtigoCombobox
+                            artigos={artigos}
+                            value={l.artigo_id || ""}
+                            onChange={(art) => escolherArtigo(idx, art)}
+                            onChangeMulti={(picked) => escolherVariantes(idx, picked)}
+                            onArtigosRefresh={carregarArtigos}
+                            preco={(a) => Number(a.preco_compra) || Number(a.custo_artigo) || 0}
+                            placeholder={l.nome && !l.artigo_id ? `${l.nome} (sem artigo — escolha do catálogo)` : "Escolher artigo do catálogo..."}
+                            testid={`linha-artigo-${idx}`}
+                          />
                           <input
                             className={`${inputCls} mt-1 text-xs`}
                             value={l.notas || ""}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
@@ -144,8 +144,12 @@ export default function ArtigoDetail() {
   const artigoRef = useRef(null);
   const saveForLeaveRef = useRef(null);
 
+  const draftSujo = useMemo(
+    () => !!(editing && draft && data?.artigo) && JSON.stringify(draft) !== JSON.stringify(artigoToDraft(data.artigo)),
+    [editing, draft, data],
+  );
   useUnsavedChanges({
-    dirty: editing,
+    dirty: draftSujo,
     onSave: async () => {
       if (saveForLeaveRef.current) return saveForLeaveRef.current();
       return true;
@@ -278,8 +282,8 @@ export default function ArtigoDetail() {
     await loadLookups();
   };
 
+  // Ficha sempre editável (padrão do ERP): abre logo em edição; «Descartar» repõe os valores guardados.
   const cancelEdit = () => {
-    setEditing(false);
     setDraft(artigoToDraft(data?.artigo));
   };
 
@@ -300,7 +304,6 @@ export default function ArtigoDetail() {
       await api.put(`/artigos/${id}`, buildArtigoBody(draft));
       const artigo = await api.get(`/artigos/${id}`);
       applyArtigo(artigo);
-      setEditing(false);
       toast.success("Artigo guardado");
       maybeAskPropagaPreco(antes, draft, artigo);
       api.get(`/artigos/${id}/resumo`).then((resumo) => {
@@ -316,6 +319,14 @@ export default function ArtigoDetail() {
     }
   };
   saveForLeaveRef.current = saveEdit;
+
+  // Abre a ficha já em edição para quem pode editar
+  const artigoId = data?.artigo?.id;
+  const parcialCarregado = Boolean(data?._parcial);
+  useEffect(() => {
+    if (canEdit && artigoId && !parcialCarregado && !editing) startFullEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, artigoId, parcialCarregado]);
 
   if (loading && !data) return <div className="text-sm text-gray-500">A carregar...</div>;
   if (!data) return <div className="text-sm text-gray-500">Artigo não encontrado.</div>;
@@ -522,31 +533,23 @@ export default function ArtigoDetail() {
                 <Eye size={14} /> Onde é usado
               </button>
             )}
-            {canEdit && !editing && (
-              <button
-                type="button"
-                data-testid="artigo-edit-btn"
-                onClick={startFullEdit}
-                className="inline-flex items-center gap-1.5 bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium"
-              >
-                <Pencil size={14} /> Editar
-              </button>
-            )}
             {editing && (
               <>
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium"
-                >
-                  Cancelar
-                </button>
+                {draftSujo && (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={saving}
+                    className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium"
+                  >
+                    Descartar alterações
+                  </button>
+                )}
                 <button
                   type="button"
                   data-testid="artigo-save-btn"
                   onClick={saveEdit}
-                  disabled={saving}
+                  disabled={saving || !draftSujo}
                   className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium disabled:opacity-60"
                 >
                   {saving ? "A guardar…" : "Guardar"}

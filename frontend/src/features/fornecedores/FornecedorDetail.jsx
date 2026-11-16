@@ -11,7 +11,7 @@ import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailH
 import { toast } from "sonner";
 import {
   ShoppingCart, Coins, Wallet, Package, Wrench, Layers,
-  Mail, Phone, MapPin, Hash, ChevronRight, Plus, User, Globe, FileQuestion,
+  MapPin, ChevronRight, Plus, FileQuestion,
 } from "lucide-react";
 
 const TIPO_DESPESA_LABEL = {
@@ -34,12 +34,23 @@ const Th = ({ children, align = "left" }) => (
   <th className={`text-${align} px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500`}>{children}</th>
 );
 
-const InfoLine = ({ icon: Icon, value }) =>
-  value ? (
-    <div className="flex items-center gap-2 text-sm text-gray-600">
-      <Icon size={14} className="text-gray-400 shrink-0" /> {value}
-    </div>
-  ) : null;
+/** Campo editável inline: grava ao sair do campo (Enter também grava). */
+function CampoFicha({ label, value, onSave, disabled, multiline = false, testid }) {
+  const [v, setV] = useState(value || "");
+  useEffect(() => { setV(value || ""); }, [value]);
+  const commit = () => { if ((v || "") !== (value || "")) onSave(v); };
+  const cls = "w-full border border-gray-300 rounded-sm px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand disabled:bg-gray-50 disabled:text-gray-600";
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 mb-0.5">{label}</span>
+      {multiline ? (
+        <textarea className={`${cls} min-h-[4rem]`} value={v} disabled={disabled} onChange={(e) => setV(e.target.value)} onBlur={commit} data-testid={testid} />
+      ) : (
+        <input className={cls} value={v} disabled={disabled} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} data-testid={testid} />
+      )}
+    </label>
+  );
+}
 
 export default function FornecedorDetail() {
   const { id } = useParams();
@@ -63,6 +74,25 @@ export default function FornecedorDetail() {
   if (!data) return <div className="text-sm text-gray-500">Fornecedor não encontrado.</div>;
 
   const { fornecedor: f, ordens_compra: ordens, stats } = data;
+  const podeEditar = can("fornecedores", "edit");
+  const guardar = async (patch, msg) => {
+    const novo = { ...f, ...patch };
+    const body = {
+      nome: novo.nome || "", tipo: novo.tipo || (novo.nif ? "empresa" : "particular"),
+      morada: novo.morada || "", codigo_postal: novo.codigo_postal || "", cidade: novo.cidade || "",
+      pais: novo.pais || "Portugal", contacto: novo.contacto || "", email: novo.email || "",
+      nif: novo.nif || "", website: novo.website || "", categoria: novo.categoria || "",
+      notas: novo.notas || "", responsavel: novo.responsavel || "", campos_extra: novo.campos_extra || {},
+    };
+    try {
+      const atualizado = await api.put(`/fornecedores/${id}`, body);
+      setData((d) => ({ ...d, fornecedor: { ...d.fornecedor, ...atualizado } }));
+      toast.success(msg || "Guardado");
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(Array.isArray(d) ? d.map((x) => (x.msg || "").replace("Value error, ", "")).join("; ") : d || "Erro ao guardar");
+    }
+  };
   const morada = [f.morada, f.codigo_postal, f.cidade, f.pais].filter(Boolean).join(", ");
 
   const novaOc = async () => {
@@ -132,23 +162,46 @@ export default function FornecedorDetail() {
 
       {tab === "fornecedor" && (
         <>
-      <CamposPersonalizados modulo="fornecedores" className="mb-4" value={f.campos_extra} onChange={() => {}} disabled />
-      <div className="flex flex-col lg:flex-row gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
-          <div className="text-xs uppercase tracking-[0.1em] text-gray-500" data-testid="fornecedor-tipo">
-            {(f.tipo === "empresa" || (!f.tipo && f.nif)) ? "Empresa" : "Particular"}
-            {f.categoria ? ` · ${f.categoria}` : ""}
+      <div className="flex flex-col lg:flex-row gap-4 mb-4">
+        <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-96 shrink-0 space-y-3" data-testid="fornecedor-ficha">
+          <div className="flex items-center gap-2">
+            {["empresa", "particular"].map((t) => {
+              const ativo = (f.tipo || (f.nif ? "empresa" : "particular")) === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={!podeEditar}
+                  onClick={() => !ativo && guardar({ tipo: t }, "Tipo atualizado")}
+                  className={`px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] rounded-sm border ${ativo ? "bg-brand text-brand-fg border-brand" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                  data-testid={`fornecedor-tipo-${t}`}
+                >
+                  {t === "empresa" ? "Empresa" : "Particular"}
+                </button>
+              );
+            })}
+            {f.codigo && <span className="ml-auto text-xs text-gray-500 mono">{f.codigo}</span>}
           </div>
-          <div className="mt-3 space-y-2">
-            <InfoLine icon={Hash} value={f.codigo && `Código ${f.codigo}`} />
-            <InfoLine icon={Hash} value={f.nif ? `NIF ${f.nif}` : null} />
-            <InfoLine icon={Phone} value={f.contacto} />
-            <InfoLine icon={Mail} value={f.email} />
-            <InfoLine icon={Globe} value={f.website} />
-            <InfoLine icon={User} value={f.responsavel && `Responsável: ${f.responsavel}`} />
-            <InfoLine icon={MapPin} value={morada} />
+          <CampoFicha label="Nome" value={f.nome} disabled={!podeEditar} onSave={(v) => guardar({ nome: v })} testid="forn-nome" />
+          <div className="grid grid-cols-2 gap-3">
+            <CampoFicha label="NIF" value={f.nif} disabled={!podeEditar} onSave={(v) => guardar({ nif: v })} testid="forn-nif" />
+            <CampoFicha label="Categoria" value={f.categoria} disabled={!podeEditar} onSave={(v) => guardar({ categoria: v })} testid="forn-categoria" />
+            <CampoFicha label="Telefone" value={f.contacto} disabled={!podeEditar} onSave={(v) => guardar({ contacto: v })} testid="forn-contacto" />
+            <CampoFicha label="Email" value={f.email} disabled={!podeEditar} onSave={(v) => guardar({ email: v })} testid="forn-email" />
           </div>
-          {f.notas && <p className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500 whitespace-pre-wrap">{f.notas}</p>}
+          <CampoFicha label="Website" value={f.website} disabled={!podeEditar} onSave={(v) => guardar({ website: v })} testid="forn-website" />
+          <CampoFicha label="Pessoa responsável" value={f.responsavel} disabled={!podeEditar} onSave={(v) => guardar({ responsavel: v })} testid="forn-responsavel" />
+          <CampoFicha label="Morada" value={f.morada} disabled={!podeEditar} onSave={(v) => guardar({ morada: v })} testid="forn-morada" />
+          <div className="grid grid-cols-2 gap-3">
+            <CampoFicha label="Código postal" value={f.codigo_postal} disabled={!podeEditar} onSave={(v) => guardar({ codigo_postal: v })} testid="forn-cp" />
+            <CampoFicha label="Cidade" value={f.cidade} disabled={!podeEditar} onSave={(v) => guardar({ cidade: v })} testid="forn-cidade" />
+          </div>
+          <CampoFicha label="Notas" value={f.notas} disabled={!podeEditar} multiline onSave={(v) => guardar({ notas: v })} testid="forn-notas" />
+          {morada && (
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(morada)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-destaque hover:underline">
+              <MapPin size={12} /> Ver no mapa
+            </a>
+          )}
         </div>
 
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-3">
@@ -160,6 +213,15 @@ export default function FornecedorDetail() {
           <KPI icon={Layers} label="Despesa diversa" value={eur(stats.despesa_diversa)} testid="kpi-despesa-diversa" />
         </div>
       </div>
+
+      <CamposPersonalizados
+        modulo="fornecedores"
+        className="mb-4"
+        value={f.campos_extra}
+        disabled={!podeEditar}
+        onChange={(vals) => setData((d) => ({ ...d, fornecedor: { ...d.fornecedor, campos_extra: vals } }))}
+        onCommit={(vals) => guardar({ campos_extra: vals })}
+      />
 
       <SeccaoPesquisavel
         title="Ordens de compra / despesas"

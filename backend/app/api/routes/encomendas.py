@@ -28,7 +28,7 @@ _ENC_CAMPOS = [
 ]
 
 def _artigos_congelados_do_orcamento(existing: dict, novo_artigos: list) -> list:
-    """Mantém valores do ORC; só permite actualizar imagem (não comercial)."""
+    """Mantém valores do ORC; só permite actualizar imagem e cor da linha (não comerciais)."""
     new_by_id = {a.get("id"): a for a in (novo_artigos or []) if a.get("id")}
     out = []
     for old in existing.get("artigos") or []:
@@ -36,6 +36,8 @@ def _artigos_congelados_do_orcamento(existing: dict, novo_artigos: list) -> list
         n = new_by_id.get(old.get("id")) or {}
         if "imagem" in n:
             row["imagem"] = n.get("imagem") or row.get("imagem") or ""
+        if "cor" in n:  # marcação visual, não comercial
+            row["cor"] = n.get("cor") or ""
         out.append(row)
     return out
 

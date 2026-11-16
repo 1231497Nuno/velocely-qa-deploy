@@ -251,7 +251,8 @@ async def list_leads(
     query: dict = {}
     termo = (q or "").strip()
     if termo:
-        rx = {"$regex": re.escape(termo), "$options": "i"}
+        # Igual ao resto do ERP: pesquisa pelo início do texto
+        rx = {"$regex": "^" + re.escape(termo), "$options": "i"}
         query["$or"] = [{"nome": rx}, {"empresa": rx}, {"telefone": rx}, {"email": rx},
                         {"descricao": rx}, {"cliente_nome": rx}]
     if origem:

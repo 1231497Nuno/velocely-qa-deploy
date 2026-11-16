@@ -20,6 +20,14 @@ _OC_CAMPOS = [
 
 router = APIRouter()
 
+def _exigir_artigos_nas_linhas(linhas: list, existentes: list) -> None:
+    """Linhas novas têm de ser artigos do catálogo (linhas livres antigas mantêm-se)."""
+    antigas = {l.get("id") for l in existentes or [] if not l.get("artigo_id")}
+    for l in linhas or []:
+        if not (l.get("artigo_id") or "").strip() and l.get("id") not in antigas:
+            raise HTTPException(400, "Cada linha tem de ter um artigo do catálogo. Escolha o artigo ou use um artigo «Diversos».")
+
+
 
 async def _resolve_fornecedor(data: OrdemCompraInput) -> OrdemCompraInput:
     if data.fornecedor_id:
@@ -110,6 +118,7 @@ async def create_ordem_compra(data: OrdemCompraInput, user: dict = Depends(requi
     )
     if data.tipo_despesa == "despesa_diversa" and sugerido != "despesa_diversa":
         data.tipo_despesa = sugerido
+    _exigir_artigos_nas_linhas([l.model_dump() for l in (data.linhas or [])], [])
     oc = OrdemCompra(**data.model_dump())
     oc.codigo = await next_codigo("ordem_compra")
     await ordens_compra_repo.insert(oc.model_dump())
@@ -129,6 +138,7 @@ async def update_ordem_compra(
         raise HTTPException(404, "Ordem de compra não encontrada")
     data = await _resolve_fornecedor(data)
     novo = await campos_svc.aplicar("ordens_compra", data.model_dump(), "guardar", existing)
+    _exigir_artigos_nas_linhas(novo.get("linhas") or [], existing.get("linhas") or [])
     novo.pop("anexos", None)
     alteracoes = audit.diff_campos(existing, novo, _OC_CAMPOS)
     await ordens_compra_repo.update(oid, novo)

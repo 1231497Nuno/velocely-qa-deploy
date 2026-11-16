@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
+import ArtigoCombobox from "@/components/ArtigoCombobox";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
@@ -6,7 +8,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
-import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
@@ -25,10 +26,7 @@ import BlocosShell from "@/components/BlocosShell";
 import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
 import AbrirNaoConformidadeDialog from "@/features/nao_conformidades/AbrirNaoConformidadeDialog";
 import { ymdHoje } from "@/lib/orcamento";
-import SelecionarVariantesDialog, {
-  artigosParaSelector,
-  artigoTemVariantes,
-} from "@/components/SelecionarVariantesDialog";
+import SelecionarVariantesDialog from "@/components/SelecionarVariantesDialog";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 
@@ -262,18 +260,14 @@ export default function EncomendaDetail() {
     personalizacoes: [],
   });
 
-  const addArtigo = (artigoId) => {
+  /** Seletor único: recebe o artigo (pode ter sido criado agora e ainda não estar na lista). */
+  const addArtigoObj = (a) => {
     if (valoresDoOrc) {
       toast.error("Os artigos desta encomenda vêm do orçamento e não podem ser alterados");
       return;
     }
-    const a = artigos.find((x) => x.id === artigoId);
-    if (!a) return;
-    if (artigoTemVariantes(a)) {
-      setVariantesPick({ pai: a });
-      return;
-    }
-    persist({ artigos: [...(enc.artigos || []), linhaFromArtigo(a)] }, "Artigo adicionado");
+    const base = artigos.find((x) => x.id === a.id) || a;
+    persist({ artigos: [...(enc.artigos || []), linhaFromArtigo(base)] }, "Artigo adicionado");
   };
 
   const addVariantes = async (picked) => {
@@ -428,11 +422,6 @@ export default function EncomendaDetail() {
     setOfOpen(true);
   };
 
-  const artigoOptions = artigosParaSelector(artigos).map((a) => ({
-    value: a.id,
-    label: a.tem_variantes ? `${a.nome} (variantes)` : a.nome,
-    hint: eur(a.preco_venda),
-  }));
   const podeProduzir = enc.pode_produzir;
 
   return (
@@ -563,8 +552,15 @@ export default function EncomendaDetail() {
                 )}
               </div>
               {canEditValores && (
-                <div className="sm:w-72">
-                  <Combobox options={artigoOptions} value="" onChange={(v) => addArtigo(v)} placeholder="+ Adicionar artigo..." searchPlaceholder="Pesquisar artigo..." emptyText="Nenhum artigo." testid="enc-add-artigo" optionTestidPrefix="enc-artigo-option" />
+                <div className="sm:w-auto">
+                  <ArtigoCombobox
+                    modo="adicionar"
+                    artigos={artigos}
+                    onChange={(a) => addArtigoObj(a)}
+                    onChangeMulti={addVariantes}
+                    onArtigosRefresh={async () => setArtigos(await api.get("/artigos?lite=1"))}
+                    testid="enc-add-artigo"
+                  />
                 </div>
               )}
             </div>
@@ -590,9 +586,15 @@ export default function EncomendaDetail() {
                     {enc.artigos.map((a, i) => {
                       const unitPers = (Number(a.preco_unit) || 0) + persUnitOf(a);
                       return (
-                        <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100">
+                        <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100" style={estiloLinhaCor(a.cor)}>
                           <td className="px-4 py-2.5 font-medium text-gray-900">
                             <div className="flex items-center gap-2.5">
+                              <CorLinhaPicker
+                                value={a.cor || ""}
+                                disabled={!can("encomendas", "edit")}
+                                onChange={(cor) => persist({ artigos: enc.artigos.map((x, j) => (j === i ? { ...x, cor } : x)) })}
+                                testid={`enc-artigo-cor-${i}`}
+                              />
                               <ImagemUpload value={a.imagem} editable={false} size={40} testid={`enc-artigo-imagem-${i}`} />
                               <span>{a.artigo_nome}</span>
                             </div>

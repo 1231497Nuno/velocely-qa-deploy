@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
@@ -404,12 +405,19 @@ export default function OrdemFabricoDetail() {
                   const nDone = (it.operacoes || []).filter((o) => o.concluida).length;
                   const pers = it.personalizacoes || [];
                   return (
-                    <div key={it.id || i} className={`${aberto ? "bg-gray-50/80" : "bg-white hover:bg-gray-50/60"}`} data-testid={`of-item-row-${i}`}>
+                    <div key={it.id || i} className={`${aberto ? "bg-gray-50/80" : "bg-white hover:bg-gray-50/60"}`} style={estiloLinhaCor(it.cor)} data-testid={`of-item-row-${i}`}>
+                      <div className="flex items-center pl-3">
+                      <CorLinhaPicker
+                        value={it.cor || ""}
+                        disabled={!can("ordens_fabrico", "edit")}
+                        onChange={(cor) => updItem(i, { cor })}
+                        testid={`of-item-cor-${i}`}
+                      />
                       <button
                         type="button"
                         data-testid={`of-item-toggle-${i}`}
                         onClick={() => setItemAberto(aberto ? null : i)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
+                        className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5 text-left"
                       >
                         <ImagemUpload value={it.imagem} size={36} editable={false} testid={`of-item-imagem-${i}`} />
                         <div className="flex-1 min-w-0">
@@ -459,6 +467,7 @@ export default function OrdemFabricoDetail() {
                         </div>
                         <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${aberto ? "rotate-180" : ""}`} />
                       </button>
+                      </div>
 
                       {aberto && (
                         <div className="px-3 pb-3 space-y-2 border-t border-gray-100/80" onClick={(e) => e.stopPropagation()}>

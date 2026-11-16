@@ -172,7 +172,7 @@ export default function Crm() {
       toolbar={
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <div className="flex-1 min-w-0">
-            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar por nome, empresa, telefone, email..." testid="crm-search" />
+            <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nome, empresa, telefone ou email..." testid="crm-search" />
           </div>
           <div className="flex gap-2 flex-wrap">
             <select className={selectCls} value={origem} onChange={(e) => setOrigem(e.target.value)} data-testid="crm-filter-origem">
