@@ -212,3 +212,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   `POST …/fecho/anular` reverte os movimentos.
 - Carga das máquinas (`/carga-maquinas`, `GET /producao/carga`): horas de máquina por fazer nas OF abertas, por semana do
   prazo da encomenda, vs `maquina.horas_semana` (Catálogo → Máquinas). Prazo passado → «Atrasado».
+
+## Relatórios guardados e envio automático (`services/relatorios_guardados.py`)
+
+- «Guardar» na área Relatórios grava relatório + período relativo (este mês, mês passado, trimestre…, ou datas fixas),
+  agrupamento, comparação, cliente, top N e colunas (`/relatorios/guardados`). O período recalcula-se em cada abertura/envio.
+  Partilhado = os colegas abrem mas não alteram; o dono ou um administrador edita/apaga.
+- Colunas: botão «Colunas» escolhe o que se vê e exporta (`colunas=` em `/relatorios/gerar/{id}`; a 1.ª coluna fica sempre).
+- Envio automático: diário/semanal/mensal, hora (Lisboa), PDF ou Excel, vários emails. O servidor verifica a cada 5 min
+  (`ciclo()` arrancado no startup; `DESATIVAR_AGENDADOR=1` desliga) e reclama cada envio com `proximo_envio` para não
+  duplicar. Precisa do SMTP configurado; o resultado fica em `ultimo_envio` (visível no relatório). «Enviar agora» testa.
