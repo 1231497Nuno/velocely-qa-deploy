@@ -265,7 +265,25 @@ def build_orcamento_proposta_pdf(orc: dict, settings: dict = None, fields: dict 
         fecho.append(Paragraph(base._esc(agr), st["thx"]))
     if empresa:
         fecho.append(Paragraph(f"<b>{base._esc(empresa)}</b>" + (f" · {base._esc(settings.get('website'))}" if settings.get("website") else ""), st["small"]))
-    if modelo.get("aceitacao", True) is not False and on("aceitacao"):
+    resp = orc.get("resposta_cliente") or {}
+    if resp.get("aceite") and on("aceitacao"):
+        # Aceite online: nome, data e assinatura do cliente
+        fecho.append(Spacer(1, 16))
+        ass = ""
+        try:
+            import base64
+            b64 = (resp.get("assinatura") or "").split(",", 1)[1]
+            ass = base._logo_from_bytes(base64.b64decode(b64), 60, 18) or ""
+        except Exception:  # noqa: BLE001
+            ass = ""
+        info = Paragraph(f"<b>Proposta aceite online</b><br/>{base._esc(resp.get('nome'))} · {base.fmt_data(resp.get('at'))}"
+                         f" {base._esc((resp.get('at') or '')[11:16])}", st["cell"])
+        ac = Table([[info, ass]], colWidths=[100 * mm, 70 * mm])
+        ac.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.8, acc), ("BACKGROUND", (0, 0), (-1, -1), _suave(acc, 0.93)),
+                                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                                ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+        fecho.append(ac)
+    elif modelo.get("aceitacao", True) is not False and on("aceitacao"):
         fecho.append(Spacer(1, 16))
         lin = lambda r: Paragraph(f"<font color='#6B7280'>{r}</font>", st["small"])  # noqa: E731
         ac = Table([[Paragraph("<b>Aceitação da proposta</b>", st["cell"]), "", ""],

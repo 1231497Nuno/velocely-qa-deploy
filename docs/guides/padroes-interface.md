@@ -436,3 +436,27 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Onde existe: ficheiros dos documentos (separador Ficheiros inteiro), imagem e galeria do artigo, arte da linha,
   foto de perfil, documentos das contas, extrato bancário, tabela de preços do fornecedor, PDF para OC, fotos da
   oficina, logótipo/fundo do login, importação Excel e restauro de cópia de segurança.
+
+## Aceitação online do orçamento
+
+- Link do cliente (`/p/:token`, `services/portal.py`): para aceitar pede nome, assinatura (quadro, PNG em data URL até
+  300 KB) e «Li e aceito as condições» (as condições do modelo de PDF predefinido). Orçamento fora da validade não se aceita.
+- Ao aceitar: estado «ganho», `resposta_cliente` (nome, data, IP, assinatura), encomenda criada automaticamente
+  (`converter_orcamento`), link da encomenda criado e o cliente segue para ele (maquetas e pagamento; IBAN se não houver
+  pagamento online), email de confirmação. Recusar → «perdido» com o motivo. Se a conversão falhar fica o aviso no orçamento.
+- O PDF de proposta mostra «Proposta aceite online» com nome, data e assinatura. A ficha do orçamento mostra a resposta.
+- O email do orçamento leva o link para aceitar online (`{link}` / `{link_linha}`; acrescentado se o template não o tiver).
+  Precisa de `FRONTEND_URL` para o endereço completo.
+
+## Avisos automáticos ao cliente
+
+- `services/avisos_cliente.py`, ligado em Definições → Emails: eventos recebida, em produção, prazo (definido/alterado),
+  pronta e entregue. Corre no ciclo de 5 min; compara `encomenda.avisos_cliente` com o estado atual; um email por mudança
+  (o último evento, os anteriores ficam marcados), com o link do cliente; até 3 tentativas se o envio falhar. Ao ligar,
+  o que já aconteceu nas encomendas existentes fica marcado (sem emails retroativos). Opção de anexar o PDF.
+
+## Custo real por encomenda
+
+- `GET /encomendas/{id}/custo-real` (`services/custo_real.py`, perfis com `ver_custos`): por linha, custo previsto
+  (orçamento) vs real = operações (tempos reais × custos) + materiais (fecho da OF, senão previsto) + compra; mais NC.
+  Receita sem IVA, margem real e prevista, desvio, tempos reais vs previstos. Separador «Custo real» na encomenda.

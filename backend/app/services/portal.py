@@ -4,6 +4,7 @@ Cada link é um token aleatório (sem login) ligado a um orçamento ou encomenda
 """
 from __future__ import annotations
 
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -76,7 +77,9 @@ async def ver(token: str) -> dict:
         return {**base, "numero": o.get("numero"), "cliente": o.get("cliente"), "descricao": o.get("descricao"),
                 "data": o.get("data"), "validade": o.get("validade"), "estado": o.get("status"),
                 "linhas": _linhas_publicas(o.get("linhas")), "total": o.get("total_com_iva") or o.get("total"),
-                "resposta": o.get("resposta_cliente"), "encomenda_id": o.get("encomenda_id")}
+                "resposta": {k: v for k, v in (o.get("resposta_cliente") or {}).items() if k not in ("ip", "assinatura")} or None,
+                "encomenda_id": o.get("encomenda_id"), "condicoes": await condicoes_orcamento(o),
+                "expirado": (o.get("validade") or "9999") < now_iso()[:10]}
     e = await encomendas_repo.get(l["entidade_id"])
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
@@ -94,26 +97,114 @@ async def ver(token: str) -> dict:
             "referencias": [{k: r.get(k) for k in ("metodo", "entidade", "referencia", "valor", "expira", "created_at")} for r in refs]}
 
 
-async def responder_orcamento(token: str, aceitar: bool, nome: str, comentario: str, ip: str = "") -> dict:
+def url_publico(token: str) -> str:
+    base = (os.environ.get("FRONTEND_URL") or os.environ.get("APP_URL") or "").rstrip("/")
+    return f"{base}/p/{token}" if base else f"/p/{token}"
+
+
+async def condicoes_orcamento(o: dict) -> list:
+    """Condições mostradas antes de aceitar (as mesmas do PDF de proposta)."""
+    from app.repositories import pdf_templates_repo
+    from app.services.pdf import fmt_data
+    from app.services.pdf_proposta import DEFAULT_TEXTOS, _linhas
+    t = await pdf_templates_repo.find_one({"modulo": "orcamento", "padrao": True}) or {}
+    txt = ((t.get("textos") or {}).get("condicoes") or "").strip() or DEFAULT_TEXTOS["condicoes"]
+    subs = {"validade": fmt_data(o.get("validade")) or "—", "cliente": o.get("cliente") or "", "numero": o.get("numero") or ""}
+    out = []
+    for x in _linhas(txt):
+        try:
+            out.append(x.format(**{**subs, "data": "", "total": "", "descricao": "", "empresa": "", "descricao_ou_trabalho": ""}))
+        except (KeyError, IndexError, ValueError):
+            out.append(x)
+    return out
+
+
+def _assinatura_valida(a: str) -> str:
+    a = (a or "").strip()
+    if not a:
+        return ""
+    if not a.startswith("data:image/png;base64,") or len(a) > 300_000:
+        raise HTTPException(400, "Assinatura inválida")
+    return a
+
+
+async def _email_aceitacao(o: dict, enc: Optional[dict], link_enc: Optional[dict]):
+    """Confirmação ao cliente (se houver email e SMTP): orçamento aceite e link para acompanhar/pagar."""
+    import asyncio
+    from app.services import email as email_svc
+    from app.services.email_templates import text_to_html_fragments
+    from app.services.pdf import fetch_cliente
+    cliente = await fetch_cliente(o.get("cliente_id")) or {}
+    to = (o.get("contacto_email") or cliente.get("email") or "").strip()
+    if not to or "@" not in to or not email_svc.smtp_configured():
+        return False
+    emp = await _empresa()
+    nome = (o.get("contacto_nome") or cliente.get("nome") or o.get("cliente") or "").strip() or "Cliente"
+    corpo = f"Olá {nome},\n\nObrigado! Recebemos a aceitação do orçamento {o.get('numero')}.\n\n"
+    if enc and link_enc:
+        corpo += (f"Criámos a encomenda {enc.get('numero')}. Pode acompanhá-la, aprovar as maquetas e fazer o pagamento aqui:\n"
+                  f"{url_publico(link_enc['token'])}\n\nA produção começa depois do pagamento.\n\n")
+    else:
+        corpo += "Vamos avançar e entramos em contacto consigo em breve.\n\n"
+    corpo += f"— {emp.get('nome') or 'Fam’Art'}\n"
+    html = email_svc._branded_html(text_to_html_fragments(corpo))
+    ok, _r = await asyncio.to_thread(email_svc.send_email, to, f"Orçamento {o.get('numero')} aceite", corpo, html=html)
+    return ok
+
+
+async def responder_orcamento(token: str, aceitar: bool, nome: str, comentario: str, ip: str = "",
+                              assinatura: str = "", aceito_condicoes: bool = False) -> dict:
+    """Resposta do cliente. Ao aceitar (nome + assinatura + condições): o orçamento passa a Ganho, a encomenda é criada
+    automaticamente e o cliente segue para o link da encomenda (maquetas e pagamento)."""
     l = await _link(token)
     if l["tipo"] != "orcamento":
         raise HTTPException(400, "Este link não é de um orçamento")
     o = await orcamentos_repo.get(l["entidade_id"])
     if not o:
         raise HTTPException(404, "Orçamento não encontrado")
-    if o.get("encomenda_id") or o.get("status") in ("aceite", "rejeitado"):
+    if o.get("encomenda_id") or o.get("resposta_cliente") or o.get("status") in ("aceite", "rejeitado", "ganho", "perdido"):
         raise HTTPException(409, "Este orçamento já tem resposta. Se precisar de alterar, contacte-nos.")
-    if aceitar and not (nome or "").strip():
-        raise HTTPException(400, "Indique o seu nome para aceitar")
+    if (o.get("validade") or "9999") < now_iso()[:10] and aceitar:
+        raise HTTPException(400, "Este orçamento já passou a validade. Peça-nos uma atualização.")
+    assinatura = _assinatura_valida(assinatura)
+    if aceitar:
+        if not (nome or "").strip():
+            raise HTTPException(400, "Indique o seu nome para aceitar")
+        if not assinatura:
+            raise HTTPException(400, "Assine no quadro para aceitar")
+        if not aceito_condicoes:
+            raise HTTPException(400, "Confirme que leu e aceita as condições")
     resposta = {"aceite": aceitar, "nome": (nome or "").strip()[:120], "comentario": (comentario or "").strip()[:2000],
-                "at": now_iso(), "ip": ip}
-    await orcamentos_repo.update(o["id"], {"status": "aceite" if aceitar else "rejeitado", "resposta_cliente": resposta})
-    txt = f"Orçamento {o.get('numero')} {'aceite' if aceitar else 'rejeitado'} pelo cliente no link" + \
+                "at": now_iso(), "ip": ip, "assinatura": assinatura if aceitar else "", "condicoes_aceites": bool(aceito_condicoes)}
+    novo_estado = "ganho" if aceitar else "perdido"
+    upd = {"status": novo_estado, "resposta_cliente": resposta}
+    if not aceitar and resposta["comentario"]:
+        upd["motivo_perda"] = resposta["comentario"][:300]
+    await orcamentos_repo.update(o["id"], upd)
+    txt = f"Orçamento {o.get('numero')} {'aceite e assinado' if aceitar else 'recusado'} pelo cliente no link" + \
         (f" ({resposta['nome']})" if resposta["nome"] else "") + (f": {resposta['comentario']}" if resposta["comentario"] else "")
     await audit.registar("orcamento", o["id"], "estado_alterado", SISTEMA, txt, o.get("numero"))
+
+    enc, link_enc, erro_enc = None, None, ""
+    if aceitar:
+        try:
+            from app.api.routes.orcamentos import converter_orcamento
+            enc = await converter_orcamento(o["id"], {**SISTEMA, "role": "admin"})
+            link_enc = await criar_link("encomenda", enc["id"], SISTEMA)
+            txt += f" · encomenda {enc.get('numero')} criada automaticamente"
+        except HTTPException as e:
+            erro_enc = str(e.detail)
+            txt += f" · a encomenda não foi criada automaticamente ({erro_enc})"
+        except Exception as e:  # noqa: BLE001 — a aceitação fica registada mesmo que a conversão falhe
+            erro_enc = str(e)[:200]
+        try:
+            await _email_aceitacao({**o, **upd}, enc, link_enc)
+        except Exception:  # noqa: BLE001
+            pass
     await workflow.evento("orcamento_aceite" if aceitar else "portal_cliente", txt, o.get("cliente") or "",
                           link=f"/orcamentos/{o['id']}", entidade="orcamento", entidade_id=o["id"])
-    return {"ok": True}
+    return {"ok": True, "encomenda_numero": (enc or {}).get("numero"), "encomenda_token": (link_enc or {}).get("token"),
+            "aviso": "Vamos confirmar os detalhes e enviar-lhe o link para pagamento." if aceitar and not link_enc else ""}
 
 
 async def decidir_arte(token: str, linha_id: str, aprovada: bool, comentario: str) -> dict:

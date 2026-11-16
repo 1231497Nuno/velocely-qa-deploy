@@ -348,11 +348,21 @@ async def enviar_orcamento_email(
     numero = o.get("numero") or "orcamento"
     total = o.get("total_com_iva") or o.get("total")
     total_str = f"{float(total):.2f} €".replace(".", ",") if total is not None else None
+    link = ""
+    if _status(o) not in ("ganho", "perdido") and not o.get("encomenda_id"):
+        from app.services import portal as portal_svc
+        try:
+            link = portal_svc.url_publico((await portal_svc.criar_link("orcamento", oid, user))["token"])
+        except HTTPException:
+            link = ""
+        if not link.startswith("http"):
+            link = ""  # sem FRONTEND_URL não há endereço completo para o email
     subject, text, html = await email_service.orcamento_email(
         (cliente or {}).get("nome") or o.get("cliente") or "",
         numero,
         total=total_str,
         mensagem=body.mensagem or "",
+        link=link,
     )
     ok, reason = email_service.send_email(
         to,

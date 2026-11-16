@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2, FileDown, Image as ImageIcon, Loader2, MessageSquare, Smartphone, XCircle, CreditCard } from "lucide-react";
 import { api, API, eur, fmtDate } from "@/lib/api";
 
@@ -49,10 +49,53 @@ function Arte({ token, linha, onDone }) {
   );
 }
 
+/** Quadro para assinar com o dedo ou o rato; devolve um PNG (data URL) ou "" se estiver vazio. */
+function Assinatura({ onChange }) {
+  const cv = useRef(null);
+  const desenhando = useRef(false);
+  const vazio = useRef(true);
+  useEffect(() => {
+    const c = cv.current;
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    c.width = r.width * dpr; c.height = r.height * dpr;
+    const ctx = c.getContext("2d");
+    ctx.scale(dpr, dpr); ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#111827";
+  }, []);
+  const pos = (e) => { const r = cv.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const down = (e) => {
+    e.preventDefault(); cv.current.setPointerCapture?.(e.pointerId);
+    desenhando.current = true; const [x, y] = pos(e); const ctx = cv.current.getContext("2d"); ctx.beginPath(); ctx.moveTo(x, y);
+  };
+  const move = (e) => {
+    if (!desenhando.current) return;
+    const [x, y] = pos(e); const ctx = cv.current.getContext("2d"); ctx.lineTo(x, y); ctx.stroke(); vazio.current = false;
+  };
+  const up = () => {
+    if (!desenhando.current) return;
+    desenhando.current = false;
+    onChange(vazio.current ? "" : cv.current.toDataURL("image/png"));
+  };
+  const limpar = () => {
+    const c = cv.current; c.getContext("2d").clearRect(0, 0, c.width, c.height); vazio.current = true; onChange("");
+  };
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Assine aqui (com o dedo ou o rato)</span>
+        <button type="button" className="underline" onClick={limpar}>Limpar</button></div>
+      <canvas ref={cv} className="w-full h-32 rounded-md border-2 border-dashed border-gray-300 bg-white touch-none cursor-crosshair"
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} data-testid="portal-assinatura" />
+    </div>
+  );
+}
+
 /** Página pública do cliente (link sem login): orçamento ou encomenda. */
 export default function PortalCliente() {
   const { token } = useParams();
+  const nav = useNavigate();
   const [d, setD] = useState(null);
+  const [assinatura, setAssinatura] = useState("");
+  const [condOk, setCondOk] = useState(false);
   const [erro, setErro] = useState("");
   const [resp, setResp] = useState(null);
   const [nome, setNome] = useState("");
@@ -66,7 +109,13 @@ export default function PortalCliente() {
 
   const responder = async (aceitar) => {
     setBusy(true); setMsg("");
-    try { await api.post(`/publico/${token}/resposta`, { aceitar, nome, comentario }); setResp(null); await carregar(); }
+    try {
+      const r = await api.post(`/publico/${token}/resposta`, { aceitar, nome, comentario, assinatura, aceito_condicoes: condOk });
+      setResp(null);
+      if (r?.encomenda_token) { nav(`/p/${r.encomenda_token}`, { replace: true }); return; }
+      if (r?.aviso) setMsg(r.aviso);
+      await carregar();
+    }
     catch (e) { setMsg(msgErro(e, "Não foi possível enviar")); } finally { setBusy(false); }
   };
   const pagar = async (metodo) => {
@@ -127,8 +176,10 @@ export default function PortalCliente() {
             <a href={`${API}/publico/${token}/pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-medium underline underline-offset-2"><FileDown size={16} /> Descarregar PDF</a>
             {respondido ? (
               <div className={`rounded-md p-3 text-sm ${d.estado === "rejeitado" ? "bg-gray-50" : "bg-emerald-50 text-emerald-800"}`}>
-                {d.estado === "rejeitado" ? "Recebemos a sua resposta. Obrigado!" : "Orçamento aceite — obrigado! Vamos avançar e entramos em contacto."}
+                {["rejeitado", "perdido"].includes(d.estado) ? "Recebemos a sua resposta. Obrigado!" : "Orçamento aceite — obrigado! Vamos avançar e entramos em contacto."}
               </div>
+            ) : d.expirado ? (
+              <div className="rounded-md p-3 text-sm bg-amber-50 text-amber-800">Este orçamento já passou a validade. Contacte-nos para o atualizarmos.</div>
             ) : !resp ? (
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="flex-1 min-w-[10rem] px-4 py-2.5 rounded-md bg-emerald-600 text-white font-semibold" onClick={() => setResp("aceitar")} data-testid="portal-aceitar"><CheckCircle2 size={16} className="inline mr-1" /> Aceitar orçamento</button>
@@ -136,10 +187,23 @@ export default function PortalCliente() {
               </div>
             ) : (
               <div className="space-y-2">
-                {resp === "aceitar" && <input className={inputCls} placeholder="O seu nome" value={nome} onChange={(e) => setNome(e.target.value)} data-testid="portal-nome" />}
+                {resp === "aceitar" && (
+                  <>
+                    {(d.condicoes || []).length > 0 && (
+                      <div className="rounded-md bg-gray-50 border border-gray-200 p-3 text-sm">
+                        <div className="font-semibold mb-1">Condições</div>
+                        <ul className="list-disc pl-5 space-y-0.5 text-gray-700">{d.condicoes.map((c) => <li key={c}>{c}</li>)}</ul>
+                      </div>
+                    )}
+                    <input className={inputCls} placeholder="O seu nome completo" value={nome} onChange={(e) => setNome(e.target.value)} data-testid="portal-nome" />
+                    <Assinatura onChange={setAssinatura} />
+                    <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={condOk} onChange={(e) => setCondOk(e.target.checked)} data-testid="portal-condicoes" />
+                      <span>Li e aceito o orçamento e as condições.</span></label>
+                  </>
+                )}
                 <textarea className={inputCls} rows={3} placeholder={resp === "aceitar" ? "Comentário (opcional)" : "Pode dizer-nos porquê? (opcional)"} value={comentario} onChange={(e) => setComentario(e.target.value)} />
                 <div className="flex gap-2">
-                  <button type="button" disabled={busy} className={`px-4 py-2 rounded-md text-white font-semibold ${resp === "aceitar" ? "bg-emerald-600" : "bg-gray-900"}`} onClick={() => responder(resp === "aceitar")} data-testid="portal-confirmar">Confirmar</button>
+                  <button type="button" disabled={busy || (resp === "aceitar" && (!nome.trim() || !assinatura || !condOk))} className={`px-4 py-2 rounded-md text-white font-semibold disabled:opacity-50 ${resp === "aceitar" ? "bg-emerald-600" : "bg-gray-900"}`} onClick={() => responder(resp === "aceitar")} data-testid="portal-confirmar">{busy ? <Loader2 size={16} className="inline animate-spin" /> : null} {resp === "aceitar" ? "Aceitar e assinar" : "Enviar resposta"}</button>
                   <button type="button" className="px-4 py-2 rounded-md border border-gray-300" onClick={() => setResp(null)}>Voltar</button>
                 </div>
               </div>
@@ -167,6 +231,14 @@ export default function PortalCliente() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+        {!orc && !d.pagamento_online && Number(d.pendente) > 0 && d.empresa?.iban && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 space-y-1 text-sm" data-testid="portal-iban">
+            <div className="font-semibold flex items-center gap-2"><CreditCard size={18} /> Pagamento por transferência</div>
+            <div>IBAN <span className="font-mono font-semibold">{d.empresa.iban}</span></div>
+            <div className="text-gray-600">Valor: <b>{eur(d.pendente)}</b> · indique a referência {d.numero} no descritivo.</div>
+            <p className="text-xs text-gray-500">A produção começa quando o pagamento é confirmado.</p>
           </div>
         )}
         {msg && <p className="text-sm text-center text-gray-700">{msg}</p>}

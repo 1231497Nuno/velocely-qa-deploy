@@ -133,12 +133,14 @@ async def orcamento_email(
     *,
     total: Optional[str] = None,
     mensagem: str = "",
+    link: str = "",
 ) -> Tuple[str, str, str]:
     from app.services import email_templates as tpl
 
     nome = (cliente_nome or "").strip() or "Cliente"
     num = (numero or "").strip() or "—"
     total_linha = f"Valor: {total}" if total else ""
+    link_linha = f"Pode ver, aceitar e assinar o orçamento online aqui: {link}" if link else ""
     subject, text, inner = await tpl.render_email(
         "orcamento",
         {
@@ -147,8 +149,14 @@ async def orcamento_email(
             "total": total or "",
             "total_linha": total_linha,
             "mensagem": (mensagem or "").strip(),
+            "link": link,
+            "link_linha": link_linha,
         },
     )
+    if link_linha and link not in (text or ""):
+        # Template antigo sem {link}: acrescenta a linha para o cliente aceitar online
+        text = (text or "").rstrip() + "\n\n" + link_linha + "\n"
+        inner = tpl.text_to_html_fragments(text)
     return subject, text, _branded_html(inner)
 
 

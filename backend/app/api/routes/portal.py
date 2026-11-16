@@ -72,7 +72,8 @@ async def ver(token: str):
 @router.post("/publico/{token}/resposta")
 async def resposta(token: str, dados: dict, request: Request):
     ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "") or "").split(",")[0]
-    return await portal.responder_orcamento(token, bool(dados.get("aceitar")), dados.get("nome") or "", dados.get("comentario") or "", ip)
+    return await portal.responder_orcamento(token, bool(dados.get("aceitar")), dados.get("nome") or "", dados.get("comentario") or "", ip,
+                                            dados.get("assinatura") or "", bool(dados.get("aceito_condicoes")))
 
 
 @router.post("/publico/{token}/arte/{linha_id}")
