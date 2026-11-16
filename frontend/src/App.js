@@ -16,6 +16,7 @@ import { MovelTransferir, MovelConsultar, MovelAcertar } from "@/features/movel/
 import { MovelLocalizacoes, MovelLocalizacao, MovelMovimento, MovelStockBaixo, MovelMovimentos } from "@/features/movel/MovelExtra";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import VisualizadorFicheiro from "@/components/VisualizadorFicheiro";
+import { BloquearLargarFora } from "@/components/ZonaArrastar";
 import Login from "@/features/auth/Login";
 import DefinirPassword from "@/features/auth/DefinirPassword";
 import Dashboard from "@/features/dashboard/Dashboard";
@@ -186,6 +187,7 @@ function App() {
     <>
       <Toaster position="top-right" richColors />
       <VisualizadorFicheiro />
+      <BloquearLargarFora />
       <ErrorBoundary>
         <TemaProvider>
           <AuthProvider>

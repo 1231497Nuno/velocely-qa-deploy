@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Pause, Play, Paperclip, FileText, StickyNote, Image as ImageIcon, Camera, Trash2, X, AlertTriangle, CalendarClock, Package } from "lucide-react";
 import { api, fmtDate } from "@/lib/api";
@@ -109,6 +110,7 @@ export default function OficinaOF({ of, setOf, onOutra }) {
   const atrasada = of.prazo_entrega && of.prazo_entrega.slice(0, 10) < new Date().toISOString().slice(0, 10);
 
   return (
+    <ZonaArrastar onFicheiros={(f) => enviarFoto(comoEvento(f))} multiple accept="image/*" disabled={busy === "foto"} texto="Largue as fotos aqui para as anexar à OF">
     <div className="space-y-4" data-testid="oficina-of">
       {ver && <VerImagem f={ver} onFechar={() => setVer(null)} />}
       <input ref={foto} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={enviarFoto} />
@@ -271,5 +273,6 @@ export default function OficinaOF({ of, setOf, onOutra }) {
         </div>
       )}
     </div>
+    </ZonaArrastar>
   );
 }

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import axios from "axios";
 import { Paperclip, X, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -56,6 +57,7 @@ export default function LinhaArteButton({ linha, onChange, canEdit, testid }) {
   };
 
   return (
+    <ZonaArrastar className="inline-flex" compacto onFicheiros={(f) => upload(comoEvento(f))} accept=".pdf,image/jpeg,image/png,image/webp,application/pdf" disabled={!canEdit || busy}>
     <div className="inline-flex items-center gap-0.5" data-testid={testid}>
       <input
         ref={inputRef}
@@ -99,5 +101,6 @@ export default function LinhaArteButton({ linha, onChange, canEdit, testid }) {
         </button>
       ) : null}
     </div>
+    </ZonaArrastar>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, FileUp, Loader2, PackagePlus, Sparkles } from "lucide-react";
@@ -162,11 +163,12 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
           <DialogDescription>Carregue a proforma, nota de encomenda ou fatura do fornecedor. Os artigos são reconhecidos pela referência do fornecedor; o que associar agora fica aprendido.</DialogDescription>
         </DialogHeader>
         <input ref={inp} type="file" accept="application/pdf,.pdf" className="hidden" onChange={ler} data-testid="oc-pdf-input" />
+        <ZonaArrastar onFicheiros={(f) => ler(comoEvento(f))} accept="application/pdf,.pdf" disabled={busy === "ler"} texto="Largue o PDF do fornecedor aqui">
         {!r ? (
           <button type="button" onClick={() => inp.current?.click()} disabled={busy === "ler"} data-testid="oc-pdf-escolher"
             className="w-full border-2 border-dashed border-gray-300 rounded-sm py-12 flex flex-col items-center gap-2 text-gray-600 hover:bg-gray-50">
             {busy === "ler" ? <Loader2 className="animate-spin" /> : <FileUp size={28} />}
-            <span className="font-medium">{busy === "ler" ? "A ler o PDF…" : "Escolher o PDF do fornecedor"}</span>
+            <span className="font-medium">{busy === "ler" ? "A ler o PDF…" : "Arraste o PDF para aqui ou clique para escolher"}</span>
           </button>
         ) : (
           <div className="space-y-3 max-h-[65vh] overflow-y-auto" data-testid="oc-pdf-revisao">
@@ -243,6 +245,7 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
             <div className="text-right text-sm">Total sem IVA: <b className="tabular-nums">{eur(total)}</b></div>
           </div>
         )}
+        </ZonaArrastar>
         {criarPara && <CriarArtigos linhas={criarPara} fornecedorId={r?.fornecedor_id} onCriados={criados} onFechar={() => setCriarPara(null)} />}
         <DialogFooter>
           <button type="button" className="btn btn-secundario" onClick={() => onOpenChange(false)}>Cancelar</button>

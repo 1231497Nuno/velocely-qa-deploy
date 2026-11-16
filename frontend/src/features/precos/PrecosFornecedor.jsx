@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ZonaArrastar from "@/components/ZonaArrastar";
 import { toast } from "sonner";
 import { FileUp, Loader2, RefreshCw } from "lucide-react";
 import { API, api, eur, getToken } from "@/lib/api";
@@ -54,6 +55,7 @@ export default function PrecosFornecedor() {
   return (
     <div>
       <PageHeader title="Atualizar custos de fornecedor" subtitle="Carregue a tabela de preços do fornecedor (Excel ou CSV). Os artigos são encontrados pela referência do fornecedor (campo «Cód. fornecedor») e o custo é atualizado; o preço de venda acompanha pela margem." />
+      <ZonaArrastar onFicheiros={(f) => ler(f[0])} accept=".xlsx,.xlsm,.csv,.txt" disabled={busy === "ler"} texto="Largue a tabela de preços aqui">
       <div className="bg-white border border-gray-200 rounded-sm p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-gray-600">Fornecedor
@@ -62,7 +64,7 @@ export default function PrecosFornecedor() {
             {busy === "ler" ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />} Carregar tabela
             <input type="file" accept=".xlsx,.xlsm,.csv,.txt" className="hidden" onChange={(e) => ler(e.target.files?.[0])} data-testid="pf-ficheiro" />
           </label>
-          {lido && <span className="text-sm text-gray-500">{lido.linhas} linhas lidas</span>}
+          {lido ? <span className="text-sm text-gray-500">{lido.linhas} linhas lidas</span> : <span className="text-sm text-gray-500 pb-2">ou arraste o ficheiro para aqui</span>}
         </div>
         {lido && (
           <div className="flex flex-wrap items-end gap-3">
@@ -79,6 +81,7 @@ export default function PrecosFornecedor() {
           </div>
         )}
       </div>
+      </ZonaArrastar>
       {pv && (
         <div className="mt-4 space-y-2">
           <div className="text-sm text-gray-600">{pv.alteracoes.length} artigo(s) com custo diferente · {pv.iguais} iguais · {pv.precos_no_ficheiro} preços no ficheiro{pv.artigos_sem_ref ? ` · ${pv.artigos_sem_ref} artigos deste fornecedor sem referência` : ""}</div>

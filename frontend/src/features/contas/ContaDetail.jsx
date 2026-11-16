@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
@@ -329,7 +330,8 @@ export default function ContaDetail() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-sm p-5 mt-4 space-y-3">
+          <ZonaArrastar className="mt-4" onFicheiros={(f) => onFile(comoEvento(f))} disabled={!can("contas", "edit") || anulada || busyFile} texto="Largue o documento aqui">
+          <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-gray-700">Documentos associados</h3>
               {can("contas", "edit") && !anulada && (
@@ -349,7 +351,7 @@ export default function ContaDetail() {
               )}
             </div>
             {(conta.anexos || []).length === 0 ? (
-              <p className="text-sm text-gray-400">Ainda sem documentos. Pode associar PDFs, imagens ou folhas de cálculo.</p>
+              <p className="text-sm text-gray-400">Ainda sem documentos. Pode associar (ou arrastar para aqui) PDFs, imagens ou folhas de cálculo.</p>
             ) : (
               <ul className="divide-y divide-gray-100" data-testid="conta-anexos">
                 {(conta.anexos || []).map((a) => (
@@ -374,6 +376,7 @@ export default function ContaDetail() {
               </ul>
             )}
           </div>
+          </ZonaArrastar>
         </>
       )}
 

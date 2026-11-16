@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { API, getToken } from "@/lib/api";
 import { fileApiUrl, useAuthFileUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
@@ -43,6 +44,7 @@ export default function ImagemUpload({ value, onChange, editable = true, size = 
   const box = { width: size, height: size };
 
   return (
+    <ZonaArrastar className="inline-flex" compacto onFicheiros={(f) => handleFile(comoEvento(f))} accept="image/png,image/jpeg,image/gif,image/webp" disabled={!editable || busy}>
     <div className="inline-flex items-center" data-testid={testid}>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={handleFile} data-testid={testid ? `${testid}-input` : undefined} />
       {has ? (
@@ -89,6 +91,7 @@ export default function ImagemUpload({ value, onChange, editable = true, size = 
         </div>
       )}
     </div>
+    </ZonaArrastar>
   );
 }
 

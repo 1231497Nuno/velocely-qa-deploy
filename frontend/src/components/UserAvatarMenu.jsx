@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { useAuth } from "@/context/AuthContext";
 import { api, API, getToken } from "@/lib/api";
 import { useAuthFileUrl } from "@/lib/authFileUrl";
@@ -230,6 +231,7 @@ export default function UserAvatarMenu() {
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={onFile} />
 
           <div className="space-y-4 py-1">
+            <ZonaArrastar onFicheiros={(f) => onFile(comoEvento(f))} accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} texto="Largue a foto aqui">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <AuthAvatarImage path={form.avatar} alt="" />
@@ -244,6 +246,7 @@ export default function UserAvatarMenu() {
                 )}
               </div>
             </div>
+            </ZonaArrastar>
 
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>
