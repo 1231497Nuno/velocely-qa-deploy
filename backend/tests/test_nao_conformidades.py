@@ -42,6 +42,8 @@ class TestNaoConformidades:
         art_full = full.json() if full.status_code == 200 else {}
         stock_antes = float(art_full.get("qtd_stock") or 0) if art_full else None
         is_servico = (art_full.get("tipo") or art.get("tipo") or "") == "servico"
+        # Só artigos com gestão de stock abatem quantidade
+        sem_stock = is_servico or not art_full.get("gere_stock")
 
         r = client.post(f"{API}/encomendas", json={
             "cliente": "Teste NC",
@@ -83,7 +85,7 @@ class TestNaoConformidades:
             assert "Cor fora do padrão" in (nc.get("descricao") or "")
             assert float(nc.get("custo_desperdicio") or 0) >= 0
 
-            if stock_antes is not None and not is_servico:
+            if stock_antes is not None and not sem_stock:
                 after = client.get(f"{API}/artigos/{art_id}")
                 assert after.status_code == 200
                 stock_depois = float((after.json() or {}).get("qtd_stock") or 0)

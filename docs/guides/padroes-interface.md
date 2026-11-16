@@ -190,6 +190,10 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 
 ## Compras e stock (`/stock`, `services/stock.py`)
 
+- Gestão de stock é por artigo (`artigo.gere_stock`, «Gere stock» na ficha, no Excel e em Stock → ⚙). Só esses artigos
+  têm movimentos, aparecem no Stock, no inventário e nas sugestões; nos outros (compra à medida, serviços) receções,
+  consumos da OF e não conformidades não mexem na quantidade. Arranque: artigos antigos sem o campo ficam a gerir stock
+  se tinham quantidade ou nível de reabastecimento (`migrar_gere_stock`, só uma vez).
 - Toda a alteração de stock passa por `stock.movimentar()` (coleção `movimentos_stock`: entrada, ajuste, inventário,
   não conformidade). Entradas com custo atualizam `artigo.custo_medio` (média ponderada). Mudar `qtd_stock` na ficha do
   artigo gera um movimento «ajuste».

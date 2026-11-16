@@ -27,21 +27,32 @@ def _quem(user: Optional[dict]) -> dict:
 
 
 def gere_stock(a: dict) -> bool:
-    return a.get("tipo_artigo") not in TIPOS_SEM_STOCK and (
-        bool(a.get("gere_stock")) or float(a.get("nivel_reabastecimento") or 0) > 0 or abs(float(a.get("qtd_stock") or 0)) > 1e-9)
+    """Só os artigos marcados «Gere stock» têm movimentos, inventário e sugestões de compra."""
+    return bool(a.get("gere_stock")) and a.get("tipo_artigo") != "servico"
+
+
+async def migrar_gere_stock() -> int:
+    """Uma vez: artigos antigos sem o campo ficam a gerir stock se já tinham quantidade ou nível de reabastecimento."""
+    n = 0
+    for a in await artigos_repo.find({"gere_stock": {"$exists": False}}, limit=50000):
+        sim = a.get("tipo_artigo") != "servico" and (
+            abs(float(a.get("qtd_stock") or 0)) > 1e-9 or float(a.get("nivel_reabastecimento") or 0) > 0)
+        await artigos_repo.update(a["id"], {"gere_stock": sim})
+        n += 1
+    return n
 
 
 async def movimentar(artigo_id: str, delta: float, tipo: str, *, origem: Optional[dict] = None, custo_unit: Optional[float] = None,
                      user: Optional[dict] = None, data: Optional[str] = None, nota: str = "") -> Optional[dict]:
-    """Altera o stock do artigo e regista o movimento. Entradas com custo atualizam o custo médio."""
+    """Altera o stock do artigo (só se gere stock) e regista o movimento. Entradas com custo atualizam o custo médio."""
     if not artigo_id or abs(delta) < 1e-12:
         return None
     a = await artigos_repo.get(artigo_id)
-    if not a:
-        return None
+    if not a or not gere_stock(a):
+        return None  # artigo sem gestão de stock: não mexe na quantidade
     antes = float(a.get("qtd_stock") or 0)
     depois = round2(antes + delta)
-    patch: Dict[str, Any] = {"qtd_stock": depois, "gere_stock": True}
+    patch: Dict[str, Any] = {"qtd_stock": depois}
     if delta > 0 and custo_unit is not None and custo_unit >= 0:
         cm = float(a.get("custo_medio") or a.get("custo_artigo") or 0)
         base = max(antes, 0.0)

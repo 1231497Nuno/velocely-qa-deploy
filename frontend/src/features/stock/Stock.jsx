@@ -29,11 +29,11 @@ const ESTADO = {
 function ConfigDialog({ artigo, onClose, onSaved }) {
   const [f, setF] = useState({ unidade_compra: artigo.unidade_compra || "", fator_compra: artigo.fator_compra || 1, nivel_reabastecimento: artigo.nivel_reabastecimento || 0 });
   const [busy, setBusy] = useState(false);
-  const guardar = async () => {
+  const guardar = async (gere = true) => {
     setBusy(true);
     try {
-      await api.put(`/stock/artigos/${artigo.id}/config`, { ...f, gere_stock: true });
-      toast.success("Artigo configurado");
+      await api.put(`/stock/artigos/${artigo.id}/config`, { ...f, gere_stock: gere });
+      toast.success(gere ? "Artigo configurado" : "O artigo deixou de gerir stock");
       onSaved();
     } catch (e) { erro(e, "Não foi possível guardar"); } finally { setBusy(false); }
   };
@@ -42,7 +42,7 @@ function ConfigDialog({ artigo, onClose, onSaved }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Stock de «{artigo.nome}»</DialogTitle>
-          <DialogDescription>Unidade de stock: <b>{artigo.unidade || "un"}</b>. Se compra noutra unidade (ex.: rolo de 50 m), indique a conversão.</DialogDescription>
+          <DialogDescription>{!artigo.gere_stock && "Este artigo passa a ter gestão de stock. "}Unidade de stock: <b>{artigo.unidade || "un"}</b>. Se compra noutra unidade (ex.: rolo de 50 m), indique a conversão.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div><label className="text-xs font-medium text-gray-600">Unidade de compra</label><input className={inputCls} placeholder={artigo.unidade || "un"} value={f.unidade_compra} onChange={(e) => setF({ ...f, unidade_compra: e.target.value })} data-testid="cfg-unidade-compra" /></div>
@@ -51,8 +51,9 @@ function ConfigDialog({ artigo, onClose, onSaved }) {
             <p className="text-xs text-gray-500 mt-1">Abaixo deste valor (contando o que está em compra e o que as encomendas abertas vão gastar) o artigo aparece nas sugestões de compra.</p></div>
         </div>
         <DialogFooter>
+          {artigo.gere_stock && <button type="button" className="btn btn-secundario mr-auto text-red-700" disabled={busy} onClick={() => guardar(false)} data-testid="cfg-desligar">Deixar de gerir stock</button>}
           <button type="button" className="btn btn-secundario" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn btn-primario" disabled={busy} onClick={guardar} data-testid="cfg-guardar">Guardar</button>
+          <button type="button" className="btn btn-primario" disabled={busy} onClick={() => guardar(true)} data-testid="cfg-guardar">{artigo.gere_stock ? "Guardar" : "Ativar gestão de stock"}</button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -110,8 +111,8 @@ function TabStock({ podeEditar, verCustos }) {
           <option value="todos">Todos</option><option value="abaixo">Abaixo do nível</option><option value="negativo">Negativos</option>
         </select>
         {podeEditar && (
-          <div className="w-72"><ArtigoCombobox artigos={artigos} value="" permitirCriar={false} placeholder="Gerir stock de outro artigo…" testid="stock-add-artigo"
-            onChange={(a) => a && setCfg({ ...a, qtd_stock: a.qtd_stock || 0 })} /></div>
+          <div className="w-72"><ArtigoCombobox artigos={artigos} value="" permitirCriar={false} placeholder="Ativar stock noutro artigo…" testid="stock-add-artigo"
+            onChange={(a) => a && setCfg({ ...a, qtd_stock: a.qtd_stock || 0, gere_stock: false })} /></div>
         )}
         {verCustos && <div className="ml-auto text-sm text-gray-600 dado-custo">Valor em stock: <b className="tabular-nums">{eur(dados.valor_total)}</b></div>}
       </div>
@@ -140,7 +141,7 @@ function TabStock({ podeEditar, verCustos }) {
                 </td>
               </tr>
             ))}
-            {!dados.items.length && <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Nenhum artigo com gestão de stock. Escolha um artigo acima para começar.</td></tr>}
+            {!dados.items.length && <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Nenhum artigo com gestão de stock. Ative-a na ficha do artigo («Gere stock») ou escolha um artigo acima.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -367,7 +368,7 @@ export default function Stock() {
   const verCustos = user?.perfil?.ver_custos !== false;
   return (
     <div>
-      <PageHeader title="Stock" subtitle="Quantidades, movimentos, sugestões de compra e inventário anual." />
+      <PageHeader title="Stock" subtitle="Só os artigos marcados «Gere stock». Os outros (compra à medida, serviços) não contam stock." />
       <DetailTabs testid="stock-tabs" value={tab} onChange={setTab} tabs={[
         { id: "stock", label: "Stock", testid: "stock-tab-stock" },
         { id: "movimentos", label: "Movimentos", testid: "stock-tab-movimentos" },

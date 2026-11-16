@@ -134,7 +134,8 @@ SHEETS: Dict[str, Dict[str, Any]] = {
             "website", "ficha_produto", "plano_contas", "conta_proveitos", "codigo_produto",
             "comprimento_mm", "largura_mm", "espessura_mm", "peso_kg",
             "comprimento_unidade", "largura_unidade", "espessura_unidade", "peso_unidade",
-            "responsavel", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra",
+            "responsavel", "qtd_uni", "gere_stock", "qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra",
+            "unidade_compra", "fator_compra",
             "diversos", "ativo",
         ],
     },
@@ -626,6 +627,9 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "qtd_stock": doc.get("qtd_stock"),
             "nivel_reabastecimento": doc.get("nivel_reabastecimento"),
             "qtd_ultima_compra": doc.get("qtd_ultima_compra"),
+            "gere_stock": "sim" if doc.get("gere_stock") else "nao",
+            "unidade_compra": doc.get("unidade_compra") or "",
+            "fator_compra": doc.get("fator_compra") or 1,
             "diversos": doc.get("diversos"),
             "ativo": doc.get("ativo") if doc.get("ativo") is not None else True,
         }
@@ -866,6 +870,7 @@ def _add_sheet_validations(
         "artigos": {
             "tipo_artigo": '"ativo,materia_prima,consumivel,servico,nao_utilizado,inativo"',
             "produzido": '"sim,nao"',
+            "gere_stock": '"sim,nao"',
             "ativo": '"sim,nao"',
         },
     }.get(entity, {})
@@ -1861,9 +1866,13 @@ async def _upsert_row(
             "qtd_stock": _parse_float(row.get("qtd_stock")),
             "nivel_reabastecimento": _parse_float(row.get("nivel_reabastecimento")),
             "qtd_ultima_compra": _parse_float(row.get("qtd_ultima_compra")),
+            "unidade_compra": _norm_str(row.get("unidade_compra")),
+            "fator_compra": _parse_float(row.get("fator_compra"), 1.0) or 1.0,
             "diversos": _parse_bool(row.get("diversos")),
             "ativo": ativo,
         }
+        if row.get("gere_stock") not in (None, ""):
+            patch["gere_stock"] = _parse_bool(row.get("gere_stock")) and patch.get("tipo_artigo") != "servico"
         if row.get("iva_taxa") not in (None, ""):
             patch["iva_taxa"] = _parse_float(row.get("iva_taxa"))
         if row.get("preco_compra") not in (None, ""):

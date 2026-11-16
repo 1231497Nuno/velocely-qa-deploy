@@ -219,6 +219,13 @@ async def _startup_seed_admin() -> None:
         await ensure_consumidor_final()
     except Exception as e:
         logger.error(f"Ensure Consumidor Final falhou: {e}")
+    try:
+        from app.services.stock import migrar_gere_stock
+        n = await migrar_gere_stock()
+        if n:
+            logger.info(f"Gestão de stock definida em {n} artigos antigos")
+    except Exception as e:
+        logger.error(f"Migração gere_stock falhou: {e}")
     # Envio automático dos relatórios guardados (verifica a cada 5 minutos)
     if os.environ.get("DESATIVAR_AGENDADOR", "").lower() not in ("1", "true", "yes"):
         import asyncio
