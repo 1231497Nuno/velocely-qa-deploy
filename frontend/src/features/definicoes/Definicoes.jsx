@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, API, getToken } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import AparenciaTab from "./AparenciaTab";
 import CamposTab from "./CamposTab";
@@ -298,7 +298,18 @@ function EmpresaTab() {
   );
 }
 
-const emptyTpl = { nome: "", modulo: "encomenda", finalidade: "ambos", mostrar_branding: true, campos: {} };
+const emptyTpl = {
+  nome: "", modulo: "orcamento", finalidade: "ambos", mostrar_branding: true, campos: {},
+  estilo: "proposta", cor: "", textos: {}, imagens: true, aceitacao: true, padrao: false,
+};
+const TEXTOS_PROPOSTA = [
+  { k: "introducao", l: "Introdução", rows: 3 },
+  { k: "incluido", l: "O que está incluído (uma linha por ponto)", rows: 3 },
+  { k: "prazos", l: "Maquete, prazos e entrega (uma linha por ponto)", rows: 3 },
+  { k: "condicoes", l: "Condições (uma linha por ponto)", rows: 3 },
+  { k: "agradecimento", l: "Agradecimento", rows: 1 },
+];
+const CORES_PDF = ["#0F766E", "#0A0A0A", "#1D4ED8", "#B45309", "#15803D", "#7C3AED", "#B91C1C"];
 
 function ModelosTab() {
   const [secoes, setSecoes] = useState({});
@@ -312,8 +323,27 @@ function ModelosTab() {
     onSave: async () => (saveRef.current ? saveRef.current() : true),
   });
 
+  const [textosPadrao, setTextosPadrao] = useState({});
+  const [aPrever, setAPrever] = useState(false);
   const load = async () => setItems(await api.get("/pdf-templates"));
-  useEffect(() => { api.get("/pdf-secoes").then(setSecoes); load(); }, []);
+  useEffect(() => {
+    api.get("/pdf-secoes").then(setSecoes); load();
+    api.get("/pdf-textos-padrao").then(setTextosPadrao).catch(() => {});
+  }, []);
+
+  // Pré-visualização do modelo em edição (no visualizador de PDF da app)
+  const preVisualizar = async () => {
+    setAPrever(true);
+    try {
+      const res = await fetch(`${API}/pdf-templates/pre-visualizar`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` }, body: JSON.stringify({ ...form, nome: form.nome || "Pré-visualização" }),
+      });
+      if (!res.ok) { let m = `Erro ${res.status}`; try { const j = await res.json(); if (typeof j?.detail === "string") m = j.detail; } catch { /* sem corpo */ } throw new Error(m); }
+      const url = URL.createObjectURL(await res.blob());
+      if (window.__velocelyVerFicheiro) window.__velocelyVerFicheiro({ url, nome: "pre-visualizacao.pdf", tipo: "application/pdf" });
+      else window.open(url, "_blank");
+    } catch (e) { toast.error(e.message || "Não foi possível pré-visualizar"); } finally { setAPrever(false); }
+  };
 
   const allOn = (modulo) => {
     const o = {};
@@ -324,8 +354,14 @@ function ModelosTab() {
     return o;
   };
 
-  const openNew = () => { setForm({ ...emptyTpl, campos: allOn("encomenda") }); setEditId(null); setOpen(true); };
-  const openEdit = (t) => { setForm({ nome: t.nome, modulo: t.modulo, finalidade: t.finalidade || "ambos", mostrar_branding: t.mostrar_branding !== false, campos: t.campos || {} }); setEditId(t.id); setOpen(true); };
+  const openNew = () => { setForm({ ...emptyTpl, campos: allOn("orcamento") }); setEditId(null); setOpen(true); };
+  const openEdit = (t) => {
+    setForm({
+      nome: t.nome, modulo: t.modulo, finalidade: t.finalidade || "ambos", mostrar_branding: t.mostrar_branding !== false, campos: t.campos || {},
+      estilo: t.estilo || "proposta", cor: t.cor || "", textos: t.textos || {}, imagens: t.imagens !== false, aceitacao: t.aceitacao !== false, padrao: !!t.padrao,
+    });
+    setEditId(t.id); setOpen(true);
+  };
   const changeModulo = (m) => setForm({ ...form, modulo: m, campos: allOn(m) });
 
   const save = async () => {
@@ -376,6 +412,9 @@ function ModelosTab() {
                   </div>
                 </div>
                 <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  {t.padrao && <span className="text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Predefinido</span>}
+                  {t.modulo === "orcamento" && <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{(t.estilo || "proposta") === "proposta" ? "Proposta" : "Clássico"}</span>}
+                  {t.cor && <span className="w-3.5 h-3.5 rounded-full border" style={{ background: t.cor }} />}
                   {t.mostrar_branding !== false && <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Branding</span>}
                 </div>
               </div>
@@ -385,7 +424,7 @@ function ModelosTab() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-display">{editId ? "Editar modelo" : "Novo modelo de PDF"}</DialogTitle>
             <DialogDescription>Escolha o módulo e quais as secções a incluir no PDF.</DialogDescription>
@@ -410,6 +449,47 @@ function ModelosTab() {
               <input data-testid="modelo-branding" type="checkbox" checked={!!form.mostrar_branding} onChange={(e) => setForm({ ...form, mostrar_branding: e.target.checked })} className="w-4 h-4 accent-black" />
               Mostrar dados/logótipo da empresa no cabeçalho
             </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input data-testid="modelo-padrao" type="checkbox" checked={!!form.padrao} onChange={(e) => setForm({ ...form, padrao: e.target.checked })} className="w-4 h-4 accent-black" />
+              Usar por defeito neste módulo (botão PDF → «Predefinido»)
+            </label>
+            {form.modulo === "orcamento" && (
+              <div className="border border-gray-200 rounded-sm p-3 space-y-3" data-testid="modelo-aparencia">
+                <div className="text-sm font-medium text-gray-700">Aparência</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[["proposta", "Proposta comercial", "Título grande, introdução, artigos com imagem, incluído, prazos, condições e aceitação"], ["classico", "Clássico", "Tabela compacta com todos os valores"]].map(([v, l, d]) => (
+                    <button key={v} type="button" onClick={() => setForm({ ...form, estilo: v })} data-testid={`modelo-estilo-${v}`}
+                      className={`text-left rounded-sm border p-2.5 ${form.estilo === v ? "border-black ring-1 ring-black" : "border-gray-300 hover:bg-gray-50"}`}>
+                      <div className="text-sm font-semibold">{l}</div><div className="text-xs text-gray-500">{d}</div>
+                    </button>
+                  ))}
+                </div>
+                {form.estilo === "proposta" && (
+                  <>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-gray-700">Cor de destaque</span>
+                      {CORES_PDF.map((c) => (
+                        <button key={c} type="button" aria-label={c} onClick={() => setForm({ ...form, cor: c })} className={`w-6 h-6 rounded-full border-2 ${form.cor === c ? "border-black" : "border-white ring-1 ring-gray-300"}`} style={{ background: c }} />
+                      ))}
+                      <input type="color" value={form.cor || "#0F766E"} onChange={(e) => setForm({ ...form, cor: e.target.value })} className="w-8 h-7 border border-gray-300 rounded-sm" title="Outra cor" />
+                    </div>
+                    <div className="flex gap-4 flex-wrap">
+                      <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.imagens !== false} onChange={(e) => setForm({ ...form, imagens: e.target.checked })} className="w-4 h-4 accent-black" /> Fotos / artes dos artigos</label>
+                      <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.aceitacao !== false} onChange={(e) => setForm({ ...form, aceitacao: e.target.checked })} className="w-4 h-4 accent-black" /> Caixa de aceitação</label>
+                    </div>
+                    <p className="text-xs text-gray-500">Textos: deixe vazio para usar o texto por defeito. Pode usar {"{cliente}"}, {"{numero}"}, {"{data}"}, {"{validade}"}, {"{total}"}, {"{descricao}"} e {"{empresa}"}.</p>
+                    {TEXTOS_PROPOSTA.map((t) => (
+                      <label key={t.k} className="block">
+                        <span className="text-xs font-medium text-gray-600">{t.l}</span>
+                        <textarea rows={t.rows} value={form.textos?.[t.k] || ""} placeholder={textosPadrao[t.k] || ""} data-testid={`modelo-texto-${t.k}`}
+                          onChange={(e) => setForm({ ...form, textos: { ...(form.textos || {}), [t.k]: e.target.value } })}
+                          className="mt-0.5 w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm placeholder:text-gray-400" />
+                      </label>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
             <div>
               <div className="text-sm font-medium text-gray-700 mb-2">Secções a incluir</div>
               <div className="space-y-2 border border-gray-200 rounded-sm p-3">
@@ -439,6 +519,11 @@ function ModelosTab() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
+            {form.modulo === "orcamento" && (
+              <button type="button" data-testid="previsualizar-modelo-btn" onClick={preVisualizar} disabled={aPrever} className="btn btn-secundario">
+                {aPrever ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Pré-visualizar
+              </button>
+            )}
             <button data-testid="save-modelo-btn" onClick={save} className="btn btn-primario">Guardar modelo</button>
           </DialogFooter>
         </DialogContent>

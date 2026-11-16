@@ -424,6 +424,10 @@ def _totais_table(rows, has_total_line, nota: str = ""):
 
 
 def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None) -> bytes:
+    # Estilo do modelo: «proposta» (predefinido, mais apresentável) ou «classico» (tabela compacta)
+    if (((fields or {}).get("_modelo") or {}).get("estilo") or "proposta") == "proposta":
+        from app.services.pdf_proposta import build_orcamento_proposta_pdf
+        return build_orcamento_proposta_pdf(orc, settings, fields, show_branding, cliente)
     _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
@@ -927,15 +931,24 @@ def build_documento_financeiro_pdf(
     return buf.getvalue()
 
 
-async def load_pdf_config(template_id: Optional[str]):
+def modelo_de(t: dict) -> dict:
+    """Parte visual do modelo (estilo, cor, textos) que os construtores leem em `fields["_modelo"]`."""
+    return {"estilo": t.get("estilo") or "proposta", "cor": t.get("cor") or "", "textos": t.get("textos") or {},
+            "imagens": t.get("imagens", True), "aceitacao": t.get("aceitacao", True)}
+
+
+async def load_pdf_config(template_id: Optional[str], modulo: Optional[str] = None):
+    """Empresa + modelo de PDF. Sem `template_id` usa o modelo marcado como predefinido do módulo (se houver)."""
     settings = await empresa_repo.find_one({"id": "empresa"}) or {}
     fields = {}
     show_branding = True
-    if template_id:
-        t = await pdf_templates_repo.get(template_id)
-        if t:
-            fields = t.get("campos") or {}
-            show_branding = t.get("mostrar_branding", True)
+    t = await pdf_templates_repo.get(template_id) if template_id else None
+    if not t and modulo:
+        t = await pdf_templates_repo.find_one({"modulo": modulo, "padrao": True})
+    if t:
+        fields = dict(t.get("campos") or {})
+        fields["_modelo"] = modelo_de(t)
+        show_branding = t.get("mostrar_branding", True)
     return settings, fields, show_branding
 
 

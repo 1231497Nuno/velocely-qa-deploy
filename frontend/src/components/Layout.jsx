@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import MenuEditor, { aplicarMenu } from "./MenuEditor";
 import { useTema } from "@/context/TemaContext";
 import { corEscura } from "@/lib/tema";
 import { api, setCurrency } from "@/lib/api";
@@ -50,6 +51,7 @@ import {
   RefreshCcw,
   QrCode,
   Smartphone,
+  SlidersHorizontal,
   CalendarRange,
   Wrench,
   Landmark,
@@ -232,7 +234,12 @@ export default function Layout({ children }) {
     return { hint, critical };
   }, [alertas]);
 
-  const groups = useMemo(() => {
+  // Menu personalizado do utilizador (ordem, grupos, ocultos) — guardado nas preferências
+  const [menuPref, setMenuPref] = useState(null);
+  const [editarMenu, setEditarMenu] = useState(false);
+  useEffect(() => { api.get("/me/preferencias").then((p) => setMenuPref(p.menu || null)).catch(() => {}); }, []);
+
+  const gruposBase = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
       ...g,
       items: g.items.filter((n) => {
@@ -242,7 +249,8 @@ export default function Layout({ children }) {
         return can(n.modulo, "view");
       }),
     })).filter((g) => g.items.length > 0);
-  }, [isAdmin, can]);
+  }, [isAdmin, can]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => aplicarMenu(gruposBase, menuPref), [gruposBase, menuPref]);
 
   // Fechar menu/pesquisa ao navegar; garantir grupo da página aberto
   useEffect(() => {
@@ -415,6 +423,13 @@ export default function Layout({ children }) {
           })}
         </nav>
 
+        <div className="px-3 pb-1">
+          <button type="button" data-testid="menu-personalizar" onClick={() => setEditarMenu(true)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs text-sidebar-muted hover:text-sidebar-strong hover:bg-sidebar-hover">
+            <SlidersHorizontal size={14} /> Personalizar menu
+          </button>
+        </div>
+        <MenuEditor open={editarMenu} onOpenChange={setEditarMenu} base={gruposBase} menu={menuPref} onGuardado={setMenuPref} />
         <div className="border-t border-sidebar-border p-3 safe-bottom">
           {user && (
             <div className="px-2 py-1.5 mb-1" data-testid="current-user">

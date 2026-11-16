@@ -123,11 +123,50 @@ async def list_pdf_templates(modulo: Optional[str] = None, _u: dict = Depends(re
     return await pdf_templates_repo.find(q, sort=("created_at", -1))
 
 
+async def _so_um_padrao(modulo: str, tid: str):
+    await pdf_templates_repo.col.update_many({"modulo": modulo, "id": {"$ne": tid}}, {"$set": {"padrao": False}})
+
+
 @router.post("/pdf-templates")
 async def create_pdf_template(data: PdfTemplateInput, admin: dict = Depends(require_admin)):
     t = PdfTemplate(**data.model_dump())
     await pdf_templates_repo.insert(t.model_dump())
+    if t.padrao:
+        await _so_um_padrao(t.modulo, t.id)
     return t.model_dump()
+
+
+@router.get("/pdf-textos-padrao")
+async def pdf_textos_padrao(_u: dict = Depends(require_perm("definicoes", "view"))):
+    """Textos por defeito da proposta (para mostrar/editar no modelo)."""
+    from app.services.pdf_proposta import DEFAULT_TEXTOS
+    return {k: v for k, v in DEFAULT_TEXTOS.items()}
+
+
+@router.post("/pdf-templates/pre-visualizar")
+async def pre_visualizar_pdf(data: PdfTemplateInput, _u: dict = Depends(require_perm("definicoes", "view"))):
+    """PDF de exemplo com o modelo em edição (último orçamento finalizado, ou um exemplo)."""
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from app.repositories import orcamentos_repo
+    from app.services.costing import compute_orcamento_totais
+    from app.core.database import now_iso
+    from app.services.pdf import build_orcamento_pdf, fetch_cliente, modelo_de
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    fields = {**(data.campos or {}), "_modelo": modelo_de(data.model_dump())}
+    if data.modulo == "orcamento":
+        o = None
+        for c in await orcamentos_repo.find({"numero": {"$nin": [None, ""]}}, sort=("created_at", -1), limit=5):
+            o = c
+            break
+        if not o:
+            o = {"numero": "ORC-EXEMPLO", "cliente": "Cliente de exemplo", "data": now_iso()[:10], "descricao": "Decoração de montra",
+                 "linhas": [{"artigo_nome": "Vinil de corte dourado (design, material e aplicação)", "quantidade": 1, "preco_unit": 170}]}
+        o = compute_orcamento_totais(o)
+        pdf = build_orcamento_pdf(o, settings, fields, data.mostrar_branding, await fetch_cliente(o.get("cliente_id")))
+    else:
+        raise HTTPException(400, "Pré-visualização disponível para modelos de orçamento")
+    return StreamingResponse(BytesIO(pdf), media_type="application/pdf", headers={"Content-Disposition": 'inline; filename="pre-visualizacao.pdf"'})
 
 
 @router.put("/pdf-templates/{tid}")
@@ -136,6 +175,8 @@ async def update_pdf_template(tid: str, data: PdfTemplateInput, admin: dict = De
     if not existing:
         raise HTTPException(404, "Modelo não encontrado")
     await pdf_templates_repo.update(tid, data.model_dump())
+    if data.padrao:
+        await _so_um_padrao(data.modulo, tid)
     return {**existing, **data.model_dump()}
 
 

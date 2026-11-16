@@ -26,6 +26,7 @@ Pillow==12.2.0
 reportlab==5.0.0
 requests==2.34.2
 openpyxl==3.1.5
+pypdf==6.17.0
 
 # Testes
 pytest==9.1.1

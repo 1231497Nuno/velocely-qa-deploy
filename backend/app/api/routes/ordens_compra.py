@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from app.services import listas as listas_svc
 from app.services import campos as campos_svc
@@ -11,6 +11,7 @@ from app.repositories import ordens_compra_repo, fornecedores_repo
 from app.services.numeracao import next_codigo
 from app.services.oc_classificacao import classificar_tipo_despesa
 from app.services import audit
+from app.core.database import now_iso
 
 _OC_CAMPOS = [
     "assunto", "fornecedor_id", "fornecedor_nome", "tipo_compra", "tipo_despesa", "estado",
@@ -104,6 +105,44 @@ async def get_ordem_compra(oid: str, _u: dict = Depends(require_perm("ordens_com
     oc = await ordens_compra_repo.get(oid)
     if not oc:
         raise HTTPException(404, "Ordem de compra não encontrada")
+    return oc
+
+
+@router.post("/ordens-compra/importar-pdf")
+async def importar_pdf_oc(file: UploadFile = File(...), _u: dict = Depends(require_perm("ordens_compra", "create"))):
+    """Lê o PDF do fornecedor e propõe a ordem de compra (fornecedor, artigos associados, avisos)."""
+    from app.services import oc_pdf
+    dados = await file.read()
+    if len(dados) > 15 * 1024 * 1024:
+        raise HTTPException(400, "PDF demasiado grande (máx. 15 MB)")
+    return await oc_pdf.analisar(file.filename or "", dados)
+
+
+@router.post("/ordens-compra/importar-pdf/criar")
+async def criar_oc_de_pdf(dados: dict, user: dict = Depends(require_perm("ordens_compra", "create"))):
+    """Cria a OC com as linhas revistas e aprende as associações referência → artigo."""
+    from app.services import oc_pdf
+    from app.domain.models import OrdemCompraLinha
+    linhas = [l for l in dados.get("linhas") or [] if l.get("incluir", True)]
+    if not linhas:
+        raise HTTPException(400, "Não há linhas para criar a ordem de compra")
+    falta = [l.get("descricao") or l.get("ref") or "?" for l in linhas if not l.get("artigo_id")]
+    if falta:
+        raise HTTPException(400, "Associe um artigo a todas as linhas incluídas: " + ", ".join(falta[:5]))
+    if not dados.get("fornecedor_id"):
+        raise HTTPException(400, "Escolha o fornecedor")
+    oc_linhas = [OrdemCompraLinha(artigo_id=l["artigo_id"], artigo_nome=l.get("artigo_nome") or "", nome=l.get("artigo_nome") or l.get("descricao") or "",
+                                  quantidade=float(l.get("quantidade") or 0), preco_unit=float(l.get("preco_unit") or 0),
+                                  desconto=float(l.get("desconto") or 0), comentario=(f"Ref. fornecedor {l['ref']}" if l.get("ref") else ""))
+                 for l in linhas]
+    subtotal = round(sum(x.quantidade * x.preco_unit * (1 - x.desconto / 100) for x in oc_linhas), 2)
+    num = (dados.get("numero_documento") or "").strip()
+    data = OrdemCompraInput(fornecedor_id=dados["fornecedor_id"], tipo_compra="Produtos", tipo_despesa="compra", estado="criada",
+                            assunto=(f"Doc. fornecedor {num}" if num else "Importada de PDF do fornecedor"),
+                            data=now_iso()[:10], linhas=oc_linhas, subtotal=subtotal, total=subtotal)
+    oc = await create_ordem_compra(data, user)
+    if dados.get("aprender", True):
+        await oc_pdf.aprender(dados["fornecedor_id"], linhas)
     return oc
 
 

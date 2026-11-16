@@ -583,7 +583,7 @@ async def encomenda_pdf(eid: str, template_id: Optional[str] = None, _u: dict = 
     e = await compute_encomenda(e)
     ofs = await ordens_repo.find({"encomenda_id": eid}, sort=("created_at", -1))
     e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
-    settings, fields, show_branding = await load_pdf_config(template_id)
+    settings, fields, show_branding = await load_pdf_config(template_id, "encomenda")
     cliente = await fetch_cliente(e.get("cliente_id"))
     orcamento = await fetch_orcamento(e.get("orcamento_id"))
     pdf = build_encomenda_pdf(e, settings, fields, show_branding, cliente, orcamento)
@@ -617,7 +617,7 @@ async def _enviar_encomenda_notificacao(eid: str, body: EnviarEmailBody, user: d
 
     ofs = await ordens_repo.find({"encomenda_id": eid}, sort=("created_at", -1))
     e["ordens_fabrico"] = [recompute_of_status(o) for o in ofs]
-    settings, fields, show_branding = await load_pdf_config(body.template_id)
+    settings, fields, show_branding = await load_pdf_config(body.template_id, "encomenda")
     orcamento = await fetch_orcamento(e.get("orcamento_id"))
     pdf = build_encomenda_pdf(e, settings, fields, show_branding, cliente, orcamento)
     numero = e.get("numero") or "encomenda"

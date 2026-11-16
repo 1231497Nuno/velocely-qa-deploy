@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Settings2, Target } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, RotateCcw, Settings2, Target } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -55,7 +55,24 @@ export default function Dashboard() {
   const [d, setD] = useState(null);
   const [alertas, setAlertas] = useState({});
   const [ocultos, setOcultos] = useState([]);
-  useEffect(() => { api.get("/me/preferencias").then((p) => setOcultos(p.painel_ocultos || [])).catch(() => {}); }, []);
+  const [ordemPref, setOrdemPref] = useState([]);
+  useEffect(() => { api.get("/me/preferencias").then((p) => { setOcultos(p.painel_ocultos || []); setOrdemPref(p.painel_ordem || []); }).catch(() => {}); }, []);
+  // Ordem dos blocos: a do utilizador + blocos novos no fim
+  const ordem = useMemo(() => {
+    const todos = BLOCOS.map(([k]) => k);
+    return [...ordemPref.filter((k) => todos.includes(k)), ...todos.filter((k) => !ordemPref.includes(k))];
+  }, [ordemPref]);
+  const moverBloco = (k, dlt) => {
+    const i = ordem.indexOf(k); const j = i + dlt;
+    if (j < 0 || j >= ordem.length) return;
+    const n = [...ordem]; [n[i], n[j]] = [n[j], n[i]];
+    setOrdemPref(n);
+    api.put("/me/preferencias", { painel_ordem: n }).catch(() => {});
+  };
+  const reporPainel = () => {
+    setOrdemPref([]); setOcultos([]);
+    api.put("/me/preferencias", { painel_ordem: [], painel_ocultos: [] }).catch(() => {});
+  };
   const ver = (k) => !ocultos.includes(k);
   const alternar = (k) => {
     const n = ocultos.includes(k) ? ocultos.filter((x) => x !== k) : [...ocultos, k];
@@ -126,39 +143,34 @@ export default function Dashboard() {
 
   if (!d || !derived) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  return (
-    <div>
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <Greeting nome={user?.name} />
-        <div className="flex items-center gap-2">
-          {d.total_artigos === 0 && (
-            <button data-testid="seed-btn" onClick={seed} className="btn btn-primario">Criar dados demo</button>
-          )}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button type="button" className="btn btn-secundario" data-testid="dash-personalizar"><Settings2 size={15} /> Personalizar</button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-60 p-2">
-              <div className="text-xs text-gray-500 px-1 pb-1">Blocos do seu painel</div>
-              {BLOCOS.map(([k, l]) => (
-                <label key={k} className="flex items-center gap-2 px-1 py-1 text-sm"><input type="checkbox" checked={ver(k)} onChange={() => alternar(k)} /> {l}</label>
-              ))}
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-
+  const blocos = {
+    acoes: () => (
+      <>
       {ver("acoes") && <QuickActions />}
-
+      </>
+    ),
+    atencao: () => (
+      <>
       {ver("atencao") && <AttentionCenter items={attentionItems} />}
-
+      </>
+    ),
+    prazos: () => (
+      <>
       {ver("prazos") && canCal && <PrazosBanner atrasadas={d.prazos_atrasadas || 0} proximos7={d.prazos_proximos_7 || 0} />}
-
+      </>
+    ),
+    por_produzir: () => (
+      <>
       {ver("por_produzir") && canEnc && <PorProduzirCard />}
-
+      </>
+    ),
+    objetivo: () => (
+      <>
       {ver("objetivo") && can("relatorios", "view") && <ObjetivoMes />}
-
-      {/* KPIs principais (desde Janeiro) */}
+      </>
+    ),
+    kpis: () => (
+      <>
       {ver("kpis") && canEnc && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <Stat
@@ -193,20 +205,29 @@ export default function Dashboard() {
           />
         </div>
       )}
-
+      </>
+    ),
+    contadores: () => (
+      <>
       {ver("contadores") && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
         {canOF && <Stat icon={Factory} label="Ordens de Fabrico" value={d.total_ofs} sub={`${d.ofs_em_producao} em produção · ${d.ofs_concluidas} concluídas`} tid="stat-ofs" />}
         {canEnc && <Stat icon={ShieldAlert} label="Por Autorizar" value={d.encomendas_por_autorizar} sub="Encomendas sem produção autorizada" accent={d.encomendas_por_autorizar > 0 ? "text-amber-600" : "text-gray-900"} tid="stat-autorizar" />}
         {canOrc && <Stat icon={FileText} label="Orçamentos" value={d.total_orcamentos} sub={`${d.orcamentos_aceites} ganhos · ${eur(d.valor_aceites)}`} tid="stat-orcamentos" />}
         {canArt && <Stat icon={Boxes} label="Artigos" value={d.total_artigos} sub={`Custo médio ${eur(d.custo_medio)}`} tid="stat-artigos" />}
       </div>}
-
+      </>
+    ),
+    atividade: () => (
+      <>
       {ver("atividade") && canHist && (
         <div className="mb-4">
           <RecentActivity />
         </div>
       )}
-
+      </>
+    ),
+    analise: () => (
+      <>
       {ver("analise") && <button
         type="button"
         data-testid="dash-toggle-analise"
@@ -249,6 +270,39 @@ export default function Dashboard() {
           {canArt && <TopArtigosChart data={derived.top} />}
         </div>
       )}
+      </>
+    ),
+  };
+
+
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <Greeting nome={user?.name} />
+        <div className="flex items-center gap-2">
+          {d.total_artigos === 0 && (
+            <button data-testid="seed-btn" onClick={seed} className="btn btn-primario">Criar dados demo</button>
+          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" className="btn btn-secundario" data-testid="dash-personalizar"><Settings2 size={15} /> Personalizar</button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-2" data-testid="dash-personalizar-painel">
+              <div className="text-xs text-gray-500 px-1 pb-1">Blocos do seu painel — marque para mostrar e use as setas para ordenar</div>
+              {ordem.map((k, i) => (
+                <div key={k} className="flex items-center gap-1 px-1 py-0.5">
+                  <label className="flex-1 flex items-center gap-2 py-1 text-sm cursor-pointer"><input type="checkbox" checked={ver(k)} onChange={() => alternar(k)} /> {Object.fromEntries(BLOCOS)[k]}</label>
+                  <button type="button" aria-label="Subir" disabled={i === 0} className="p-1 text-gray-500 hover:text-black disabled:opacity-30" onClick={() => moverBloco(k, -1)}><ArrowUp size={14} /></button>
+                  <button type="button" aria-label="Descer" disabled={i === ordem.length - 1} className="p-1 text-gray-500 hover:text-black disabled:opacity-30" onClick={() => moverBloco(k, 1)}><ArrowDown size={14} /></button>
+                </div>
+              ))}
+              <button type="button" className="mt-1 w-full flex items-center justify-center gap-1.5 text-xs text-gray-600 py-1.5 hover:bg-gray-50 rounded-sm" onClick={reporPainel}><RotateCcw size={12} /> Repor predefinido</button>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      {ordem.map((k) => (blocos[k] ? <Fragment key={k}>{blocos[k]()}</Fragment> : null))}
     </div>
   );
 }

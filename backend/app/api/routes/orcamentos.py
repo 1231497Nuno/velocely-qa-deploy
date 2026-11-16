@@ -296,7 +296,7 @@ async def orcamento_pdf(oid: str, template_id: Optional[str] = None, _u: dict = 
     if not _tem_numero(o):
         raise HTTPException(400, "Finalize o orçamento antes de gerar o PDF.")
     o = compute_orcamento_totais(o)
-    settings, fields, show_branding = await load_pdf_config(template_id)
+    settings, fields, show_branding = await load_pdf_config(template_id, "orcamento")
     cliente = await fetch_cliente(o.get("cliente_id"))
     pdf = build_orcamento_pdf(o, settings, fields, show_branding, cliente)
     filename = f"{_numero_label(o).replace(' ', '-')}.pdf"
@@ -343,7 +343,7 @@ async def enviar_orcamento_email(
     if not to or "@" not in to:
         raise HTTPException(400, "O cliente não tem email válido. Indique um destinatário ou actualize o cliente.")
 
-    settings, fields, show_branding = await load_pdf_config(body.template_id)
+    settings, fields, show_branding = await load_pdf_config(body.template_id, "orcamento")
     pdf = build_orcamento_pdf(o, settings, fields, show_branding, cliente)
     numero = o.get("numero") or "orcamento"
     total = o.get("total_com_iva") or o.get("total")

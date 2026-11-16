@@ -19,13 +19,38 @@ from app.repositories import clientes_repo, encomendas_repo, integracoes_repo, l
 async def get_preferencias(user: dict) -> dict:
     u = await users_repo.get(user["id"]) or {}
     p = u.get("preferencias") or {}
-    return {"painel_ocultos": p.get("painel_ocultos") or [], "atalhos": p.get("atalhos") or []}
+    return {"painel_ocultos": p.get("painel_ocultos") or [], "atalhos": p.get("atalhos") or [],
+            "painel_ordem": p.get("painel_ordem") or [], "menu": p.get("menu") or None}
+
+
+def _limpar_menu(m) -> Optional[dict]:
+    """Menu lateral personalizado: grupos (id, nome, itens por tid) e itens ocultos. `None` repõe o predefinido."""
+    if not isinstance(m, dict):
+        return None
+    grupos = []
+    vistos = set()
+    for g in (m.get("grupos") or [])[:30]:
+        if not isinstance(g, dict):
+            continue
+        itens = []
+        for t in g.get("itens") or []:
+            t = str(t)[:60]
+            if t and t not in vistos:
+                vistos.add(t)
+                itens.append(t)
+        grupos.append({"id": str(g.get("id") or new_id())[:40], "label": (str(g.get("label") or "").strip() or "Grupo")[:40], "itens": itens[:80]})
+    ocultos = [str(x)[:60] for x in (m.get("ocultos") or [])][:120]
+    return {"grupos": grupos, "ocultos": ocultos}
 
 
 async def guardar_preferencias(user: dict, dados: dict) -> dict:
     atual = await get_preferencias(user)
     if "painel_ocultos" in dados:
         atual["painel_ocultos"] = [str(x)[:40] for x in dados.get("painel_ocultos") or []][:30]
+    if "painel_ordem" in dados:
+        atual["painel_ordem"] = [str(x)[:40] for x in dados.get("painel_ordem") or []][:30]
+    if "menu" in dados:
+        atual["menu"] = _limpar_menu(dados.get("menu"))
     if "atalhos" in dados:
         at = []
         for a in dados.get("atalhos") or []:

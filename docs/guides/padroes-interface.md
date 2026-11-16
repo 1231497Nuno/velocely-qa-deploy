@@ -372,3 +372,30 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 
 - Grupos pelo fluxo do negócio: Vendas, Compras, Stock, Produção, Financeiro, Análise, Dados base, Sistema; Dashboard e
   Calendário no topo. Grupos abertos/fechados ficam guardados no browser (`velocely_menu_grupos`).
+
+## Modelos de PDF (orçamento em estilo proposta)
+
+- `services/pdf_proposta.py`: estilo «proposta» (predefinido para orçamentos) — cabeçalho com marca, título grande
+  (descrição do orçamento), caixas Cliente/Detalhes, introdução, artigos com foto/arte, total destacado, «O que está
+  incluído», «Maquete, prazos e entrega», «Condições», notas, agradecimento e caixa de aceitação.
+- Modelo de PDF (Definições → Modelos PDF): `estilo` (proposta | classico), `cor`, `textos` (introducao, incluido,
+  prazos, condicoes, agradecimento; variáveis {cliente} {numero} {data} {validade} {total} {descricao} {empresa}),
+  `imagens`, `aceitacao`, `padrao` (um por módulo; usado quando não se escolhe modelo). «Pré-visualizar» gera o PDF com o
+  último orçamento (`POST /pdf-templates/pre-visualizar`). `load_pdf_config(template_id, modulo)` põe a aparência em
+  `fields["_modelo"]`.
+
+## Menu e painel personalizáveis
+
+- Menu lateral: «Personalizar menu» (rodapé da barra) abre `components/MenuEditor.jsx` — renomear/ordenar/criar grupos,
+  ordenar e mover opções (arrastar ou setas), ocultar. Guardado por utilizador em `/me/preferencias` → `menu`
+  (`{grupos:[{id,label,itens:[tid]}], ocultos:[tid]}`); `aplicarMenu()` junta opções novas ao grupo predefinido.
+- Painel: «Personalizar» mostra/oculta e ordena os blocos (`painel_ocultos`, `painel_ordem`); «Repor predefinido».
+
+## Ordem de compra a partir do PDF do fornecedor
+
+- `services/oc_pdf.py`: `POST /ordens-compra/importar-pdf` lê o PDF (pypdf; com `ANTHROPIC_API_KEY` usa o Claude para a
+  extração, `ANTHROPIC_MODEL` opcional), deteta o fornecedor (NIF/nome), as linhas (ref., descrição, qtd, preço, desconto
+  — regra qtd × preço ≈ total) e associa artigos: associação aprendida (`referencias_fornecedor`), `cod_fornecedor`,
+  código, nome (≥ 75% das palavras). Avisos: preço ≠ custo registado (> 5%), artigo de outro fornecedor, sem quantidade.
+- Revisão em `features/ordens_compra/ImportarPdfOC.jsx`; `POST /ordens-compra/importar-pdf/criar` cria a OC (tipo compra)
+  e aprende as associações confirmadas.
