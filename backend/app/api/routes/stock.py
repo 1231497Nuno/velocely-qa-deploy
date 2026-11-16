@@ -5,21 +5,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.core.security import require_perm
-from app.repositories import artigos_repo, inventarios_repo, localizacoes_repo, movimentos_stock_repo
+from app.repositories import artigos_repo, inventarios_repo, movimentos_stock_repo
 from app.services import stock as stock_svc
 
 router = APIRouter()
 
 
 @router.get("/stock")
-async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), localizacao: str = Query(""),
+async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), localizacao: str = Query(""), armazem: str = Query(""),
                        _u: dict = Depends(require_perm("artigos", "view"))):
     """Artigos que gerem stock, com estado (abaixo do nível, negativo) e stock por localização."""
     out = []
     ql = q.strip().lower()
     reservado = await stock_svc.reservas()
     padrao = await stock_svc.local_padrao()
-    locs = {l["id"]: l.get("nome") or "" for l in await stock_svc.listar_localizacoes()}
+    lista_locs = await stock_svc.listar_localizacoes()
+    locs = {l["id"]: l.get("nome_completo") or l.get("nome") or "" for l in lista_locs}
+    arm_de = {l["id"]: l.get("armazem_id") for l in lista_locs}
     for a in await artigos_repo.find({}, sort=("nome", 1), limit=20000):
         if not stock_svc.gere_stock(a):
             continue
@@ -27,6 +29,9 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), localiz
             continue
         sl = stock_svc.stock_por_local(a, padrao["id"])
         if localizacao and abs(sl.get(localizacao, 0)) < 1e-9:
+            continue
+        qtd_arm = round(sum(v for k, v in sl.items() if arm_de.get(k) == armazem), 4) if armazem else None
+        if armazem and abs(qtd_arm) < 1e-9:
             continue
         stock = float(a.get("qtd_stock") or 0)
         nivel = float(a.get("nivel_reabastecimento") or 0)
@@ -43,7 +48,7 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), localiz
                     "localizacao": a.get("localizacao") or "", "reservado": reservado.get(a["id"], 0.0),
                     "localizacao_id": a.get("localizacao_id") or padrao["id"],
                     "por_local": [{"id": k, "nome": locs.get(k, "?"), "quantidade": v} for k, v in sorted(sl.items(), key=lambda x: -x[1])],
-                    "qtd_local": sl.get(localizacao) if localizacao else None,
+                    "qtd_local": sl.get(localizacao) if localizacao else qtd_arm,
                     "disponivel": round(stock - reservado.get(a["id"], 0.0), 2)})
     return {"items": out, "valor_total": round(sum(i["valor"] for i in out), 2)}
 
@@ -191,7 +196,7 @@ async def configurar(aid: str, dados: dict, user: dict = Depends(require_perm("a
 @router.get("/stock/localizacoes")
 async def localizacoes(_u: dict = Depends(require_perm("artigos", "view"))):
     lista = await stock_svc.listar_localizacoes()
-    padrao = next((l for l in lista if l.get("padrao")), lista[0] if lista else None)
+    padrao = await stock_svc.local_padrao()
     totais: dict = {}
     n: dict = {}
     for a in await artigos_repo.find({"gere_stock": True}, limit=50000):
@@ -199,6 +204,56 @@ async def localizacoes(_u: dict = Depends(require_perm("artigos", "view"))):
             totais[k] = totais.get(k, 0) + float(a.get("custo_medio") or a.get("custo_artigo") or 0) * max(v, 0)
             n[k] = n.get(k, 0) + 1
     return [{**l, "n_artigos": n.get(l["id"], 0), "valor": round(totais.get(l["id"], 0), 2)} for l in lista]
+
+
+@router.get("/stock/armazens")
+async def armazens(_u: dict = Depends(require_perm("artigos", "view"))):
+    """Armazéns com nº de localizações, artigos e valor em stock."""
+    arms = await stock_svc.listar_armazens()
+    locs = await stock_svc.listar_localizacoes()
+    arm_de = {l["id"]: l["armazem_id"] for l in locs}
+    padrao = await stock_svc.local_padrao()
+    n_loc: dict = {}
+    for l in locs:
+        n_loc[l["armazem_id"]] = n_loc.get(l["armazem_id"], 0) + 1
+    valor: dict = {}
+    arts: dict = {}
+    for a in await artigos_repo.find({"gere_stock": True}, limit=50000):
+        vistos = set()
+        for k, v in stock_svc.stock_por_local(a, padrao["id"]).items():
+            ar = arm_de.get(k)
+            valor[ar] = valor.get(ar, 0) + float(a.get("custo_medio") or a.get("custo_artigo") or 0) * max(v, 0)
+            if ar not in vistos and v > 0:
+                arts[ar] = arts.get(ar, 0) + 1
+                vistos.add(ar)
+    ver_custos = True
+    try:
+        from app.core.security import pode_ver_custos
+        ver_custos = await pode_ver_custos(_u)
+    except Exception:
+        pass
+    return [{**a, "n_localizacoes": n_loc.get(a["id"], 0), "n_artigos": arts.get(a["id"], 0),
+             "valor": round(valor.get(a["id"], 0), 2) if ver_custos else None} for a in arms]
+
+
+@router.post("/stock/armazens")
+async def criar_armazem(dados: dict, _u: dict = Depends(require_perm("artigos", "edit"))):
+    arm = await stock_svc.guardar_armazem(dados)
+    if dados.get("criar_localizacao", True):  # um armazém novo já fica com uma localização «Geral»
+        await stock_svc.guardar_localizacao({"nome": "Geral", "codigo": f"{arm.get('codigo') or ''}-G".strip("-")[:20] if arm.get("codigo") else "",
+                                             "armazem_id": arm["id"]})
+    return arm
+
+
+@router.put("/stock/armazens/{aid}")
+async def editar_armazem(aid: str, dados: dict, _u: dict = Depends(require_perm("artigos", "edit"))):
+    return await stock_svc.guardar_armazem(dados, aid)
+
+
+@router.delete("/stock/armazens/{aid}")
+async def apagar_armazem(aid: str, _u: dict = Depends(require_perm("artigos", "edit"))):
+    await stock_svc.apagar_armazem(aid)
+    return {"ok": True}
 
 
 @router.post("/stock/localizacoes")
@@ -303,8 +358,7 @@ async def contar_movel(iid: str, dados: dict, _u: dict = Depends(require_perm("a
     linhas = list(inv.get("linhas") or [])
     idx = next((i for i, l in enumerate(linhas) if (l.get("chave") or f"{l['artigo_id']}|") == chave), None)
     if idx is None:
-        lo = await localizacoes_repo.get(loc) or {}
-        linhas.append({"chave": chave, "artigo_id": aid, "localizacao_id": loc, "localizacao": lo.get("nome") or "",
+        linhas.append({"chave": chave, "artigo_id": aid, "localizacao_id": loc, "localizacao": (await stock_svc.nomes_localizacoes()).get(loc, ""),
                        "codigo": a.get("codigo") or "", "nome": a.get("nome") or "", "unidade": a.get("unidade") or "un",
                        "categoria_at": stock_svc.categoria_at(a), "codigo_barras": a.get("codigo_produto") or "",
                        "qtd_teorica": 0.0, "qtd_contada": None,
@@ -418,7 +472,7 @@ async def etiquetas_artigos(ids: str = Query(""), copias: int = Query(1, ge=1, l
 
 
 @router.get("/stock/localizacoes/etiquetas.pdf")
-async def etiquetas_localizacoes(ids: str = Query(""), _u: dict = Depends(require_perm("artigos", "view"))):
+async def etiquetas_localizacoes(ids: str = Query(""), armazem: str = Query(""), _u: dict = Depends(require_perm("artigos", "view"))):
     """Etiquetas A4 (3 × 7) com QR do código da localização — para colar nas prateleiras e ler na app móvel."""
     from io import BytesIO
     from reportlab.graphics.barcode.qr import QrCodeWidget
@@ -431,6 +485,8 @@ async def etiquetas_localizacoes(ids: str = Query(""), _u: dict = Depends(requir
     sel = [x for x in ids.split(",") if x]
     if sel:
         lista = [l for l in lista if l["id"] in sel]
+    if armazem:
+        lista = [l for l in lista if l.get("armazem_id") == armazem]
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
@@ -457,6 +513,10 @@ async def etiquetas_localizacoes(ids: str = Query(""), _u: dict = Depends(requir
         c.drawString(tx, y0 + lh / 2 + 2 * mm, str(codigo)[:12])
         c.setFont("Helvetica", 8.5)
         c.drawString(tx, y0 + lh / 2 - 4 * mm, (l.get("nome") or "")[:24])
+        if l.get("armazem_nome"):
+            c.setFillColorRGB(0.4, 0.4, 0.4)
+            c.setFont("Helvetica", 7.5)
+            c.drawString(tx, y0 + lh / 2 - 8.5 * mm, (l.get("armazem_nome") or "")[:28])
     if not lista:
         c.drawString(20 * mm, h - 30 * mm, "Sem localizações.")
     c.save()

@@ -26,12 +26,15 @@ export function MovelLocalizacoes() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar localização…" className="w-full h-12 rounded-xl border-2 border-gray-300 pl-10 pr-3 bg-white" />
         </div>
         <ul className="space-y-2">
-          {lista.map((l) => (
+          {lista.map((l, i) => (
             <li key={l.id}>
+              {l.armazem_nome && l.armazem_id !== lista[i - 1]?.armazem_id && new Set(lista.map((x) => x.armazem_id)).size > 1 && (
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mt-3 mb-1.5">{l.armazem_nome}</div>
+              )}
               <Link to={`/m/localizacoes/${l.id}`} className="bg-white rounded-xl border p-3 flex items-center gap-3 active:bg-gray-100">
                 <span className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0"><MapPin className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate">{l.nome}{l.padrao ? " ★" : ""}</div>
+                  <div className="font-semibold truncate">{l.nome_curto || l.nome}{l.padrao ? " ★" : ""}</div>
                   <div className="text-xs text-gray-500">{l.codigo ? `${l.codigo} · ` : ""}{l.n_artigos || 0} artigos</div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400" />

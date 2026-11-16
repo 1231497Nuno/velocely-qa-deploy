@@ -552,3 +552,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   fica preparado. O fecho da OF marca-os como preparados.
 - `recompute_of_status`: cada artigo a preparar conta como uma tarefa no progresso; a OF só fica concluída com as
   operações feitas e os artigos preparados (`n_preparar`, `n_preparados`).
+
+## Armazéns e localizações
+
+- Dois níveis: **armazém** (`armazens`: armazém, loja, carrinha…; um é o principal) → **localizações** (estantes,
+  prateleiras, zonas; `localizacoes.armazem_id`). O stock continua por localização (`stock_local`).
+- Instalações antigas: na primeira leitura é criado o «Armazém principal» e todas as localizações passam para ele.
+- `GET/POST/PUT/DELETE /stock/armazens` (novo armazém já cria a localização «Geral»; não se apaga com localizações nem o
+  principal). `/stock/localizacoes` devolve `armazem_nome` e `nome_completo` («Loja › Prateleira 2» quando há mais de um
+  armazém); `useLocalizacoes` usa-o como `nome` e guarda `nome_curto`. `/stock?armazem=` filtra e devolve `qtd_local`.
+  Etiquetas QR por armazém (`/stock/localizacoes/etiquetas.pdf?armazem=`).
+- Ficha do artigo (com «Gere stock»): «Localização por defeito» (`localizacao_id`, para onde vão as entradas). O `PUT
+  /artigos` só altera o campo quando vem no pedido.

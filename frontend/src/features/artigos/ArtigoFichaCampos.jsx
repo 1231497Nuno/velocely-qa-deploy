@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import EntitySelect from "@/components/EntitySelect";
 import FornecedorSelect from "@/components/FornecedorSelect";
 import { useFornecedores } from "@/lib/useFornecedores";
-import { ArtigoStockLocais } from "@/features/stock/StockLocais";
+import { ArtigoStockLocais, useLocalizacoes } from "@/features/stock/StockLocais";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/pt";
 import { eur } from "@/lib/api";
@@ -628,6 +628,15 @@ export default function ArtigoFichaCampos({
             )}
           </FieldRow>
         )}
+        {show("gere_stock") && geridoStock && (
+          <FieldRow label="Localização por defeito" testid="ficha-localizacao">
+            <LocalizacaoPorDefeito
+              value={editing ? draft?.localizacao_id : artigo?.localizacao_id}
+              disabled={!editing && !canEdit}
+              onChange={(id) => (editing ? onChange?.({ localizacao_id: id || null }) : onPatch?.({ localizacao_id: id || null }))}
+            />
+          </FieldRow>
+        )}
         {show("qtd_stock") && (
           <FieldRow label="Qtd. stock" testid="ficha-qtd-stock">
             {editing ? (
@@ -696,5 +705,25 @@ function ArtigoFornecedor({ editing, canEdit, value, nome, onPick }) {
   return (
     <FornecedorSelect fornecedores={fornecedores} value={value || ""} nomeAtual={nome || ""} testid="artigo-fornecedor-select"
       onChange={(id, f) => { onPick(id, f); setAEditar(false); }} />
+  );
+}
+
+
+/** Armazém › localização para onde vão as entradas deste artigo (receções, produção para stock). */
+function LocalizacaoPorDefeito({ value, onChange, disabled }) {
+  const [locs] = useLocalizacoes();
+  const padrao = locs.find((l) => l.padrao);
+  return (
+    <div className="w-full max-w-xs">
+      <EntitySelect
+        items={locs.filter((l) => l.ativo !== false || l.id === value)}
+        value={value || ""}
+        onChange={(id) => onChange(id || null)}
+        disabled={disabled}
+        clearLabel={padrao ? `A da empresa (${padrao.nome})` : "A da empresa"}
+        placeholder={padrao ? `A da empresa (${padrao.nome})` : "A da empresa"}
+        testid="artigo-localizacao"
+      />
+    </div>
   );
 }

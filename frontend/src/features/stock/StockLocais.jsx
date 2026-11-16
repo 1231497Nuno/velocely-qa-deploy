@@ -14,7 +14,11 @@ const erro = (e, d) => toast.error(typeof e?.response?.data?.detail === "string"
 let cacheLocs = null;
 export function useLocalizacoes() {
   const [l, setL] = useState(cacheLocs || []);
-  const recarregar = useCallback(() => api.get("/stock/localizacoes").then((r) => { cacheLocs = r; setL(r); }).catch(() => {}), []);
+  // `nome` passa a incluir o armazém quando há mais do que um (ex.: «Loja › Prateleira 2»); `nome_curto` é só a localização
+  const recarregar = useCallback(() => api.get("/stock/localizacoes").then((r) => {
+    const lista = (r || []).map((x) => ({ ...x, nome_curto: x.nome, nome: x.nome_completo || x.nome }));
+    cacheLocs = lista; setL(lista);
+  }).catch(() => {}), []);
   useEffect(() => { if (!cacheLocs) recarregar(); }, [recarregar]);
   return [l, recarregar];
 }

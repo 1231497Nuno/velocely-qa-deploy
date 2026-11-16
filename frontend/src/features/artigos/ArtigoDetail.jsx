@@ -108,6 +108,7 @@ function artigoToDraft(a) {
     gere_stock: !!a.gere_stock,
     unidade_compra: a.unidade_compra || "",
     fator_compra: a.fator_compra ?? 1,
+    localizacao_id: a.localizacao_id || null,
     qtd_stock: a.qtd_stock ?? 0,
     nivel_reabastecimento: a.nivel_reabastecimento ?? 0,
     qtd_ultima_compra: a.qtd_ultima_compra ?? 0,
