@@ -14,7 +14,7 @@ import MobileFiltersButton from "@/components/MobileFiltersButton";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Trash2, Copy, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Copy, AlertTriangle, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -26,6 +26,7 @@ export default function Encomendas() {
   const [open, setOpen] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState("pendentes");
   const [soSemOf, setSoSemOf] = useState(false);
+  const [soLoja, setSoLoja] = useState(false);
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" });
   const nav = useNavigate();
@@ -35,8 +36,9 @@ export default function Encomendas() {
     const p = {};
     if (estadoFilter === "pendentes") p.estado_grupo = "pendentes";
     if (estadoFilter === "concluidas") p.estado_grupo = "concluidas";
+    if (soLoja) p.origem = "loja";
     return p;
-  }, [estadoFilter]);
+  }, [estadoFilter, soLoja]);
 
   const {
     items, total, pages, page, setPage, pageSize, setPageSize,
@@ -88,7 +90,7 @@ export default function Encomendas() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="encomendas" ids={pageItems.map((e) => e.id)} />
               {can("encomendas", "create") && (
-                <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
+                <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="btn btn-primario"><Plus size={16} /> Nova Encomenda</button>
               )}
             </div>
           }
@@ -99,8 +101,8 @@ export default function Encomendas() {
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou orçamento..." testid="encomendas-search" />
           <MobileFiltersButton
             testid="encomendas-filtros"
-            activeCount={(estadoFilter !== "pendentes" ? 1 : 0) + (soSemOf ? 1 : 0)}
-            onClear={() => { setEstadoFilter("pendentes"); setSoSemOf(false); }}
+            activeCount={(estadoFilter !== "pendentes" ? 1 : 0) + (soSemOf ? 1 : 0) + (soLoja ? 1 : 0)}
+            onClear={() => { setEstadoFilter("pendentes"); setSoSemOf(false); setSoLoja(false); }}
             title="Filtrar encomendas"
             description="Estado e alertas de produção."
           >
@@ -110,6 +112,7 @@ export default function Encomendas() {
                   <Tab id="pendentes" label="Pendentes" />
                   <Tab id="concluidas" label="Concluídas" />
                   <Tab id="todas" label="Todas" />
+                  <FiltroChip active={soLoja} onClick={() => setSoLoja((v) => !v)} icon={ShoppingBag} testid="enc-filtro-loja">Loja online</FiltroChip>
                 </div>
                 <button
                   data-testid="enc-filtro-sem-of"
@@ -163,6 +166,11 @@ export default function Encomendas() {
                     {e.numero}
                     {e.tem_artigos_sem_of && <AlertTriangle size={14} className="text-red-500" data-testid={`enc-warn-semof-${e.id}`} title="Tem artigos sem ordem de fabrico" />}
                     {e.sobreproducao && <AlertTriangle size={14} className="text-amber-500" data-testid={`enc-warn-sobre-${e.id}`} title="Sobreprodução" />}
+                    {e.origem_externa?.canal === "woocommerce" && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-sans font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-1.5 py-0.5" title={`Loja online #${e.origem_externa.numero}`}>
+                        <ShoppingBag size={11} /> #{e.origem_externa.numero}
+                      </span>
+                    )}
                   </span>
                 <ExtrasResumo modulo="encomendas" registo={e} /></td>
                 <td className="px-4 py-3 text-gray-700">{e.cliente}</td>
@@ -205,6 +213,7 @@ export default function Encomendas() {
                 <div className="mono tabular-nums font-semibold text-gray-900 inline-flex items-center gap-1.5">
                   {e.numero}
                   {e.tem_artigos_sem_of && <AlertTriangle size={14} className="text-red-500" />}
+                  {e.origem_externa?.canal === "woocommerce" && <ShoppingBag size={13} className="text-violet-600" title="Loja online" />}
                 </div>
                 <div className="text-sm text-gray-700 truncate mt-0.5">{e.cliente}</div>
               </div>

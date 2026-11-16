@@ -179,6 +179,7 @@ async def montar_itens(enc: dict, pedidos: List[dict]) -> List[dict]:
             "artigo_id": p.get("artigo_id") or src.get("artigo_id"),
             "artigo_nome": p.get("artigo_nome") or src.get("artigo_nome") or (artigo or {}).get("nome", ""),
             "enc_artigo_id": src.get("id"),
+            "observacoes": p.get("observacoes") or src.get("observacoes") or "",
             "quantidade": qtd,
             "operacoes": operacoes,
             "materiais": materiais,

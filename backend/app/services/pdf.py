@@ -752,7 +752,7 @@ def build_documento_financeiro_pdf(
         if documento.get("metodo_pagamento"):
             elems.append(Spacer(1, 4))
             _metodos = {
-                "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
+                "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY", "multibanco": "Multibanco",
                 "cheque": "Cheque", "cartao": "Cartão", "outro": "Outro",
             }
             metodo = documento.get("metodo_pagamento")
@@ -776,7 +776,7 @@ def build_documento_financeiro_pdf(
             tot_rows.append(["Valor liquidado", fmt_eur(documento.get("valor_pago"))])
             if documento.get("metodo_pagamento"):
                 _metodos = {
-                    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
+                    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY", "multibanco": "Multibanco",
                     "cheque": "Cheque", "cartao": "Cartão", "outro": "Outro",
                 }
                 m = documento.get("metodo_pagamento")

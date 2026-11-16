@@ -908,6 +908,7 @@ class OFOperacao(BaseModel):
 
 class OFItem(BaseModel):
     cor: str = ""  # cor da linha (marcação visual, ex.: urgente)
+    observacoes: str = ""  # ex.: personalização pedida na loja online
     id: str = Field(default_factory=new_id)
     artigo_id: str
     artigo_nome: str = ""
@@ -983,6 +984,8 @@ class EncomendaArtigo(BaseModel):
     quantidade_orcamento: Optional[float] = None
     roteiro_orcamento: Optional[List[dict]] = None
     materiais_orcamento: Optional[List[dict]] = None
+    # Notas da linha (ex.: personalização pedida na loja online: «Nome a gravar: Ana»)
+    observacoes: str = ""
     # Arte / maqueta herdada do orçamento
     arte_path: str = ""
     arte_nome: str = ""
@@ -994,7 +997,7 @@ class Pagamento(BaseModel):
     recibo_numero: str = ""
     data: Optional[str] = None
     valor: float = 0.0
-    metodo: str = "transferencia"  # transferencia | numerario | mbway | cheque | cartao | outro
+    metodo: str = "transferencia"  # transferencia | numerario | mbway | multibanco | cheque | cartao | outro
     nota: str = ""
     origem: str = "encomenda"  # encomenda | fatura
     tipo: str = "pagamento"  # pagamento | devolucao

@@ -29,7 +29,7 @@ NUMERACAO_POR_TIPO = {
 TIPOS_CONSUMAM_QTD = ("fatura", "fatura_recibo")
 
 PAG_METODO_PT = {
-    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
+    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY", "multibanco": "Multibanco",
     "cheque": "Cheque", "cartao": "Cartão", "outro": "Outro",
 }
 

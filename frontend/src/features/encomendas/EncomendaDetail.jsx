@@ -19,7 +19,7 @@ import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
   Trash2, X,
-  ShieldCheck, ShieldAlert, FileOutput, AlertTriangle,
+  ShieldCheck, ShieldAlert, FileOutput, AlertTriangle, ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EncAlertas, EncKPIs, EncClienteCampos, EncRegistarPagamento, EncPagamentoResumo, EncPagamentosLista, OFsPanel, OrcamentosPanel, NcsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
@@ -462,9 +462,23 @@ export default function EncomendaDetail() {
             <StatusBadge status={enc.estado} testid="encomenda-estado-badge" />
             {enc.entregue && <StatusBadge status="entregue" testid="encomenda-entregue-badge" />}
             <StatusBadge status={PAY_BADGE[enc.status_pagamento]} testid="encomenda-pagamento-badge" />
+            {enc.origem_externa?.canal === "woocommerce" && (
+              <a
+                href={enc.origem_externa.url || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 hover:underline"
+                title="Abrir a encomenda no WordPress"
+                data-testid="encomenda-loja-badge"
+              >
+                <ShoppingBag size={11} /> Loja #{enc.origem_externa.numero}
+              </a>
+            )}
           </>
         }
-        subtitle={`Encomenda${enc.orcamento_numero ? ` · origem ${enc.orcamento_numero}` : ""}`}
+        subtitle={enc.origem_externa?.canal === "woocommerce"
+          ? `Encomenda da loja online #${enc.origem_externa.numero}${enc.origem_externa.estado ? ` (${enc.origem_externa.estado})` : ""}`
+          : `Encomenda${enc.orcamento_numero ? ` · origem ${enc.orcamento_numero}` : ""}`}
         actions={
           <>
             <PdfExportButton modulo="encomenda" recordId={id} />
@@ -623,7 +637,11 @@ export default function EncomendaDetail() {
                                 testid={`enc-artigo-cor-${i}`}
                               />
                               <ImagemUpload value={a.imagem} editable={false} size={40} testid={`enc-artigo-imagem-${i}`} />
-                              <span>{a.artigo_nome}</span>
+                              <span>
+                                {a.artigo_nome}
+                                {!a.artigo_id && <span className="ml-1.5 text-[11px] font-normal text-amber-700" title="Sem artigo do catálogo associado (SKU da loja sem correspondência)">· sem artigo</span>}
+                                {a.observacoes && <span className="block text-xs font-normal text-gray-500 max-w-[28rem]" data-testid={`enc-artigo-obs-${i}`}>{a.observacoes}</span>}
+                              </span>
                             </div>
                           </td>
                           <td className="px-4 py-2.5 align-top">

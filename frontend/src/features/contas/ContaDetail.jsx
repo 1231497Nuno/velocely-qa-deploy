@@ -24,6 +24,7 @@ const METODOS = [
   { id: "transferencia", label: "Transferência" },
   { id: "numerario", label: "Numerário" },
   { id: "mbway", label: "MB WAY" },
+  { id: "multibanco", label: "Multibanco" },
   { id: "cheque", label: "Cheque" },
   { id: "cartao", label: "Cartão" },
   { id: "outro", label: "Outro" },
