@@ -19,6 +19,7 @@ from app.services.numeracao import next_codigo
 from app.services import audit
 
 NUMERACAO_POR_TIPO = {
+    "nota_credito": "nota_credito",
     "fatura": "fatura",
     "proforma": "proforma",
     "recibo": "recibo",
@@ -93,6 +94,13 @@ async def enrich_documentos_many(docs: list) -> list:
         )
         for r in recibos:
             recibos_by.setdefault(r.get("fatura_id"), []).append(r)
+    creditos_by: dict = {}
+    if fatura_ids:
+        for n in await documentos_financeiros_repo.find(
+            {"tipo": "nota_credito", "fatura_id": {"$in": fatura_ids}, "estado": {"$nin": ["anulada", "rascunho"]}},
+            limit=max(500, len(fatura_ids) * 10),
+        ):
+            creditos_by.setdefault(n.get("fatura_id"), []).append(n)
 
     out = []
     for doc in docs:
@@ -103,7 +111,10 @@ async def enrich_documentos_many(docs: list) -> list:
             total_pago = round2(sum((r.get("valor_pago") or 0) for r in recibos))
             if not recibos and d.get("tipo") == "fatura_recibo":
                 total_pago = round2(d.get("valor_pago") or 0)
-            total = round2(d.get("total") or 0)
+            creditos = creditos_by.get(d.get("id"), [])
+            d["notas_credito"] = [{"id": n["id"], "numero": n.get("numero"), "total": n.get("total"), "data": n.get("data")} for n in creditos]
+            d["valor_creditado"] = round2(sum(float(n.get("total") or 0) for n in creditos))
+            total = round2(max(0.0, float(d.get("total") or 0) - d["valor_creditado"]))
             d["valor_liquidado"] = total_pago
             d["valor_pendente"] = round2(max(0.0, total - total_pago))
             if total_pago <= 0:
@@ -280,6 +291,14 @@ async def qtd_ja_faturada_por_linha(encomenda_id: str) -> dict:
             if not key:
                 continue
             out[key] = round2((out.get(key) or 0) + float(l.get("quantidade") or 0))
+    # Notas de crédito devolvem quantidade (pode voltar a ser faturada)
+    ncs = await documentos_financeiros_repo.find(
+        {"encomenda_id": encomenda_id, "tipo": "nota_credito", "estado": {"$nin": ["anulada", "rascunho"]}}, limit=2000)
+    for d in ncs:
+        for l in d.get("linhas") or []:
+            key = l.get("encomenda_artigo_id") or l.get("artigo_id")
+            if key and key in out:
+                out[key] = round2(max(0.0, out[key] - float(l.get("quantidade") or 0)))
     return out
 
 
@@ -845,6 +864,10 @@ async def assinar_documento(did: str, user: dict) -> dict:
     ts = now_iso()
     assinado_por = (user or {}).get("nome") or (user or {}).get("email") or ""
     cfg_fat = await fat.config_ativa() if doc["tipo"] in fat.TIPOS_CERTIFICADOS else None
+    if cfg_fat and doc["tipo"] == "nota_credito":
+        mae = await documentos_financeiros_repo.get(doc.get("fatura_id") or "")
+        if not fat.certificado(mae):
+            cfg_fat = None  # fatura original interna → nota de crédito interna
     if cfg_fat:
         # Emitido no programa certificado: número oficial, ATCUD e PDF vêm de lá
         cliente = (await clientes_repo.get(doc["cliente_id"]) if doc.get("cliente_id") else None) or {"nome": doc.get("cliente") or ""}
@@ -885,6 +908,8 @@ async def assinar_documento(did: str, user: dict) -> dict:
                 notas=f"Pagamento {pag.get('recibo_numero') or ''}".strip(),
                 user=user, registar_encomenda=False,
             )
+    elif doc["tipo"] == "nota_credito":
+        await _apos_nota_credito(doc, user)
     elif doc["tipo"] == "fatura_recibo" and doc.get("encomenda_id"):
         # Fatura-recibo emitida a partir da encomenda: regista o recebimento (recibo interno de controlo)
         await _criar_recibo_na_fatura(
@@ -897,3 +922,86 @@ async def assinar_documento(did: str, user: dict) -> dict:
     await audit.registar("documento_financeiro", did, "estado_alterado", user,
                          f"{label} {numero} assinada{onde}", numero)
     return await enrich_documento(doc)
+
+
+# ----------------------------------------------------------------------------
+# Notas de crédito (devoluções / correções de faturas emitidas)
+# ----------------------------------------------------------------------------
+async def criar_nota_credito(fatura_id: str, user: dict, *, linhas: Optional[list] = None, valor: Optional[float] = None,
+                             motivo: str = "", devolver: Optional[dict] = None) -> dict:
+    """Nota de crédito em rascunho sobre uma fatura emitida: por linhas (quantidades) ou por valor.
+
+    `devolver` = {"metodo": "...", "data": "..."} regista também a devolução do dinheiro na encomenda (ao assinar).
+    """
+    fat = await documentos_financeiros_repo.get(fatura_id)
+    if not fat or fat.get("tipo") not in DOC_TIPOS_COM_RECIBOS:
+        raise HTTPException(404, "Fatura não encontrada")
+    if fat.get("estado") != "emitida":
+        raise HTTPException(400, "Só se faz nota de crédito de uma fatura emitida (não anulada)")
+    motivo = (motivo or "").strip()
+    if not motivo:
+        raise HTTPException(400, "Indique o motivo da nota de crédito")
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    enr = await enrich_documento(fat)
+    disponivel = round2(float(fat.get("total") or 0) - float(enr.get("valor_creditado") or 0))
+    novas: list = []
+    if linhas:
+        orig = fat.get("linhas") or []
+        for item in linhas:
+            i = int(item.get("indice", -1))
+            if not 0 <= i < len(orig):
+                raise HTTPException(400, "Linha da fatura inválida")
+            q = round2(float(item.get("quantidade") or 0))
+            if q <= 0:
+                continue
+            if q > float(orig[i].get("quantidade") or 0) + 1e-9:
+                raise HTTPException(400, f"Linha {i + 1}: quantidade acima da faturada")
+            base = dict(orig[i])
+            pu = float(base.get("subtotal") or 0) / float(base.get("quantidade") or 1)
+            base.update({"quantidade": q, "preco_unit": round2(pu), "desconto": 0.0, "desconto_tipo": "pct",
+                         "personalizacoes": [], "subtotal": round2(pu * q)})
+            novas.append(DocumentoLinha(**base).model_dump())
+    elif valor:
+        v = round2(float(valor))
+        if v <= 0:
+            raise HTTPException(400, "Valor inválido")
+        novas = [_linha_valor(f"Crédito sobre {fat.get('numero')}: {motivo}"[:200], _valor_sem_iva(v, settings))]
+    if not novas:
+        raise HTTPException(400, "Escolha as linhas a creditar ou indique um valor")
+    tot = _totais_documento(novas, 0, settings)
+    if tot["total"] > disponivel + 0.02:
+        raise HTTPException(400, f"O crédito ({tot['total']:.2f}€) ultrapassa o que falta creditar desta fatura ({disponivel:.2f}€)")
+    doc = DocumentoFinanceiro(
+        tipo="nota_credito", cliente=fat.get("cliente") or "", cliente_id=fat.get("cliente_id"),
+        encomenda_id=fat.get("encomenda_id"), encomenda_numero=fat.get("encomenda_numero"),
+        referencia_cliente=fat.get("referencia_cliente") or "", fatura_id=fat["id"], fatura_numero=fat.get("numero"),
+        data=now_iso()[:10], linhas=novas, metodo_pagamento=(devolver or {}).get("metodo") or "",
+        notas=f"Motivo: {motivo}", estado="rascunho", **tot,
+    ).model_dump()
+    doc["motivo"] = motivo
+    doc["devolver"] = devolver or None
+    await documentos_financeiros_repo.insert(doc)
+    await audit.registar("documento_financeiro", doc["id"], "criado", user,
+                         f"Nota de crédito em rascunho sobre {fat.get('numero')} ({tot['total']:.2f}€): {motivo}", fat.get("numero"))
+    return await enrich_documento(doc)
+
+
+async def _apos_nota_credito(doc: dict, user: dict) -> None:
+    """Depois de assinada: regista a devolução do dinheiro na encomenda (se pedido)."""
+    dev = doc.get("devolver") or {}
+    if not dev or not doc.get("encomenda_id"):
+        return
+    enc = await encomendas_repo.get(doc["encomenda_id"])
+    if not enc:
+        return
+    valor = round2(float(doc.get("total") or 0))
+    pag = Pagamento(valor=valor, metodo=dev.get("metodo") or "transferencia", nota=f"Nota de crédito {doc.get('numero')}",
+                    data=(dev.get("data") or now_iso())[:10], origem="fatura", tipo="devolucao",
+                    recibo_numero=doc.get("numero") or "").model_dump()
+    pagamentos = (enc.get("pagamentos") or []) + [pag]
+    total = soma_valor_pago(pagamentos)
+    if total < -0.009:
+        return
+    await encomendas_repo.update(enc["id"], {"pagamentos": pagamentos, "valor_pago": total})
+    await audit.registar("encomenda", enc["id"], "devolucao", user,
+                         f"Devolução de {valor:.2f}€ pela nota de crédito {doc.get('numero')}", enc.get("numero"))

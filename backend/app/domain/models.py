@@ -1214,6 +1214,7 @@ class NaoConformidade(NaoConformidadeInput):
 
 
 DOC_TIPO_PT = {
+    "nota_credito": "Nota de crédito",
     "fatura": "Fatura",
     "proforma": "Fatura Pro Forma",
     "recibo": "Recibo",

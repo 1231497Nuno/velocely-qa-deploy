@@ -15,7 +15,8 @@ from app.services.faturacao.base import (
 )
 
 BASE = "https://api.moloni.pt/v1"
-ENDPOINT_TIPO = {"fatura": "invoices", "fatura_recibo": "invoiceReceipts", "fatura_simplificada": "simplifiedInvoices"}
+ENDPOINT_TIPO = {"fatura": "invoices", "fatura_recibo": "invoiceReceipts", "fatura_simplificada": "simplifiedInvoices",
+                 "nota_credito": "creditNotes"}
 
 
 def _c(cfg: dict) -> dict:
@@ -210,6 +211,12 @@ async def emitir(cfg: dict, doc: dict, cliente: dict, ctx: dict) -> ResultadoEmi
         "customer_id": cid, "your_reference": (doc.get("referencia_cliente") or doc.get("encomenda_numero") or "")[:60],
         "notes": (doc.get("notas") or "")[:500], "products": produtos, "status": 1,
     }
+    if doc["tipo"] == "nota_credito":
+        mae = ctx.get("fatura_origem") or {}
+        if not mae.get("externo_id"):
+            raise FaturacaoErro("A fatura original não está no Moloni", 400)
+        corpo["associated_documents"] = [{"associated_id": int(mae["externo_id"]), "value": round(float(doc.get("total") or 0), 2)}]
+        corpo["notes"] = (doc.get("motivo") or corpo.get("notes") or "")[:500]
     if doc["tipo"] in ("fatura_recibo", "fatura_simplificada"):
         corpo["payments"] = [{"payment_method_id": _metodo(cfg, doc.get("metodo_pagamento")), "date": doc.get("data"),
                               "value": round(float(doc.get("total") or 0), 2)}]
@@ -269,3 +276,38 @@ async def registar_recebimento(cfg: dict, externo: dict, valor: float, metodo: s
 
 async def anular(cfg: dict, externo: dict, motivo: str, ctx: Optional[dict] = None) -> None:
     raise FaturacaoNaoSuportado("No Moloni um documento fechado anula-se (ou emite-se a nota de crédito) no próprio programa.")
+
+
+async def emitir_guia(cfg: dict, g: dict, cliente: dict, ctx: dict) -> ResultadoEmissao:
+    """Guia de transporte (billsOfLading) ou de remessa (deliveryNotes) no Moloni, com locais de carga/descarga."""
+    endpoint = "billsOfLading" if g.get("tipo") == "transporte" else "deliveryNotes"
+    serie = (cfg.get("series") or {}).get("guia")
+    if not serie:
+        raise FaturacaoErro("Escolha a série de guias do Moloni nas definições da faturação", 400)
+    ref = (_c(cfg).get("produto_referencia") or "").strip()
+    produto_id = await _produto(cfg, ctx, ref)
+    cid = await _cliente(cfg, ctx, cliente)
+    produtos = [{"product_id": produto_id, "name": l["descricao"][:200], "qty": l["quantidade"], "price": 0, "discount": 0,
+                 "order": i + 1, "exemption_reason": cfg.get("motivo_isencao") or "M10", "taxes": []}
+                for i, l in enumerate(g.get("linhas") or [])]
+    c, d = g.get("carga") or {}, g.get("descarga") or {}
+    corpo = {
+        "date": g.get("data"), "document_set_id": int(serie), "customer_id": cid,
+        "your_reference": (g.get("encomenda_numero") or "")[:60], "notes": (g.get("notes") or g.get("notas") or "")[:500],
+        "products": produtos, "status": 1,
+        "delivery_datetime": f"{g.get('data')} {(g.get('hora_inicio') or '09:00')}:00",
+        "delivery_departure_address": c.get("morada") or "", "delivery_departure_city": c.get("cidade") or "",
+        "delivery_departure_zip_code": c.get("codigo_postal") or "", "delivery_departure_country": 1,
+        "delivery_destination_address": d.get("morada") or "", "delivery_destination_city": d.get("cidade") or "",
+        "delivery_destination_zip_code": d.get("codigo_postal") or "", "delivery_destination_country": 1,
+    }
+    if g.get("matricula"):
+        corpo["vehicle_name"] = g["matricula"]
+    j = await _chamar(cfg, ctx, f"{endpoint}/insert", corpo, erro="O Moloni não aceitou a guia")
+    did = (j or {}).get("document_id")
+    if not did:
+        raise FaturacaoErro("O Moloni não devolveu o identificador da guia")
+    res = await _resultado(cfg, ctx, did, cid)
+    info = await _chamar(cfg, ctx, "documents/getOne", {"document_id": did}) or {}
+    res.extra["at_code"] = str(info.get("transport_code") or info.get("at_code") or "")
+    return res

@@ -337,7 +337,7 @@ export default function FaturacaoIntegracao({ cfg, isAdmin, onAtualizar }) {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[["fatura", "Fatura"], ["fatura_recibo", "Fatura-recibo"], ["recibo", "Recibo"]].map(([t, l]) => (
+              {[["fatura", "Fatura"], ["fatura_recibo", "Fatura-recibo"], ["recibo", "Recibo"], ["nota_credito", "Nota de crédito"], ...(forn === "moloni" ? [["guia", "Guias"]] : [])].map(([t, l]) => (
                 <div key={t}>
                   <label className={labelCls}>{l}</label>
                   <SelectOuTexto opcoes={opSeries} value={seriesForn[t]} disabled={dis} onChange={(v) => setSerie(t, v)} testid={`fat-serie-${t}`}

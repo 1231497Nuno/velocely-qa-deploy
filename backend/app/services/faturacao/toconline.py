@@ -116,6 +116,9 @@ async def dados(cfg: dict, ctx: dict) -> dict:
 
 
 async def emitir(cfg: dict, doc: dict, cliente: dict, ctx: dict) -> ResultadoEmissao:
+    if doc.get("tipo") == "nota_credito":
+        raise FaturacaoNaoSuportado("Emita a nota de crédito no TOConline (a partir da fatura original). "
+                                    "Depois anule aqui o rascunho.")
     tipo = TIPOS.get(doc.get("tipo"))
     if not tipo:
         raise FaturacaoErro(f"O TOConline não emite este tipo de documento ({doc.get('tipo')})", 400)

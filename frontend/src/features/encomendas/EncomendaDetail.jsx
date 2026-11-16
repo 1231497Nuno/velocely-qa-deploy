@@ -19,7 +19,7 @@ import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
   Trash2, X,
-  ShieldCheck, ShieldAlert, FileOutput, AlertTriangle, ShoppingBag, Lock, LockOpen,
+  ShieldCheck, ShieldAlert, FileOutput, AlertTriangle, ShoppingBag, Lock, LockOpen, Tags, Truck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EncAlertas, EncKPIs, EncClienteCampos, EncRegistarPagamento, EncPagamentoResumo, EncPagamentosLista, OFsPanel, OrcamentosPanel, NcsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
@@ -31,6 +31,7 @@ import { ymdHoje } from "@/lib/orcamento";
 import SelecionarVariantesDialog from "@/components/SelecionarVariantesDialog";
 import BotoesEdicao from "@/components/BotoesEdicao";
 import MotivoDialog from "@/components/MotivoDialog";
+import GuiaDialog from "@/features/encomendas/GuiaDialog";
 import { useListas } from "@/lib/listas";
 import { useModoEdicao } from "@/hooks/useModoEdicao";
 
@@ -54,6 +55,7 @@ export default function EncomendaDetail() {
   const { id } = useParams();
   const listas = useListas();
   const [bloqueioOpen, setBloqueioOpen] = useState(false);
+  const [guiaOpen, setGuiaOpen] = useState(false);
   const nav = useNavigate();
   const tabIds = [
     "encomenda",
@@ -276,13 +278,39 @@ export default function EncomendaDetail() {
   });
 
   /** Seletor único: recebe o artigo (pode ter sido criado agora e ainda não estar na lista). */
-  const addArtigoObj = (a) => {
+  const addArtigoObj = async (a) => {
     if (valoresDoOrc) {
       toast.error("Os artigos desta encomenda vêm do orçamento e não podem ser alterados");
       return;
     }
     const base = artigos.find((x) => x.id === a.id) || a;
-    persist({ artigos: [...(enc.artigos || []), linhaFromArtigo(base)] }, "Artigo adicionado");
+    const linha = linhaFromArtigo(base);
+    let msg = "Artigo adicionado";
+    try {
+      const [r] = await api.post("/tabelas-precos/aplicar", { cliente_id: enc.cliente_id || null, linhas: [{ artigo_id: linha.artigo_id, quantidade: linha.quantidade }] });
+      if (r) {
+        if (r.tipo === "preco") linha.preco_unit = r.valor; else { linha.desconto = r.valor; linha.desconto_tipo = "pct"; }
+        msg = `Artigo adicionado · ${r.descricao}`;
+      }
+    } catch { /* sem tabela */ }
+    persist({ artigos: [...(enc.artigos || []), linha] }, msg);
+  };
+  const aplicarTabelas = async () => {
+    const lin = enc.artigos || [];
+    try {
+      const r = await api.post("/tabelas-precos/aplicar", { cliente_id: enc.cliente_id || null, linhas: lin.map((l) => ({ artigo_id: l.artigo_id, quantidade: Number(l.quantidade) || 1 })) });
+      let n = 0;
+      const artigosNext = lin.map((l, i) => {
+        const res = r[i];
+        if (!res || !l.artigo_id) return l;
+        n += 1;
+        return res.tipo === "preco" ? { ...l, preco_unit: res.valor } : { ...l, desconto: res.valor, desconto_tipo: "pct" };
+      });
+      if (!n) { toast.message("Nenhuma tabela de preços se aplica a estas linhas"); return; }
+      persist({ artigos: artigosNext }, `Tabelas de preços aplicadas em ${n} linha(s)`);
+    } catch {
+      toast.error("Não foi possível aplicar as tabelas de preços");
+    }
   };
 
   const addVariantes = async (picked) => {
@@ -535,6 +563,9 @@ export default function EncomendaDetail() {
                 <FileOutput size={15} /> Emitir fatura
               </button>
             )}
+            {can("encomendas", "edit") && enc.estado !== "cancelada" && !modo.editando && (enc.artigos || []).length > 0 && (
+              <button type="button" onClick={() => setGuiaOpen(true)} className="btn btn-secundario" data-testid="enc-guias" title="Guias de transporte / remessa (entregas)"><Truck size={15} /> Guia</button>
+            )}
             {can("encomendas", "edit") && enc.estado !== "cancelada" && !modo.editando && (
               enc.bloqueio?.ativo ? (
                 <button type="button" onClick={desbloquear} className="btn btn-aviso-contorno" data-testid="enc-desbloquear"><LockOpen size={15} /> Desbloquear</button>
@@ -546,6 +577,7 @@ export default function EncomendaDetail() {
           </>
         }
       />
+      {guiaOpen && <GuiaDialog open={guiaOpen} encomenda={enc} onClose={() => setGuiaOpen(false)} onChanged={() => load()} />}
       <MotivoDialog open={bloqueioOpen} titulo={`Bloquear ${enc.numero}`} testid="bloqueio-dialog"
         descricao="Enquanto estiver bloqueada não se criam ou iniciam OF, não se fatura e não se marca a entrega."
         sugestoes={listas.motivos_bloqueio || []} confirmar="Bloquear" onConfirm={confirmarBloqueio} onClose={() => setBloqueioOpen(false)} />
@@ -652,6 +684,11 @@ export default function EncomendaDetail() {
                     testid="enc-add-artigo"
                   />
                 </div>
+              )}
+              {canEditValores && (enc.artigos || []).some((l) => l.artigo_id) && (
+                <button type="button" onClick={aplicarTabelas} className="btn btn-secundario btn-sm" data-testid="enc-aplicar-tabelas" title="Preços especiais e descontos por quantidade (Catálogo → Tabelas de preços)">
+                  <Tags size={14} /> Tabelas de preços
+                </button>
               )}
             </div>
             {(enc.artigos || []).length === 0 ? (

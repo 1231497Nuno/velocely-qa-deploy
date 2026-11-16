@@ -42,6 +42,7 @@ import {
   Timer,
   Banknote,
   BarChart3,
+  Tags,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -66,6 +67,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
       { to: "/categorias", label: "Categorias", icon: Layers, tid: "nav-categorias", modulo: "artigos" },
+      { to: "/tabelas-precos", label: "Tabelas de preços", icon: Tags, tid: "nav-tabelas-precos", modulo: "artigos" },
       { to: "/maquinas", label: "Máquinas", icon: Cog, tid: "nav-maquinas", modulo: "maquinas" },
       { to: "/mao-obra", label: "Mão de Obra", icon: Users, tid: "nav-mao-obra", modulo: "mao_obra" },
       { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao", modulo: "personalizacao" },
