@@ -573,3 +573,7 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Quantidades de stock arredondadas a 4 casas (`stock.rq`) — metros e m² não perdem precisão; euros continuam a 2.
 - `movimentar` recusa localizações inexistentes; se a localização por defeito do artigo foi apagada usa a da empresa.
 - Ciclo de 5 min: cada tarefa periódica corre isolada (uma falha não trava as outras).
+
+- Localização com stock (`stock.stock_na_localizacao`: inclui artigos que deixaram de gerir stock mas têm quantidades
+  registadas) não pode ser apagada nem inativada; também não se estiver no inventário aberto. A mensagem diz que artigos
+  lá estão. `GET /stock/localizacoes/{id}/artigos`. No ecrã, o botão de apagar fica desativado com o motivo.

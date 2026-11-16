@@ -183,13 +183,42 @@ async def guardar_localizacao(dados: dict, lid: Optional[str] = None) -> dict:
         await localizacoes_repo.col.update_many({}, {"$set": {"padrao": False}})
         doc["padrao"] = True
     if lid:
-        if not await localizacoes_repo.get(lid):
+        atual = await localizacoes_repo.get(lid)
+        if not atual:
             raise HTTPException(404, "Localização não encontrada")
+        if atual.get("ativo", True) is not False and doc["ativo"] is False:
+            if atual.get("padrao") or doc.get("padrao"):
+                raise HTTPException(400, "A localização por defeito não pode ficar inativa")
+            await _exigir_localizacao_vazia(lid, "inativar")
         await localizacoes_repo.update(lid, doc)
         return await localizacoes_repo.get(lid)
     doc.update({"id": new_id(), "created_at": now_iso(), "padrao": bool(doc.get("padrao"))})
     await localizacoes_repo.insert(doc)
     return doc
+
+
+async def stock_na_localizacao(lid: str) -> List[dict]:
+    """Artigos com stock (positivo ou negativo) nesta localização — inclui os que deixaram de gerir stock
+    mas ainda lá têm quantidades registadas, e contagens de inventário aberto."""
+    padrao = await local_padrao()
+    out = []
+    for a in await artigos_repo.find({}, limit=50000):
+        q = stock_por_local(a, padrao["id"]).get(lid, 0) if gere_stock(a) else float((a.get("stock_local") or {}).get(lid) or 0)
+        if abs(q) > 1e-9:
+            out.append({"id": a["id"], "nome": a.get("nome") or "", "quantidade": rq(q), "unidade": a.get("unidade") or "un"})
+    return out
+
+
+async def _exigir_localizacao_vazia(lid: str, acao: str) -> None:
+    com = await stock_na_localizacao(lid)
+    if com:
+        ex = ", ".join(f"«{x['nome']}» ({str(format(x['quantidade'], 'g')).replace('.', ',')} {x['unidade']})" for x in com[:3])
+        mais = f" e mais {len(com) - 3}" if len(com) > 3 else ""
+        raise HTTPException(400, f"Não pode {acao} esta localização: ainda tem stock de {len(com)} artigo(s) — {ex}{mais}. "
+                                 "Transfira o stock para outra localização primeiro.")
+    inv = await inventarios_repo.find_one({"estado": "aberto"})
+    if inv and any(l.get("localizacao_id") == lid for l in inv.get("linhas") or []):
+        raise HTTPException(400, f"Não pode {acao} esta localização: está no inventário aberto ({inv.get('data') or ''}).")
 
 
 async def apagar_localizacao(lid: str) -> None:
@@ -198,10 +227,7 @@ async def apagar_localizacao(lid: str) -> None:
         raise HTTPException(404, "Localização não encontrada")
     if l.get("padrao"):
         raise HTTPException(400, "Não pode apagar a localização por defeito — escolha outra como padrão primeiro")
-    padrao = await local_padrao()
-    for a in await artigos_repo.find({"gere_stock": True}, limit=50000):
-        if abs(stock_por_local(a, padrao["id"]).get(lid, 0)) > 1e-9:
-            raise HTTPException(400, f"Ainda há stock nesta localização (ex.: «{a.get('nome')}»). Transfira-o primeiro.")
+    await _exigir_localizacao_vazia(lid, "apagar")
     await localizacoes_repo.delete({"id": lid})
     await artigos_repo.col.update_many({"localizacao_id": lid}, {"$set": {"localizacao_id": None}})
 
