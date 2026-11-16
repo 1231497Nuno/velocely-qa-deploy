@@ -31,7 +31,7 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), _u: dic
                     "tipo_artigo": a.get("tipo_artigo"), "fornecedor_nome": a.get("fornecedor_nome") or "",
                     "unidade_compra": a.get("unidade_compra") or "", "fator_compra": float(a.get("fator_compra") or 1),
                     "qtd_stock": round(stock, 2), "nivel_reabastecimento": nivel, "custo_medio": round(custo, 4),
-                    "valor": round(max(stock, 0) * custo, 2), "estado": estado})
+                    "valor": round(max(stock, 0) * custo, 2), "estado": estado, "gere_stock": True})
     return {"items": out, "valor_total": round(sum(i["valor"] for i in out), 2)}
 
 
@@ -46,6 +46,8 @@ async def ajuste(dados: dict, user: dict = Depends(require_perm("artigos", "edit
     a = await artigos_repo.get(dados.get("artigo_id") or "")
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
+    if not stock_svc.gere_stock(a):
+        raise HTTPException(400, "Este artigo não tem gestão de stock — ative-a primeiro")
     if dados.get("nova_quantidade") is not None:
         delta = float(dados["nova_quantidade"]) - float(a.get("qtd_stock") or 0)
     else:

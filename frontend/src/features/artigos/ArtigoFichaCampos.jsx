@@ -58,7 +58,10 @@ export default function ArtigoFichaCampos({
   if (!src) return null;
   const tipo = normalizarTipo(src);
   const campos = new Set(camposBloco(blocoId, tipo));
-  const show = (c) => campos.has(c);
+  const geridoStock = !!src.gere_stock;
+  // Quantidades de stock só aparecem nos artigos com gestão de stock
+  const SO_COM_STOCK = new Set(["qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra"]);
+  const show = (c) => campos.has(c) && (!SO_COM_STOCK.has(c) || geridoStock);
   const catId = editing ? (draft?.categoria_id || "") : (artigo?.categoria_id || "");
   const subsDaCat = subcategorias.filter((s) => s.categoria_id === catId);
 
@@ -591,6 +594,36 @@ export default function ArtigoFichaCampos({
               <input type="number" value={draft?.qtd_uni ?? 1} onChange={(e) => onChange?.({ qtd_uni: e.target.value })} className={`${fieldCls} tabular-nums`} />
             ) : (
               <InlineField value={artigo?.qtd_uni ?? 1} type="number" canEdit={canEdit} mono onSave={patchNum("qtd_uni")} testid="artigo-qtd-uni" />
+            )}
+          </FieldRow>
+        )}
+        {show("gere_stock") && (
+          <FieldRow label="Gere stock" testid="ficha-gere-stock">
+            <label className="inline-flex items-center gap-2 text-sm min-h-[32px]">
+              <input
+                type="checkbox"
+                data-testid="artigo-gere-stock"
+                checked={geridoStock}
+                disabled={!editing && !canEdit}
+                onChange={(e) => (editing ? onChange?.({ gere_stock: e.target.checked }) : onPatch?.({ gere_stock: e.target.checked }))}
+              />
+              <span className="text-gray-600">{geridoStock ? "Sim — conta stock, entra no inventário e nas sugestões de compra" : "Não — compra-se à medida (sem stock)"}</span>
+            </label>
+          </FieldRow>
+        )}
+        {show("gere_stock") && geridoStock && (
+          <FieldRow label="Unidade de compra" testid="ficha-unidade-compra">
+            {editing ? (
+              <div className="flex items-center gap-1.5 text-sm">
+                <input value={draft?.unidade_compra || ""} placeholder={draft?.unidade || "un"} onChange={(e) => onChange?.({ unidade_compra: e.target.value })} className={`${fieldCls} w-24`} />
+                <span className="text-gray-500 whitespace-nowrap">= </span>
+                <input type="number" min="0" step="any" value={draft?.fator_compra ?? 1} onChange={(e) => onChange?.({ fator_compra: e.target.value })} className={`${fieldCls} w-20 tabular-nums`} />
+                <span className="text-gray-500">{draft?.unidade || "un"}</span>
+              </div>
+            ) : (
+              <span className="text-sm text-gray-900">
+                {artigo?.unidade_compra && Number(artigo?.fator_compra) !== 1 ? `1 ${artigo.unidade_compra} = ${artigo.fator_compra} ${artigo.unidade || "un"}` : <span className="text-gray-400">Igual à unidade de stock</span>}
+              </span>
             )}
           </FieldRow>
         )}

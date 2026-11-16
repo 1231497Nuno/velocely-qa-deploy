@@ -450,7 +450,7 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
         "fabricante", "fornecedor_nome", "cod_fornecedor", "qtd_stock", "responsavel",
         "comprimento_mm", "largura_mm", "plano_contas", "conta_proveitos", "iva_taxa",
     ])
-    if abs(delta_stock) > 1e-9:
+    if abs(delta_stock) > 1e-9 and update.get("gere_stock") and existing.get("gere_stock"):
         # Acerto manual do stock na ficha → fica registado como movimento
         from app.services import stock as stock_svc
         update.pop("qtd_stock", None)

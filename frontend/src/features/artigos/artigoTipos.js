@@ -128,12 +128,12 @@ const PRECO_BY_TIPO = {
 };
 
 const STOCK_BY_TIPO = {
-  ativo: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
-  materia_prima: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
-  consumivel: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
+  ativo: ["unidade", "qtd_uni", "gere_stock", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
+  materia_prima: ["unidade", "qtd_uni", "gere_stock", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
+  consumivel: ["unidade", "qtd_uni", "gere_stock", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
   servico: ["unidade"],
-  nao_utilizado: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
-  inativo: ["unidade", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
+  nao_utilizado: ["unidade", "qtd_uni", "gere_stock", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
+  inativo: ["unidade", "qtd_uni", "gere_stock", "qtd_stock", "nivel_reabastecimento", "responsavel", "qtd_ultima_compra"],
 };
 
 export function camposBloco(blocoId, tipo) {
@@ -226,6 +226,9 @@ export const emptyArtigoForm = {
   peso_unidade: "kg",
   responsavel: "",
   qtd_uni: 1,
+  gere_stock: false,
+  unidade_compra: "",
+  fator_compra: 1,
   qtd_stock: 0,
   nivel_reabastecimento: 0,
   qtd_ultima_compra: 0,
@@ -285,6 +288,9 @@ export function buildArtigoBody(form) {
     peso_unidade: form.peso_unidade || "kg",
     responsavel: form.responsavel || "",
     qtd_uni: Number(form.qtd_uni) || 1,
+    gere_stock: tipo !== "servico" && !!form.gere_stock,
+    unidade_compra: form.unidade_compra || "",
+    fator_compra: Number(form.fator_compra) > 0 ? Number(form.fator_compra) : 1,
     qtd_stock: tipo === "servico" ? 0 : (Number(form.qtd_stock) || 0),
     nivel_reabastecimento: tipo === "servico" ? 0 : (Number(form.nivel_reabastecimento) || 0),
     qtd_ultima_compra: tipo === "servico" ? 0 : (Number(form.qtd_ultima_compra) || 0),
