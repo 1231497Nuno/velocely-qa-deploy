@@ -72,6 +72,7 @@ export default function OrcamentoDetail() {
   const nav = useNavigate();
   const [tab, setTab] = useDetailTab(["orcamento", "ficheiros", "historico"], "orcamento");
   const [orc, setOrc] = useState(null);
+  const [perda, setPerda] = useState(null); // { motivo, outro, resolve }
   const [calcOpen, setCalcOpen] = useState(false);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -211,7 +212,6 @@ export default function OrcamentoDetail() {
     );
   }
   // Motivo da perda (para perceber onde se perde negócio — relatório «Orçamentos perdidos»)
-  const [perda, setPerda] = useState(null); // { motivo, outro, resolve }
   if (!orc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
   const upd = (patch) => {
