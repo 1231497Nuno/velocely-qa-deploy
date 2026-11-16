@@ -186,6 +186,8 @@ async def montar_itens(enc: dict, pedidos: List[dict]) -> List[dict]:
             "origem_operacoes": origem_ops,
             "origem_materiais": origem_mat,
         })
+        from app.services.costing import tipo_item_of
+        itens[-1]["tipo_item"] = tipo_item_of(itens[-1], artigo)
     return itens
 
 

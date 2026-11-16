@@ -125,6 +125,8 @@ async def fechar_of(ofid: str, dados: dict, user: dict) -> dict:
     for it in of.get("itens") or []:
         for op in it.get("operacoes") or []:
             op["concluida"] = True
+        if it.get("tipo_item") == "preparar" and not it.get("preparado"):
+            it.update({"preparado": True, "preparado_at": now_iso(), "preparado_por": (user or {}).get("name") or ""})
     total = round2(sum(l["custo_total"] for l in linhas))
     estimado = round2(sum(l["custo_estimado"] for l in linhas))
     fecho = {"fechada": True, "at": now_iso(), "por": (user or {}).get("name") or (user or {}).get("nome") or "",
@@ -287,6 +289,36 @@ async def prazo_sugerido(linhas: List[dict], margem_dias: int = 2, dias_compra: 
 # ---------------------------------------------------------------------------
 # Picking (separar o material das OF no armazém, pela app móvel)
 # ---------------------------------------------------------------------------
+ITEM_PREPARAR = "__artigo__"
+
+
+def a_preparar(it: dict) -> bool:
+    """Linha da OF que não se produz: só se vai buscar (comprado / de stock)."""
+    if it.get("tipo_item"):
+        return it["tipo_item"] == "preparar"
+    return not (it.get("operacoes") or []) and not (it.get("materiais") or [])
+
+
+async def marcar_preparado(ofid: str, item_id: str, preparado: bool, user: dict) -> dict:
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    it = next((x for x in of.get("itens") or [] if x.get("id") == item_id), None)
+    if not it:
+        raise HTTPException(404, "Artigo não encontrado na OF")
+    if (it.get("operacoes") or []):
+        raise HTTPException(400, "Este artigo tem operações: conclua-as na produção")
+    it.update({"tipo_item": "preparar", "preparado": bool(preparado),
+               "preparado_at": now_iso() if preparado else None, "preparado_por": (user or {}).get("name") or "" if preparado else ""})
+    if preparado:
+        it["qtd_separada"] = max(float(it.get("qtd_separada") or 0), float(it.get("quantidade") or 0))
+    of = recompute_of_status(of)
+    await ordens_repo.update(ofid, {"itens": of["itens"], "status": of.get("status")})
+    await audit.registar("ordem_fabrico", ofid, "editado", user,
+                         f"{it.get('artigo_nome')}: {'preparado' if preparado else 'por preparar'} (OF {of.get('numero')})", of.get("numero"))
+    return of
+
+
 async def picking_lista() -> List[dict]:
     """OF por fechar com materiais de stock ainda por separar, com onde estão no armazém."""
     from app.repositories import localizacoes_repo
@@ -294,6 +326,7 @@ async def picking_lista() -> List[dict]:
     locs = {l["id"]: l.get("nome") or l.get("codigo") or "" for l in await localizacoes_repo.find({}, limit=2000)}
     ofs = await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, sort=("prazo_entrega", 1), limit=500)
     ids = {m.get("material_id") for of in ofs for it in of.get("itens") or [] for m in it.get("materiais") or [] if m.get("material_id")}
+    ids |= {it.get("artigo_id") for of in ofs for it in of.get("itens") or [] if it.get("artigo_id") and a_preparar(it)}
     arts = {a["id"]: a for a in await artigos_repo.find({"id": {"$in": list(ids)}}, limit=5000)} if ids else {}
     out = []
     for of in ofs:
@@ -301,6 +334,16 @@ async def picking_lista() -> List[dict]:
             continue
         linhas = []
         for it in of.get("itens") or []:
+            a = arts.get(it.get("artigo_id"))
+            if a and a_preparar(it) and not it.get("preparado"):
+                prev = round(float(it.get("quantidade") or 0), 4)
+                sep = round(float(it.get("qtd_separada") or 0), 4)
+                por_local = sorted(stock_svc.stock_por_local(a, padrao["id"]).items(), key=lambda x: -x[1])
+                linhas.append({"item_id": it.get("id"), "id": ITEM_PREPARAR, "artigo_id": a["id"], "codigo": a.get("codigo") or "",
+                               "codigo_produto": a.get("codigo_produto") or "", "nome": it.get("artigo_nome") or a.get("nome") or "",
+                               "unidade": it.get("unidade") or a.get("unidade") or "un", "quantidade": prev, "separada": sep,
+                               "falta": round(max(prev - sep, 0), 4), "para": "Ir buscar (vai assim para o cliente)", "preparar": True,
+                               "locais": [{"id": k, "nome": locs.get(k, "?"), "quantidade": round(v, 2)} for k, v in por_local if v > 0][:4]})
             for m in it.get("materiais") or []:
                 a = arts.get(m.get("material_id"))
                 if not a or not stock_svc.gere_stock(a) or m.get("consumido"):
@@ -328,6 +371,14 @@ async def picking_registar(ofid: str, separados: List[dict], user: dict) -> dict
     por = {(str(x.get("item_id")), str(x.get("id"))): float(x.get("quantidade") or 0) for x in separados or []}
     n = 0
     for it in of.get("itens") or []:
+        q = por.get((str(it.get("id")), ITEM_PREPARAR))
+        if q is not None:
+            if q < 0:
+                raise HTTPException(400, "Quantidade inválida")
+            it["qtd_separada"] = round(float(it.get("qtd_separada") or 0) + q, 4)
+            if it["qtd_separada"] >= float(it.get("quantidade") or 0) - 1e-9:
+                it.update({"tipo_item": "preparar", "preparado": True, "preparado_at": now_iso(), "preparado_por": (user or {}).get("name") or ""})
+            n += 1
         for m in it.get("materiais") or []:
             q = por.get((str(it.get("id")), str(m.get("id"))))
             if q is None:
@@ -340,6 +391,7 @@ async def picking_registar(ofid: str, separados: List[dict], user: dict) -> dict
             n += 1
     if not n:
         raise HTTPException(400, "Nada para registar")
-    await ordens_repo.update(ofid, {"itens": of["itens"]})
+    of = recompute_of_status(of)
+    await ordens_repo.update(ofid, {"itens": of["itens"], "status": of.get("status")})
     await audit.registar("ordem_fabrico", ofid, "editado", user, f"Material separado para a OF {of.get('numero')} ({n} linha(s), app móvel)", of.get("numero"))
     return {"ok": True, "linhas": n}

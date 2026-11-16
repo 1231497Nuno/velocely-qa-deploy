@@ -460,6 +460,13 @@ async def previsao_fecho_of(ofid: str, _u: dict = Depends(require_perm("ordens_f
     return {**producao.previsao_fecho(of), "qualidade": await producao.config_qualidade()}
 
 
+@router.post("/ordens-fabrico/{ofid}/itens/{item_id}/preparado")
+async def item_preparado(ofid: str, item_id: str, dados: dict, user: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    """Marca um artigo a preparar (comprado / de stock, sem produção) como preparado — já foi buscar e está junto."""
+    from app.services import producao
+    return await producao.marcar_preparado(ofid, item_id, bool(dados.get("preparado", True)), user)
+
+
 @router.get("/producao/qualidade")
 async def get_qualidade(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
     from app.services import producao

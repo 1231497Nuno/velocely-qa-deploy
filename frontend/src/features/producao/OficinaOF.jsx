@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { toast } from "sonner";
+import { aPreparar } from "@/lib/ofItens";
 import { CheckCircle2, Loader2, Pause, Play, Paperclip, FileText, StickyNote, Image as ImageIcon, Camera, Trash2, X, AlertTriangle, CalendarClock, Package } from "lucide-react";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -59,6 +60,11 @@ export default function OficinaOF({ of, setOf, onOutra }) {
   const carregarDocs = () => api.get(`/oficina/of/${of.id}/documentos`).then((r) => setDocs(r.grupos || [])).catch(() => setDocs([]));
   useEffect(() => { setDocs(null); carregarDocs(); }, [of.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const preparar = async (it, preparado) => {
+    setBusy(it.id);
+    try { setOf({ ...of, ...(await api.post(`/ordens-fabrico/${of.id}/itens/${it.id}/preparado`, { preparado })) }); }
+    catch (e) { erro(e, "Não foi possível marcar"); } finally { setBusy(""); }
+  };
   const acao = async (it, op, tipo) => {
     setBusy(op.id);
     try {
@@ -179,6 +185,18 @@ export default function OficinaOF({ of, setOf, onOutra }) {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {aPreparar(it) && !(it.operacoes || []).length && (
+              <div className={`rounded-lg p-3 flex flex-wrap items-center gap-3 ${it.preparado ? "bg-emerald-50" : "bg-amber-50"}`} data-testid={`oficina-preparar-${it.id}`}>
+                <Package className="w-6 h-6 text-amber-700" />
+                <div className="flex-1 min-w-[10rem]">
+                  <div className="text-lg font-semibold">Não se produz — ir buscar e juntar à encomenda</div>
+                  {it.preparado && <div className="text-gray-600">Preparado{it.preparado_por ? ` por ${it.preparado_por}` : ""}</div>}
+                </div>
+                {it.preparado
+                  ? <button type="button" disabled={busy === it.id} className="px-5 py-4 rounded-xl bg-white border-2 border-gray-300 text-lg font-semibold" onClick={() => preparar(it, false)}>Anular</button>
+                  : <button type="button" disabled={busy === it.id} className="px-6 py-4 rounded-xl bg-emerald-600 text-white text-lg font-bold flex items-center gap-2" onClick={() => preparar(it, true)}><CheckCircle2 /> Preparado</button>}
               </div>
             )}
             <div className="space-y-2">

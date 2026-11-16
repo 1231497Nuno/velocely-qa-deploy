@@ -616,7 +616,10 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
                         concl,
                     ])
             if len(data) == 1:
-                data.append([Paragraph("Sem operações", st["cell"])] + [""] * (len(cols) - 1))
+                prep = it.get("tipo_item") == "preparar" or (not it.get("tipo_item") and not (it.get("materiais") or []))
+                txt = (f"<b>A preparar — ir buscar e juntar à encomenda</b> ({'preparado' if it.get('preparado') else 'por preparar'})"
+                       if prep else "Sem operações")
+                data.append([Paragraph(txt, st["cell"])] + [""] * (len(cols) - 1))
             tbl = _data_table(data, col_widths, align=[
                 ("ALIGN", (-2, 0), (-1, -1), "RIGHT" if show_tempos else "CENTER"),
                 ("ALIGN", (0, 0), (0, -1), "LEFT"),
