@@ -310,6 +310,7 @@ def artigo_lite(artigo: dict) -> dict:
         "fornecedor_id": artigo.get("fornecedor_id"),
         "fornecedor_nome": artigo.get("fornecedor_nome") or "",
         "cod_fornecedor": artigo.get("cod_fornecedor") or "",
+        "codigo_produto": artigo.get("codigo_produto") or "",
         "lite": True,
     }
 

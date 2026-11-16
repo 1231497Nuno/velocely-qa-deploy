@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import SelecionarVariantesDialog, { artigosParaSelector, artigoTemVariantes } from "./SelecionarVariantesDialog";
 
-/** Pesquisa igual em todo o ERP: ignora acentos e maiúsculas, procura no código e no nome. */
+/** Pesquisa igual em todo o ERP: ignora acentos e maiúsculas, procura no código, nome, ref. do fornecedor e código de barras. */
 export function filtroArtigo(itemValue, search) {
   const fold = (s) => String(s || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const s = fold(search).trim();
@@ -127,7 +127,7 @@ export default function ArtigoCombobox({
   const item = (a, extra = {}) => (
     <CommandItem
       key={`${extra.prefix || ""}${a.id}`}
-      value={`${a.codigo || ""}|||${a.nome || ""}`}
+      value={`${a.codigo || ""}|||${a.nome || ""}|||${a.cod_fornecedor || ""}|||${a.codigo_produto || ""}|||${a.id}`}
       data-testid={`${testid}-option-${a.id}`}
       onSelect={() => escolher(a)}
       className="flex items-center gap-2"
@@ -143,6 +143,7 @@ export default function ArtigoCombobox({
       <span className="truncate flex-1">
         {a.nome}
         {a.tem_variantes && !a.pai_id && <span className="ml-1 text-[10px] font-medium text-violet-600">variantes</span>}
+        {a.cod_fornecedor && <span className="ml-1.5 text-[10px] text-gray-400 font-mono">ref. {a.cod_fornecedor}</span>}
       </span>
       <span className="text-xs text-gray-400 tabular-nums shrink-0">{eur(preco(a))}</span>
     </CommandItem>

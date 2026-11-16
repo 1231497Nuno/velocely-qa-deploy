@@ -182,7 +182,7 @@ export function LinhaCodigoSelect({
                   {diversos.map((a) => (
                     <CommandItem
                       key={`div-${a.id}`}
-                      value={`${a.codigo || ""}|||${a.nome || ""}`}
+                      value={`${a.codigo || ""}|||${a.nome || ""}|||${a.cod_fornecedor || ""}|||${a.codigo_produto || ""}|||${a.id}`}
                       data-testid={`${testid}-diversos-${a.id}`}
                       onSelect={() => pick(a, { descricao_livre: true, clear_nome: true })}
                     >
@@ -197,7 +197,7 @@ export function LinhaCodigoSelect({
                 {artigos.map((a) => (
                   <CommandItem
                     key={a.id}
-                    value={`${a.codigo || ""}|||${a.nome || ""}`}
+                    value={`${a.codigo || ""}|||${a.nome || ""}|||${a.cod_fornecedor || ""}|||${a.codigo_produto || ""}|||${a.id}`}
                     data-testid={`${testid}-option-${a.id}`}
                     onSelect={() => pick(a)}
                     className="flex items-center gap-2"
