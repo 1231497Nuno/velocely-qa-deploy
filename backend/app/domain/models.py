@@ -106,6 +106,8 @@ class Maquina(BaseModel):
     nome: str
     custo_amortizacao_hora: float = 0.0
     custo_energia_hora: float = 0.0
+    # Capacidade (horas disponíveis por semana) — carga vs capacidade
+    horas_semana: float = 40.0
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -113,6 +115,7 @@ class MaquinaInput(BaseModel):
     nome: str
     custo_amortizacao_hora: float = 0.0
     custo_energia_hora: float = 0.0
+    horas_semana: float = 40.0
 
 
 class Consumivel(BaseModel):

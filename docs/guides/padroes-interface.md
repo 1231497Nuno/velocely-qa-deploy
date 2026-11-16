@@ -202,3 +202,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   abaixo do nível → sugere (arredondado à unidade de compra). «Criar ordens de compra» faz uma OC por fornecedor.
 - Inventários (`/inventarios`): fotografia do stock → contagens → fechar (acertos como movimentos, valor ao custo médio).
   `GET /inventarios/{id}/at.csv`: ficheiro de inventário para a AT (separador «;», categorias M/P/A).
+
+## Produção: fecho da OF e carga das máquinas (`services/producao.py`)
+
+- «Fechar OF» (`GET /ordens-fabrico/{id}/fecho` → `POST …/fechar`): por linha, quantidade produzida (boa) e refugo com
+  motivo; materiais gastos (proposta = previsto). Custo fechado = operações com tempos reais + materiais gastos (+ custo
+  de compra em linhas sem produção); guarda `of.fecho` com custo/unidade e desvio face ao estimado. Abate os materiais
+  ao stock (movimento «consumo») e dá entrada do produzido em linhas sem encomenda (produção para stock). Conclui a OF.
+  `POST …/fecho/anular` reverte os movimentos.
+- Carga das máquinas (`/carga-maquinas`, `GET /producao/carga`): horas de máquina por fazer nas OF abertas, por semana do
+  prazo da encomenda, vs `maquina.horas_semana` (Catálogo → Máquinas). Prazo passado → «Atrasado».

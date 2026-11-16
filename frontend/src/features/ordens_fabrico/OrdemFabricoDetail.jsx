@@ -12,6 +12,7 @@ import ArtigoCombobox from "@/components/ArtigoCombobox";
 import PdfExportButton from "@/components/PdfExportButton";
 import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
+import { FechoOFDialog, FechoOFResumo } from "@/features/ordens_fabrico/FechoOF";
 import BotoesEdicao from "@/components/BotoesEdicao";
 import { useModoEdicao } from "@/hooks/useModoEdicao";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
@@ -20,7 +21,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Trash2, Timer, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
+import { ArrowLeft, Trash2, Timer, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -38,6 +39,7 @@ export default function OrdemFabricoDetail() {
   const [maoObra, setMaoObra] = useState([]);
   const [utilizadores, setUtilizadores] = useState([]);
   const [, setTick] = useState(0);
+  const [fechoOpen, setFechoOpen] = useState(false);
   const [itemAberto, setItemAberto] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [dirty, setDirty] = useState(false);
@@ -301,6 +303,11 @@ export default function OrdemFabricoDetail() {
                   <Flag size={15} /> Finalizar
                 </button>
               )}
+              {can("ordens_fabrico", "edit") && !of.fecho?.fechada && (
+                <button type="button" data-testid="fechar-of-btn" onClick={() => setFechoOpen(true)} className="btn btn-secundario" title="Registar produzido, refugo e consumos e fechar o custo">
+                  <ClipboardCheck size={15} /> Fechar OF
+                </button>
+              )}
               <BotoesEdicao modo={modo} onGuardar={save} onCancelar={load} testid="of" />
             </div>
           </div>
@@ -406,8 +413,10 @@ export default function OrdemFabricoDetail() {
         ]}
       />
 
+      <FechoOFDialog ofId={id} open={fechoOpen} onClose={() => setFechoOpen(false)} onDone={() => { setFechoOpen(false); load(); }} />
       {tab === "of" && (
       <div className="space-y-4">
+        <FechoOFResumo of={of} podeEditar={can("ordens_fabrico", "edit")} onChanged={() => load()} />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           {/* Esquerda: lista compacta de artigos (expandir para editar) */}
           <div className="lg:col-span-1">

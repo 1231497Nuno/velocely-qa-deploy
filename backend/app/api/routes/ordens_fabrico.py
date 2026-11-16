@@ -445,3 +445,33 @@ async def acertar_tempos_of(ofid: str, body: AcertoTemposBody, user: dict = Depe
         [{"campo": "tempos", "label": f"{r['operacao']} · {r['campo']}", "de": str(r["de"]), "para": str(r["para"])} for r in registos],
     )
     return _resumo_tempos(saved)
+
+
+# ---------------------------------------------------------------------------
+# Fecho da OF (produzido/refugo, consumos, custo fechado) e carga das máquinas
+# ---------------------------------------------------------------------------
+@router.get("/ordens-fabrico/{ofid}/fecho")
+async def previsao_fecho_of(ofid: str, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    from app.services import producao
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    return producao.previsao_fecho(of)
+
+
+@router.post("/ordens-fabrico/{ofid}/fechar")
+async def fechar_of(ofid: str, dados: dict, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
+    from app.services import producao
+    return await producao.fechar_of(ofid, dados, user)
+
+
+@router.post("/ordens-fabrico/{ofid}/fecho/anular")
+async def anular_fecho_of(ofid: str, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
+    from app.services import producao
+    return await producao.anular_fecho(ofid, user)
+
+
+@router.get("/producao/carga")
+async def carga_maquinas(semanas: int = Query(6, ge=1, le=26), _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    from app.services import producao
+    return await producao.carga(semanas)
