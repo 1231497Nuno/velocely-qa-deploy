@@ -72,6 +72,9 @@ export default function IntegracoesTab() {
       consumer_secret: "",
       estados_importar: r.woocommerce.estados_importar || [],
       criar_clientes: r.woocommerce.criar_clientes !== false,
+      enviar_stock: !!r.woocommerce.enviar_stock,
+      enviar_preco: !!r.woocommerce.enviar_preco,
+      concluir_no_site: !!r.woocommerce.concluir_no_site,
     });
   };
   useEffect(() => { carregar().catch(() => toast.error("Não foi possível carregar as integrações")); }, []);
@@ -115,6 +118,18 @@ export default function IntegracoesTab() {
     } catch (e) {
       toast.dismiss(tid);
       erro(e, "Não foi possível importar");
+    } finally {
+      setBusy("");
+    }
+  };
+  const enviarLoja = async () => {
+    setBusy("enviar");
+    try {
+      const r = await api.post("/integracoes/woocommerce/enviar");
+      toast.success(`${r.enviados} artigo(s) atualizados na loja${r.sem_produto ? ` · ${r.sem_produto} sem produto com o mesmo SKU` : ""}`);
+      if (r.erros?.length) toast.error(r.erros.slice(0, 2).join(" · "));
+    } catch (e) {
+      erro(e, "Não foi possível enviar para a loja");
     } finally {
       setBusy("");
     }
@@ -184,6 +199,21 @@ export default function IntegracoesTab() {
               Criar clientes novos automaticamente
             </label>
           </div>
+        </div>
+
+        <div className="rounded-sm border border-gray-200 p-3 space-y-2" data-testid="woo-enviar">
+          <div className="text-sm font-medium text-gray-700">Do ERP para a loja <span className="font-normal text-gray-500">(a chave da API tem de ter permissão de leitura e escrita)</span></div>
+          {[["enviar_stock", "Atualizar o stock dos produtos (artigos com gestão de stock; pelo SKU = código do artigo)"],
+            ["enviar_preco", "Atualizar o preço de venda dos produtos"],
+            ["concluir_no_site", "Marcar o pedido como «Concluído» na loja quando a encomenda é entregue"]].map(([k, l]) => (
+            <label key={k} className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" className="w-4 h-4 accent-current" checked={!!form[k]} disabled={!isAdmin} onChange={(e) => setForm({ ...form, [k]: e.target.checked })} /> {l}
+            </label>
+          ))}
+          <p className="text-xs text-gray-500">As alterações de stock e preço são enviadas automaticamente a cada 5 minutos.{woo.ultimo_envio ? ` Último envio: ${fmtDate(woo.ultimo_envio.at)} (${woo.ultimo_envio.enviados} artigos).` : ""}</p>
+          {isAdmin && woo.ativo && (form.enviar_stock || form.enviar_preco) && (
+            <button type="button" className="btn btn-secundario" disabled={!!busy} onClick={enviarLoja}><RefreshCw size={15} /> Enviar tudo agora</button>
+          )}
         </div>
 
         <div>

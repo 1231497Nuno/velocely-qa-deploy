@@ -49,6 +49,8 @@ import TabelasPrecos from "@/features/precos/TabelasPrecos";
 import Stock from "@/features/stock/Stock";
 import CargaMaquinas from "@/features/producao/CargaMaquinas";
 import PortalCliente from "@/features/portal/PortalCliente";
+import CalculadoraPreco from "@/features/calculadora/CalculadoraPreco";
+import PrecosFornecedor from "@/features/precos/PrecosFornecedor";
 import Historico from "@/features/historico/Historico";
 import Crm from "@/features/crm/Crm";
 import Pagamentos from "@/features/pagamentos/Pagamentos";
@@ -121,6 +123,8 @@ const router = createBrowserRouter([
       { path: "/analise-producao", element: <Protected modulo="analise_producao"><AnaliseProducao /></Protected> },
       { path: "/tabelas-precos", element: <Protected modulo="artigos"><TabelasPrecos /></Protected> },
       { path: "/stock", element: <Protected modulo="artigos"><Stock /></Protected> },
+      { path: "/precos-fornecedor", element: <Protected modulo="artigos"><PrecosFornecedor /></Protected> },
+      { path: "/calculadora", element: <Protected modulo="orcamentos"><CalculadoraPreco /></Protected> },
       { path: "/carga-maquinas", element: <Protected modulo="ordens_fabrico"><CargaMaquinas /></Protected> },
       { path: "/tarefas", element: <Protected><Tarefas /></Protected> },
       { path: "/relatorios", element: <Protected modulo="relatorios"><Relatorios /></Protected> },

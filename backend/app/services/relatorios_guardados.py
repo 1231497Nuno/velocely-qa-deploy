@@ -203,6 +203,8 @@ async def ciclo(intervalo_seg: int = 300) -> None:
             from app.services import workflow
             await workflow.verificar_prazos()
             await workflow.verificar_orcamentos()
+            from app.services.integracoes import enviar_para_loja
+            await enviar_para_loja(so_pendentes=True)
         except Exception:
             logger.exception("Verificação de prazos/orçamentos falhou")
         await asyncio.sleep(intervalo_seg)
