@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
@@ -43,6 +44,7 @@ const ORC_BLOCOS = [{ id: "orcamentos", label: "Orçamentos" }];
 const NC_BLOCOS = [{ id: "ncs", label: "Não conformidades" }];
 
 export default function EncomendaDetail() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
@@ -397,9 +399,11 @@ export default function EncomendaDetail() {
     if (itens.length === 0) return toast.error("Indica pelo menos uma quantidade a produzir");
     const resumo = itens.map((i) => `• ${i.artigo_nome || "Artigo"}: ${i.quantidade}`).join("\n");
     const avisoAuth = enc.autorizada_producao ? "" : "\n\nA produção ainda não está autorizada.";
-    if (!window.confirm(
-      `Criar ordem de fabrico?\n\n${resumo}${avisoAuth}\n\nSeguem artigos, quantidades, personalizações, artes e preços da encomenda.`,
-    )) return;
+    if (!await confirmAction({
+      title: "Criar ordem de fabrico",
+      description: `${resumo}${avisoAuth}\n\nSeguem artigos, quantidades, personalizações, artes e preços da encomenda.`,
+      confirmLabel: "Criar OF",
+    })) return;
     const of = await api.post(`/encomendas/${id}/ordens-fabrico`, {
       cliente: enc.cliente,
       descricao: enc.descricao || "",
@@ -841,7 +845,12 @@ export default function EncomendaDetail() {
             enc={enc}
             canEdit={can("encomendas", "edit") && enc.estado !== "cancelada"}
             onDelete={async (p) => {
-              if (!window.confirm(`Remover pagamento ${p.recibo_numero || ""}?`)) return;
+              if (!await confirmAction({
+                title: "Remover pagamento",
+                description: p.recibo_numero ? `Recibo ${p.recibo_numero}` : "Este pagamento sai da encomenda.",
+                confirmLabel: "Remover",
+                tone: "danger",
+              })) return;
               try {
                 const updated = await api.del(`/encomendas/${id}/pagamentos/${p.id}`);
                 setEnc(updated);
@@ -875,11 +884,20 @@ export default function EncomendaDetail() {
                       </div>
                     </div>
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                      <input data-testid="enc-autorizar-check" type="checkbox" checked={!!enc.autorizada_producao} onChange={(e) => {
+                      <input data-testid="enc-autorizar-check" type="checkbox" checked={!!enc.autorizada_producao} onChange={async (e) => {
                         const next = e.target.checked;
-                        const ok = next
-                          ? window.confirm("Autorizar a produção desta encomenda? As ordens de fabrico passam a poder avançar.")
-                          : window.confirm("Retirar a autorização de produção?");
+                        const ok = await confirmAction(next
+                          ? {
+                            title: "Autorizar produção",
+                            description: "As ordens de fabrico passam a poder avançar.",
+                            confirmLabel: "Autorizar",
+                          }
+                          : {
+                            title: "Retirar autorização",
+                            description: "A produção deixa de estar autorizada.",
+                            confirmLabel: "Retirar",
+                            tone: "danger",
+                          });
                         if (!ok) return;
                         persist({ autorizada_producao: next }, next ? "Produção autorizada" : "Autorização removida");
                       }} className="w-4 h-4 accent-emerald-600" />

@@ -4,6 +4,7 @@ import { api, eur, fmtDate } from "@/lib/api";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
@@ -33,6 +34,7 @@ function fmtSize(n) {
 }
 
 export default function ContaDetail() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
@@ -105,7 +107,7 @@ export default function ContaDetail() {
   saveForLeaveRef.current = save;
 
   const anular = async () => {
-    if (!window.confirm("Anular esta conta?")) return;
+    if (!await confirmAction({ title: "Anular conta", description: "A conta fica anulada.", confirmLabel: "Anular", tone: "danger" })) return;
     try {
       setConta(await api.post(`/contas/${id}/anular`));
       toast.success("Conta anulada");
@@ -140,7 +142,7 @@ export default function ContaDetail() {
   };
 
   const remove = async () => {
-    if (!window.confirm("Eliminar esta conta?")) return;
+    if (!await confirmAction({ title: "Eliminar conta", description: "Esta conta é eliminada.", confirmLabel: "Eliminar", tone: "danger" })) return;
     await api.del(`/contas/${id}`);
     toast.success("Conta eliminada");
     nav(`/contas?tipo=${backTipo}`);
@@ -170,7 +172,7 @@ export default function ContaDetail() {
   };
 
   const removeAnexo = async (aid) => {
-    if (!window.confirm("Remover este documento da conta?")) return;
+    if (!await confirmAction({ title: "Remover documento", description: "O documento deixa de estar associado a esta conta.", confirmLabel: "Remover", tone: "danger" })) return;
     try {
       setConta(await api.del(`/contas/${id}/anexos/${aid}`));
       toast.success("Documento removido");

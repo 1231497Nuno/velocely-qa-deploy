@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -16,6 +17,7 @@ import {
  * Gestão de artigos diversos (código DIV-…): descrição livre nas linhas de orçamento.
  */
 export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged }) {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -90,7 +92,7 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Eliminar este artigo diverso?")) return;
+    if (!await confirmAction({ title: "Eliminar artigo diverso", description: "Este artigo deixa de estar disponível.", confirmLabel: "Eliminar", tone: "danger" })) return;
     try {
       await api.del(`/artigos/${id}`);
       toast.success("Eliminado");

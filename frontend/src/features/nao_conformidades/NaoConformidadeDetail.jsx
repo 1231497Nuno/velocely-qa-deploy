@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -19,6 +20,7 @@ const ESTADOS = [
 ];
 
 export default function NaoConformidadeDetail() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
@@ -71,7 +73,7 @@ export default function NaoConformidadeDetail() {
   saveForLeaveRef.current = save;
 
   const remove = async () => {
-    if (!window.confirm("Eliminar esta não conformidade?")) return;
+    if (!await confirmAction({ title: "Eliminar não conformidade", description: "Este registo é eliminado.", confirmLabel: "Eliminar", tone: "danger" })) return;
     await api.del(`/nao-conformidades/${id}`);
     toast.success("Não conformidade eliminada");
     nav("/nao-conformidades");

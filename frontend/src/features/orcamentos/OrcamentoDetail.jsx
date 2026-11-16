@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import ClienteSelector from "@/components/ClienteSelector";
 import ContactoSelector from "@/components/ContactoSelector";
 import StatusBadge from "@/components/StatusBadge";
@@ -53,6 +54,7 @@ const toHours = (v, u) => (Number(v) || 0) / (u === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
 
 export default function OrcamentoDetail() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
   const nav = useNavigate();
@@ -902,9 +904,22 @@ export default function OrcamentoDetail() {
     : NOTAS_TEMPLATES_DEFAULT;
 
   const setStatus = async (status) => {
-    if (status === "ganho" && !window.confirm("Marcar este orçamento como ganho? Só depois podes criar a encomenda com estes valores.")) return;
-    if (status === "perdido" && !window.confirm("Marcar este orçamento como perdido? Deixa de poder ser convertido em encomenda.")) return;
-    if (status === "enviado" && !window.confirm("Marcar este orçamento como enviado ao cliente?")) return;
+    if (status === "ganho" && !await confirmAction({
+      title: "Marcar como ganho",
+      description: "Só depois podes criar a encomenda com estes valores.",
+      confirmLabel: "Marcar ganho",
+    })) return;
+    if (status === "perdido" && !await confirmAction({
+      title: "Marcar como perdido",
+      description: "Deixa de poder ser convertido em encomenda.",
+      confirmLabel: "Marcar perdido",
+      tone: "danger",
+    })) return;
+    if (status === "enviado" && !await confirmAction({
+      title: "Marcar como enviado",
+      description: "O orçamento fica registado como enviado ao cliente.",
+      confirmLabel: "Marcar enviado",
+    })) return;
     try {
       await api.put(`/orcamentos/${id}`, payloadFrom({ ...orc, status }));
       toast.success(status === "ganho" ? "Orçamento ganho" : status === "perdido" ? "Orçamento perdido" : status === "enviado" ? "Marcado como enviado" : "Estado actualizado");
@@ -960,9 +975,11 @@ export default function OrcamentoDetail() {
       return;
     }
     const nLinhas = (orc.linhas || []).filter((l) => (l.artigo_nome || l.artigo_id || "").toString().trim()).length;
-    if (!window.confirm(
-      `Finalizar o orçamento?\n\nCliente: ${orc.cliente || "—"}\nLinhas: ${nLinhas}\n\nRecebe número e fica pronto a enviar. Os valores ficam congelados.`,
-    )) return;
+    if (!await confirmAction({
+      title: "Finalizar o orçamento",
+      description: `Cliente: ${orc.cliente || "—"}\nLinhas: ${nLinhas}\n\nRecebe número e fica pronto a enviar. Os valores ficam congelados.`,
+      confirmLabel: "Finalizar",
+    })) return;
     try {
       const ok = await save({ silent: true });
       if (!ok) return;
@@ -986,9 +1003,11 @@ export default function OrcamentoDetail() {
       return;
     }
     const nLinhas = (orc.linhas || []).filter((l) => (l.artigo_id || l.artigo_nome || "").toString().trim()).length;
-    if (!window.confirm(
-      `Criar encomenda a partir deste orçamento?\n\nCliente: ${orc.cliente || "—"}\nLinhas: ${nLinhas}\n\nPassam quantidades, preços, descontos, personalizações, artes, contacto e notas. A ordem de fabrico cria-se depois, na encomenda.`,
-    )) return;
+    if (!await confirmAction({
+      title: "Criar encomenda",
+      description: `Cliente: ${orc.cliente || "—"}\nLinhas: ${nLinhas}\n\nPassam quantidades, preços, descontos, personalizações, artes, contacto e notas. A ordem de fabrico cria-se depois, na encomenda.`,
+      confirmLabel: "Criar encomenda",
+    })) return;
     setConverting(true);
     try {
       const enc = await api.post(`/orcamentos/${id}/converter`);

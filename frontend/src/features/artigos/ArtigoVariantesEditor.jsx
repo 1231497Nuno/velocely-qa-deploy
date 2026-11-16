@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/hooks/useConfirm";
 import { fieldCls } from "@/features/artigos/ArtigoInlineEdit";
 
 /**
@@ -17,6 +18,7 @@ export default function ArtigoVariantesEditor({
   canEdit = true,
   paiNome = "",
 }) {
+  const confirmAction = useConfirm();
   const nav = useNavigate();
   const isDraft = !paiId;
   const [rows, setRows] = useState([]);
@@ -86,7 +88,7 @@ export default function ArtigoVariantesEditor({
       onDraftChange?.(next);
       return;
     }
-    if (!window.confirm(`Remover a variante «${row.variante_label || row.nome}»?`)) return;
+    if (!await confirmAction({ title: "Remover variante", description: `«${row.variante_label || row.nome || "Variante"}» é removida.`, confirmLabel: "Remover", tone: "danger" })) return;
     setBusy(true);
     try {
       const res = await api.del(`/artigos/${paiId}/variantes/${row.id}`);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Plus, Pencil, Trash2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -17,6 +18,7 @@ import {
  * Consumidor Final é de sistema e não pode ser eliminado.
  */
 export default function ClienteDefaultConfig({ open, onOpenChange, onChanged }) {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -85,7 +87,7 @@ export default function ClienteDefaultConfig({ open, onOpenChange, onChanged }) 
 
   const remove = async (c) => {
     if (c.sistema) return toast.error("Não é possível eliminar o Consumidor Final");
-    if (!window.confirm("Eliminar este cliente default?")) return;
+    if (!await confirmAction({ title: "Eliminar cliente default", description: "Este cliente deixa de ser usado como predefinição.", confirmLabel: "Eliminar", tone: "danger" })) return;
     try {
       await api.del(`/clientes/${c.id}`);
       toast.success("Eliminado");

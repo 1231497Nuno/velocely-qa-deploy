@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -112,6 +113,7 @@ function clientePayload(c) {
 }
 
 export default function ClienteDetail() {
+  const confirmAction = useConfirm();
   const { id } = useParams();
   const nav = useNavigate();
   const { can } = useAuth();
@@ -213,7 +215,7 @@ export default function ClienteDetail() {
   saveContactoRef.current = saveContacto;
 
   const removeContacto = async (ct) => {
-    if (!window.confirm(`Eliminar contacto «${ct.nome}»?`)) return;
+    if (!await confirmAction({ title: "Eliminar contacto", description: ct.nome ? `«${ct.nome}» deixa de aparecer nesta ficha.` : "Este contacto é eliminado.", confirmLabel: "Eliminar", tone: "danger" })) return;
     await saveCliente({ contactos: contactos.filter((x) => x.id !== ct.id) }, "Contacto eliminado");
   };
 

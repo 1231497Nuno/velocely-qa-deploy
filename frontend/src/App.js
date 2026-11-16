@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-rou
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
+import { ConfirmProvider } from "@/hooks/useConfirm";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/features/auth/Login";
@@ -55,7 +56,9 @@ function Protected({ children, adminOnly, modulo }) {
 function RootLayout() {
   return (
     <UnsavedChangesProvider>
-      <Outlet />
+      <ConfirmProvider>
+        <Outlet />
+      </ConfirmProvider>
     </UnsavedChangesProvider>
   );
 }

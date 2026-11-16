@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
@@ -22,6 +23,7 @@ const ESTADOS = [
 const TIPO_PT = Object.fromEntries(NC_TIPOS.map((t) => [t.id, t.label]));
 
 export default function NaoConformidades() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
   const [estadoFilter, setEstadoFilter] = useState("");
@@ -39,7 +41,7 @@ export default function NaoConformidades() {
 
   const remove = async (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Eliminar esta não conformidade?")) return;
+    if (!await confirmAction({ title: "Eliminar não conformidade", description: "Este registo é eliminado.", confirmLabel: "Eliminar", tone: "danger" })) return;
     try {
       await api.del(`/nao-conformidades/${id}`);
       toast.success("Não conformidade eliminada");

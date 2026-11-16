@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { ymdHoje } from "@/lib/orcamento";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/hooks/useConfirm";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
@@ -47,6 +48,7 @@ const emptyForm = () => ({
 });
 
 export default function Contas() {
+  const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -92,7 +94,7 @@ export default function Contas() {
 
   const remove = async (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Eliminar esta conta?")) return;
+    if (!await confirmAction({ title: "Eliminar conta", description: "Esta conta é eliminada.", confirmLabel: "Eliminar", tone: "danger" })) return;
     try {
       await api.del(`/contas/${id}`);
       toast.success("Conta eliminada");

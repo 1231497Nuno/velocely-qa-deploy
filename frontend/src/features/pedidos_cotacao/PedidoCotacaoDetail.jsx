@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
@@ -61,6 +62,7 @@ function formFromPc(data) {
 }
 
 export default function PedidoCotacaoDetail() {
+  const confirmAction = useConfirm();
   const { id } = useParams();
   const nav = useNavigate();
   const [tab, setTab] = useDetailTab(["pc", "ficheiros", "historico"], "pc");
@@ -223,7 +225,7 @@ export default function PedidoCotacaoDetail() {
   };
 
   const adjudicar = async () => {
-    if (!window.confirm("Adjudicar este pedido e criar uma Ordem de Compra?")) return;
+    if (!await confirmAction({ title: "Adjudicar pedido", description: "É criada uma ordem de compra a partir deste pedido.", confirmLabel: "Adjudicar" })) return;
     setSaving(true);
     try {
       if (editing) {
@@ -286,7 +288,7 @@ export default function PedidoCotacaoDetail() {
               </button>
             )}
             {podeEditar && !editing && form.estado !== "cancelado" && (
-              <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={() => { if (window.confirm("Cancelar este pedido?")) setEstado("cancelado", "Pedido cancelado"); }} className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={async () => { if (await confirmAction({ title: "Cancelar pedido", description: "Este pedido deixa de poder ser adjudicado.", confirmLabel: "Cancelar pedido", tone: "danger" })) setEstado("cancelado", "Pedido cancelado"); }} className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Ban size={15} /> Cancelar
               </button>
             )}
