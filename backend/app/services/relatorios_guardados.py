@@ -199,4 +199,10 @@ async def ciclo(intervalo_seg: int = 300) -> None:
             await processar()
         except Exception:
             logger.exception("Ciclo de relatórios agendados falhou")
+        try:
+            from app.services import workflow
+            await workflow.verificar_prazos()
+            await workflow.verificar_orcamentos()
+        except Exception:
+            logger.exception("Verificação de prazos/orçamentos falhou")
         await asyncio.sleep(intervalo_seg)

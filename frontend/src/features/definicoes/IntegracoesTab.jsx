@@ -5,6 +5,7 @@ import { api, fmtDate } from "@/lib/api";
 import { API } from "@/infrastructure/api/client";
 import { useAuth } from "@/context/AuthContext";
 import FaturacaoIntegracao from "./FaturacaoIntegracao";
+import PagamentosOnlineIntegracao from "./PagamentosOnlineIntegracao";
 
 const ESTADOS_WOO = [
   { id: "processing", label: "Em processamento (pagas)" },
@@ -149,6 +150,7 @@ export default function IntegracoesTab() {
       )}
 
       <FaturacaoIntegracao cfg={faturacao} isAdmin={isAdmin} onAtualizar={setFaturacao} />
+      <PagamentosOnlineIntegracao isAdmin={isAdmin} />
 
       {/* Loja online */}
       <section className="bg-white border border-gray-200 rounded-sm p-5 space-y-4" data-testid="integracao-woo">
