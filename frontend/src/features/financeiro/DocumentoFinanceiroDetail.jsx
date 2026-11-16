@@ -153,7 +153,7 @@ export default function DocumentoFinanceiroDetail() {
               type="button"
               data-testid="doc-pdf-btn"
               onClick={() => openPdf(id)}
-              className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
+              className="btn btn-secundario"
             >
               <FileDown size={15} /> PDF
             </button>

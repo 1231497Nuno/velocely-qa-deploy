@@ -215,6 +215,11 @@ async def update_nao_conformidade(
     if data.estado and data.estado not in _ESTADOS:
         raise HTTPException(400, f"Estado inválido. Use: {', '.join(NC_ESTADO_PT)}")
     patch = data.model_dump(exclude_unset=True)
+    if existing.get("estado") == "fechada":
+        # NC fechada: só pode ser reaberta (mudança de estado), não editada
+        if patch.get("estado") in (None, "fechada"):
+            raise HTTPException(409, "A não conformidade está fechada e não pode ser editada. Reabra-a primeiro.")
+        patch = {"estado": patch["estado"]}
     patch = await campos_svc.aplicar("nao_conformidades", patch, "guardar", existing)
     patch = {k: patch[k] for k in _NC_CAMPOS + ["campos_extra"] if k in patch and k not in (
         "custo_unitario", "custo_desperdicio", "stock_abatido",

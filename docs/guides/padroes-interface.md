@@ -73,3 +73,24 @@ Para adicionar linhas, artigos, materiais, operações, personalizações, medid
 - `<BotaoAdicionar onClick={...}>Adicionar linha</BotaoAdicionar>` — contorno tracejado na cor da marca e círculo "+" preenchido; `tamanho="sm"` dentro de linhas; `largo` ocupa a largura toda.
 - `<SelectAdicionar label="Adicionar material" onChange={...}>…options…</SelectAdicionar>` — o mesmo aspeto quando a ação é escolher de uma lista.
 - O `ArtigoCombobox` em `modo="adicionar"` já usa este aspeto e permite escolher vários artigos de uma vez.
+
+## Edição nas fichas
+
+As fichas abrem em modo de leitura. Para alterar dados carrega-se em **Editar** (`components/BotoesEdicao.jsx` + `hooks/useModoEdicao.js`):
+
+- Fichas com gravação explícita (Orçamento, Encomenda, OF, Conta, NC): **Editar** → **Cancelar** / **Guardar**.
+- Fichas que gravam ao sair de cada campo (Cliente, Fornecedor): **Editar** → **Concluir edição**.
+- Documentos acabados de criar (`nav(url, { state: { edit: true } })`) e orçamentos em rascunho abrem já em edição.
+- Ações de fluxo (mudar estado, registar pagamentos, marcar entregue, iniciar/parar operações, emitir documentos) não dependem do modo de edição.
+
+Estados finais bloqueiam a edição (aparece "Bloqueado" com o motivo):
+
+| Documento | Bloqueado quando | Como desbloquear |
+|---|---|---|
+| Orçamento | Criado, enviado, ganho ou perdido | Criar nova versão |
+| Encomenda | Concluída, entregue ou cancelada | Desmarcar "Material entregue" |
+| Ordem de fabrico | Finalizada (todas as operações concluídas) | Desmarcar uma operação (pede confirmação) |
+| Conta | Anulada | — |
+| Não conformidade | Fechada | Botão **Reabrir** |
+
+O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos já tinham a grelha bloqueada fora de rascunho/negociação.

@@ -104,7 +104,7 @@ export default function OrdensFabrico() {
 
   const create = async () => {
     const of = await api.post("/ordens-fabrico", { cliente: "Novo Cliente", status: "pendente", itens: [] });
-    nav(`/ordens-fabrico/${of.id}`);
+    nav(`/ordens-fabrico/${of.id}`, { state: { edit: true } });
   };
 
   const remove = async (e, id) => {

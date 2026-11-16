@@ -14,7 +14,9 @@ import ClienteSelector from "@/components/ClienteSelector";
 import Combobox from "@/components/Combobox";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
-import { Save, Trash2, Paperclip, X, Loader2, FileText } from "lucide-react";
+import { Trash2, Paperclip, X, Loader2, FileText } from "lucide-react";
+import BotoesEdicao from "@/components/BotoesEdicao";
+import { useModoEdicao } from "@/hooks/useModoEdicao";
 import { CONTA_TIPO_PT } from "@/features/contas/Contas";
 
 const METODOS = [
@@ -46,6 +48,11 @@ export default function ContaDetail() {
   const [dirty, setDirty] = useState(false);
   const fileRef = useRef(null);
   const saveForLeaveRef = useRef(null);
+  const modo = useModoEdicao({
+    permitido: can("contas", "edit"),
+    bloqueio: conta?.estado === "anulada" ? "Conta anulada" : "",
+  });
+  const edicao = modo.ativo;
 
   useUnsavedChanges({
     dirty,
@@ -196,11 +203,7 @@ export default function ContaDetail() {
         subtitle={`${CONTA_TIPO_PT[conta.tipo] || conta.tipo} · ${conta.entidade || "—"}`}
         actions={
           <>
-            {can("contas", "edit") && !anulada && (
-              <button data-testid="conta-save-btn" onClick={save} className="btn btn-primario">
-                <Save size={15} /> Guardar
-              </button>
-            )}
+            <BotoesEdicao modo={modo} onGuardar={save} onCancelar={load} testid="conta" />
             {can("contas", "edit") && !anulada && (
               <button data-testid="conta-anular-btn" onClick={anular} className="btn btn-secundario">
                 Anular
@@ -233,25 +236,27 @@ export default function ContaDetail() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Tipo</label>
-                  <select data-testid="conta-tipo" value={conta.tipo} onChange={(e) => upd({ tipo: e.target.value })} disabled={anulada} className={inputCls}>
+                  <select data-testid="conta-tipo" value={conta.tipo} onChange={(e) => upd({ tipo: e.target.value })} disabled={!edicao} className={inputCls}>
                     <option value="receber">A receber</option>
                     <option value="pagar">A pagar</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Referência</label>
-                  <input data-testid="conta-referencia" value={conta.referencia || ""} onChange={(e) => upd({ referencia: e.target.value })} disabled={anulada} className={inputCls} />
+                  <input data-testid="conta-referencia" value={conta.referencia || ""} onChange={(e) => upd({ referencia: e.target.value })} disabled={!edicao} className={inputCls} />
                 </div>
               </div>
               {conta.tipo === "receber" ? (
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
+                  <fieldset disabled={!edicao} className="contents">
                   <ClienteSelector
                     value={conta.entidade_id}
                     onChange={(cid, nome) => upd({ entidade_id: cid, entidade: nome, entidade_tipo: "cliente" })}
                     testid="conta-cliente"
-                    canCreate={!anulada}
+                    canCreate={edicao}
                   />
+                  </fieldset>
                 </div>
               ) : can("fornecedores", "view") ? (
                 <div>
@@ -265,30 +270,31 @@ export default function ContaDetail() {
                     }}
                     options={fornecedores.map((f) => ({ value: f.id, label: f.nome }))}
                     placeholder="Selecionar fornecedor..."
+                    disabled={!edicao}
                   />
                 </div>
               ) : null}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Entidade</label>
-                <input data-testid="conta-entidade" value={conta.entidade || ""} onChange={(e) => upd({ entidade: e.target.value })} disabled={anulada} className={inputCls} />
+                <input data-testid="conta-entidade" value={conta.entidade || ""} onChange={(e) => upd({ entidade: e.target.value })} disabled={!edicao} className={inputCls} />
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Descrição</label>
-                <textarea data-testid="conta-descricao" rows={3} value={conta.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} disabled={anulada} className={`${inputCls} resize-y`} />
+                <textarea data-testid="conta-descricao" rows={3} value={conta.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} disabled={!edicao} className={`${inputCls} resize-y`} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>
-                  <input data-testid="conta-data" type="date" value={(conta.data || "").slice(0, 10)} onChange={(e) => upd({ data: e.target.value })} disabled={anulada} className={inputCls} />
+                  <input data-testid="conta-data" type="date" value={(conta.data || "").slice(0, 10)} onChange={(e) => upd({ data: e.target.value })} disabled={!edicao} className={inputCls} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Vencimento</label>
-                  <input data-testid="conta-vencimento" type="date" value={(conta.vencimento || "").slice(0, 10)} onChange={(e) => upd({ vencimento: e.target.value })} disabled={anulada} className={inputCls} />
+                  <input data-testid="conta-vencimento" type="date" value={(conta.vencimento || "").slice(0, 10)} onChange={(e) => upd({ vencimento: e.target.value })} disabled={!edicao} className={inputCls} />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Notas</label>
-                <textarea data-testid="conta-notas" rows={2} value={conta.notas || ""} onChange={(e) => upd({ notas: e.target.value })} disabled={anulada} className={`${inputCls} resize-y`} />
+                <textarea data-testid="conta-notas" rows={2} value={conta.notas || ""} onChange={(e) => upd({ notas: e.target.value })} disabled={!edicao} className={`${inputCls} resize-y`} />
               </div>
             </div>
 
@@ -297,15 +303,15 @@ export default function ContaDetail() {
                 <h3 className="text-sm font-semibold text-gray-700">Valores</h3>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Valor</label>
-                  <input data-testid="conta-valor" type="number" min="0" step="0.01" value={conta.valor ?? 0} onChange={(e) => upd({ valor: e.target.value })} disabled={anulada} className={`${inputCls} tabular-nums`} />
+                  <input data-testid="conta-valor" type="number" min="0" step="0.01" value={conta.valor ?? 0} onChange={(e) => upd({ valor: e.target.value })} disabled={!edicao} className={`${inputCls} tabular-nums`} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Já pago / recebido</label>
-                  <input data-testid="conta-valor-pago" type="number" min="0" step="0.01" value={conta.valor_pago ?? 0} onChange={(e) => upd({ valor_pago: e.target.value })} disabled={anulada} className={`${inputCls} tabular-nums`} />
+                  <input data-testid="conta-valor-pago" type="number" min="0" step="0.01" value={conta.valor_pago ?? 0} onChange={(e) => upd({ valor_pago: e.target.value })} disabled={!edicao} className={`${inputCls} tabular-nums`} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Método</label>
-                  <select data-testid="conta-metodo" value={conta.metodo || ""} onChange={(e) => upd({ metodo: e.target.value })} disabled={anulada} className={inputCls}>
+                  <select data-testid="conta-metodo" value={conta.metodo || ""} onChange={(e) => upd({ metodo: e.target.value })} disabled={!edicao} className={inputCls}>
                     {METODOS.map((m) => <option key={m.id || "none"} value={m.id}>{m.label}</option>)}
                   </select>
                 </div>
@@ -333,7 +339,7 @@ export default function ContaDetail() {
                     data-testid="conta-anexo-add"
                     disabled={busyFile}
                     onClick={() => fileRef.current?.click()}
-                    className="bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
+                    className="btn btn-secundario"
                   >
                     {busyFile ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
                     Associar documento
@@ -375,7 +381,7 @@ export default function ContaDetail() {
           modulo="contas"
           className="mt-4"
           value={conta.campos_extra}
-          disabled={!can("contas", "edit") || anulada}
+          disabled={!edicao}
           onChange={(vals) => upd({ campos_extra: vals })}
         />
       )}

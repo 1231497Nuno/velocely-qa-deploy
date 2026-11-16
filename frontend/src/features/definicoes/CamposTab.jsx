@@ -202,7 +202,7 @@ export default function CamposTab() {
               <p className="text-xs text-gray-500 mt-0.5">Campos novos que aparecem na ficha de {meta.label.toLowerCase()}, no bloco «Outros dados».</p>
             </div>
             {!disabled && (
-              <button type="button" onClick={() => setForm((f) => ({ ...f, extras: [...f.extras, novoCampo()] }))} className="border border-gray-300 bg-white hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium inline-flex items-center gap-1.5 shrink-0" data-testid="campos-add-extra">
+              <button type="button" onClick={() => setForm((f) => ({ ...f, extras: [...f.extras, novoCampo()] }))} className="btn btn-secundario shrink-0" data-testid="campos-add-extra">
                 <Plus size={14} /> Novo campo
               </button>
             )}

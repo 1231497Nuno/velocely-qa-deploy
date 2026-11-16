@@ -141,11 +141,20 @@ async def create_of(data: OrdemFabricoInput, user: dict = Depends(require_perm("
     return doc
 
 
+_MSG_OF_FINALIZADA = "A OF está finalizada e já não pode ser editada."
+
+
+def _of_finalizada(of: dict) -> bool:
+    return recompute_of_status(of).get("status") == "concluido"
+
+
 @router.put("/ordens-fabrico/{ofid}")
 async def update_of(ofid: str, data: OrdemFabricoInput, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
     existing = await ordens_repo.get(ofid)
     if not existing:
         raise HTTPException(404, "OF não encontrada")
+    if _of_finalizada(existing):
+        raise HTTPException(409, _MSG_OF_FINALIZADA)
     update = await campos_svc.aplicar("ordens_fabrico", data.model_dump(), "guardar", existing)
     update.pop("anexos", None)
     update["itens"] = await build_of_itens(update.get("itens", []))
@@ -194,6 +203,8 @@ async def iniciar_operacao(ofid: str, body: TimerBody, _u: dict = Depends(requir
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
+    if _of_finalizada(of):
+        raise HTTPException(409, _MSG_OF_FINALIZADA)
     if of.get("encomenda_id"):
         enc = await encomendas_repo.get(of["encomenda_id"])
         if enc:
@@ -241,6 +252,8 @@ async def finalizar_of(ofid: str, user: dict = Depends(require_perm("ordens_fabr
         for op in it.get("operacoes", []):
             _stop_op(op)
             op["concluida"] = True
+    # Sem operações o estado não se deduz do roteiro: marcar explicitamente
+    of["status"] = "concluido"
     saved = await _save_of(ofid, of)
     await audit.registar("ordem_fabrico", ofid, "concluido", user,
                          f"OF {of.get('numero')} finalizada (todas as operações concluídas)", of.get("numero"))
@@ -252,6 +265,9 @@ async def toggle_operacao(ofid: str, body: ToggleOp, _u: dict = Depends(require_
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
+    if body.concluida and _of_finalizada(of):
+        # Numa OF finalizada só se permite desmarcar uma operação (reabre a OF)
+        raise HTTPException(409, _MSG_OF_FINALIZADA)
     op = _find_op(of, body.item_id, body.operacao_id)
     if op:
         op["concluida"] = body.concluida
@@ -271,6 +287,8 @@ async def nota_operacao(ofid: str, body: NotaBody, _u: dict = Depends(require_pe
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
+    if _of_finalizada(of):
+        raise HTTPException(409, _MSG_OF_FINALIZADA)
     op = _find_op(of, body.item_id, body.operacao_id)
     if not op:
         raise HTTPException(404, "Operação não encontrada")

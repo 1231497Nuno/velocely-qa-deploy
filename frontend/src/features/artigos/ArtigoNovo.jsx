@@ -209,7 +209,7 @@ export default function ArtigoNovo() {
         subtitle="Escolha o tipo — os campos adaptam-se automaticamente"
         actions={
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => nav("/artigos")} className="bg-white border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-gray-50">
+            <button type="button" onClick={() => nav("/artigos")} className="btn btn-secundario">
               Cancelar
             </button>
             <button

@@ -12,13 +12,15 @@ import ArtigoCombobox from "@/components/ArtigoCombobox";
 import PdfExportButton from "@/components/PdfExportButton";
 import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
+import BotoesEdicao from "@/components/BotoesEdicao";
+import { useModoEdicao } from "@/hooks/useModoEdicao";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
+import { ArrowLeft, Trash2, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -40,6 +42,12 @@ export default function OrdemFabricoDetail() {
   const [loadError, setLoadError] = useState(null);
   const [dirty, setDirty] = useState(false);
   const saveForLeaveRef = useRef(null);
+  const finalizada = of?.status === "concluido";
+  const modo = useModoEdicao({
+    permitido: can("ordens_fabrico", "edit"),
+    bloqueio: finalizada ? "OF finalizada" : "",
+  });
+  const edicao = modo.ativo;
 
   useUnsavedChanges({
     dirty,
@@ -188,6 +196,11 @@ export default function OrdemFabricoDetail() {
   saveForLeaveRef.current = save;
 
   const toggleOp = async (itemId, opId, concluida) => {
+    if (finalizada && !concluida && !await confirmAction({
+      title: "Reabrir ordem de fabrico",
+      description: "Esta OF está finalizada. Ao desmarcar a operação, a OF volta a ficar em produção e pode ser editada.",
+      confirmLabel: "Reabrir",
+    })) return;
     const updated = await api.post(`/ordens-fabrico/${id}/toggle-operacao`, {
       item_id: itemId,
       operacao_id: opId,
@@ -283,11 +296,7 @@ export default function OrdemFabricoDetail() {
                   <Flag size={15} /> Finalizar
                 </button>
               )}
-              {can("ordens_fabrico", "edit") && (
-                <button data-testid="save-of-btn" onClick={save} className="btn btn-primario">
-                  <Save size={15} /> Guardar
-                </button>
-              )}
+              <BotoesEdicao modo={modo} onGuardar={save} onCancelar={load} testid="of" />
             </div>
           </div>
 
@@ -351,7 +360,7 @@ export default function OrdemFabricoDetail() {
               <div className="flex flex-col sm:flex-row sm:items-end gap-2 lg:w-72 shrink-0" data-testid="of-responsavel-row">
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 mb-1 flex items-center gap-1"><User size={11} /> Responsável</div>
-                  {can("ordens_fabrico", "edit") ? (
+                  {edicao ? (
                     <div className="flex items-center gap-1.5">
                       <div className="flex-1 min-w-0">
                         <Combobox
@@ -403,7 +412,7 @@ export default function OrdemFabricoDetail() {
                   <FileText size={16} /> Artigos
                   <span className="text-xs font-normal tabular-nums text-gray-400">{of.itens.length}</span>
                 </h2>
-                {can("ordens_fabrico", "edit") ? (
+                {edicao ? (
                   <ArtigoCombobox
                     modo="adicionar"
                     artigos={artigos}
@@ -426,7 +435,7 @@ export default function OrdemFabricoDetail() {
                       <div className="flex items-center pl-3">
                       <CorLinhaPicker
                         value={it.cor || ""}
-                        disabled={!can("ordens_fabrico", "edit")}
+                        disabled={!edicao}
                         onChange={(cor) => updItem(i, { cor })}
                         testid={`of-item-cor-${i}`}
                       />
@@ -487,6 +496,7 @@ export default function OrdemFabricoDetail() {
                       </div>
 
                       {aberto && (
+                        <fieldset disabled={!edicao} className="contents">
                         <div className="px-3 pb-3 space-y-2 border-t border-gray-100/80" onClick={(e) => e.stopPropagation()}>
                           <div className="pt-2">
                             <ArtigoCombobox
@@ -585,7 +595,7 @@ export default function OrdemFabricoDetail() {
                                           <input
                                             type="checkbox"
                                             checked={!!m.consumido}
-                                            disabled={!can("ordens_fabrico", "edit")}
+                                            disabled={!edicao}
                                             onChange={(e) => updItem(i, { materiais: it.materiais.map((x, xi) => (xi === mi ? { ...x, consumido: e.target.checked } : x)) })}
                                             title="Marcar como consumido / separado"
                                           />
@@ -601,8 +611,11 @@ export default function OrdemFabricoDetail() {
                               </table>
                             </div>
                           )}
-                          <p className="text-[11px] text-gray-400">A produção (iniciar/parar) faz-se no roteiro à direita.</p>
+                          <p className="text-[11px] text-gray-400">
+                            {edicao ? "A produção (iniciar/parar) faz-se no roteiro à direita." : "Carregue em \"Editar\" para alterar este artigo. A produção (iniciar/parar) faz-se no roteiro à direita."}
+                          </p>
                         </div>
+                        </fieldset>
                       )}
                     </div>
                   );
@@ -616,7 +629,7 @@ export default function OrdemFabricoDetail() {
 
           {/* Direita: roteiro */}
           <div className="lg:col-span-2 min-h-0">
-            <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} updOpNota={updOpNota} elapsedSeg={elapsedSeg} fmtDur={fmtDur} />
+            <OFRoteiroPanel itens={of.itens} toggleOp={toggleOp} iniciarOp={iniciarOp} pararOp={pararOp} updOpNota={updOpNota} elapsedSeg={elapsedSeg} fmtDur={fmtDur} bloqueado={finalizada} />
           </div>
         </div>
       </div>
@@ -627,7 +640,7 @@ export default function OrdemFabricoDetail() {
           modulo="ordens_fabrico"
           className="mt-4"
           value={of.campos_extra}
-          disabled={!can("ordens_fabrico", "edit")}
+          disabled={!edicao}
           onChange={(vals) => upd({ campos_extra: vals })}
         />
       )}

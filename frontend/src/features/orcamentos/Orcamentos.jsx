@@ -64,14 +64,14 @@ export default function Orcamentos() {
       status: "rascunho",
       linhas: [],
     });
-    nav(`/orcamentos/${o.id}`);
+    nav(`/orcamentos/${o.id}`, { state: { edit: true } });
   };
 
   const duplicar = async (e, id) => {
     e.stopPropagation();
     const o = await api.post(`/orcamentos/${id}/duplicar`);
     toast.success("Orçamento duplicado");
-    nav(`/orcamentos/${o.id}`);
+    nav(`/orcamentos/${o.id}`, { state: { edit: true } });
   };
 
   const remove = async (e, id) => {

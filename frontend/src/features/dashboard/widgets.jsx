@@ -391,7 +391,7 @@ export const QuickActions = () => {
     try {
       const o = await api.post("/orcamentos", { status: "rascunho", linhas: [] });
       toast.success("Rascunho criado");
-      nav(`/orcamentos/${o.id}`);
+      nav(`/orcamentos/${o.id}`, { state: { edit: true } });
     } catch {
       toast.error("Não foi possível criar o orçamento");
     }
@@ -400,7 +400,7 @@ export const QuickActions = () => {
     try {
       const e = await api.post("/encomendas", { cliente: "Novo Cliente", descricao: "", prazo_entrega: "", notas: "" });
       toast.success("Encomenda criada");
-      nav(`/encomendas/${e.id}`);
+      nav(`/encomendas/${e.id}`, { state: { edit: true } });
     } catch {
       toast.error("Não foi possível criar a encomenda");
     }

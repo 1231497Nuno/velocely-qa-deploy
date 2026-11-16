@@ -42,7 +42,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
-import { Trash2, Save, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
+import { Trash2, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta,
@@ -53,6 +53,8 @@ import SelecionarVariantesDialog, {
   artigoTemVariantes,
 } from "@/components/SelecionarVariantesDialog";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import BotoesEdicao from "@/components/BotoesEdicao";
+import { useModoEdicao } from "@/hooks/useModoEdicao";
 
 const toHours = (v, u) => (Number(v) || 0) / (u === "h" ? 1 : 60);
 const maqHora = (m) => (m ? (Number(m.custo_amortizacao_hora) || 0) + (Number(m.custo_energia_hora) || 0) : 0);
@@ -87,6 +89,19 @@ export default function OrcamentoDetail() {
   const validadeAutoRef = useRef(false);
   const saveSilentRef = useRef(null);
   const saveForLeaveRef = useRef(null);
+
+  const stOrc = orc ? orcStatus(orc) : "";
+  const bloqueioOrc = !orc || orcEditavel(orc) ? ""
+    : stOrc === "ganho" ? "Orçamento ganho"
+    : stOrc === "perdido" ? "Orçamento perdido"
+    : stOrc === "enviado" ? "Orçamento enviado"
+    : "Orçamento criado";
+  const modo = useModoEdicao({
+    permitido: can("orcamentos", "edit"),
+    bloqueio: bloqueioOrc,
+    // Rascunhos sem número abrem logo em edição
+    abrirEmEdicao: !!orc && stOrc === "rascunho" && !orcTemNumero(orc),
+  });
 
   const markDirty = useCallback(() => {
     dirtyRef.current = true;
@@ -929,7 +944,8 @@ export default function OrcamentoDetail() {
   const temNumero = orcTemNumero(orc);
   const temCliente = !!(orc.cliente_id || (orc.cliente || "").trim());
   const st = orcStatus(orc);
-  const editavel = orcEditavel(orc);
+  const editavelEstado = orcEditavel(orc);
+  const editavel = modo.ativo;
   const precisaNovaVersao = orcPrecisaNovaVersao(orc);
   const expirado = orcExpirado(orc);
   const versoes = orc.versoes || [];
@@ -984,7 +1000,7 @@ export default function OrcamentoDetail() {
     try {
       const o = await api.post(`/orcamentos/${id}/duplicar`);
       toast.success(`Orçamento duplicado${o.numero ? ` (${o.numero})` : ""}`);
-      nav(`/orcamentos/${o.id}`);
+      nav(`/orcamentos/${o.id}`, { state: { edit: true } });
     } catch (e) {
       const detail = e?.response?.data?.detail;
       toast.error(typeof detail === "string" ? detail : "Não foi possível duplicar");
@@ -1071,7 +1087,7 @@ export default function OrcamentoDetail() {
               </button>
             )}
             {temNumero && can("orcamentos", "edit") && st !== "ganho" && st !== "perdido" && (
-              <button data-testid="orc-status-enviado" onClick={() => setStatus("enviado")} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="orc-status-enviado" onClick={() => setStatus("enviado")} className="btn btn-secundario">
                 <Send size={15} /> Enviado
               </button>
             )}
@@ -1086,12 +1102,12 @@ export default function OrcamentoDetail() {
               </button>
             )}
             {temNumero && can("orcamentos", "edit") && st !== "ganho" && (
-              <button data-testid="orc-status-ganho" onClick={() => setStatus("ganho")} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="orc-status-ganho" onClick={() => setStatus("ganho")} className="btn btn-sucesso">
                 <Trophy size={15} /> Ganho
               </button>
             )}
             {temNumero && can("orcamentos", "edit") && st !== "perdido" && st !== "ganho" && (
-              <button data-testid="orc-status-perdido" onClick={() => setStatus("perdido")} className="bg-white text-red-700 border border-red-300 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="orc-status-perdido" onClick={() => setStatus("perdido")} className="btn btn-perigo-contorno">
                 <Ban size={15} /> Perdido
               </button>
             )}
@@ -1127,11 +1143,12 @@ export default function OrcamentoDetail() {
                 <ClipboardList size={15} /> Criar Encomenda
               </button>
             )}
-            {editavel && can("orcamentos", "edit") && (
-              <button data-testid="save-orcamento-btn" onClick={() => save()} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
-                <Save size={15} /> Guardar
-              </button>
-            )}
+            <BotoesEdicao
+              modo={modo}
+              onGuardar={() => save()}
+              onCancelar={async () => { markClean(); await load(); }}
+              testid="orcamento"
+            />
           </>
         }
       />
@@ -1167,14 +1184,14 @@ export default function OrcamentoDetail() {
           </div>
         </div>
       )}
-      {!editavel && precisaNovaVersao && (
+      {!editavelEstado && precisaNovaVersao && (
         <div data-testid="orc-lock-banner" className="flex items-start gap-2 bg-sky-50 border border-sky-200 text-sky-950 rounded-sm px-4 py-2.5 mb-3 text-sm">
           <Info size={16} className="shrink-0 mt-0.5 text-sky-600" />
           <p>Orçamento enviado/criado — para alterar quantidades ou linhas, crie uma nova versão.</p>
         </div>
       )}
       {/* Meta */}
-      <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
+      <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${editavel ? "" : editavelEstado ? "pointer-events-none" : "pointer-events-none opacity-70"}`}>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Descrição</label>
           <input data-testid="orc-descricao-input" value={orc.descricao || ""} onChange={(e) => upd({ descricao: e.target.value })} placeholder="Descrição do orçamento" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
@@ -1214,7 +1231,7 @@ export default function OrcamentoDetail() {
       )}
 
       {/* Meta */}
-      <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
+      <div className={`bg-white border border-gray-200 rounded-sm p-5 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${editavel ? "" : editavelEstado ? "pointer-events-none" : "pointer-events-none opacity-70"}`}>
         <div className={showRequisitosFinalizar && !temCliente ? "ring-2 ring-amber-400 rounded-sm" : ""}>
           <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Cliente</label>
           <ClienteSelector
@@ -1333,7 +1350,7 @@ export default function OrcamentoDetail() {
           <span><strong>{linhasAbaixoCusto}</strong> {linhasAbaixoCusto === 1 ? "linha está" : "linhas estão"} com preço abaixo do custo de produção — está a vender a perder.</span>
         </div>
       )}
-      <div className={`bg-white border border-gray-200 rounded-sm overflow-hidden mb-4 ${editavel ? "" : "pointer-events-none opacity-70"}`}>
+      <div className={`bg-white border border-gray-200 rounded-sm overflow-hidden mb-4 ${editavel ? "" : editavelEstado ? "pointer-events-none" : "pointer-events-none opacity-70"}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
             <FileText size={16} /> Linhas do Orçamento
@@ -1890,7 +1907,7 @@ export default function OrcamentoDetail() {
         </div>
       </div>
 
-      <div className={editavel ? "" : "pointer-events-none opacity-70"}>
+      <div className={editavel ? "" : editavelEstado ? "pointer-events-none" : "pointer-events-none opacity-70"}>
       <OrcamentoMateriais
         materiais={(orc.materiais || []).filter((m) => !m.da_receita)}
         consumiveis={consumiveis}

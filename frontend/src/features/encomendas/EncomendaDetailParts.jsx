@@ -264,7 +264,7 @@ export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPr
 
 /** Campos de cliente / prazos no estilo FieldGrid dos artigos. */
 export const EncClienteCampos = ({
-  enc, cliente, moradaCompleta, canEdit,
+  enc, cliente, moradaCompleta, canEdit, podeEntregar,
   onContactoChange,
   onPrazoChange, onPrazoBlur,
   onEntregaToggle, onDataEntregaChange, onDataEntregaBlur,
@@ -338,7 +338,7 @@ export const EncClienteCampos = ({
             data-testid="enc-entregue-check"
             type="checkbox"
             checked={!!enc.entregue}
-            disabled={!canEdit}
+            disabled={!(podeEntregar ?? canEdit)}
             onChange={onEntregaToggle}
             className="w-4 h-4 accent-teal-700"
           />
