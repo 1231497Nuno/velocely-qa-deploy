@@ -5,12 +5,15 @@ import uuid
 from app.core import config
 
 _mongo_kwargs = {}
-# Python/macOS: garantir CA bundle (evita SSL: CERTIFICATE_VERIFY_FAILED no Atlas)
-try:
-    import certifi
-    _mongo_kwargs["tlsCAFile"] = certifi.where()
-except Exception:
-    pass
+# Atlas (mongodb+srv / tls=true): garantir CA bundle (evita SSL: CERTIFICATE_VERIFY_FAILED).
+# Mongo local (Docker, mongodb://mongo:27017) não usa TLS — passar tlsCAFile ativava TLS e falhava.
+_url = (config.MONGO_URL or "").lower()
+if _url.startswith("mongodb+srv://") or "tls=true" in _url or "ssl=true" in _url:
+    try:
+        import certifi
+        _mongo_kwargs["tlsCAFile"] = certifi.where()
+    except Exception:
+        pass
 
 client = AsyncIOMotorClient(config.MONGO_URL, **_mongo_kwargs)
 db = client[config.DB_NAME]
