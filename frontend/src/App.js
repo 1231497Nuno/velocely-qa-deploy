@@ -1,5 +1,5 @@
 import "@/App.css";
-import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { TemaProvider } from "@/context/TemaContext";
@@ -50,11 +50,12 @@ import AcertoTempos from "@/features/ordens_fabrico/AcertoTempos";
 
 function Protected({ children, adminOnly, modulo }) {
   const { user, ready, isAdmin, can } = useAuth();
+  const location = useLocation();
   if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">A carregar...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
   if (modulo && !can(modulo, "view")) return <Navigate to="/" replace />;
-  return <Layout><ErrorBoundary>{children}</ErrorBoundary></Layout>;
+  return <Layout><ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary></Layout>;
 }
 
 /** Layout raiz: provider de alterações por guardar (precisa de data router). */
