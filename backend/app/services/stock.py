@@ -23,6 +23,11 @@ from app.services import audit
 TIPOS_SEM_STOCK = ("servico", "inativo", "nao_utilizado")
 
 
+def rq(v) -> float:
+    """Arredonda quantidades a 4 casas (metros, m², kg…); os valores em euros usam round2."""
+    return round(float(v or 0) + 0.0, 4)
+
+
 def _quem(user: Optional[dict]) -> dict:
     return {"id": (user or {}).get("id"), "nome": (user or {}).get("name") or (user or {}).get("nome") or ""}
 
@@ -65,11 +70,11 @@ def stock_por_local(a: dict, padrao_id: str) -> Dict[str, float]:
     """Stock do artigo por localização. Artigos antigos (sem detalhe) ficam todos na localização por defeito."""
     sl = {k: float(v) for k, v in (a.get("stock_local") or {}).items() if abs(float(v or 0)) > 1e-9}
     total = float(a.get("qtd_stock") or 0)
-    dif = round2(total - sum(sl.values()))
+    dif = rq(total - sum(sl.values()))
     if abs(dif) > 1e-9:  # diferenças (dados antigos/acertos diretos) vão para a localização do artigo
         loc = a.get("localizacao_id") or padrao_id
-        sl[loc] = round2(sl.get(loc, 0) + dif)
-    return {k: round2(v) for k, v in sl.items() if abs(v) > 1e-9}
+        sl[loc] = rq(sl.get(loc, 0) + dif)
+    return {k: rq(v) for k, v in sl.items() if abs(v) > 1e-9}
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +207,7 @@ async def apagar_localizacao(lid: str) -> None:
 
 
 async def transferir(artigo_id: str, de: str, para: str, quantidade: float, user: dict, nota: str = "") -> dict:
-    q = round2(float(quantidade or 0))
+    q = rq(float(quantidade or 0))
     if q <= 0 or not de or not para or de == para:
         raise HTTPException(400, "Indique a quantidade e duas localizações diferentes")
     a = await artigos_repo.get(artigo_id)
@@ -233,8 +238,8 @@ async def stock_artigo(artigo_id: str) -> dict:
                "codigo": (locs.get(k) or {}).get("codigo") or "", "quantidade": v} for k, v in sl.items()]
     linhas.sort(key=lambda x: -x["quantidade"])
     movs = await movimentos_stock_repo.find({"artigo_id": artigo_id}, sort=("created_at", -1), limit=30)
-    return {"gere_stock": gere_stock(a), "unidade": a.get("unidade") or "un", "total": round2(float(a.get("qtd_stock") or 0)),
-            "reservado": res, "disponivel": round2(float(a.get("qtd_stock") or 0) - res),
+    return {"gere_stock": gere_stock(a), "unidade": a.get("unidade") or "un", "total": rq(float(a.get("qtd_stock") or 0)),
+            "reservado": res, "disponivel": rq(float(a.get("qtd_stock") or 0) - res),
             "localizacao_padrao_id": a.get("localizacao_id") or padrao["id"], "localizacoes": linhas, "movimentos": movs}
 
 
@@ -248,21 +253,25 @@ async def movimentar(artigo_id: str, delta: float, tipo: str, *, origem: Optiona
     if not a or not gere_stock(a):
         return None  # artigo sem gestão de stock: não mexe na quantidade
     antes = float(a.get("qtd_stock") or 0)
-    depois = round2(antes + delta)
+    depois = rq(antes + delta)
     padrao = await local_padrao()
     loc = localizacao_id or a.get("localizacao_id") or padrao["id"]
+    if loc != padrao["id"] and not await localizacoes_repo.get(loc):
+        if localizacao_id:
+            raise HTTPException(400, "Localização não encontrada (pode ter sido apagada)")
+        loc = padrao["id"]  # a localização por defeito do artigo já não existe → vai para a da empresa
     sl = stock_por_local(a, padrao["id"])
-    sl[loc] = round2(sl.get(loc, 0) + delta)
+    sl[loc] = rq(sl.get(loc, 0) + delta)
     patch: Dict[str, Any] = {"qtd_stock": depois, "woo_pendente": True, "stock_local": {k: v for k, v in sl.items() if abs(v) > 1e-9}}
     if delta > 0 and custo_unit is not None and custo_unit >= 0:
         cm = float(a.get("custo_medio") or a.get("custo_artigo") or 0)
         base = max(antes, 0.0)
         patch["custo_medio"] = round((cm * base + custo_unit * delta) / (base + delta), 4) if base + delta > 0 else custo_unit
         if tipo == "entrada":
-            patch["qtd_ultima_compra"] = round2(delta)
+            patch["qtd_ultima_compra"] = rq(delta)
     await artigos_repo.update(artigo_id, patch)
     m = {"id": new_id(), "artigo_id": artigo_id, "artigo_nome": a.get("nome") or "", "artigo_codigo": a.get("codigo") or "",
-         "tipo": tipo, "quantidade": round2(delta), "saldo": depois, "custo_unit": custo_unit, "origem": origem or {},
+         "tipo": tipo, "quantidade": rq(delta), "saldo": depois, "custo_unit": custo_unit, "origem": origem or {},
          "localizacao_id": loc, "saldo_local": sl.get(loc, 0),
          "nota": nota, "data": (data or now_iso())[:10], "por": _quem(user), "created_at": now_iso()}
     await movimentos_stock_repo.insert(m)
@@ -299,7 +308,7 @@ async def receber(oid: str, dados: dict, user: dict) -> dict:
     data = (dados.get("data") or now_iso())[:10]
     itens = []
     for r in dados.get("linhas") or []:
-        q = round2(float(r.get("quantidade") or 0))
+        q = rq(float(r.get("quantidade") or 0))
         if q <= 0:
             continue
         l = por_id.get(r.get("linha_id"))
@@ -309,7 +318,7 @@ async def receber(oid: str, dados: dict, user: dict) -> dict:
         if q > falta + 1e-9 and not dados.get("aceitar_excesso"):
             raise HTTPException(400, f"«{l.get('artigo_nome') or l.get('nome')}»: faltam receber {max(falta, 0):g}. "
                                      "Marque «aceitar a mais» se o fornecedor mandou mais.")
-        l["qtd_recebida"] = round2(float(l.get("qtd_recebida") or 0) + q)
+        l["qtd_recebida"] = rq(float(l.get("qtd_recebida") or 0) + q)
         mov = None
         if l.get("artigo_id"):
             a = await artigos_repo.get(l["artigo_id"]) or {}
@@ -429,7 +438,43 @@ async def reservas() -> Dict[str, float]:
             for m in it.get("materiais") or []:
                 if m.get("material_id") in artigos and not m.get("consumido"):
                     out[m["material_id"]] = out.get(m["material_id"], 0) + float(m.get("quantidade") or 0)
-    return {k: round2(v) for k, v in out.items()}
+    return {k: rq(v) for k, v in out.items()}
+
+
+# ---------------------------------------------------------------------------
+# Saída de stock na entrega da encomenda (artigos de stock vendidos)
+# ---------------------------------------------------------------------------
+async def saida_encomenda(enc: dict, user: Optional[dict] = None) -> List[str]:
+    """Ao entregar: abate ao stock os artigos de stock vendidos (não produzidos). Idempotente (`stock_saida`)."""
+    if not enc or enc.get("stock_saida"):
+        return []
+    movs = []
+    origem = {"tipo": "encomenda", "id": enc.get("id"), "numero": enc.get("numero")}
+    for l in enc.get("artigos") or []:
+        a = await artigos_repo.get(l.get("artigo_id")) if l.get("artigo_id") else None
+        q = rq(l.get("quantidade"))
+        if not a or not gere_stock(a) or a.get("produzido") or q <= 0:
+            continue
+        m = await movimentar(a["id"], -q, "venda", origem=origem, user=user, nota=enc.get("cliente") or "")
+        if m:
+            movs.append(m["id"])
+    await encomendas_repo.update(enc["id"], {"stock_saida": movs or ["-"], "stock_saida_at": now_iso()})
+    return movs
+
+
+async def repor_saida_encomenda(enc: dict, user: Optional[dict] = None) -> int:
+    """Desfaz a saída (entrega desmarcada / encomenda cancelada depois de entregue)."""
+    ids = [x for x in (enc or {}).get("stock_saida") or [] if x and x != "-"]
+    n = 0
+    for mid in ids:
+        m = await movimentos_stock_repo.get(mid)
+        if m:
+            await movimentar(m["artigo_id"], -float(m["quantidade"]), "ajuste", origem=m.get("origem"), user=user,
+                             nota="Entrega anulada — stock reposto", localizacao_id=m.get("localizacao_id"))
+            n += 1
+    if enc and enc.get("stock_saida"):
+        await encomendas_repo.update(enc["id"], {"stock_saida": [], "stock_saida_at": None})
+    return n
 
 
 # ---------------------------------------------------------------------------
@@ -462,8 +507,8 @@ async def sugestoes() -> List[dict]:
                     "fornecedor_id": a.get("fornecedor_id"), "fornecedor_nome": a.get("fornecedor_nome") or "Sem fornecedor",
                     "cod_fornecedor": a.get("cod_fornecedor") or "", "unidade": a.get("unidade") or "un",
                     "unidade_compra": a.get("unidade_compra") or a.get("unidade") or "un", "fator_compra": fator,
-                    "stock": round2(stock), "em_compra": round2(em_compra.get(a["id"], 0)), "reservado": round2(reservado.get(a["id"], 0)),
-                    "projetado": round2(proj), "nivel": nivel, "qtd_sugerida": round2(qtd_compra),
+                    "stock": rq(stock), "em_compra": rq(em_compra.get(a["id"], 0)), "reservado": rq(reservado.get(a["id"], 0)),
+                    "projetado": rq(proj), "nivel": nivel, "qtd_sugerida": rq(qtd_compra),
                     "preco_compra": round2(float(a.get("preco_compra") or a.get("custo_artigo") or 0) * fator)})
     out.sort(key=lambda s: (s["fornecedor_nome"], s["nome"]))
     return out
@@ -527,7 +572,7 @@ async def novo_inventario(data: str, user: dict) -> dict:
             linhas.append({"chave": f"{a['id']}|{loc}", "artigo_id": a["id"], "localizacao_id": loc,
                            "localizacao": (locs.get(loc) or {}).get("nome") or "", "codigo": a.get("codigo") or "",
                            "nome": a.get("nome") or "", "unidade": a.get("unidade") or "un", "categoria_at": categoria_at(a),
-                           "codigo_barras": a.get("codigo_produto") or "", "qtd_teorica": round2(q), "qtd_contada": None,
+                           "codigo_barras": a.get("codigo_produto") or "", "qtd_teorica": rq(q), "qtd_contada": None,
                            "custo": round(float(a.get("custo_medio") or a.get("custo_artigo") or 0), 4)})
     inv = {"id": new_id(), "data": (data or datetime.now(timezone.utc).date().isoformat())[:10], "estado": "aberto",
            "linhas": linhas, "criado_por": _quem(user), "created_at": now_iso()}
@@ -549,7 +594,7 @@ async def contar(iid: str, contagens: List[dict]) -> dict:
             k = l["artigo_id"]  # contagem antiga (sem localização)
         if k in m:
             v = m[k]
-            l = {**l, "qtd_contada": None if v in (None, "") else round2(float(v))}
+            l = {**l, "qtd_contada": None if v in (None, "") else rq(float(v))}
         linhas.append(l)
     await inventarios_repo.update(iid, {"linhas": linhas})
     return {**inv, "linhas": linhas}
@@ -571,12 +616,12 @@ async def fechar_inventario(iid: str, user: dict) -> dict:
             atual = stock_por_local(a, (await local_padrao())["id"]).get(l["localizacao_id"], 0.0)
         else:
             atual = float(a.get("qtd_stock") or 0)
-        delta = round2(float(l["qtd_contada"]) - atual)
+        delta = rq(float(l["qtd_contada"]) - atual)
         if abs(delta) > 1e-9:
             await movimentar(l["artigo_id"], delta, "inventario", origem={"tipo": "inventario", "id": iid, "numero": inv["data"]},
                              user=user, data=inv["data"], nota="Acerto de inventário", localizacao_id=l.get("localizacao_id"))
             n += 1
-        l["qtd_final"] = round2(float(l["qtd_contada"]))
+        l["qtd_final"] = rq(float(l["qtd_contada"]))
     for l in inv["linhas"]:
         l["valor"] = round2(float(l.get("qtd_final") or 0) * float(l.get("custo") or 0))
     patch = {"estado": "fechado", "linhas": inv["linhas"], "fechado_por": _quem(user), "fechado_at": now_iso(),

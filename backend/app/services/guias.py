@@ -127,6 +127,8 @@ async def emitir(gid: str, user: dict) -> dict:
             enc = await encomendas_repo.get(g["encomenda_id"])
             if enc and not enc.get("entregue"):
                 await encomendas_repo.update(enc["id"], {"entregue": True, "data_entrega": g.get("data")})
+                from app.services import stock as stock_svc
+                await stock_svc.saida_encomenda(enc, user)
     return g
 
 

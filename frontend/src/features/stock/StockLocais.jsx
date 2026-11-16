@@ -86,7 +86,7 @@ export function AjusteLocalDialog({ artigo, porLocal = [], localInicial, onClose
   );
 }
 
-const TIPO_MOV = { entrada: "Entrada", ajuste: "Acerto", inventario: "Inventário", nao_conformidade: "Não conformidade", consumo: "Consumo", producao: "Produção", transferencia: "Transferência" };
+const TIPO_MOV = { entrada: "Entrada", ajuste: "Acerto", inventario: "Inventário", nao_conformidade: "Não conformidade", consumo: "Consumo", producao: "Produção", transferencia: "Transferência", venda: "Venda (entrega)", saida: "Saída", amostra: "Amostra" };
 
 /** Ficha do artigo: stock por localização, reservado/disponível, transferir, acertar e últimos movimentos. */
 export function ArtigoStockLocais({ artigoId, nome, podeEditar }) {

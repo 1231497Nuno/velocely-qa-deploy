@@ -704,6 +704,8 @@ def recompute_of_status(of: dict) -> dict:
     # Artigos a preparar (sem operações): contam como uma tarefa cada, feita quando marcados como preparados
     prep = [it for it in of.get("itens", []) if not (it.get("operacoes") or []) and it.get("tipo_item") == "preparar"]
     of = {**of}
+    if of.get("status") == "cancelado":
+        return of
     running = any(op.get("timer_inicio") for op in all_ops)
     has_progress = any((op.get("tempo_real_seg") or 0) > 0 or op.get("concluida") for op in all_ops) or any(it.get("preparado") for it in prep)
     tarefas = len(all_ops) + len(prep)

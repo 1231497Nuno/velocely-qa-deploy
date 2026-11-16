@@ -22,7 +22,7 @@ const erro = (e, msg) => {
   const d = e?.response?.data?.detail;
   toast.error(typeof d === "string" ? d : msg);
 };
-const TIPO_MOV = { transferencia: "Transferência", entrada: "Entrada (receção)", ajuste: "Acerto", inventario: "Inventário", nao_conformidade: "Não conformidade", consumo: "Consumo (produção)", producao: "Produção" };
+const TIPO_MOV = { transferencia: "Transferência", entrada: "Entrada (receção)", ajuste: "Acerto", inventario: "Inventário", nao_conformidade: "Não conformidade", consumo: "Consumo (produção)", producao: "Produção", venda: "Venda (entrega)", saida: "Saída" };
 const ESTADO = {
   ok: { label: "OK", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   abaixo: { label: "Abaixo do nível", cls: "bg-amber-50 text-amber-800 border-amber-200" },

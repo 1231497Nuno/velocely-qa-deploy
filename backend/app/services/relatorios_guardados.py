@@ -193,6 +193,19 @@ async def processar(momento: Optional[datetime] = None) -> int:
     return n
 
 
+async def _tarefas_periodicas():
+    """Cada tarefa corre isolada: uma falha (ex.: loja online em baixo) não impede as seguintes."""
+    from app.services import avisos_cliente, manutencao, tesouraria, utilidades, workflow
+    from app.services import stock as stock_svc
+    from app.services.integracoes import enviar_para_loja
+    return [
+        ("prazos", workflow.verificar_prazos), ("orçamentos", workflow.verificar_orcamentos),
+        ("manutenção", manutencao.verificar), ("cobranças", tesouraria.verificar_cobrancas),
+        ("backup", utilidades.backup_automatico), ("loja online", lambda: enviar_para_loja(so_pendentes=True)),
+        ("avisos a clientes", avisos_cliente.verificar), ("compras automáticas", stock_svc.compras_automaticas),
+    ]
+
+
 async def ciclo(intervalo_seg: int = 300) -> None:
     while True:
         try:
@@ -200,21 +213,13 @@ async def ciclo(intervalo_seg: int = 300) -> None:
         except Exception:
             logger.exception("Ciclo de relatórios agendados falhou")
         try:
-            from app.services import workflow
-            await workflow.verificar_prazos()
-            await workflow.verificar_orcamentos()
-            from app.services import manutencao
-            await manutencao.verificar()
-            from app.services import tesouraria
-            await tesouraria.verificar_cobrancas()
-            from app.services import utilidades
-            await utilidades.backup_automatico()
-            from app.services.integracoes import enviar_para_loja
-            await enviar_para_loja(so_pendentes=True)
-            from app.services import avisos_cliente
-            await avisos_cliente.verificar()
-            from app.services import stock as stock_svc
-            await stock_svc.compras_automaticas()
+            tarefas = await _tarefas_periodicas()
         except Exception:
-            logger.exception("Verificação de prazos/orçamentos falhou")
+            logger.exception("Não foi possível preparar as tarefas periódicas")
+            tarefas = []
+        for nome, fn in tarefas:
+            try:
+                await fn()
+            except Exception:
+                logger.exception("Tarefa periódica «%s» falhou", nome)
         await asyncio.sleep(intervalo_seg)
