@@ -21,6 +21,7 @@ SYSTEM_MODULES: List[Dict[str, Any]] = [
     {"key": "definicoes", "label": "Definições", "pack": "core", "core": True},
     {"key": "utilizadores", "label": "Gestão de Utilizadores", "pack": "core", "core": True},
     {"key": "historico", "label": "Histórico", "pack": "core", "core": True},
+    {"key": "relatorios", "label": "Relatórios", "pack": "core", "core": True},
     {"key": "clientes", "label": "Clientes", "pack": "comercial", "core": True},
     {"key": "orcamentos", "label": "Orçamentos", "pack": "comercial", "core": True},
     {"key": "encomendas", "label": "Encomendas", "pack": "comercial", "core": True},

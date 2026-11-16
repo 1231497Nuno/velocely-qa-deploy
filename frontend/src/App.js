@@ -43,9 +43,11 @@ import ContaDetail from "@/features/contas/ContaDetail";
 import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
+import Relatorios from "@/features/relatorios/Relatorios";
 import Historico from "@/features/historico/Historico";
 import Crm from "@/features/crm/Crm";
 import Pagamentos from "@/features/pagamentos/Pagamentos";
+import PagamentoDetail from "@/features/pagamentos/PagamentoDetail";
 import AcertoTempos from "@/features/ordens_fabrico/AcertoTempos";
 
 function Protected({ children, adminOnly, modulo }) {
@@ -91,6 +93,7 @@ const router = createBrowserRouter([
       { path: "/nao-conformidades", element: <Protected modulo="nao_conformidades"><NaoConformidades /></Protected> },
       { path: "/nao-conformidades/:id", element: <Protected modulo="nao_conformidades"><NaoConformidadeDetail /></Protected> },
       { path: "/pagamentos", element: <Protected modulo="encomendas"><Pagamentos /></Protected> },
+      { path: "/pagamentos/:eid/:pid", element: <Protected modulo="encomendas"><PagamentoDetail /></Protected> },
       { path: "/financeiro", element: <Protected modulo="financeiro"><Financeiro /></Protected> },
       { path: "/financeiro/:id", element: <Protected modulo="financeiro"><DocumentoFinanceiroDetail /></Protected> },
       { path: "/contas", element: <Protected modulo="contas"><Contas /></Protected> },
@@ -110,6 +113,7 @@ const router = createBrowserRouter([
       { path: "/ordens-fabrico/acerto-tempos", element: <Protected modulo="ordens_fabrico"><AcertoTempos /></Protected> },
       { path: "/ordens-fabrico/:id", element: <Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected> },
       { path: "/analise-producao", element: <Protected modulo="analise_producao"><AnaliseProducao /></Protected> },
+      { path: "/relatorios", element: <Protected modulo="relatorios"><Relatorios /></Protected> },
       { path: "/rentabilidade-clientes", element: <Protected modulo="rentabilidade"><RentabilidadeClientes /></Protected> },
       { path: "/utilizadores", element: <Protected adminOnly><GestaoUtilizadores /></Protected> },
       { path: "/historico", element: <Protected modulo="historico"><Historico /></Protected> },

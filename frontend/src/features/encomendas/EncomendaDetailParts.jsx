@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { eur, fmtDate } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import ContactoSelector from "@/components/ContactoSelector";
@@ -195,6 +195,8 @@ export const EncRegistarPagamento = ({
 /** Lista de pagamentos no sub-separador. */
 export const EncPagamentosLista = ({ enc, canEdit, onDelete }) => {
   const pags = enc.pagamentos || [];
+  const nav = useNavigate();
+  const abrir = (p) => nav(`/pagamentos/${enc.id}/${p.id}`);
   return (
     <div className="bg-white border border-gray-200 rounded-sm overflow-hidden" data-testid="enc-pagamentos-lista">
       <div className="overflow-x-auto">
@@ -205,22 +207,32 @@ export const EncPagamentosLista = ({ enc, canEdit, onDelete }) => {
               <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Método</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Fatura</th>
               <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
               <th className="w-12" />
             </tr>
           </thead>
           <tbody>
             {pags.map((p) => (
-              <tr key={p.id} data-testid={`enc-pag-row-${p.id}`} className="border-b border-gray-100 last:border-0">
-                <td className="px-4 py-2.5 mono tabular-nums font-medium text-gray-900 whitespace-nowrap">{p.recibo_numero || "—"}</td>
+              <tr key={p.id} data-testid={`enc-pag-row-${p.id}`} onClick={() => abrir(p)} title="Abrir o pagamento" className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer">
+                <td className="px-4 py-2.5 mono tabular-nums font-medium whitespace-nowrap">
+                  <Link to={`/pagamentos/${enc.id}/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-gray-900 hover:underline">{p.recibo_numero || "—"}</Link>
+                </td>
                 <td className="px-4 py-2.5 text-gray-600 tabular-nums whitespace-nowrap">{fmtDate(p.data)}</td>
                 <td className="px-4 py-2.5 text-gray-600">{METODO_PAG_PT[p.metodo] || p.metodo || "—"}</td>
                 <td className="px-4 py-2.5 text-gray-600 text-xs">{p.tipo === "devolucao" ? "Devolução" : "Pagamento"}</td>
+                <td className="px-4 py-2.5 text-xs">
+                  {p.tipo === "devolucao" ? <span className="text-gray-400">—</span>
+                    : p.origem === "fatura" ? <span className="text-emerald-700 font-medium">Recibo fiscal</span>
+                    : p.documento_id ? (
+                      <Link to={`/financeiro/${p.documento_id}`} onClick={(e) => e.stopPropagation()} className="text-emerald-700 font-medium hover:underline">{p.documento_numero || "Rascunho"}</Link>
+                    ) : <span className="text-gray-500">Por faturar</span>}
+                </td>
                 <td className={`px-4 py-2.5 text-right tabular-nums font-medium whitespace-nowrap ${p.tipo === "devolucao" ? "text-red-600" : "text-gray-900"}`}>
                   {p.tipo === "devolucao" ? "− " : ""}{eur(p.valor)}
                 </td>
-                <td className="px-4 py-2.5">
-                  {canEdit && p.origem !== "fatura" && (
+                <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                  {canEdit && p.origem !== "fatura" && !p.documento_id && (
                     <button
                       type="button"
                       data-testid={`enc-pag-del-${p.id}`}
@@ -235,7 +247,7 @@ export const EncPagamentosLista = ({ enc, canEdit, onDelete }) => {
               </tr>
             ))}
             {pags.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Sem pagamentos registados.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">Sem pagamentos registados.</td></tr>
             )}
           </tbody>
         </table>

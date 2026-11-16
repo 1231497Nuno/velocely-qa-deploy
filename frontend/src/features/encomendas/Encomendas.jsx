@@ -14,7 +14,8 @@ import MobileFiltersButton from "@/components/MobileFiltersButton";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Trash2, Copy, AlertTriangle, ShoppingBag } from "lucide-react";
+import { Plus, Trash2, Copy, AlertTriangle, ShoppingBag, List, Columns3 } from "lucide-react";
+import EncomendasQuadro from "@/features/encomendas/EncomendasQuadro";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -31,6 +32,10 @@ export default function Encomendas() {
   const [form, setForm] = useState({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" });
   const nav = useNavigate();
   const { sort, toggle, apply } = useSort();
+  const [vista, setVistaState] = useState(() => {
+    try { return localStorage.getItem("encomendas.vista") === "quadro" ? "quadro" : "lista"; } catch { return "lista"; }
+  });
+  const setVista = (v) => { setVistaState(v); try { localStorage.setItem("encomendas.vista", v); } catch { /* sem armazenamento */ } };
 
   const extraParams = useMemo(() => {
     const p = {};
@@ -43,7 +48,7 @@ export default function Encomendas() {
   const {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel,
-  } = useServerPagedList("/encomendas", { extraParams });
+  } = useServerPagedList("/encomendas", { extraParams, enabled: vista === "lista" });
 
   useEffect(() => { if (searchParams.get("semof") === "1") { setSoSemOf(true); setEstadoFilter("todas"); } }, [searchParams]);
 
@@ -79,6 +84,66 @@ export default function Encomendas() {
     </FiltroChip>
   );
 
+  const vistaToggle = (
+    <div className="inline-flex items-center gap-0.5 rounded-sm bg-gray-100 p-0.5" data-testid="enc-vista">
+      {[["lista", "Lista", List], ["quadro", "Quadro", Columns3]].map(([id, label, Icon]) => (
+        <button key={id} type="button" onClick={() => setVista(id)} data-testid={`enc-vista-${id}`}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-sm ${vista === id ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-900"}`}>
+          <Icon size={15} /> {label}
+        </button>
+      ))}
+    </div>
+  );
+  const botaoNova = can("encomendas", "create") && (
+    <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="btn btn-primario"><Plus size={16} /> Nova Encomenda</button>
+  );
+  const dialogoNova = (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">Nova Encomenda</DialogTitle>
+            <DialogDescription>Crie uma encomenda e associe ordens de fabrico.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Cliente</label>
+              <ClienteSelector value={form.cliente_id} onChange={(id, nome) => setForm({ ...form, cliente_id: id, cliente: nome })} testid="encomenda-cliente-select" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
+              <input data-testid="encomenda-descricao-input" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Prazo de entrega</label>
+              <input data-testid="encomenda-prazo-input" type="date" value={form.prazo_entrega} onChange={(e) => setForm({ ...form, prazo_entrega: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setOpen(false)} className="btn btn-secundario">Cancelar</button>
+            <button data-testid="save-encomenda-btn" onClick={create} className="btn btn-primario">Criar</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+  );
+
+  if (vista === "quadro") {
+    return (
+      <div className="flex flex-col min-h-0">
+        <PageHeader
+          title="Encomendas"
+          subtitle="Quadro por estado: Aberta → Em produção → Concluída → Entregue."
+          actions={<div className="flex items-center gap-2 flex-wrap">{vistaToggle}{botaoNova}</div>}
+        />
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex-1 min-w-[16rem]"><SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou orçamento..." testid="encomendas-quadro-search" /></div>
+          <FiltroChip active={soLoja} onClick={() => setSoLoja((v) => !v)} icon={ShoppingBag} testid="enc-quadro-loja">Loja online</FiltroChip>
+        </div>
+        <EncomendasQuadro q={q} soLoja={soLoja} />
+        {dialogoNova}
+      </div>
+    );
+  }
+
   return (
     <>
     <ListPage
@@ -88,10 +153,9 @@ export default function Encomendas() {
           subtitle="Acompanha prazos, pagamento e produção. O aviso vermelho significa artigos ainda sem ordem de fabrico."
           actions={
             <div className="flex items-center gap-2 flex-wrap">
+              {vistaToggle}
               <ExportExcelButton entity="encomendas" ids={pageItems.map((e) => e.id)} />
-              {can("encomendas", "create") && (
-                <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="btn btn-primario"><Plus size={16} /> Nova Encomenda</button>
-              )}
+              {botaoNova}
             </div>
           }
         />
@@ -248,32 +312,7 @@ export default function Encomendas() {
       </MobileCards>
     </ListPage>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-display">Nova Encomenda</DialogTitle>
-            <DialogDescription>Crie uma encomenda e associe ordens de fabrico.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Cliente</label>
-              <ClienteSelector value={form.cliente_id} onChange={(id, nome) => setForm({ ...form, cliente_id: id, cliente: nome })} testid="encomenda-cliente-select" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Descrição</label>
-              <input data-testid="encomenda-descricao-input" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Prazo de entrega</label>
-              <input data-testid="encomenda-prazo-input" type="date" value={form.prazo_entrega} onChange={(e) => setForm({ ...form, prazo_entrega: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-            </div>
-          </div>
-          <DialogFooter>
-            <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-encomenda-btn" onClick={create} className="btn btn-primario">Criar</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialogoNova}
     </>
   );
 }
