@@ -6,6 +6,8 @@ from typing import List, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel
 
+import hashlib
+
 from app.core.database import now_iso, round2
 from app.domain.models import (
     DOC_TIPOS_PRINCIPAIS, DOC_TIPOS_COM_RECIBOS, DOC_TIPO_PT,
@@ -264,7 +266,7 @@ async def qtd_ja_faturada_por_linha(encomenda_id: str) -> dict:
         {
             "encomenda_id": encomenda_id,
             "tipo": {"$in": list(TIPOS_CONSUMAM_QTD)},
-            "estado": {"$ne": "anulada"},
+            "estado": {"$nin": ["anulada", "rascunho"]},
         },
         limit=2000,
     )
@@ -581,3 +583,256 @@ async def emitir_recibo_from_fatura(
         user=user,
         registar_encomenda=True,
     )
+
+
+# ----------------------------------------------------------------------------
+# Pagamentos (ecrã Pagamentos) e documentos em rascunho / assinatura
+# ----------------------------------------------------------------------------
+TIPOS_DOC_DE_PAGAMENTO = ("fatura_recibo", "fatura")
+
+
+def documento_assinado(doc: Optional[dict]) -> bool:
+    """Assinado = emitido com número; a partir daí não se edita (só anular)."""
+    return bool(doc) and doc.get("estado") not in ("rascunho", "anulada")
+
+
+def _valor_sem_iva(total: float, settings: dict) -> float:
+    taxa = 0.0 if (settings or {}).get("iva_isento") else float((settings or {}).get("iva_taxa") or 0)
+    return round2(total / (1 + taxa / 100.0)) if taxa else round2(total)
+
+
+def _totais_documento(linhas: list, desconto_total: float, settings: dict) -> dict:
+    subtotal = round2(sum(float(l.get("subtotal") or 0) for l in linhas) - float(desconto_total or 0))
+    iva = iva_calc(subtotal, settings)
+    return {"subtotal": subtotal, "iva_taxa": iva["iva_taxa"], "iva_valor": iva["iva_valor"],
+            "total": iva["total_com_iva"]}
+
+
+def _linha_valor(descricao: str, valor_sem_iva: float) -> dict:
+    return DocumentoLinha(descricao=descricao, quantidade=1, preco_unit=round2(valor_sem_iva),
+                          subtotal=round2(valor_sem_iva)).model_dump()
+
+
+def estado_pagamento_fiscal(pag: dict, docs_by_id: dict) -> dict:
+    """Situação fiscal de um pagamento: livre, rascunho de fatura ou já faturado (bloqueado)."""
+    if pag.get("tipo") == "devolucao":
+        return {"faturado": "na", "bloqueado": False, "motivo": ""}
+    if pag.get("origem") == "fatura":
+        return {"faturado": "sim", "bloqueado": True,
+                "motivo": f"Registado pelo recibo {pag.get('recibo_numero') or ''}".strip()}
+    doc = docs_by_id.get(pag.get("documento_id") or "")
+    if doc and doc.get("estado") != "anulada":
+        if doc.get("estado") == "rascunho":
+            return {"faturado": "rascunho", "bloqueado": False, "motivo": "Fatura em rascunho"}
+        return {"faturado": "sim", "bloqueado": True,
+                "motivo": f"Faturado em {doc.get('numero')} (assinado)"}
+    return {"faturado": "nao", "bloqueado": False, "motivo": ""}
+
+
+async def criar_documento_de_pagamento(
+    eid: str, pid: str, user: dict, *, tipo: str = "fatura_recibo", notas: str = "", assinar: bool = False,
+) -> dict:
+    """Fatura(-recibo) a partir de um pagamento já registado. Fica em rascunho até ser assinada."""
+    if tipo not in TIPOS_DOC_DE_PAGAMENTO:
+        raise HTTPException(400, "Escolha fatura-recibo ou fatura")
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    pag = next((p for p in (enc.get("pagamentos") or []) if p.get("id") == pid), None)
+    if not pag:
+        raise HTTPException(404, "Pagamento não encontrado")
+    if pag.get("tipo") == "devolucao":
+        raise HTTPException(400, "Uma devolução não se fatura (seria uma nota de crédito)")
+    docs = {}
+    if pag.get("documento_id"):
+        d = await documentos_financeiros_repo.get(pag["documento_id"])
+        if d:
+            docs[d["id"]] = d
+    est = estado_pagamento_fiscal(pag, docs)
+    if est["faturado"] != "nao":
+        raise HTTPException(400, f"Este pagamento já tem documento: {est['motivo']}")
+
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    valor = round2(pag.get("valor") or 0)
+    enc_c = await compute_encomenda(enc)
+    ja = await qtd_ja_faturada_por_linha(eid)
+    total_enc = round2(enc_c.get("total_com_iva") or 0)
+    linhas: list = []
+    desconto_total = 0.0
+    if not any(v > 0.009 for v in ja.values()) and total_enc and abs(valor - total_enc) <= 0.02:
+        # O pagamento liquida a encomenda toda → fatura com os artigos
+        linhas = [_linha_from_artigo(a) for a in (enc_c.get("artigos") or [])]
+        from app.services.costing import encomenda_artigos_breakdown
+        bd = encomenda_artigos_breakdown(enc_c)
+        desconto_total = round2(bd.get("desconto_total_valor") or 0)
+        tot = _totais_documento(linhas, desconto_total, settings)
+        if abs(tot["total"] - valor) > 0.02:
+            linhas, desconto_total = [], 0.0
+    if not linhas:
+        concluida = enc_c.get("estado") == "concluida"
+        descricao = (f"{'Pagamento' if concluida else 'Adiantamento'} referente à encomenda "
+                     f"{enc.get('numero') or ''}").strip()
+        linhas = [_linha_valor(descricao, _valor_sem_iva(valor, settings))]
+    tot = _totais_documento(linhas, desconto_total, settings)
+    # Arredondamentos do IVA: o total do documento é o valor recebido
+    if abs(tot["total"] - valor) <= 0.02:
+        tot["iva_valor"] = round2(valor - tot["subtotal"])
+        tot["total"] = valor
+
+    doc = DocumentoFinanceiro(
+        tipo=tipo,
+        cliente=enc.get("cliente") or "",
+        cliente_id=enc.get("cliente_id"),
+        encomenda_id=eid,
+        encomenda_numero=enc.get("numero"),
+        referencia_cliente=enc.get("referencia_cliente") or "",
+        data=pag.get("data") or now_iso()[:10],
+        linhas=linhas,
+        desconto_total=desconto_total,
+        metodo_pagamento=pag.get("metodo") or "transferencia",
+        notas=notas or "",
+        estado="rascunho",
+        pagamento_id=pid,
+        **tot,
+    ).model_dump()
+    await documentos_financeiros_repo.insert(doc)
+    await _ligar_pagamento(eid, pid, doc)
+    label = DOC_TIPO_PT.get(tipo, tipo)
+    await audit.registar(
+        "documento_financeiro", doc["id"], "criado", user,
+        f"{label} em rascunho a partir do pagamento {pag.get('recibo_numero') or ''} ({valor:.2f}€) "
+        f"da encomenda {enc.get('numero')}",
+        enc.get("numero"),
+    )
+    if assinar:
+        return await assinar_documento(doc["id"], user)
+    return await enrich_documento(doc)
+
+
+async def _ligar_pagamento(eid: Optional[str], pid: Optional[str], doc: Optional[dict]) -> None:
+    """Liga (doc) ou desliga (doc=None) um pagamento da encomenda a um documento fiscal."""
+    if not eid or not pid:
+        return
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        return
+    pagamentos = []
+    for p in enc.get("pagamentos") or []:
+        if p.get("id") == pid:
+            p = {**p,
+                 "documento_id": doc.get("id") if doc else None,
+                 "documento_numero": (doc.get("numero") or "") if doc else "",
+                 "documento_tipo": (doc.get("tipo") or "") if doc else ""}
+        pagamentos.append(p)
+    await encomendas_repo.update(eid, {"pagamentos": pagamentos})
+
+
+async def desligar_pagamento_do_documento(doc: dict) -> None:
+    """Documento anulado/apagado: o pagamento volta a poder ser faturado."""
+    if doc and doc.get("pagamento_id"):
+        await _ligar_pagamento(doc.get("encomenda_id"), doc.get("pagamento_id"), None)
+
+
+async def editar_rascunho(did: str, dados: dict, user: dict) -> dict:
+    doc = await documentos_financeiros_repo.get(did)
+    if not doc:
+        raise HTTPException(404, "Documento não encontrado")
+    if doc.get("estado") != "rascunho":
+        raise HTTPException(409, "Documento assinado — já não pode ser editado. Para corrigir, anule-o e emita outro.")
+    settings = await empresa_repo.find_one({"id": "empresa"}) or {}
+    patch: dict = {}
+    for k in ("data", "notas", "referencia_cliente", "metodo_pagamento"):
+        if k in dados and dados[k] is not None:
+            patch[k] = (dados[k] or "").strip() if isinstance(dados[k], str) else dados[k]
+    if dados.get("linhas") is not None:
+        linhas = []
+        originais = {i: l for i, l in enumerate(doc.get("linhas") or [])}
+        for i, l in enumerate(dados["linhas"]):
+            desc = (l.get("descricao") or "").strip()
+            if not desc:
+                raise HTTPException(400, f"Linha {i + 1}: descrição obrigatória")
+            qtd = round2(float(l.get("quantidade") or 0))
+            pu = round2(float(l.get("preco_unit") or 0))
+            if qtd <= 0:
+                raise HTTPException(400, f"Linha {i + 1}: quantidade tem de ser positiva")
+            base = originais.get(l.get("_indice")) if isinstance(l.get("_indice"), int) else None
+            linha = {**(base or {}), "descricao": desc, "quantidade": qtd, "preco_unit": pu,
+                     "desconto": 0.0, "desconto_tipo": "pct", "personalizacoes": [],
+                     "subtotal": round2(qtd * pu)}
+            linha.pop("_indice", None)
+            linhas.append(DocumentoLinha(**linha).model_dump())
+        if not linhas:
+            raise HTTPException(400, "O documento precisa de pelo menos uma linha")
+        patch["linhas"] = linhas
+        patch.update(_totais_documento(linhas, doc.get("desconto_total") or 0, settings))
+    if not patch:
+        return await enrich_documento(doc)
+    await documentos_financeiros_repo.update(did, patch)
+    doc = {**doc, **patch}
+    await audit.registar("documento_financeiro", did, "editado", user,
+                         f"Rascunho de {DOC_TIPO_PT.get(doc.get('tipo'), doc.get('tipo'))} editado",
+                         doc.get("encomenda_numero") or "")
+    return await enrich_documento(doc)
+
+
+def _hash_documento(doc: dict, anterior: str) -> str:
+    base = ";".join([
+        str(doc.get("data") or ""), str(doc.get("assinado_at") or ""), str(doc.get("numero") or ""),
+        f"{float(doc.get('total') or 0):.2f}", anterior or "",
+    ])
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+async def assinar_documento(did: str, user: dict) -> dict:
+    """Atribui número e assina (hash encadeado). A partir daqui o documento não se edita."""
+    doc = await documentos_financeiros_repo.get(did)
+    if not doc:
+        raise HTTPException(404, "Documento não encontrado")
+    if doc.get("estado") != "rascunho":
+        raise HTTPException(409, "Este documento já está assinado")
+    if not doc.get("linhas"):
+        raise HTTPException(400, "O documento não tem linhas")
+    pag = None
+    if doc.get("pagamento_id"):
+        enc = await encomendas_repo.get(doc.get("encomenda_id") or "")
+        pag = next((p for p in ((enc or {}).get("pagamentos") or []) if p.get("id") == doc["pagamento_id"]), None)
+        if not pag:
+            raise HTTPException(400, "O pagamento de origem já não existe — elimine este rascunho")
+        if abs(round2(pag.get("valor") or 0) - round2(doc.get("total") or 0)) > 0.01:
+            raise HTTPException(
+                400,
+                f"O total do documento ({float(doc.get('total') or 0):.2f}€) tem de ser igual ao "
+                f"pagamento ({float(pag.get('valor') or 0):.2f}€). Acerte as linhas ou o pagamento.",
+            )
+    ts = now_iso()
+    numero = await next_codigo(NUMERACAO_POR_TIPO[doc["tipo"]])
+    ultimo = await documentos_financeiros_repo.find(
+        {"hash": {"$ne": ""}, "tipo": doc["tipo"]}, sort=("assinado_at", -1), limit=1,
+    )
+    anterior = (ultimo[0].get("hash") if ultimo else "") or ""
+    patch = {
+        "numero": numero,
+        "estado": "emitida",
+        "assinado_at": ts,
+        "assinado_por": (user or {}).get("nome") or (user or {}).get("email") or "",
+        "hash_anterior": anterior,
+    }
+    if doc["tipo"] == "fatura_recibo":
+        patch["valor_pago"] = round2(doc.get("total") or 0)
+    doc = {**doc, **patch}
+    doc["hash"] = _hash_documento(doc, anterior)
+    await documentos_financeiros_repo.update(did, {**patch, "hash": doc["hash"]})
+    if pag:
+        await _ligar_pagamento(doc.get("encomenda_id"), pag["id"], doc)
+        if doc["tipo"] == "fatura":
+            # O dinheiro já entrou: recibo associado à fatura, sem duplicar o pagamento na encomenda
+            await _criar_recibo_na_fatura(
+                doc, valor=round2(pag.get("valor") or 0),
+                metodo_pagamento=pag.get("metodo") or "transferencia",
+                notas=f"Pagamento {pag.get('recibo_numero') or ''}".strip(),
+                user=user, registar_encomenda=False,
+            )
+    label = DOC_TIPO_PT.get(doc["tipo"], doc["tipo"])
+    await audit.registar("documento_financeiro", did, "estado_alterado", user,
+                         f"{label} {numero} assinada", numero)
+    return await enrich_documento(doc)

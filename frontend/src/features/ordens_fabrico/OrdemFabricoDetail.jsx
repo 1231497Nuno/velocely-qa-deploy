@@ -20,7 +20,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Trash2, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
+import { ArrowLeft, Trash2, Timer, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -290,6 +290,11 @@ export default function OrdemFabricoDetail() {
               <button data-testid="of-toggle-prioridade-btn" onClick={togglePrioridade} title="Marcar prioridade" className={`rounded-sm px-2.5 py-1.5 text-sm font-medium flex items-center gap-1.5 border transition-colors ${of.prioritaria ? "bg-amber-50 border-amber-300 text-amber-700" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
                 <Star size={15} className={of.prioritaria ? "fill-amber-400 text-amber-500" : ""} /> {of.prioritaria ? "Prioritária" : "Prioridade"}
               </button>
+              {can("ordens_fabrico", "edit") && (
+                <Link to={`/ordens-fabrico/acerto-tempos?of=${id}`} className="btn btn-secundario" data-testid="of-acertar-tempos-btn" title="Corrigir os tempos reais para acertar os custos">
+                  <Timer size={15} /> Acertar tempos
+                </Link>
+              )}
               <PdfExportButton modulo="of" recordId={id} />
               {of.status !== "concluido" && (
                 <button data-testid="finalizar-of-btn" onClick={finalizar} className="btn btn-sucesso">

@@ -899,6 +899,8 @@ class OFOperacao(BaseModel):
     mao_obra_custo_hora: float = 0.0
     timer_inicio: Optional[str] = None
     tempo_real_seg: float = 0.0
+    # Acerto manual do tempo real de máquina (min). Vazio = usa o estimado.
+    tempo_maquina_real: Optional[float] = None
     concluida: bool = False
     manual: bool = False
     nota: str = ""
@@ -996,6 +998,10 @@ class Pagamento(BaseModel):
     nota: str = ""
     origem: str = "encomenda"  # encomenda | fatura
     tipo: str = "pagamento"  # pagamento | devolucao
+    # Documento fiscal emitido a partir deste pagamento (ecrã Pagamentos)
+    documento_id: Optional[str] = None
+    documento_numero: str = ""
+    documento_tipo: str = ""
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -1079,7 +1085,14 @@ class DocumentoFinanceiroInput(BaseModel):
     valor_pago: float = 0.0
     metodo_pagamento: str = ""
     notas: str = ""
-    estado: str = "emitida"  # emitida | anulada
+    estado: str = "emitida"  # rascunho | emitida | anulada  (emitida = assinada, já não se edita)
+    # Origem: pagamento registado na encomenda (ecrã Pagamentos)
+    pagamento_id: Optional[str] = None
+    # Assinatura interna (encadeada) — fixa o documento
+    hash: str = ""
+    hash_anterior: str = ""
+    assinado_at: Optional[str] = None
+    assinado_por: str = ""
 
 
 class DocumentoFinanceiro(DocumentoFinanceiroInput):

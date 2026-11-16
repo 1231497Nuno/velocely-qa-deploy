@@ -38,6 +38,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Kanban,
+  Timer,
+  Banknote,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -50,6 +52,7 @@ const NAV_GROUPS = [
       { to: "/pedidos-cotacao", label: "Pedidos de Cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
       { to: "/ordens-compra", label: "Ordens de Compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
       { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
+      { to: "/ordens-fabrico/acerto-tempos", label: "Acerto de tempos", icon: Timer, tid: "nav-acerto-tempos", modulo: "ordens_fabrico" },
       { to: "/nao-conformidades", label: "Não conformidades", icon: AlertTriangle, tid: "nav-nc", modulo: "nao_conformidades" },
       { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" },
       { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
@@ -78,8 +81,9 @@ const NAV_GROUPS = [
   },
   {
     id: "financeiro",
-    label: "Faturas e recibos",
+    label: "Pagamentos e faturas",
     items: [
+      { to: "/pagamentos", label: "Pagamentos", icon: Banknote, tid: "nav-pagamentos", modulo: "encomendas" },
       { to: "/financeiro", label: "Faturas / Recibos", icon: Wallet, tid: "nav-financeiro", modulo: "financeiro" },
     ],
   },
