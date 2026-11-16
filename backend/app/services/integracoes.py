@@ -426,9 +426,12 @@ async def _importar_pedido_woo(o: dict, *, user: Optional[dict] = None, cfg: Opt
         patch: Dict[str, Any] = {"origem_externa": {**(existente.get("origem_externa") or {}), **_origem(o, cfg)}}
         msgs = []
         if estado_woo in WOO_ESTADOS_PAGOS or o.get("date_paid"):
+            from app.services import workflow
+            status_antes = await workflow.status_pagamento(existente["id"])
             pag = await _registar_pagamento_woo(existente, o)
             if pag:
                 msgs.append(f"pagamento de {pag['valor']:.2f}€ registado")
+                await workflow.apos_pagamento(existente["id"], status_antes, pag["valor"], origem=f"Loja online #{o.get('number')}")
         if estado_woo in WOO_ESTADOS_CANCELADOS and existente.get("estado") not in ("cancelada", "concluida"):
             from app.repositories import ordens_repo
             tem_of = await ordens_repo.find_one({"encomenda_id": existente["id"]})
@@ -474,8 +477,11 @@ async def _importar_pedido_woo(o: dict, *, user: Optional[dict] = None, cfg: Opt
         enc["valor_total"] = total_loja
         enc["valor_total_manual"] = True
     await encomendas_repo.insert(enc)
+    from app.services import workflow
+    await workflow.encomenda_criada(enc, f"Loja online #{o.get('number')} ({estado_woo}).")
     if estado_woo in WOO_ESTADOS_PAGOS or o.get("date_paid"):
-        await _registar_pagamento_woo(enc, o)
+        if await _registar_pagamento_woo(enc, o):
+            await workflow.apos_pagamento(enc["id"], "pendente", float(o.get("total") or 0), origem=f"Loja online #{o.get('number')}")
     await audit.registar(
         "encomenda", enc["id"], "criado", user,
         f"Encomenda {enc['numero']} importada da loja online (#{o.get('number')}, {estado_woo})",
@@ -599,6 +605,9 @@ async def receber_pedido_site(dados: Any, origem_pagina: str = "") -> dict:
         "created_at": ts, "updated_at": ts, "estado_desde": ts, "fechado_at": None,
     }
     await leads_repo.insert(lead)
+    from app.services import workflow
+    await workflow.evento("lead_site", f"Pedido do site: {nome or empresa or email}", (lead.get("descricao") or "")[:300],
+                          link=f"/crm?lead={lead['id']}", entidade="lead", entidade_id=lead["id"])
     cfg["ultimo_pedido"] = {"at": ts, "nome": nome or empresa or email}
     await integracoes_repo.update_where({"id": SITE_ID}, cfg, upsert=True)
     return {"ok": True, "lead_id": lead["id"], "novo": True}

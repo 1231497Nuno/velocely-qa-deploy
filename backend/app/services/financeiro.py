@@ -141,8 +141,8 @@ async def assert_limite_credito(
     novo_valor: float,
     *,
     excluir_encomenda_id: Optional[str] = None,
-) -> None:
-    """Bloqueia se exposição + novo_valor exceder limite_credito do cliente."""
+) -> Optional[str]:
+    """Bloqueia (ou só avisa, conforme Definições) se exposição + novo_valor exceder o limite de crédito."""
     if not cliente_id:
         return
     from app.repositories import clientes_repo
@@ -161,13 +161,13 @@ async def assert_limite_credito(
     exposicao = await exposicao_credito_cliente(cliente_id, excluir_encomenda_id=excluir_encomenda_id)
     projectado = round2(exposicao + max(0.0, float(novo_valor or 0)))
     if projectado > limite + 0.009:
-        raise HTTPException(
-            400,
-            (
-                f"Limite de crédito do cliente excedido "
-                f"(limite {limite:.2f}€ · em aberto {exposicao:.2f}€ · novo {float(novo_valor or 0):.2f}€)."
-            ),
-        )
+        msg = (f"Limite de crédito do cliente excedido "
+               f"(limite {limite:.2f}€ · em aberto {exposicao:.2f}€ · novo {float(novo_valor or 0):.2f}€).")
+        from app.services import workflow
+        if (await workflow.get_config()).get("credito_modo") == "aviso":
+            return msg  # Definições: só avisar
+        raise HTTPException(400, msg)
+    return None
 
 
 async def _registar_pagamento_encomenda(enc_id: Optional[str], valor: float, metodo: str, recibo_numero: str, data: str):
@@ -185,9 +185,12 @@ async def _registar_pagamento_encomenda(enc_id: Optional[str], valor: float, met
         origem="fatura",
         tipo="pagamento",
     )
+    from app.services import workflow
+    status_antes = await workflow.status_pagamento(enc_id)
     pagamentos = (enc.get("pagamentos") or []) + [pag.model_dump()]
     total_pago = soma_valor_pago(pagamentos)
     await encomendas_repo.update(enc_id, {"pagamentos": pagamentos, "valor_pago": total_pago})
+    await workflow.apos_pagamento(enc_id, status_antes, valor, origem=f"Recibo {recibo_numero}")
 
 
 async def _reverter_pagamento_encomenda_por_recibo(enc_id: Optional[str], recibo_numero: Optional[str]) -> int:
@@ -435,6 +438,9 @@ async def emitir_from_encomenda(
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
+    if tipo != "proforma":
+        from app.services import workflow
+        workflow.assert_nao_bloqueada(enc, "faturar")
 
     enc_c = await compute_encomenda(enc)
     notas_finais = notas or ""

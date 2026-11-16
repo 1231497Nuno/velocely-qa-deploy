@@ -151,3 +151,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   comparação (período anterior / ano anterior), cliente e top N.
 - Exportação: `GET /relatorios/gerar/{id}?formato=xlsx|pdf`. Módulo de permissões: `relatorios`.
 - Para acrescentar um relatório: escrever a função `async def x(d: Dados, p: Params)` e registá-la em `RELATORIOS`.
+
+## Aprovações, alertas e tarefas (Definições → Aprovações e alertas)
+
+- `services/workflow.py`. Regras de aprovação: desconto/margem/total do orçamento (ao criar e ao enviar) e total da
+  ordem de compra (ao dar como recebida). `exigir_aprovacao` responde 409 `{codigo: aprovacao_pedida|aprovacao_pendente}`
+  e cria o pedido na coleção `tarefas`; a aprovação vale enquanto os valores não piorarem.
+- Alertas: `workflow.evento(nome, …)` (encomenda nova/paga, pagamento, orçamento aceite, prazo a chegar, NC, pedido do site,
+  bloqueio, decisão de aprovação). Destinatários configuráveis (vazio = administradores) e email opcional.
+- Página `/tarefas` e ícone no topo (`/tarefas/contagem`). Erros `{codigo, mensagem}` chegam aos ecrãs como texto
+  (`detail`) e o objeto fica em `response.data.detalhe` (interceptor do cliente HTTP).
+- Bloqueio manual da encomenda (`POST /encomendas/{id}/bloquear|desbloquear`): impede criar/iniciar OF, faturar e
+  marcar entrega. Desbloqueia quem bloqueou ou um administrador. Limite de crédito: bloquear ou só avisar.

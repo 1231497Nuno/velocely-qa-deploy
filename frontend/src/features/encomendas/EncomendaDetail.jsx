@@ -19,7 +19,7 @@ import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
   Trash2, X,
-  ShieldCheck, ShieldAlert, FileOutput, AlertTriangle, ShoppingBag,
+  ShieldCheck, ShieldAlert, FileOutput, AlertTriangle, ShoppingBag, Lock, LockOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EncAlertas, EncKPIs, EncClienteCampos, EncRegistarPagamento, EncPagamentoResumo, EncPagamentosLista, OFsPanel, OrcamentosPanel, NcsPanel, OfFaseadaDialog } from "@/features/encomendas/EncomendaDetailParts";
@@ -452,6 +452,27 @@ export default function EncomendaDetail() {
 
   const podeProduzir = enc.pode_produzir;
 
+  const bloquear = async () => {
+    const motivo = window.prompt("Motivo do bloqueio (ex.: à espera da arte final, problema de pagamento):");
+    if (!motivo || !motivo.trim()) return;
+    try {
+      setEnc(await api.post(`/encomendas/${id}/bloquear`, { motivo }));
+      toast.success("Encomenda bloqueada");
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Não foi possível bloquear");
+    }
+  };
+  const desbloquear = async () => {
+    try {
+      setEnc(await api.post(`/encomendas/${id}/desbloquear`));
+      toast.success("Encomenda desbloqueada");
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Não foi possível desbloquear");
+    }
+  };
+
   return (
     <div>
       <StickyDetailHeader
@@ -461,6 +482,11 @@ export default function EncomendaDetail() {
           <>
             <StatusBadge status={enc.estado} testid="encomenda-estado-badge" />
             {enc.entregue && <StatusBadge status="entregue" testid="encomenda-entregue-badge" />}
+            {enc.bloqueio?.ativo && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5" data-testid="encomenda-bloqueada-badge">
+                <Lock size={11} /> Bloqueada
+              </span>
+            )}
             <StatusBadge status={PAY_BADGE[enc.status_pagamento]} testid="encomenda-pagamento-badge" />
             {enc.origem_externa?.canal === "woocommerce" && (
               <a
@@ -505,10 +531,26 @@ export default function EncomendaDetail() {
                 <FileOutput size={15} /> Emitir fatura
               </button>
             )}
+            {can("encomendas", "edit") && enc.estado !== "cancelada" && !modo.editando && (
+              enc.bloqueio?.ativo ? (
+                <button type="button" onClick={desbloquear} className="btn btn-aviso-contorno" data-testid="enc-desbloquear"><LockOpen size={15} /> Desbloquear</button>
+              ) : (
+                <button type="button" onClick={bloquear} className="btn btn-secundario" data-testid="enc-bloquear" title="Pôr em espera: não produz, não fatura nem se entrega"><Lock size={15} /> Bloquear</button>
+              )
+            )}
             <BotoesEdicao modo={modo} onGuardar={save} onCancelar={load} testid="encomenda" />
           </>
         }
       />
+      {enc.bloqueio?.ativo && (
+        <div className="flex items-start gap-2 rounded-sm border border-red-200 bg-red-50 px-4 py-2.5 mb-4 text-sm text-red-900" data-testid="encomenda-bloqueio-banner">
+          <Lock size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold">Encomenda bloqueada — {enc.bloqueio.motivo}</div>
+            <div className="text-xs opacity-80">Por {enc.bloqueio.por?.nome || "—"}. Enquanto estiver bloqueada não se criam ou iniciam OF, não se fatura e não se marca a entrega.</div>
+          </div>
+        </div>
+      )}
 
       <DetailTabs
         testid="encomenda-tabs"

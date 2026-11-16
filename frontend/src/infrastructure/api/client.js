@@ -42,6 +42,16 @@ client.interceptors.response.use(
       await new Promise((r) => setTimeout(r, 1800));
       return client.request(cfg);
     }
+    // Erros estruturados ({codigo, mensagem}): o texto passa a `detail` (os ecrãs já o mostram)
+    // e o objeto fica em `detalhe` (ex.: pedidos de aprovação, anular no programa de faturação).
+    const data = err.response?.data;
+    if (data && data.detail && typeof data.detail === "object" && !Array.isArray(data.detail) && data.detail.mensagem) {
+      data.detalhe = data.detail;
+      data.detail = data.detail.mensagem;
+      if (String(data.detalhe.codigo || "").startsWith("aprovacao")) {
+        window.dispatchEvent(new CustomEvent("velocely:aprovacao", { detail: data.detalhe }));
+      }
+    }
     const url = cfg.url || "";
     const isAuthFlow =
       url.includes("/auth/login") ||

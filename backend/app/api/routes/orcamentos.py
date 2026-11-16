@@ -313,6 +313,8 @@ async def enviar_orcamento_email(
     if not _tem_numero(o):
         raise HTTPException(400, "Finalize o orçamento antes de enviar. Só depois de finalizado recebe número.")
     o = compute_orcamento_totais(o)
+    from app.services import workflow
+    await workflow.exigir_aprovacao_orcamento(o, user, "enviar o orçamento ao cliente")
     margem_min = await _margem_minima()
     margem = float(o.get("margem_pct") or 0)
     if margem < margem_min and not body.autorizar_margem_baixa:
@@ -453,6 +455,11 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
             "orcamento", oid, "estado_alterado", user,
             f"Estado do orçamento {numero} → {STATUS_PT.get(data.status, data.status)}", numero,
         )
+        if _status(update.get("status")) == "ganho":
+            from app.services import workflow
+            await workflow.evento("orcamento_aceite", f"Orçamento aceite: {numero} ({existing.get('cliente') or ''})",
+                                  "O cliente aceitou — pode converter em encomenda.", link=f"/orcamentos/{oid}",
+                                  entidade="orcamento", entidade_id=oid, chave=f"orc_aceite:{oid}")
     if alteracoes:
         await audit.registar("orcamento", oid, "editado", user, f"Orçamento {numero or 'rascunho'} editado", numero, alteracoes)
     tot = compute_orcamento_totais(existing)
@@ -519,6 +526,8 @@ async def finalizar_orcamento(oid: str, user: dict = Depends(require_perm("orcam
     faltas = requisitos_finalizar(orc)
     if faltas:
         raise HTTPException(400, detail="; ".join(faltas))
+    from app.services import workflow
+    await workflow.exigir_aprovacao_orcamento(compute_orcamento_totais(dict(orc)), user, "criar o orçamento")
     numero = await next_sequence("ORC")
     # Fotografia de custos/preços — catálogo futuro não altera este ORC
     mats = fill_materiais(list(orc.get("materiais") or []))
@@ -628,7 +637,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
     orc = {**orc, "linhas": linhas, "materiais": mats}
     orc_t = compute_orcamento_totais(orc)
     from app.services.financeiro import assert_limite_credito
-    await assert_limite_credito(orc.get("cliente_id"), float(orc_t.get("total") or 0))
+    aviso_credito = await assert_limite_credito(orc.get("cliente_id"), float(orc_t.get("total") or 0))
     enc_artigos = []
     for l in linhas:
         if not _linha_pronta(l):
@@ -706,4 +715,9 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
                          f"Orçamento {orc.get('numero')} convertido → Encomenda {enc.numero}", orc.get("numero"))
     await audit.registar("encomenda", enc.id, "criado", user,
                          f"Encomenda {enc.numero} gerada do orçamento {orc.get('numero')}", enc.numero)
-    return await compute_encomenda(enc.model_dump())
+    from app.services import workflow
+    await workflow.encomenda_criada(enc.model_dump(), f"Gerada do orçamento {orc.get('numero')}.")
+    out = await compute_encomenda(enc.model_dump())
+    if aviso_credito:
+        out["aviso_credito"] = aviso_credito
+    return out

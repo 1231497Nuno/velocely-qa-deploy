@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, CalendarClock, Info, ShoppingBag } from "lucide-react";
+import { AlertTriangle, CalendarClock, Info, Lock, ShoppingBag } from "lucide-react";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -42,6 +42,7 @@ function Cartao({ e, onOpen, onDragStart, onDragEnd, arrastavel, aArrastar }) {
         <div className="min-w-0">
           <div className="mono font-semibold text-gray-900 inline-flex items-center gap-1.5">
             {e.numero}
+            {e.bloqueio?.ativo && <Lock size={12} className="text-red-600" title={`Bloqueada: ${e.bloqueio.motivo}`} />}
             {e.tem_artigos_sem_of && <AlertTriangle size={13} className="text-red-500" title="Artigos sem ordem de fabrico" />}
             {e.origem_externa?.canal === "woocommerce" && <ShoppingBag size={12} className="text-violet-600" title={`Loja online #${e.origem_externa.numero}`} />}
           </div>

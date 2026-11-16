@@ -138,6 +138,9 @@ async def update_ordem_compra(
         raise HTTPException(404, "Ordem de compra não encontrada")
     data = await _resolve_fornecedor(data)
     novo = await campos_svc.aplicar("ordens_compra", data.model_dump(), "guardar", existing)
+    if novo.get("estado") == "recebida" and existing.get("estado") != "recebida":
+        from app.services import workflow
+        await workflow.exigir_aprovacao_oc({**existing, **novo, "id": oid}, user, "dar a ordem de compra como recebida")
     _exigir_artigos_nas_linhas(novo.get("linhas") or [], existing.get("linhas") or [])
     novo.pop("anexos", None)
     alteracoes = audit.diff_campos(existing, novo, _OC_CAMPOS)

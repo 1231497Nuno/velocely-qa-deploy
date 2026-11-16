@@ -192,6 +192,10 @@ async def create_nc_encomenda(
         + (f" · desperdício {custo_desp:.2f} €" if custo_desp else ""),
         nc.numero,
     )
+    from app.services import workflow
+    await workflow.evento("nc_criada", f"Não conformidade {nc.numero} — {nc.encomenda_numero} ({nc.cliente or ''})",
+                          f"{ref}: {nc.descricao[:200]}", link=f"/nao-conformidades/{nc.id}",
+                          entidade="nao_conformidade", entidade_id=nc.id)
     await audit.registar(
         "encomenda", eid, "nao_conformidade", user,
         f"Não conformidade {nc.numero} aberta na referência {ref}"
