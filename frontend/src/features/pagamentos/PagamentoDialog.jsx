@@ -37,6 +37,8 @@ export default function PagamentoDialog({ pagamento, onClose, onChanged }) {
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [tipoDoc, setTipoDoc] = useState("fatura_recibo");
+  const [cert, setCert] = useState(null);
+  useEffect(() => { api.get("/faturacao/estado").then(setCert).catch(() => setCert(null)); }, []);
 
   useEffect(() => {
     if (pagamento) {
@@ -72,16 +74,19 @@ export default function PagamentoDialog({ pagamento, onClose, onChanged }) {
   const faturar = async (assinar) => {
     if (mudou && !(await guardar())) return;
     if (assinar && !await confirmAction({
-      title: tipoDoc === "fatura" ? "Emitir e assinar fatura" : "Emitir e assinar fatura-recibo",
-      description: `Fica com número e assinada (${eur(p.valor)}). Depois de assinada já não pode ser editada — só anulada.`,
-      confirmLabel: "Emitir e assinar",
+      title: `${cert?.ativo ? `Emitir no ${cert.fornecedor_nome}` : "Emitir e assinar"} ${tipoDoc === "fatura" ? "fatura" : "fatura-recibo"}`,
+      description: cert?.ativo
+        ? `Emitida no ${cert.fornecedor_nome} com número oficial e ATCUD (${eur(p.valor)}). Depois disso já não pode ser editada — só anulada.`
+        : `Fica com número e assinada (${eur(p.valor)}). Depois de assinada já não pode ser editada — só anulada.`,
+      confirmLabel: cert?.ativo ? "Emitir" : "Emitir e assinar",
     })) return;
     setBusy(true);
     try {
       const doc = await api.post(`/encomendas/${p.encomenda_id}/pagamentos/${p.id}/documento`, {
         tipo: tipoDoc, assinar,
       });
-      toast.success(assinar ? `${doc.numero} emitida e assinada` : "Rascunho criado — reveja e assine");
+      if (doc.aviso_faturacao) toast.error(doc.aviso_faturacao, { duration: 10000 });
+      else toast.success(assinar ? `${doc.numero} emitida${doc.faturacao?.fornecedor_nome ? ` no ${doc.faturacao.fornecedor_nome}` : " e assinada"}` : "Rascunho criado — reveja e assine");
       await onChanged?.(null);
       onClose?.();
       nav(`/financeiro/${doc.id}`);
@@ -162,13 +167,14 @@ export default function PagamentoDialog({ pagamento, onClose, onChanged }) {
             </div>
             <p className="text-xs text-gray-500">
               O valor do documento é o deste pagamento. Em rascunho ainda pode rever linhas e notas; depois de assinado fica fixo.
+              {cert?.ativo && tipoDoc === "fatura" && cert.fornecedor === "toconline" && " No TOConline o recibo da fatura emite-se no próprio programa — para pagamentos já recebidos prefira a fatura-recibo."}
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <button type="button" disabled={busy} onClick={() => faturar(false)} className="btn btn-secundario btn-sm" data-testid="pagamento-criar-rascunho">
                 <FileText size={14} /> Criar rascunho
               </button>
               <button type="button" disabled={busy} onClick={() => faturar(true)} className="btn btn-primario btn-sm" data-testid="pagamento-emitir-assinar">
-                <FileSignature size={14} /> Emitir e assinar
+                <FileSignature size={14} /> {cert?.ativo ? `Emitir no ${cert.fornecedor_nome}` : "Emitir e assinar"}
               </button>
             </div>
           </div>

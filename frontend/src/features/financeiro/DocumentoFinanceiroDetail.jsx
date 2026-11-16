@@ -42,11 +42,13 @@ export default function DocumentoFinanceiroDetail() {
   const [pagNota, setPagNota] = useState("");
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState(null);
+  const [cert, setCert] = useState(null);
 
   const load = useCallback(async () => {
     setDoc(await api.get(`/financeiro/documentos/${id}`));
   }, [id]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.get("/faturacao/estado").then(setCert).catch(() => setCert(null)); }, []);
 
   if (!doc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
@@ -56,6 +58,10 @@ export default function DocumentoFinanceiroDetail() {
   const recibos = doc.recibos || [];
   const pendente = Number(doc.valor_pendente) || 0;
   const liquidado = Number(doc.valor_liquidado) || 0;
+  const fat = doc.faturacao || {};
+  const emitidoNoPrograma = fat.estado === "emitido" && !!fat.externo_id;
+  const certificavel = rascunho && !!cert?.ativo && ["fatura", "fatura_recibo"].includes(doc.tipo);
+  const programa = fat.fornecedor_nome || cert?.fornecedor_nome || "programa de faturação";
 
   const anular = async () => {
     if (!await confirmAction({
@@ -64,9 +70,31 @@ export default function DocumentoFinanceiroDetail() {
       confirmLabel: "Anular",
       tone: "danger",
     })) return;
-    const updated = await api.post(`/financeiro/documentos/${id}/anular`);
-    setDoc(updated);
-    toast.success(isRecibo ? "Recibo anulado" : "Fatura anulada");
+    try {
+      const updated = await api.post(`/financeiro/documentos/${id}/anular`, { motivo: "Anulado no ERP" });
+      setDoc(updated);
+      toast.success(isRecibo ? "Recibo anulado" : "Fatura anulada");
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      if (d?.codigo === "anular_no_programa") {
+        if (!await confirmAction({
+          title: `Anular no ${d.fornecedor}`,
+          description: `${d.mensagem} Já anulou (ou emitiu a nota de crédito) no ${d.fornecedor}? Confirme para anular também aqui.`,
+          confirmLabel: "Já anulei — anular aqui",
+          tone: "danger",
+        })) return;
+        try {
+          const updated = await api.post(`/financeiro/documentos/${id}/anular`, { motivo: "Anulado no programa", ja_anulado_no_programa: true });
+          setDoc(updated);
+          toast.success("Documento anulado");
+        } catch (e2) {
+          const d2 = e2?.response?.data?.detail;
+          toast.error(typeof d2 === "string" ? d2 : "Não foi possível anular");
+        }
+        return;
+      }
+      toast.error(typeof d === "string" ? d : "Não foi possível anular");
+    }
   };
 
   const iniciarEdicao = () => setEdit({
@@ -97,18 +125,22 @@ export default function DocumentoFinanceiroDetail() {
   const assinar = async () => {
     if (edit) return toast.error("Guarde ou cancele as alterações antes de assinar");
     if (!await confirmAction({
-      title: `Assinar ${DOC_TIPO_PT[doc.tipo] || "documento"}`,
-      description: `Fica com número definitivo e o total de ${eur(doc.total)}. Depois de assinado já não pode ser editado — só anulado.`,
-      confirmLabel: "Assinar",
+      title: certificavel ? `Emitir no ${programa}` : `Assinar ${DOC_TIPO_PT[doc.tipo] || "documento"}`,
+      description: certificavel
+        ? `A ${DOC_TIPO_PT[doc.tipo] || "fatura"} de ${eur(doc.total)} é emitida no ${programa} com número oficial e ATCUD, e comunicada à AT. Depois disso não pode ser editada — só anulada.`
+        : `Fica com número definitivo e o total de ${eur(doc.total)}. Depois de assinado já não pode ser editado — só anulado.`,
+      confirmLabel: certificavel ? "Emitir" : "Assinar",
     })) return;
     setBusy(true);
     try {
       const out = await api.post(`/financeiro/documentos/${id}/assinar`);
       setDoc(out);
-      toast.success(`${out.numero} assinada`);
+      toast.success(out.faturacao?.estado === "emitido" ? `${out.numero} emitida no ${out.faturacao.fornecedor_nome}` : `${out.numero} assinada`);
+      if (out.faturacao?.aviso) toast.warning(out.faturacao.aviso);
     } catch (e) {
       const d = e?.response?.data?.detail;
       toast.error(typeof d === "string" ? d : "Não foi possível assinar");
+      load().catch(() => {});
     } finally {
       setBusy(false);
     }
@@ -222,7 +254,7 @@ export default function DocumentoFinanceiroDetail() {
             ))}
             {rascunho && can("financeiro", "create") && !edit && (
               <button type="button" onClick={assinar} disabled={busy} className="btn btn-primario" data-testid="doc-assinar-btn">
-                <FileSignature size={15} /> Assinar
+                <FileSignature size={15} /> {certificavel ? `Emitir no ${programa}` : "Assinar"}
               </button>
             )}
             <button
@@ -247,7 +279,7 @@ export default function DocumentoFinanceiroDetail() {
                 <Ban size={15} /> Anular
               </button>
             )}
-            {(rascunho ? can("financeiro", "create") : can("financeiro", "delete")) && !edit && (
+            {(rascunho ? can("financeiro", "create") : can("financeiro", "delete")) && !edit && !emitidoNoPrograma && (
               <button data-testid="doc-del-btn" onClick={remove} className="btn btn-secundario">
                 <Trash2 size={15} /> {rascunho ? "Eliminar rascunho" : "Eliminar"}
               </button>
@@ -271,7 +303,23 @@ export default function DocumentoFinanceiroDetail() {
       {rascunho ? (
         <div className="flex items-start gap-2 rounded-sm border border-amber-200 bg-amber-50 px-4 py-2.5 mb-4 text-sm text-amber-950" data-testid="doc-rascunho-banner">
           <FileSignature size={16} className="shrink-0 mt-0.5 text-amber-600" />
-          <p>Rascunho sem número nem valor fiscal. Reveja os dados e carregue em <strong>Assinar</strong> — depois de assinado já não pode ser editado.</p>
+          <div className="space-y-1">
+            {certificavel ? (
+              <p>Rascunho sem número nem valor fiscal. Reveja os dados e carregue em <strong>Emitir no {programa}</strong> — o número oficial, o ATCUD e o PDF certificado vêm de lá.</p>
+            ) : (
+              <p>Rascunho sem número nem valor fiscal. Reveja os dados e carregue em <strong>Assinar</strong> — depois de assinado já não pode ser editado.</p>
+            )}
+            {fat.erro && <p className="text-red-700" data-testid="doc-fat-erro">Última tentativa no {programa} falhou: {fat.erro}</p>}
+          </div>
+        </div>
+      ) : emitidoNoPrograma ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-2 mb-4 text-xs text-emerald-900" data-testid="doc-certificado">
+          <span className="inline-flex items-center gap-1 font-semibold"><Lock size={12} /> Emitido no {fat.fornecedor_nome}</span>
+          {fat.atcud && <span>ATCUD <strong>{fat.atcud}</strong></span>}
+          {fat.emitido_em && <span>{fmtDate(fat.emitido_em)}{doc.assinado_por ? ` por ${doc.assinado_por}` : ""}</span>}
+          {fat.estado_at && <span>AT: {{ comunicado: "comunicado", pendente: "a comunicar", erro: "erro na comunicação" }[fat.estado_at] || fat.estado_at}{fat.mensagem_at ? ` — ${fat.mensagem_at}` : ""}</span>}
+          {fat.anulado_em && <span className="text-red-700">Anulado {fat.anulado_no_programa === "api" ? `no ${fat.fornecedor_nome}` : "(confirmado no programa)"} em {fmtDate(fat.anulado_em)}</span>}
+          {fat.aviso && <span className="basis-full text-amber-800">{fat.aviso}</span>}
         </div>
       ) : doc.assinado_at ? (
         <div className="flex items-center gap-2 text-xs text-gray-500 mb-3" data-testid="doc-assinatura">

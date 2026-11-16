@@ -17,6 +17,7 @@ from app.services.financeiro import (
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, build_documento_financeiro_pdf
 from app.services import audit
+from app.services import faturacao as fat
 
 router = APIRouter()
 
@@ -103,6 +104,12 @@ async def documento_pdf(
     doc = await documentos_financeiros_repo.get(did)
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
+    if fat.certificado(doc):
+        # PDF oficial do programa de faturação certificado
+        pdf_cert = await fat.pdf_bytes(doc)
+        filename = f"{(doc.get('numero') or 'documento').replace('/', '-').replace(' ', '_')}.pdf"
+        return StreamingResponse(BytesIO(pdf_cert), media_type="application/pdf",
+                                 headers={"Content-Disposition": f'inline; filename="{filename}"'})
     if doc.get("estado") == "rascunho":
         doc = {**doc, "numero": "RASCUNHO", "notas": ("Documento sem valor fiscal (rascunho). " + (doc.get("notas") or "")).strip()}
     settings, _, show_branding = await load_pdf_config(None)
@@ -150,8 +157,17 @@ async def assinar_documento_route(did: str, user: dict = Depends(require_perm("f
     return await assinar_documento(did, user)
 
 
+class AnularBody(BaseModel):
+    motivo: str = ""
+    # Programas que não anulam por API (TOConline, Moloni): o utilizador confirma que já anulou lá
+    ja_anulado_no_programa: bool = False
+
+
 @router.post("/financeiro/documentos/{did}/anular")
-async def anular_documento(did: str, user: dict = Depends(require_perm("financeiro", "edit"))):
+async def anular_documento(
+    did: str, body: Optional[AnularBody] = None, user: dict = Depends(require_perm("financeiro", "edit")),
+):
+    body = body or AnularBody()
     doc = await documentos_financeiros_repo.get(did)
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
@@ -159,10 +175,13 @@ async def anular_documento(did: str, user: dict = Depends(require_perm("financei
         return await enrich_documento(doc)
     if doc.get("estado") == "rascunho":
         raise HTTPException(400, "Um rascunho não se anula — elimine-o")
+    bloco = await fat.anular(doc, body.motivo or "Anulado no ERP", body.ja_anulado_no_programa)
     efeitos = await reverter_efeitos_documento(doc)
-    await documentos_financeiros_repo.update(did, {"estado": "anulada"})
+    await documentos_financeiros_repo.update(did, {"estado": "anulada", **({"faturacao": bloco} if bloco else {})})
     await desligar_pagamento_do_documento(doc)
     doc["estado"] = "anulada"
+    if bloco:
+        doc["faturacao"] = bloco
     label = DOC_TIPO_PT.get(doc.get("tipo"), doc.get("tipo"))
     extra = ""
     if efeitos.get("pagamentos_revertidos"):
@@ -180,6 +199,11 @@ async def delete_documento(did: str, user: dict = Depends(require_perm("financei
     doc = await documentos_financeiros_repo.get(did)
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
+    f = doc.get("faturacao") or {}
+    if f.get("externo_id") and (doc.get("estado") != "rascunho" or f.get("fornecedor") != "fiz"):
+        # TOConline/Moloni criam o documento já finalizado: mesmo um "rascunho" com id externo existe lá
+        raise HTTPException(409, f"Documento já criado no {fat.nome_fornecedor(f.get('fornecedor'))} — "
+                                 "não se elimina. Carregue em «Assinar» para concluir ou anule-o.")
     efeitos = await reverter_efeitos_documento(doc)
     # Ao apagar fatura, apaga também recibos associados (já anulados na reversão)
     if doc.get("tipo") in ("fatura", "fatura_recibo"):

@@ -50,6 +50,11 @@ cada um com a sua quantidade (Orçamentos, Encomendas, Ordens de Fabrico, Compra
 - Validação: `services/campos.py → aplicar(modulo, doc, momento, existente)` chamado nas rotas de criar/guardar/finalizar.
 - Um módulo novo precisa de: entrada em `MODULOS_CAMPOS`, `campos_extra: dict` no modelo `…Input`
   e a chamada a `campos_svc.aplicar` nas rotas.
+- **Campos dependentes**: `CampoExtra.depende_de = {campo, valores}` mostra o campo só quando o campo "pai" tem um dos valores
+  (lista: opções do pai, vazio = qualquer; sim/não: `["sim"]`/`["nao"]`; outros: preenchido). Numa lista que depende de outra lista,
+  cada opção pode ter `pais` (as opções do pai em que aparece). Sem ciclos. No backend, campos escondidos são limpos e só são
+  obrigatórios quando visíveis; uma opção que não pertence ao pai dá erro. No frontend, `lib/camposDependentes.js` (mesma lógica)
+  esconde os campos, filtra as opções e limpa em cascata quando o pai muda.
 
 ## Botões
 
@@ -113,6 +118,12 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Um pagamento edita-se (data, valor, método, nota) enquanto não tiver documento fiscal assinado. Pagamentos criados por recibos fiscais ou já faturados ficam bloqueados — para corrigir anula-se o documento.
 - A partir de um pagamento emite-se **fatura-recibo** ou **fatura (+ recibo)**: em rascunho (editável: data, notas, linhas) ou já assinada.
 - **Assinar** atribui o número definitivo e um hash encadeado (assinatura interna, não certificada pela AT). Documento assinado não se edita — só se anula; ao anular/eliminar, o pagamento volta a ficar por faturar.
+- **Faturação certificada** (Definições → Integrações → Faturação): FIZ, TOConline ou Moloni (`services/faturacao/`, um adaptador por programa).
+  Com a ligação ativa, faturas e faturas-recibo nascem em rascunho e «Assinar»/«Emitir no …» envia-as ao programa; o número, ATCUD,
+  hash e PDF oficiais ficam em `documento.faturacao` e o PDF passa a ser o do programa. Se o programa falhar, o documento fica em
+  rascunho com o erro e pode voltar a ser emitido sem duplicar (o id externo fica guardado). Recibo de fatura: FIZ e Moloni pela API;
+  no TOConline emite-se lá. Anular: FIZ pela API; TOConline/Moloni pedem confirmação de que já foi anulado no programa.
+  Documentos certificados não se eliminam. Proformas continuam internas. Isenção de IVA: motivo configurável (M10 = art. 53.º).
 
 ## Acerto de tempos das OF
 

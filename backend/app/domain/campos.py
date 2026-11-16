@@ -5,7 +5,10 @@ Para cada módulo a empresa pode:
   · criar campos personalizados (texto, número, data, lista, sim/não…),
     guardados em `campos_extra` de cada registo;
   · definir cores para as linhas das listagens, por estado ou pelas opções
-    de um campo personalizado do tipo lista.
+    de um campo personalizado do tipo lista;
+  · encadear campos (campos dependentes): um campo só aparece consoante a
+    resposta de outro, e as opções de uma lista podem depender da opção
+    escolhida noutra lista (ex.: Categoria → Subcategoria).
 """
 import re
 from typing import Any, Dict, List, Literal, Optional
@@ -123,11 +126,31 @@ def _cor(v: Optional[str]) -> str:
 class OpcaoLista(BaseModel):
     valor: str
     cor: str = ""
+    # Só aparece quando o campo "pai" (depende_de) tem um destes valores; vazio = sempre
+    pais: List[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _limpar(self):
         self.valor = (self.valor or "").strip()
         self.cor = _cor(self.cor)
+        self.pais = [p.strip() for p in (self.pais or []) if isinstance(p, str) and p.strip()]
+        return self
+
+
+class DependeDe(BaseModel):
+    """O campo só aparece quando o campo `campo` tem um dos `valores`.
+
+    Lista: valores = opções do pai (vazio = qualquer opção escolhida).
+    Sim/Não: valores = ["sim"] ou ["nao"] (vazio = "sim").
+    Outros tipos: aparece quando o pai está preenchido.
+    """
+    campo: str = ""
+    valores: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _limpar(self):
+        self.campo = (self.campo or "").strip()
+        self.valores = [v.strip() for v in (self.valores or []) if isinstance(v, str) and v.strip()]
         return self
 
 
@@ -140,6 +163,7 @@ class CampoExtra(BaseModel):
     ajuda: str = ""
     mostrar_na_lista: bool = False
     ativo: bool = True
+    depende_de: Optional[DependeDe] = None
 
     @field_validator("opcoes", mode="before")
     @classmethod
@@ -198,4 +222,45 @@ class CamposConfigInput(BaseModel):
                 c.key = f"{base}_{i}"
                 i += 1
             keys.add(c.key)
+        _validar_dependencias(self.extras)
         return self
+
+
+def _validar_dependencias(extras: List[CampoExtra]) -> None:
+    por_key = {c.key: c for c in extras}
+    for c in extras:
+        dep = c.depende_de
+        if dep is not None and not dep.campo:
+            c.depende_de = dep = None
+        if dep is None:
+            for o in c.opcoes:
+                o.pais = []
+            continue
+        pai = por_key.get(dep.campo)
+        if pai is None:
+            raise ValueError(f"«{c.label}» depende de um campo que já não existe")
+        if pai is c:
+            raise ValueError(f"«{c.label}» não pode depender de si próprio")
+        # Sem ciclos (A depende de B que depende de A)
+        vistos, atual = {c.key}, pai
+        while atual is not None and atual.depende_de is not None:
+            if atual.key in vistos:
+                raise ValueError(f"Dependência circular entre campos: «{c.label}» e «{atual.label}»")
+            vistos.add(atual.key)
+            atual = por_key.get(atual.depende_de.campo)
+            if atual is not None and atual.key in vistos:
+                raise ValueError(f"Dependência circular entre campos: «{c.label}» e «{atual.label}»")
+        if pai.tipo == "lista":
+            canon = {o.valor.lower(): o.valor for o in pai.opcoes}
+            dep.valores = list(dict.fromkeys(canon[v.lower()] for v in dep.valores if v.lower() in canon))
+        elif pai.tipo == "sim_nao":
+            dep.valores = [v for v in (x.lower().replace("ã", "a") for x in dep.valores) if v in ("sim", "nao")][:1] or ["sim"]
+        else:
+            dep.valores = []
+        if c.tipo == "lista" and pai.tipo == "lista":
+            canon = {o.valor.lower(): o.valor for o in pai.opcoes}
+            for o in c.opcoes:
+                o.pais = list(dict.fromkeys(canon[p.lower()] for p in o.pais if p.lower() in canon))
+        else:
+            for o in c.opcoes:
+                o.pais = []
