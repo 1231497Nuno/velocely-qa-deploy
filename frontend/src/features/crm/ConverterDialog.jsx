@@ -65,7 +65,7 @@ export default function ConverterDialog({ open, onOpenChange, lead, canCreateCli
       onClick={() => setModo(key)}
       data-testid={`crm-converter-tab-${key}`}
       className={`flex-1 px-3 py-2 text-sm font-medium border-b-2 transition-colors disabled:opacity-40 ${
-        modo === key ? "border-black text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
+        modo === key ? "border-brand text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
       }`}
     >
       {label}
@@ -96,7 +96,7 @@ export default function ConverterDialog({ open, onOpenChange, lead, canCreateCli
                   key={t}
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, tipo: t }))}
-                  className={`px-3 py-1.5 text-sm rounded-sm border ${form.tipo === t ? "bg-black text-white border-black" : "bg-white border-gray-300"}`}
+                  className={`px-3 py-1.5 text-sm rounded-sm border ${form.tipo === t ? "bg-brand text-brand-fg border-brand" : "bg-white border-gray-300"}`}
                 >
                   {t === "empresa" ? "Empresa" : "Particular"}
                 </button>

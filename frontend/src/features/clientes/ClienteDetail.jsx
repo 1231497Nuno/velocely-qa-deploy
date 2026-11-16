@@ -259,7 +259,7 @@ export default function ClienteDetail() {
               </button>
             )}
             {can("encomendas", "create") && (
-              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <Plus size={15} /> Nova Encomenda
               </button>
             )}
@@ -714,7 +714,7 @@ export default function ClienteDetail() {
           </div>
           <DialogFooter>
             <button type="button" onClick={() => setContactoOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button type="button" data-testid="save-contacto-btn" onClick={saveContacto} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button type="button" data-testid="save-contacto-btn" onClick={saveContacto} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

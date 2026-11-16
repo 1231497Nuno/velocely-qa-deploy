@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 
+from app.services import campos as campos_svc
 from app.core.database import new_id, now_iso
 from app.core.security import require_perm
 from app.domain.crm import (
@@ -290,7 +291,7 @@ async def get_lead(lid: str, _u: dict = Depends(require_perm("crm", "view"))):
 
 @router.post("/crm/leads")
 async def create_lead(data: LeadInput, user: dict = Depends(require_perm("crm", "create"))):
-    payload = data.model_dump()
+    payload = await campos_svc.aplicar("crm", data.model_dump(), "criar")
     estado = await _get_estado(payload["estado_id"]) if payload.get("estado_id") else \
         await _get_estado(await _estado_inicial_id())
     ts = now_iso()
@@ -319,7 +320,7 @@ async def create_lead(data: LeadInput, user: dict = Depends(require_perm("crm", 
 @router.put("/crm/leads/{lid}")
 async def update_lead(lid: str, data: LeadInput, user: dict = Depends(require_perm("crm", "edit"))):
     existing = await _get_lead(lid)
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("crm", data.model_dump(), "guardar", existing)
     patch = dict(novo)
     patch["estado_id"] = novo.get("estado_id") or existing.get("estado_id")
     patch["responsavel_nome"] = await _nome_responsavel(novo.get("responsavel_id"))

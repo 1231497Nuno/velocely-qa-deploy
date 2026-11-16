@@ -303,12 +303,12 @@ export default function PedidoCotacaoDetail() {
                       <CheckCircle2 size={15} /> Guardar como respondido
                     </button>
                   )}
-                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
                     <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                   </button>
                 </>
               ) : (
-                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                   <Pencil size={15} /> Editar
                 </button>
               )

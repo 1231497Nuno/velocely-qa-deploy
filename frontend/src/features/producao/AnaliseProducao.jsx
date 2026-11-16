@@ -51,7 +51,7 @@ function PorOF() {
     <button
       data-testid={`tempos-tab-${id}`}
       onClick={() => setView(id)}
-      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${view === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${view === id ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
     >
       <Icon size={15} /> {label}
     </button>
@@ -215,7 +215,7 @@ function Mensal() {
     <button
       data-testid={`mensal-tab-${id}`}
       onClick={() => setMetric(id)}
-      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${metric === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${metric === id ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
     >
       <Icon size={15} /> {label}
     </button>
@@ -328,7 +328,7 @@ export default function AnaliseProducao() {
     <button
       data-testid={`analise-mode-${id}`}
       onClick={() => setMode(id)}
-      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${mode === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+      className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${mode === id ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
     >
       <Icon size={15} /> {label}
     </button>

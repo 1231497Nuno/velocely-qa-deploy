@@ -292,6 +292,8 @@ class Artigo(BaseModel):
 
 
 class ArtigoInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     nome: str
     descricao: str = ""
     unidade: str = "un"
@@ -462,6 +464,7 @@ class PersonalizacaoSel(BaseModel):
 
 
 class OrcamentoLinha(BaseModel):
+    cor: str = ""  # cor da linha (marcação visual, ex.: urgente)
     id: str = Field(default_factory=new_id)
     artigo_id: str = ""
     artigo_nome: str = ""
@@ -579,6 +582,8 @@ class ClienteContacto(BaseModel):
 
 
 class ClienteInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     nome: str
     tipo: Literal["empresa", "particular"] = "empresa"
     morada: str = ""
@@ -659,6 +664,8 @@ class Cliente(ClienteInput):
 
 
 class FornecedorInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     nome: str
     tipo: Literal["empresa", "particular"] = "empresa"
     morada: str = ""
@@ -751,6 +758,8 @@ class OrdemCompraLinha(BaseModel):
 
 
 class OrdemCompraInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     assunto: str = ""
     fornecedor_id: Optional[str] = None
     fornecedor_nome: str = ""
@@ -804,6 +813,8 @@ class PedidoCotacaoLinha(BaseModel):
 
 
 class PedidoCotacaoInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     assunto: str = ""
     fornecedor_id: Optional[str] = None
     fornecedor_nome: str = ""
@@ -827,6 +838,8 @@ class PedidoCotacao(PedidoCotacaoInput):
 
 
 class OrcamentoInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     cliente: str = ""
     cliente_id: Optional[str] = None
     # «À atenção de» — contacto da empresa (denormalizado)
@@ -892,6 +905,7 @@ class OFOperacao(BaseModel):
 
 
 class OFItem(BaseModel):
+    cor: str = ""  # cor da linha (marcação visual, ex.: urgente)
     id: str = Field(default_factory=new_id)
     artigo_id: str
     artigo_nome: str = ""
@@ -914,6 +928,8 @@ class OFItem(BaseModel):
 
 
 class OrdemFabricoInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     cliente: str
     cliente_id: Optional[str] = None
     encomenda_id: Optional[str] = None
@@ -941,6 +957,7 @@ class OrdemFabrico(OrdemFabricoInput):
 
 
 class EncomendaArtigo(BaseModel):
+    cor: str = ""  # cor da linha (marcação visual, ex.: urgente)
     id: str = Field(default_factory=new_id)
     artigo_id: Optional[str] = None
     artigo_nome: str = ""
@@ -973,6 +990,8 @@ class Pagamento(BaseModel):
 
 
 class EncomendaInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     cliente: str
     cliente_id: Optional[str] = None
     # «À atenção de» — contacto da empresa (denormalizado)
@@ -1128,6 +1147,8 @@ NC_ESTADO_PT = {
 
 
 class NaoConformidadeInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     encomenda_id: Optional[str] = None
     encomenda_artigo_id: Optional[str] = None
     artigo_id: Optional[str] = None
@@ -1179,6 +1200,8 @@ class ContaAnexo(Anexo):
 
 
 class ContaInput(BaseModel):
+    # Campos personalizados (Definições → Campos)
+    campos_extra: dict = Field(default_factory=dict)
     tipo: str = "receber"  # receber | pagar
     entidade: str = ""
     entidade_tipo: str = ""  # cliente | fornecedor | outro

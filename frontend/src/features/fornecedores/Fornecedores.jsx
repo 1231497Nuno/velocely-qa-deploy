@@ -156,7 +156,7 @@ export default function Fornecedores() {
                 <button
                   data-testid="new-fornecedor-btn"
                   onClick={openNew}
-                  className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
                 >
                   <Plus size={16} /> Novo Fornecedor
                 </button>
@@ -285,7 +285,7 @@ export default function Fornecedores() {
                     onClick={() => setForm({ ...form, tipo: opt.value })}
                     className={`rounded-sm px-3 py-2 text-sm font-medium border transition-colors ${
                       form.tipo === opt.value
-                        ? "bg-black text-white border-black"
+                        ? "bg-brand text-brand-fg border-brand"
                         : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                     }`}
                   >
@@ -360,7 +360,7 @@ export default function Fornecedores() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-fornecedor-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-fornecedor-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

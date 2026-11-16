@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.services import campos as campos_svc
 from app.core.database import now_iso, next_sequence
 from app.core.security import get_current_user, require_perm
 from app.core.pagination import parse_page, page_payload, text_search, apply_status_filter
@@ -124,7 +125,7 @@ async def of_pdf(ofid: str, template_id: Optional[str] = None, _u: dict = Depend
 
 @router.post("/ordens-fabrico")
 async def create_of(data: OrdemFabricoInput, user: dict = Depends(require_perm("ordens_fabrico", "create"))):
-    of = OrdemFabrico(**data.model_dump())
+    of = OrdemFabrico(**await campos_svc.aplicar("ordens_fabrico", data.model_dump(), "criar"))
     of.numero = await next_sequence("OF")
     if of.encomenda_id:
         enc = await encomendas_repo.get(of.encomenda_id)
@@ -145,7 +146,7 @@ async def update_of(ofid: str, data: OrdemFabricoInput, user: dict = Depends(req
     existing = await ordens_repo.get(ofid)
     if not existing:
         raise HTTPException(404, "OF não encontrada")
-    update = data.model_dump()
+    update = await campos_svc.aplicar("ordens_fabrico", data.model_dump(), "guardar", existing)
     update.pop("anexos", None)
     update["itens"] = await build_of_itens(update.get("itens", []))
     merged = {**existing, **update}
@@ -235,6 +236,7 @@ async def finalizar_of(ofid: str, user: dict = Depends(require_perm("ordens_fabr
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
+    await campos_svc.aplicar("ordens_fabrico", {}, "finalizar", of)
     for it in of.get("itens", []):
         for op in it.get("operacoes", []):
             _stop_op(op)

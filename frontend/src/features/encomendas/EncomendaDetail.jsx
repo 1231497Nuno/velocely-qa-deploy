@@ -136,7 +136,7 @@ export default function EncomendaDetail() {
     return (
       <div className="text-sm space-y-3 py-8 text-center" data-testid="enc-load-error">
         <p className="text-gray-600">{loadError}</p>
-        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">
+        <button type="button" onClick={() => load()} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">
           Tentar novamente
         </button>
       </div>
@@ -473,7 +473,7 @@ export default function EncomendaDetail() {
               </button>
             )}
             {can("encomendas", "edit") && (
-              <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Save size={15} /> Guardar</button>
+              <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Save size={15} /> Guardar</button>
             )}
           </>
         }

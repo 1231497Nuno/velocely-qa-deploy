@@ -111,7 +111,7 @@ function EmpresaTab() {
     <div className="bg-white border border-gray-200 rounded-sm p-5 sm:p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Building2 size={16} className="text-gray-400" /> Dados da Empresa (cabeçalho dos PDFs)</h2>
-        <button data-testid="save-empresa-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Save size={16} /> Guardar</button>
+        <button data-testid="save-empresa-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Save size={16} /> Guardar</button>
       </div>
 
       <div className="flex items-center gap-4 mb-5">
@@ -200,7 +200,7 @@ function EmpresaTab() {
                 list.push({ id: crypto.randomUUID(), nome: "", texto: "" });
                 upd("orcamento_notas_templates", list);
               }}
-              className="text-xs bg-black text-white rounded-sm px-2.5 py-1.5 font-medium hover:bg-gray-800 inline-flex items-center gap-1"
+              className="text-xs bg-brand text-brand-fg rounded-sm px-2.5 py-1.5 font-medium hover:bg-brand-hover inline-flex items-center gap-1"
             >
               <Plus size={13} /> Adicionar
             </button>
@@ -347,7 +347,7 @@ function ModelosTab() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><FileText size={16} className="text-gray-400" /> Modelos de PDF reutilizáveis</h2>
-        <button data-testid="novo-modelo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Plus size={16} /> Novo modelo</button>
+        <button data-testid="novo-modelo-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Plus size={16} /> Novo modelo</button>
       </div>
 
       {items.length === 0 ? (
@@ -432,7 +432,7 @@ function ModelosTab() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-modelo-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar modelo</button>
+            <button data-testid="save-modelo-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar modelo</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -527,7 +527,7 @@ function ReferenciasTab() {
           <button data-testid="backfill-codigos-btn" onClick={backfill} className="bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium">
             Preencher em falta
           </button>
-          <button data-testid="save-numeracao-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+          <button data-testid="save-numeracao-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
             <Save size={16} /> Guardar
           </button>
         </div>
@@ -648,7 +648,7 @@ function ModulosTab() {
       <div className="flex items-center justify-between mb-2 gap-3">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Layers size={16} className="text-gray-400" /> Packs e módulos</h2>
         {isAdmin && (
-          <button data-testid="save-modulos-btn" onClick={save} disabled={saving} className="bg-black text-white hover:bg-gray-800 disabled:opacity-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+          <button data-testid="save-modulos-btn" onClick={save} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover disabled:opacity-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
             <Save size={16} /> Guardar
           </button>
         )}
@@ -707,7 +707,7 @@ export default function Definicoes() {
       <PageHeader title="Definições" subtitle="Empresa, módulos, referências, dados Excel, modelos PDF e emails" />
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5 overflow-x-auto">
         {[["empresa", "Empresa"], ["modulos", "Módulos"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"]].map(([k, l]) => (
-          <button key={k} type="button" data-testid={`tab-${k}`} onClick={() => goTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-black text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>
+          <button key={k} type="button" data-testid={`tab-${k}`} onClick={() => goTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-brand text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>
         ))}
       </div>
       {tab === "empresa" && <EmpresaTab />}
@@ -897,7 +897,7 @@ function EmailsTab() {
                   data-testid="email-tpl-save"
                   disabled={busy}
                   onClick={save}
-                  className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
                 >
                   <Save size={15} /> {busy ? "A guardar..." : "Guardar"}
                 </button>
@@ -1067,7 +1067,7 @@ function DadosTab() {
           type="button"
           disabled={exporting}
           onClick={doExport}
-          className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
+          className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
         >
           {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           {exporting ? "A exportar…" : "Exportar seleccionados"}
@@ -1163,7 +1163,7 @@ function DadosTab() {
             type="button"
             disabled={busy || !canCommit}
             onClick={() => runImport(false)}
-            className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60 flex items-center gap-2"
+            className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60 flex items-center gap-2"
           >
             {busy ? <Loader2 size={16} className="animate-spin" /> : null}
             {busy ? "A importar…" : "Confirmar importação"}

@@ -91,7 +91,7 @@ export default function NaoConformidadeDetail() {
         actions={
           <>
             {can("nao_conformidades", "edit") && (
-              <button data-testid="nc-save-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="nc-save-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Save size={15} /> Guardar
               </button>
             )}

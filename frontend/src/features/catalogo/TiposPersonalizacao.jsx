@@ -81,7 +81,7 @@ export default function TiposPersonalizacao() {
           title="Tipos de Personalização"
           subtitle="Catálogo de técnicas de personalização disponíveis"
           actions={
-            can("personalizacao","create") && (<button data-testid="new-tipo-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+            can("personalizacao","create") && (<button data-testid="new-tipo-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
               <Plus size={16} /> Novo Tipo
             </button>)
           }
@@ -166,7 +166,7 @@ export default function TiposPersonalizacao() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-tipo-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-tipo-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

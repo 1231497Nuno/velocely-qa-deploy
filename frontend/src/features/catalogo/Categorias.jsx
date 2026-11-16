@@ -19,7 +19,7 @@ function TabBtn({ id, active, onClick, icon: Icon, label, count }) {
       data-testid={`cat-tab-${id}`}
       onClick={() => onClick(id)}
       className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${
-        active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+        active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
       }`}
     >
       <Icon size={15} />
@@ -166,12 +166,12 @@ export default function Categorias() {
               )}
               {tab === "categorias"
                 ? (can("artigos", "create") && (
-                  <button data-testid="new-categoria-btn" onClick={openNewCat} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+                  <button data-testid="new-categoria-btn" onClick={openNewCat} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
                     <Plus size={16} /> Nova categoria
                   </button>
                 ))
                 : (can("artigos", "create") && (
-                  <button data-testid="new-subcategoria-btn" onClick={openNewSub} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+                  <button data-testid="new-subcategoria-btn" onClick={openNewSub} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
                     <Plus size={16} /> Nova subcategoria
                   </button>
                 ))}
@@ -306,7 +306,7 @@ export default function Categorias() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpenCat(false)} className="bg-white border border-gray-300 rounded-sm px-4 py-2 text-sm">Cancelar</button>
-            <button data-testid="save-categoria-btn" onClick={saveCat} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-categoria-btn" onClick={saveCat} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -337,7 +337,7 @@ export default function Categorias() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpenSub(false)} className="bg-white border border-gray-300 rounded-sm px-4 py-2 text-sm">Cancelar</button>
-            <button data-testid="save-subcategoria-btn" onClick={saveSub} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-subcategoria-btn" onClick={saveSub} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

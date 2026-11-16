@@ -146,7 +146,7 @@ function EmailDialog({
             data-testid="enviar-email-confirm"
             disabled={busy}
             onClick={send}
-            className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
           >
             {busy ? "A enviar..." : "Enviar email"}
           </button>

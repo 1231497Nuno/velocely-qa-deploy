@@ -82,7 +82,7 @@ export default function OrdemFabricoDetail() {
     return (
       <div className="text-sm space-y-3 py-8 text-center">
         <p className="text-gray-600">{loadError}</p>
-        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
+        <button type="button" onClick={() => load()} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
       </div>
     );
   }
@@ -270,7 +270,7 @@ export default function OrdemFabricoDetail() {
                 </button>
               )}
               {can("ordens_fabrico", "edit") && (
-                <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button data-testid="save-of-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                   <Save size={15} /> Guardar
                 </button>
               )}

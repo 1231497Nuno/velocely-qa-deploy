@@ -421,7 +421,7 @@ export const QuickActions = () => {
           onClick={a.onClick}
           className={
             i === 0
-              ? "group flex items-center gap-2 bg-gray-900 hover:bg-black text-white rounded-sm px-4 py-2.5 text-sm font-medium transition-colors"
+              ? "group flex items-center gap-2 bg-gray-900 hover:bg-brand text-brand-fg rounded-sm px-4 py-2.5 text-sm font-medium transition-colors"
               : "group flex items-center gap-2 bg-white border border-gray-300 hover:border-gray-900 hover:bg-gray-900 hover:text-white text-gray-800 rounded-sm px-4 py-2.5 text-sm font-medium transition-colors"
           }
         >

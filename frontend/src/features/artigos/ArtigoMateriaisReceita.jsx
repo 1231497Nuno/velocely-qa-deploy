@@ -214,7 +214,7 @@ export default function ArtigoMateriaisReceita({
                                   type="button"
                                   data-testid={`artigo-material-${i}-medida-${mi}-modo-area`}
                                   onClick={() => updMedida(i, mi, setModoMedida(med, "area"))}
-                                  className={`px-2.5 py-1 font-medium ${modo === "area" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                                  className={`px-2.5 py-1 font-medium ${modo === "area" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}
                                 >
                                   Área (m²)
                                 </button>
@@ -222,7 +222,7 @@ export default function ArtigoMateriaisReceita({
                                   type="button"
                                   data-testid={`artigo-material-${i}-medida-${mi}-modo-dim`}
                                   onClick={() => updMedida(i, mi, setModoMedida(med, "dimensoes"))}
-                                  className={`px-2.5 py-1 font-medium border-l border-gray-300 ${modo === "dimensoes" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                                  className={`px-2.5 py-1 font-medium border-l border-gray-300 ${modo === "dimensoes" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}
                                 >
                                   Comprimento × Largura
                                 </button>

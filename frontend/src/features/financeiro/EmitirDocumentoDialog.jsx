@@ -282,7 +282,7 @@ export default function EmitirDocumentoDialog({
             data-testid="emitir-doc-confirm"
             disabled={busy || (precisaAdiantamento && !adiantamento)}
             onClick={emitir}
-            className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {busy ? "A emitir…" : `Emitir ${DOC_TIPO_PT[tipo] || "fatura"}`}
           </button>

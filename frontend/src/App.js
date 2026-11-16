@@ -2,6 +2,7 @@ import "@/App.css";
 import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { TemaProvider } from "@/context/TemaContext";
 import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
 import { ConfirmProvider } from "@/hooks/useConfirm";
 import Layout from "@/components/Layout";
@@ -117,9 +118,11 @@ function App() {
     <>
       <Toaster position="top-right" richColors />
       <ErrorBoundary>
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
+        <TemaProvider>
+          <AuthProvider>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </TemaProvider>
       </ErrorBoundary>
     </>
   );

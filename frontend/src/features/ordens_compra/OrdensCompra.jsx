@@ -65,7 +65,7 @@ export default function OrdensCompra() {
         data-testid={`oc-filtro-tipo-${id || "todas"}`}
         onClick={() => setTipoFilter(id)}
         className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${
-          active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+          active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
         }`}
       >
         {label}
@@ -84,7 +84,7 @@ export default function OrdensCompra() {
               <button
                 data-testid="new-ordem-compra-btn"
                 onClick={create}
-                className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
               >
                 <Plus size={16} /> Nova Ordem
               </button>

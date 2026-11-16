@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import campos as campos_svc
 from app.core.security import require_perm
 from app.core.pagination import parse_page, page_payload, text_search_nome_prefix
 from app.core.database import round2
@@ -111,7 +112,7 @@ async def get_fornecedor(fid: str, _u: dict = Depends(require_perm("fornecedores
 
 @router.post("/fornecedores")
 async def create_fornecedor(data: FornecedorInput, user: dict = Depends(require_perm("fornecedores", "create"))):
-    f = Fornecedor(**data.model_dump())
+    f = Fornecedor(**await campos_svc.aplicar("fornecedores", data.model_dump(), "criar"))
     f.codigo = await next_codigo("fornecedor")
     await fornecedores_repo.insert(f.model_dump())
     await audit.registar("fornecedor", f.id, "criado", user, f"Fornecedor «{f.nome}» criado", f.codigo or f.nome)
@@ -123,7 +124,7 @@ async def update_fornecedor(fid: str, data: FornecedorInput, user: dict = Depend
     existing = await fornecedores_repo.get(fid)
     if not existing:
         raise HTTPException(404, "Fornecedor não encontrado")
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("fornecedores", data.model_dump(), "guardar", existing)
     alteracoes = audit.diff_campos(existing, novo, _FORNECEDOR_CAMPOS)
     await fornecedores_repo.update(fid, novo)
     if alteracoes:

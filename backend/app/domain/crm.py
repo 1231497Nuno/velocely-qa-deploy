@@ -91,6 +91,7 @@ class LeadInput(BaseModel):
     proxima_acao_at: Optional[str] = None
     proxima_acao_nota: str = ""
     motivo_perda: str = ""
+    campos_extra: dict = Field(default_factory=dict)
 
     @field_validator("valor_estimado", mode="before")
     @classmethod

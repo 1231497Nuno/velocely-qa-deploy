@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import campos as campos_svc
 from app.core.database import round2
 from app.core.security import require_perm
 from app.core.pagination import parse_page, page_payload, text_search
@@ -214,7 +215,8 @@ async def update_nao_conformidade(
     if data.estado and data.estado not in _ESTADOS:
         raise HTTPException(400, f"Estado inválido. Use: {', '.join(NC_ESTADO_PT)}")
     patch = data.model_dump(exclude_unset=True)
-    patch = {k: patch[k] for k in _NC_CAMPOS if k in patch and k not in (
+    patch = await campos_svc.aplicar("nao_conformidades", patch, "guardar", existing)
+    patch = {k: patch[k] for k in _NC_CAMPOS + ["campos_extra"] if k in patch and k not in (
         "custo_unitario", "custo_desperdicio", "stock_abatido",
     )}
     if not patch:

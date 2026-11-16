@@ -215,7 +215,7 @@ export default function ArtigoNovo() {
               data-testid="artigo-novo-guardar"
               disabled={saving}
               onClick={save}
-              className="bg-black text-white rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-60"
+              className="bg-brand text-brand-fg rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
             >
               {saving ? "A guardar…" : "Guardar"}
             </button>
@@ -318,7 +318,7 @@ export default function ArtigoNovo() {
 
           if (blocoId === "custo") {
             return (
-              <section className="bg-gray-900 text-white p-5">
+              <section className="bg-brand text-brand-fg p-5">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
                   <Calculator size={14} /> Custo total calculado
                 </div>

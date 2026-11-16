@@ -206,7 +206,7 @@ export default function Artigos() {
                 <button
                   data-testid="add-artigo-btn"
                   onClick={() => nav("/artigos/novo")}
-                  className="inline-flex items-center gap-1.5 bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-2 text-sm font-medium"
+                  className="inline-flex items-center gap-1.5 bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-2 text-sm font-medium"
                 >
                   <Plus size={16} /> Novo Artigo
                 </button>

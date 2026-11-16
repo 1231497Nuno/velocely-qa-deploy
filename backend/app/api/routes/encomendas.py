@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.services import campos as campos_svc
 from app.core.database import now_iso, next_sequence, new_id, round2
 from app.core.security import get_current_user, require_perm, resolve_perfil
 from app.core.pagination import parse_page, page_payload, text_search
@@ -200,6 +201,7 @@ async def get_encomenda(eid: str, _u: dict = Depends(require_perm("encomendas", 
 @router.post("/encomendas")
 async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_perm("encomendas", "create"))):
     payload = await contactos_svc.apply_contacto_denorm(data.model_dump())
+    payload = await campos_svc.aplicar("encomendas", payload, "criar")
     enc = Encomenda(**payload)
     enc.numero = await next_sequence("ENC")
     if not enc.data:
@@ -255,7 +257,7 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     existing = await encomendas_repo.get(eid)
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("encomendas", data.model_dump(), "guardar", existing)
     novo.pop("anexos", None)
     if "entregue" not in data.model_fields_set:
         novo["entregue"] = bool(existing.get("entregue"))
@@ -407,6 +409,8 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
             it["preco_unit"] = float(src.get("preco_unit") or 0)
         if not it.get("personalizacoes"):
             it["personalizacoes"] = src.get("personalizacoes") or []
+        if not it.get("cor"):
+            it["cor"] = src.get("cor") or ""
         if not it.get("arte_path"):
             it["arte_path"] = src.get("arte_path") or ""
             it["arte_nome"] = src.get("arte_nome") or ""

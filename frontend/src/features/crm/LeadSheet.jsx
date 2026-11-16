@@ -359,7 +359,7 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
                                 key={t.key}
                                 type="button"
                                 onClick={() => setInter((i) => ({ ...i, tipo: t.key }))}
-                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-sm border ${inter.tipo === t.key ? "bg-black text-white border-black" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-sm border ${inter.tipo === t.key ? "bg-brand text-brand-fg border-brand" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
                               >
                                 <Icon size={12} /> {t.label}
                               </button>
@@ -388,7 +388,7 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
                         const sistema = i.tipo === "sistema";
                         return (
                           <li key={i.id} className="flex gap-2.5 group">
-                            <span className={`mt-0.5 w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${sistema ? "bg-gray-100 text-gray-400" : "bg-gray-900 text-white"}`}>
+                            <span className={`mt-0.5 w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${sistema ? "bg-gray-100 text-gray-400" : "bg-brand text-brand-fg"}`}>
                               <Icon size={12} />
                             </span>
                             <div className="min-w-0 flex-1">

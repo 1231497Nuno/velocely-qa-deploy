@@ -180,7 +180,7 @@ export default function OrcamentoDetail() {
     return (
       <div className="text-sm space-y-3 py-8 text-center">
         <p className="text-gray-600">{loadError}</p>
-        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
+        <button type="button" onClick={() => load()} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
       </div>
     );
   }
@@ -1032,7 +1032,7 @@ export default function OrcamentoDetail() {
         actions={
           <>
             {!temNumero && can("orcamentos", "edit") && (
-              <button data-testid="finalizar-orcamento-btn" onClick={finalizar} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="finalizar-orcamento-btn" onClick={finalizar} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <CheckCircle2 size={15} /> Finalizar
               </button>
             )}
@@ -1685,14 +1685,14 @@ export default function OrcamentoDetail() {
                                                     <button
                                                       type="button"
                                                       onClick={() => setModoMedidaMat(gi, "area")}
-                                                      className={`px-1.5 py-0.5 ${modo === "area" ? "bg-gray-900 text-white" : "bg-white text-gray-600"}`}
+                                                      className={`px-1.5 py-0.5 ${modo === "area" ? "bg-brand text-brand-fg" : "bg-white text-gray-600"}`}
                                                     >
                                                       Área (m²)
                                                     </button>
                                                     <button
                                                       type="button"
                                                       onClick={() => setModoMedidaMat(gi, "dimensoes")}
-                                                      className={`px-1.5 py-0.5 border-l border-gray-300 ${modo === "dimensoes" ? "bg-gray-900 text-white" : "bg-white text-gray-600"}`}
+                                                      className={`px-1.5 py-0.5 border-l border-gray-300 ${modo === "dimensoes" ? "bg-brand text-brand-fg" : "bg-white text-gray-600"}`}
                                                     >
                                                       L×A (mm)
                                                     </button>

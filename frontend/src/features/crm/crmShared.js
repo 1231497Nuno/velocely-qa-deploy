@@ -26,7 +26,7 @@ export const CORES_FALLBACK = [
 ];
 
 export const btnPrimary =
-  "bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium inline-flex items-center gap-2 transition-colors disabled:opacity-50";
+  "bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium inline-flex items-center gap-2 transition-colors disabled:opacity-50";
 export const btnSecondary =
   "border border-gray-300 bg-white hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium inline-flex items-center gap-2 transition-colors disabled:opacity-50";
 export const inputCls =

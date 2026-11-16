@@ -525,7 +525,7 @@ export default function ArtigoDetail() {
                 type="button"
                 data-testid="artigo-edit-btn"
                 onClick={startFullEdit}
-                className="inline-flex items-center gap-1.5 bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium"
+                className="inline-flex items-center gap-1.5 bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium"
               >
                 <Pencil size={14} /> Editar
               </button>
@@ -545,7 +545,7 @@ export default function ArtigoDetail() {
                   data-testid="artigo-save-btn"
                   onClick={saveEdit}
                   disabled={saving}
-                  className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium disabled:opacity-60"
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium disabled:opacity-60"
                 >
                   {saving ? "A guardar…" : "Guardar"}
                 </button>
@@ -782,7 +782,7 @@ export default function ArtigoDetail() {
 
               if (blocoId === "custo") {
                 return (
-                  <section className="bg-gray-900 text-white p-5" data-testid="artigo-custo-calculado">
+                  <section className="bg-brand text-brand-fg p-5" data-testid="artigo-custo-calculado">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
                       <Calculator size={14} /> Custo Total Calculado
                     </div>

@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import campos as campos_svc
 from app.core.database import now_iso, round2
 from app.core.security import require_perm
 from app.core.pagination import parse_page, page_payload, text_search
@@ -136,7 +137,7 @@ async def update_pedido_cotacao(
         data.ordem_compra_id = existing.get("ordem_compra_id")
         data.ordem_compra_codigo = existing.get("ordem_compra_codigo") or ""
 
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("pedidos_cotacao", data.model_dump(), "guardar", existing)
     novo.pop("anexos", None)
     valor = _recalc_valor_cotado(novo.get("linhas") or [])
     if valor is not None:

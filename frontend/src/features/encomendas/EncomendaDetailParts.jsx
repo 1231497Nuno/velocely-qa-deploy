@@ -181,7 +181,7 @@ export const EncRegistarPagamento = ({
             data-testid="enc-pag-registar-btn"
             disabled={registering || !(Number(valor) > 0)}
             onClick={submit}
-            className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-40 rounded-sm px-3 py-2 text-sm font-medium transition-colors"
+            className="w-full bg-brand text-brand-fg hover:bg-brand-hover disabled:opacity-40 rounded-sm px-3 py-2 text-sm font-medium transition-colors"
           >
             {registering ? "A registar…" : "Registar pagamento"}
           </button>

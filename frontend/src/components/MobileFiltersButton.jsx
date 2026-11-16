@@ -50,7 +50,7 @@ export default function MobileFiltersButton({
           onClick={() => setOpen(true)}
           className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium rounded-sm border min-h-[var(--touch)] transition-colors ${
             count > 0
-              ? "bg-gray-900 text-white border-gray-900"
+              ? "bg-brand text-brand-fg border-brand"
               : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
           }`}
         >
@@ -102,7 +102,7 @@ export default function MobileFiltersButton({
               type="button"
               data-testid={`${testid}-apply`}
               onClick={() => setOpen(false)}
-              className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2.5 text-sm font-medium min-h-11"
+              className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2.5 text-sm font-medium min-h-11"
             >
               {applyLabel}
             </button>

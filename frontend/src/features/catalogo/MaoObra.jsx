@@ -85,7 +85,7 @@ export default function MaoObra() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="mao_obra" ids={items.map((m) => m.id)} />
               {can("mao_obra", "create") && (
-                <button data-testid="new-maoobra-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-maoobra-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
                   <Plus size={16} /> Nova Função
                 </button>
               )}
@@ -171,7 +171,7 @@ export default function MaoObra() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-maoobra-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-maoobra-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -190,7 +190,7 @@ export default function ArtigoVariantesEditor({
               disabled={busy}
               onClick={adicionar}
               data-testid="variante-add-btn"
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-black text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-brand text-brand-fg rounded-sm hover:bg-brand-hover disabled:opacity-50"
             >
               <Plus size={14} /> {busy ? "…" : "Adicionar"}
             </button>

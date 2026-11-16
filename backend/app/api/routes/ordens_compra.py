@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import campos as campos_svc
 from app.core.security import require_perm
 from app.core.pagination import parse_page, page_payload, text_search
 from app.domain.models import OrdemCompra, OrdemCompraInput, TIPO_DESPESA_PT, TIPO_DESPESA_DESC, OC_ESTADO_PT
@@ -127,7 +128,7 @@ async def update_ordem_compra(
     if not existing:
         raise HTTPException(404, "Ordem de compra não encontrada")
     data = await _resolve_fornecedor(data)
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("ordens_compra", data.model_dump(), "guardar", existing)
     novo.pop("anexos", None)
     alteracoes = audit.diff_campos(existing, novo, _OC_CAMPOS)
     await ordens_compra_repo.update(oid, novo)

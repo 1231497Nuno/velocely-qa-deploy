@@ -169,7 +169,7 @@ export default function GestaoUtilizadores() {
     setTab(id);
   };
   const Tab = ({ id, icon: Icon, label }) => (
-    <button type="button" data-testid={`gu-tab-${id}`} onClick={() => goTab(id)} className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${tab === id ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}>
+    <button type="button" data-testid={`gu-tab-${id}`} onClick={() => goTab(id)} className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${tab === id ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}>
       <Icon size={15} /> {label}
     </button>
   );
@@ -183,9 +183,9 @@ export default function GestaoUtilizadores() {
           subtitle="Faça a gestão de logins e defina perfis de acesso por módulo e ação"
           actions={
             tab === "users" ? (
-              <button data-testid="new-user-btn" onClick={openNewUser} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Utilizador</button>
+              <button data-testid="new-user-btn" onClick={openNewUser} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Utilizador</button>
             ) : (
-              <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Perfil</button>
+              <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Perfil</button>
             )
           }
         />
@@ -243,7 +243,7 @@ export default function GestaoUtilizadores() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 ${u.role === "admin" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"}`}>
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 ${u.role === "admin" ? "bg-brand text-brand-fg" : "bg-gray-100 text-gray-600"}`}>
                       {u.role === "admin" ? <Shield size={12} /> : <User size={12} />} {u.perfil_nome || (u.role === "admin" ? "Administrador" : "Colaborador")}
                     </span>
                   </td>
@@ -267,7 +267,7 @@ export default function GestaoUtilizadores() {
           {perfis.map((p) => (
             <div key={p.id} data-testid={`perfil-card-${p.id}`} className="bg-white border border-gray-200 rounded-sm p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className={`h-9 w-9 rounded-sm flex items-center justify-center ${p.admin ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"}`}>
+                <span className={`h-9 w-9 rounded-sm flex items-center justify-center ${p.admin ? "bg-brand text-brand-fg" : "bg-gray-100 text-gray-600"}`}>
                   {p.admin ? <Shield size={16} /> : <User size={16} />}
                 </span>
                 <div>
@@ -332,7 +332,7 @@ export default function GestaoUtilizadores() {
           </div>
           <DialogFooter>
             <button onClick={() => setUOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-user-btn" onClick={saveUser} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-user-btn" onClick={saveUser} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -359,7 +359,7 @@ export default function GestaoUtilizadores() {
           )}
           <DialogFooter>
             <button onClick={copyInvite} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Copy size={15} /> Copiar</button>
-            <button data-testid="invite-done-btn" onClick={() => setInviteInfo(null)} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Feito</button>
+            <button data-testid="invite-done-btn" onClick={() => setInviteInfo(null)} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Feito</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -413,7 +413,7 @@ export default function GestaoUtilizadores() {
           )}
           <DialogFooter>
             <button onClick={() => setPOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-perfil-btn" onClick={savePerfil} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-perfil-btn" onClick={savePerfil} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

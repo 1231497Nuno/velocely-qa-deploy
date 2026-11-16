@@ -124,7 +124,7 @@ export default function OrdensFabrico() {
       <button
         data-testid={`of-tab-${id}`}
         onClick={() => setTab(id)}
-        className={`px-3 py-1.5 text-sm font-medium rounded-sm flex items-center gap-1.5 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+        className={`px-3 py-1.5 text-sm font-medium rounded-sm flex items-center gap-1.5 transition-colors ${active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
       >
         {label}
         {active && (
@@ -144,7 +144,7 @@ export default function OrdensFabrico() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="ordens_fabrico" ids={rows.map((o) => o.id)} />
               {can("ordens_fabrico", "create") && (
-                <button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-of-btn" onClick={create} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
                   <Plus size={16} /> Nova OF
                 </button>
               )}
@@ -159,8 +159,8 @@ export default function OrdensFabrico() {
               <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou encomenda..." testid="ofs-search" />
             </div>
             <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden shrink-0 self-end sm:self-auto">
-              <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
-              <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
+              <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "lista" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
+              <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "kanban" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
             </div>
           </div>
           <MobileFiltersButton
@@ -176,7 +176,7 @@ export default function OrdensFabrico() {
                   <button
                     data-testid="of-filter-minhas"
                     onClick={() => setMine((m) => !m)}
-                    className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-1.5 border transition-colors min-h-11 ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                    className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-1.5 border transition-colors min-h-11 ${mine ? "bg-brand text-brand-fg border-brand" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                   >
                     <UserCheck size={14} /> As minhas
                   </button>

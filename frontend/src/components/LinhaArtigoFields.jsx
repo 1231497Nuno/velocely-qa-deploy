@@ -263,7 +263,7 @@ export function LinhaCodigoSelect({
               data-testid={`${testid}-create-save`}
               disabled={creating}
               onClick={createArtigo}
-              className="px-3 py-2 text-sm bg-black text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              className="px-3 py-2 text-sm bg-brand text-brand-fg rounded-sm hover:bg-brand-hover disabled:opacity-50"
             >
               {creating ? "A criar…" : "Criar e selecionar"}
             </button>

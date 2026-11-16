@@ -132,7 +132,7 @@ export default function Financeiro() {
                       key={t.id}
                       data-testid={`fin-tab-${t.id}`}
                       onClick={() => setFiltro(t.id)}
-                      className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
+                      className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
                     >
                       {t.label}
                       {active && (

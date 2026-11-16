@@ -141,7 +141,7 @@ export default function Crm() {
       type="button"
       onClick={() => trocarVista(key)}
       data-testid={`crm-view-${key}`}
-      className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm ${vista === key ? "bg-black text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm ${vista === key ? "bg-brand text-brand-fg" : "bg-white text-gray-700 hover:bg-gray-50"}`}
     >
       <Icon size={15} /> <span className="hidden sm:inline">{label}</span>
     </button>

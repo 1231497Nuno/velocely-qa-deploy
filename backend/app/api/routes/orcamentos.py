@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.services import campos as campos_svc
 from app.core.database import now_iso, new_id, next_sequence, round2
 from app.core.security import get_current_user, require_perm
 from app.core.pagination import parse_page, page_payload, text_search, apply_status_filter
@@ -409,7 +410,7 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
     existing = await orcamentos_repo.get(oid)
     if not existing:
         raise HTTPException(404, "Orçamento não encontrado")
-    update = data.model_dump()
+    update = await campos_svc.aplicar("orcamentos", data.model_dump(), "guardar", existing)
     update.pop("anexos", None)
     # Número só no finalizar — nunca atribuir/alterar aqui
     update.pop("numero", None)
@@ -511,6 +512,7 @@ async def finalizar_orcamento(oid: str, user: dict = Depends(require_perm("orcam
         raise HTTPException(404, "Orçamento não encontrado")
     if _tem_numero(orc):
         return compute_orcamento_totais(orc)
+    await campos_svc.aplicar("orcamentos", {}, "finalizar", orc)
     if not _ymd(orc.get("validade")):
         orc["validade"] = await _validade_default(orc.get("data") or _hoje())
         await orcamentos_repo.update(oid, {"validade": orc["validade"]})
@@ -657,6 +659,7 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
             "arte_path": l.get("arte_path") or "",
             "arte_nome": l.get("arte_nome") or "",
             "arte_content_type": l.get("arte_content_type") or "",
+            "cor": l.get("cor") or "",
         })
     if not enc_artigos:
         raise HTTPException(400, "O orçamento não tem linhas prontas para encomenda")

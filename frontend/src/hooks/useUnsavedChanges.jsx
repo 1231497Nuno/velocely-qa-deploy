@@ -48,7 +48,7 @@ function UnsavedChangesDialog({ open, busy, canSave, onSave, onDiscard, onCancel
               data-testid="unsaved-save-btn"
               disabled={busy}
               onClick={onSave}
-              className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
             >
               {busy ? "A guardar…" : "Guardar"}
             </button>

@@ -111,7 +111,7 @@ export default function FornecedorDetail() {
               </button>
             )}
             {can("ordens_compra", "create") && (
-              <button data-testid="fornecedor-nova-oc-btn" onClick={novaOc} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="fornecedor-nova-oc-btn" onClick={novaOc} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <Plus size={15} /> Nova Ordem de Compra
               </button>
             )}

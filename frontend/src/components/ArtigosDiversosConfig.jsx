@@ -120,7 +120,7 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
                 type="button"
                 data-testid="diversos-novo-btn"
                 onClick={openNew}
-                className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
+                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
               >
                 <Plus size={14} /> Novo diverso
               </button>
@@ -209,7 +209,7 @@ export default function ArtigosDiversosConfig({ open, onOpenChange, onChanged })
               data-testid="diversos-save"
               disabled={saving}
               onClick={save}
-              className="px-3 py-2 text-sm bg-black text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              className="px-3 py-2 text-sm bg-brand text-brand-fg rounded-sm hover:bg-brand-hover disabled:opacity-50"
             >
               {saving ? "A guardar…" : "Guardar"}
             </button>
