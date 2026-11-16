@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import EntitySelect from "@/components/EntitySelect";
 import FornecedorSelect from "@/components/FornecedorSelect";
 import { useFornecedores } from "@/lib/useFornecedores";
+import { ArtigoStockLocais } from "@/features/stock/StockLocais";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/pt";
 import { eur } from "@/lib/api";
@@ -567,6 +568,7 @@ export default function ArtigoFichaCampos({
 
   if (blocoId === "stock") {
     return (
+      <>
       <FieldGrid>
         {show("unidade") && (
           <FieldRow label="Unidade utilizada" testid="ficha-unidade">
@@ -670,6 +672,8 @@ export default function ArtigoFichaCampos({
           </FieldRow>
         )}
       </FieldGrid>
+      {!editing && artigo?.id && geridoStock && <ArtigoStockLocais artigoId={artigo.id} nome={artigo.nome} podeEditar={canEdit} />}
+      </>
     );
   }
 
