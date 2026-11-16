@@ -266,6 +266,12 @@ async def editar_localizacao(lid: str, dados: dict, _u: dict = Depends(require_p
     return await stock_svc.guardar_localizacao(dados, lid)
 
 
+@router.get("/stock/localizacoes/{lid}/artigos")
+async def artigos_da_localizacao(lid: str, _u: dict = Depends(require_perm("artigos", "view"))):
+    """O que está numa localização (para mostrar porque não se pode apagar)."""
+    return await stock_svc.stock_na_localizacao(lid)
+
+
 @router.delete("/stock/localizacoes/{lid}")
 async def apagar_localizacao(lid: str, _u: dict = Depends(require_perm("artigos", "edit"))):
     await stock_svc.apagar_localizacao(lid)

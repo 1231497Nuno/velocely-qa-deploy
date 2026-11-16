@@ -413,7 +413,9 @@ function TabLocalizacoes({ podeEditar, verCustos }) {
               {podeEditar && <>
                 <button type="button" className="btn btn-secundario" onClick={() => setEdit({ nome: "", codigo: "", descricao: "", armazem_id: ar.id })} data-testid={`loc-nova-${ar.id}`}><Plus size={14} /> Localização</button>
                 <button type="button" className="p-1.5 text-gray-500" onClick={() => setEditArm({ ...ar })}><Pencil size={15} /></button>
-                {!ar.padrao && <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagarArm(ar)}><Trash2 size={15} /></button>}
+                {!ar.padrao && (ar.n_localizacoes > 0
+                  ? <span className="p-1.5 text-gray-300 cursor-not-allowed" title="Tem localizações — apague-as ou mude-as de armazém primeiro"><Trash2 size={15} /></span>
+                  : <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagarArm(ar)}><Trash2 size={15} /></button>)}
               </>}
             </div>
             <div className="divide-y divide-gray-100">
@@ -429,7 +431,9 @@ function TabLocalizacoes({ podeEditar, verCustos }) {
                   {verCustos && <span className="text-gray-600 tabular-nums dado-custo w-24 text-right">{eur(l.valor)}</span>}
                   {podeEditar && <>
                     <button type="button" className="p-1.5 text-gray-500" onClick={() => setEdit({ ...l })}><Pencil size={15} /></button>
-                    {!l.padrao && <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagar(l)}><Trash2 size={15} /></button>}
+                    {!l.padrao && (l.n_artigos > 0
+                      ? <span className="p-1.5 text-gray-300 cursor-not-allowed" title="Tem stock — transfira-o para outra localização antes de apagar"><Trash2 size={15} /></span>
+                      : <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagar(l)} data-testid={`loc-apagar-${l.id}`}><Trash2 size={15} /></button>)}
                   </>}
                 </div>
               ))}
@@ -450,7 +454,7 @@ function TabLocalizacoes({ podeEditar, verCustos }) {
             <label className="text-xs text-gray-600 block">Código (opcional)<input className={inputCls} value={edit.codigo || ""} onChange={(e) => setEdit({ ...edit, codigo: e.target.value })} placeholder="Ex.: A3" /></label>
             <label className="text-xs text-gray-600 block">Descrição<input className={inputCls} value={edit.descricao || ""} onChange={(e) => setEdit({ ...edit, descricao: e.target.value })} /></label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!edit.padrao} onChange={(e) => setEdit({ ...edit, padrao: e.target.checked })} /> Localização por defeito da empresa</label>
-            {edit.id && !edit.padrao && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.ativo === false} onChange={(e) => setEdit({ ...edit, ativo: !e.target.checked })} /> Inativa</label>}
+            {edit.id && !edit.padrao && <label className="flex items-center gap-2 text-sm" title={edit.n_artigos > 0 ? "Só pode ficar inativa sem stock" : ""}><input type="checkbox" disabled={edit.n_artigos > 0 && edit.ativo !== false} checked={edit.ativo === false} onChange={(e) => setEdit({ ...edit, ativo: !e.target.checked })} /> Inativa{edit.n_artigos > 0 && edit.ativo !== false ? <span className="text-xs text-gray-400">(tem stock)</span> : null}</label>}
           </div>}
           <DialogFooter><button type="button" className="btn btn-secundario" onClick={() => setEdit(null)}>Cancelar</button><button type="button" className="btn btn-primario" onClick={guardar} data-testid="loc-guardar">Guardar</button></DialogFooter>
         </DialogContent>
