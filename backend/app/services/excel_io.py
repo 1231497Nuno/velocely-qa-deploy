@@ -15,7 +15,8 @@ from app.core.database import new_id, now_iso, next_sequence
 from app.repositories import (
     artigos_repo, categorias_repo, clientes_repo, consumiveis_repo,
     encomendas_repo, fornecedores_repo, mao_obra_repo, maquinas_repo, orcamentos_repo,
-    ordens_repo, subcategorias_repo,
+    ordens_repo, subcategorias_repo, ordens_compra_repo, pedidos_cotacao_repo, contas_repo,
+    nao_conformidades_repo, documentos_financeiros_repo,
 )
 from app.services.numeracao import next_codigo
 
@@ -52,7 +53,15 @@ ENTITY_PERM = {
     "encomendas": "encomendas",
     "encomenda_linhas": "encomendas",
     "ordens_fabrico": "ordens_fabrico",
+    "ordens_compra": "ordens_compra",
+    "pedidos_cotacao": "pedidos_cotacao",
+    "contas": "contas",
+    "nao_conformidades": "nao_conformidades",
+    "documentos_financeiros": "financeiro",
 }
+
+# Exportação simples (só leitura): uma coluna por campo do documento
+GENERIC_EXPORT = {"ordens_compra", "pedidos_cotacao", "contas", "nao_conformidades", "documentos_financeiros"}
 
 IMPORTABLE = {
     "clientes", "fornecedores", "artigos", "materiais", "maquinas", "mao_obra",
@@ -138,6 +147,40 @@ SHEETS: Dict[str, Dict[str, Any]] = {
         "columns": [
             "numero", "cliente", "descricao", "data", "status", "prioritaria",
             "responsavel_nome", "encomenda_numero", "orcamento_numero", "notas",
+        ],
+    },
+    "ordens_compra": {
+        "title": "Ordens_compra",
+        "columns": [
+            "codigo", "data", "assunto", "fornecedor_nome", "tipo_compra", "tipo_despesa", "estado",
+            "vencimento", "data_pagamento", "subtotal", "total", "valor_pago", "responsavel", "notas",
+        ],
+    },
+    "pedidos_cotacao": {
+        "title": "Pedidos_cotacao",
+        "columns": [
+            "codigo", "data", "assunto", "fornecedor_nome", "estado", "prazo_resposta",
+            "valor_cotado", "responsavel", "ordem_compra_codigo", "notas",
+        ],
+    },
+    "contas": {
+        "title": "Contas",
+        "columns": [
+            "numero", "tipo", "entidade", "descricao", "referencia", "data", "vencimento",
+            "valor", "valor_pago", "estado", "metodo", "notas",
+        ],
+    },
+    "nao_conformidades": {
+        "title": "Nao_conformidades",
+        "columns": [
+            "numero", "encomenda_numero", "artigo_codigo", "artigo_nome", "quantidade", "tipo",
+            "estado", "descricao", "acao_corretiva", "custo_desperdicio", "notas",
+        ],
+    },
+    "documentos_financeiros": {
+        "title": "Faturas_recibos",
+        "columns": [
+            "numero", "tipo", "data", "cliente", "encomenda_numero", "total", "estado", "notas",
         ],
     },
 }
@@ -329,6 +372,11 @@ async def _load_docs(entity: str, ids: Optional[List[str]] = None) -> List[dict]
         "orcamentos": orcamentos_repo,
         "encomendas": encomendas_repo,
         "ordens_fabrico": ordens_repo,
+        "ordens_compra": ordens_compra_repo,
+        "pedidos_cotacao": pedidos_cotacao_repo,
+        "contas": contas_repo,
+        "nao_conformidades": nao_conformidades_repo,
+        "documentos_financeiros": documentos_financeiros_repo,
     }
     repo = repo_map[entity]
     query: dict = {}
@@ -341,6 +389,8 @@ async def _load_docs(entity: str, ids: Optional[List[str]] = None) -> List[dict]
 
 def _doc_to_row(entity: str, doc: dict) -> List[Any]:
     cols = SHEETS[entity]["columns"]
+    if entity in GENERIC_EXPORT:
+        return [_cell(doc.get(c)) for c in cols]
     if entity == "clientes":
         m = {
             "codigo": doc.get("codigo"),

@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip } from "@/components/Filtros";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function Encomendas() {
+  const { corLinha } = useCampos();
   const { can } = useAuth();
   const [open, setOpen] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState("pendentes");
@@ -67,21 +71,11 @@ export default function Encomendas() {
   const payBadge = { pendente: "pendente", parcial: "parcial", pago: "pago" };
   const hoje = new Date().toISOString().slice(0, 10);
 
-  const Tab = ({ id, label }) => {
-    const active = estadoFilter === id;
-    return (
-      <button
-        data-testid={`enc-filtro-${id}`}
-        onClick={() => setEstadoFilter(id)}
-        className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-      >
-        {label}
-        {active && (
-          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-        )}
-      </button>
-    );
-  };
+  const Tab = ({ id, label }) => (
+    <FiltroChip active={estadoFilter === id} onClick={() => setEstadoFilter(id)} count={total} testid={`enc-filtro-${id}`}>
+      {label}
+    </FiltroChip>
+  );
 
   return (
     <>
@@ -94,7 +88,7 @@ export default function Encomendas() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="encomendas" ids={pageItems.map((e) => e.id)} />
               {can("encomendas", "create") && (
-                <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
+                <button data-testid="new-encomenda-btn" onClick={() => { setForm({ cliente: "", cliente_id: "", descricao: "", prazo_entrega: "", notas: "" }); setOpen(true); }} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Nova Encomenda</button>
               )}
             </div>
           }
@@ -120,7 +114,7 @@ export default function Encomendas() {
                 <button
                   data-testid="enc-filtro-sem-of"
                   onClick={() => setSoSemOf((v) => !v)}
-                  className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                  className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-2 border transition-colors ${soSemOf ? "bg-brand text-brand-fg border-brand" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                 >
                   <AlertTriangle size={15} className={soSemOf ? "text-white" : "text-red-500"} /> Artigos por produzir
                   {numSemOf > 0 && (
@@ -163,14 +157,14 @@ export default function Encomendas() {
           </thead>
           <tbody data-testid="encomendas-table">
             {rows.map((e) => (
-              <tr key={e.id} data-testid={`encomenda-row-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
+              <tr style={estiloCor(corLinha("encomendas", e))} key={e.id} data-testid={`encomenda-row-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">
                   <span className="inline-flex items-center gap-1.5">
                     {e.numero}
                     {e.tem_artigos_sem_of && <AlertTriangle size={14} className="text-red-500" data-testid={`enc-warn-semof-${e.id}`} title="Tem artigos sem ordem de fabrico" />}
                     {e.sobreproducao && <AlertTriangle size={14} className="text-amber-500" data-testid={`enc-warn-sobre-${e.id}`} title="Sobreprodução" />}
                   </span>
-                </td>
+                <ExtrasResumo modulo="encomendas" registo={e} /></td>
                 <td className="px-4 py-3 text-gray-700">{e.cliente}</td>
                 <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(e.data)}</td>
                 <td className="px-4 py-3 tabular-nums" data-testid={`enc-prazo-${e.id}`}>
@@ -205,7 +199,7 @@ export default function Encomendas() {
 
       <MobileCards testid="encomendas-cards">
         {rows.map((e) => (
-          <MobileCard key={e.id} testid={`encomenda-card-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)}>
+          <MobileCard style={estiloCor(corLinha("encomendas", e))} key={e.id} testid={`encomenda-card-${e.id}`} onClick={() => nav(`/encomendas/${e.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="mono tabular-nums font-semibold text-gray-900 inline-flex items-center gap-1.5">
@@ -267,7 +261,7 @@ export default function Encomendas() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-encomenda-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Criar</button>
+            <button data-testid="save-encomenda-btn" onClick={create} className="btn btn-primario">Criar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,8 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
+import BotaoAdicionar, { SelectAdicionar } from "@/components/BotaoAdicionar";
+import ArtigoCombobox from "@/components/ArtigoCombobox";
+import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -38,7 +42,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
-import { Plus, Trash2, Save, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
+import { Trash2, Save, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta,
@@ -180,7 +184,7 @@ export default function OrcamentoDetail() {
     return (
       <div className="text-sm space-y-3 py-8 text-center">
         <p className="text-gray-600">{loadError}</p>
-        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
+        <button type="button" onClick={() => load()} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
       </div>
     );
   }
@@ -427,6 +431,35 @@ export default function OrcamentoDetail() {
 
   const addLinha = () => {
     upd({ linhas: [...orc.linhas, emptyLinha()] });
+  };
+
+  /** Escolha múltipla: uma linha por artigo, com a quantidade escolhida. */
+  const addVariosArtigos = async (picked) => {
+    if (!picked?.length) return;
+    // descarta linhas vazias no fim (a linha em branco por defeito)
+    const existentes = orc.linhas.filter((l, idx) => l.artigo_id || (l.artigo_nome || "").trim() || idx < orc.linhas.length - 1);
+    let mats = [...(orc.materiais || [])];
+    const novas = [];
+    const cacheArts = [];
+    try {
+      for (const p of picked) {
+        const built = await buildLinhaFromArtigo({ ...emptyLinha() }, p, { quantidade: p.quantidade });
+        let tmp = [built.linha];
+        tmp = adaptarLinhaPorReceita(tmp, built.matsReceita, built.linha.id, { forcarCalculado: built.regras.forcarCalculado });
+        novas.push(tmp[0]);
+        mats = [...mats, ...built.matsReceita];
+        cacheArts.push({ ...built.artigo, lite: false, preco_venda: built.precoVenda });
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível adicionar os artigos");
+      return;
+    }
+    setArtigos((prev) => {
+      const ids = new Set(cacheArts.map((x) => x.id));
+      return [...prev.filter((x) => !ids.has(x.id)), ...cacheArts];
+    });
+    upd({ linhas: [...existentes, ...novas], materiais: mats });
+    toast.success(novas.length === 1 ? "Artigo adicionado" : `${novas.length} artigos adicionados`);
   };
 
   const updLinha = (i, patch) => {
@@ -793,6 +826,7 @@ export default function OrcamentoDetail() {
   const bodyFrom = (o) => ({
     cliente: o.cliente,
     cliente_id: o.cliente_id || null,
+    campos_extra: o.campos_extra || {},
     contacto_id: o.contacto_id || null,
     contacto_nome: o.contacto_nome || "",
     contacto_email: o.contacto_email || "",
@@ -1032,7 +1066,7 @@ export default function OrcamentoDetail() {
         actions={
           <>
             {!temNumero && can("orcamentos", "edit") && (
-              <button data-testid="finalizar-orcamento-btn" onClick={finalizar} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="finalizar-orcamento-btn" onClick={finalizar} className="btn btn-primario">
                 <CheckCircle2 size={15} /> Finalizar
               </button>
             )}
@@ -1042,12 +1076,12 @@ export default function OrcamentoDetail() {
               </button>
             )}
             {precisaNovaVersao && can("orcamentos", "edit") && (
-              <button data-testid="orc-nova-versao-btn" onClick={criarNovaVersao} className="bg-amber-600 text-white hover:bg-amber-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 shadow-sm">
+              <button data-testid="orc-nova-versao-btn" onClick={criarNovaVersao} className="btn btn-aviso">
                 <GitBranch size={15} /> Criar nova versão
               </button>
             )}
             {temNumero && can("orcamentos", "edit") && st === "negociado" && (
-              <button data-testid="orc-negociar-nova-versao-btn" onClick={criarNovaVersao} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="orc-negociar-nova-versao-btn" onClick={criarNovaVersao} className="btn btn-secundario">
                 <GitBranch size={15} /> Criar nova versão
               </button>
             )}
@@ -1062,7 +1096,7 @@ export default function OrcamentoDetail() {
               </button>
             )}
             {can("orcamentos", "create") && (
-              <button data-testid="orc-duplicar-btn" onClick={duplicar} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="orc-duplicar-btn" onClick={duplicar} className="btn btn-secundario">
                 <Copy size={15} /> Duplicar
               </button>
             )}
@@ -1080,7 +1114,7 @@ export default function OrcamentoDetail() {
               />
             )}
             {orc.encomenda_id && (
-              <Link to={`/encomendas/${orc.encomenda_id}`} data-testid="goto-encomenda-link" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <Link to={`/encomendas/${orc.encomenda_id}`} data-testid="goto-encomenda-link" className="btn btn-secundario">
                 <ClipboardList size={15} /> {orc.encomenda_numero}
               </Link>
             )}
@@ -1088,7 +1122,7 @@ export default function OrcamentoDetail() {
               <button
                 data-testid="convert-quote-btn"
                 onClick={converter}
-                className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                className="btn btn-primario"
               >
                 <ClipboardList size={15} /> Criar Encomenda
               </button>
@@ -1125,7 +1159,7 @@ export default function OrcamentoDetail() {
                 type="button"
                 data-testid="orc-recalcular-custos-btn"
                 onClick={recalcularCustos}
-                className="mt-2 inline-flex items-center gap-1.5 bg-amber-700 text-white hover:bg-amber-800 rounded-sm px-3 py-1.5 text-xs font-medium"
+                className="btn btn-aviso btn-sm mt-2"
               >
                 <RefreshCw size={13} /> Recalcular custos
               </button>
@@ -1333,9 +1367,13 @@ export default function OrcamentoDetail() {
                   setOpenOps((o) => ({ ...o, [i]: !o[i] }));
                 }}
                 data-testid={`line-row-${i}`}
+                style={estiloLinhaCor(l.cor)}
               >
                 <td className="px-2 py-2.5 align-top">
                   <div className="flex items-start gap-1">
+                    <div className="mt-1 shrink-0">
+                      <CorLinhaPicker value={l.cor || ""} disabled={!editavel} onChange={(cor) => updLinha(i, { cor })} testid={`line-cor-${i}`} />
+                    </div>
                     {editavel && (
                       <div className="flex flex-col shrink-0 mt-0.5" data-testid={`line-reorder-${i}`}>
                         <button
@@ -1437,10 +1475,9 @@ export default function OrcamentoDetail() {
                         </div>
                       </div>
                     ))}
-                    <select data-testid={`line-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
-                      <option value="">+ Pers.…</option>
+                    <SelectAdicionar tamanho="sm" largo label="Personalização" testid={`line-pers-add-${i}`} onChange={(v) => addPers(i, v)}>
                       {tipos.map((t) => <option key={t.id} value={t.id}>{`${t.nome} (${eur(t.valor)})`}</option>)}
-                    </select>
+                    </SelectAdicionar>
                   </div>
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 align-top" data-testid={`line-pers-total-${i}`}>{eur(persUnit(l))}</td>
@@ -1629,17 +1666,16 @@ export default function OrcamentoDetail() {
                             <div>
                               {regras.allowAddMaterial && (
                               <div className="flex items-center justify-end mb-1 gap-2">
-                                <select
-                                  data-testid={`line-add-mat-${i}`}
-                                  value=""
-                                  onChange={(e) => { if (e.target.value && regras.allowAddMaterial) addMaterialLinha(l, e.target.value); e.target.value = ""; }}
-                                  className="border border-dashed border-gray-300 rounded-sm px-1.5 py-0.5 text-[11px] bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-black/20 max-w-[14rem]"
+                                <SelectAdicionar
+                                  tamanho="sm"
+                                  label="Adicionar material"
+                                  testid={`line-add-mat-${i}`}
+                                  onChange={(v) => { if (regras.allowAddMaterial) addMaterialLinha(l, v); }}
                                 >
-                                  <option value="">+ Material…</option>
                                   {consumiveis.map((c) => (
                                     <option key={c.id} value={c.id}>{c.nome} · {eur(c.custo_unitario)}/{c.unidade || "un"}</option>
                                   ))}
-                                </select>
+                                </SelectAdicionar>
                               </div>
                               )}
                               <div className="space-y-2" data-testid={`line-mats-${i}`}>
@@ -1685,14 +1721,14 @@ export default function OrcamentoDetail() {
                                                     <button
                                                       type="button"
                                                       onClick={() => setModoMedidaMat(gi, "area")}
-                                                      className={`px-1.5 py-0.5 ${modo === "area" ? "bg-gray-900 text-white" : "bg-white text-gray-600"}`}
+                                                      className={`px-1.5 py-0.5 ${modo === "area" ? "bg-brand text-brand-fg" : "bg-white text-gray-600"}`}
                                                     >
                                                       Área (m²)
                                                     </button>
                                                     <button
                                                       type="button"
                                                       onClick={() => setModoMedidaMat(gi, "dimensoes")}
-                                                      className={`px-1.5 py-0.5 border-l border-gray-300 ${modo === "dimensoes" ? "bg-gray-900 text-white" : "bg-white text-gray-600"}`}
+                                                      className={`px-1.5 py-0.5 border-l border-gray-300 ${modo === "dimensoes" ? "bg-brand text-brand-fg" : "bg-white text-gray-600"}`}
                                                     >
                                                       L×A (mm)
                                                     </button>
@@ -1750,7 +1786,7 @@ export default function OrcamentoDetail() {
                           {regras.showOps && panel === "ops" && (
                             <div>
                               <div className="flex items-center justify-end mb-1">
-                                <button type="button" data-testid={`line-add-op-${i}`} onClick={() => addOp(i)} className="text-[11px] text-gray-800 font-medium flex items-center gap-0.5 hover:underline"><Plus size={12} /> Op</button>
+                                <BotaoAdicionar tamanho="sm" testid={`line-add-op-${i}`} onClick={() => addOp(i)}>Adicionar operação</BotaoAdicionar>
                               </div>
                               <div className="space-y-1.5" data-testid={`line-ops-${i}`}>
                                 {(l.roteiro || []).map((op, oi) => {
@@ -1833,14 +1869,20 @@ export default function OrcamentoDetail() {
             ))}
             <tr className="border-t border-dashed border-gray-200 bg-gray-50/40">
               <td className="px-4 py-2.5" colSpan={10}>
-                <button
-                  type="button"
-                  data-testid="add-line-item"
-                  onClick={addLinha}
-                  className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
-                >
-                  <Plus size={14} /> Adicionar linha
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  {editavel && (
+                    <ArtigoCombobox
+                      modo="adicionar"
+                      artigos={artigos}
+                      onChange={(art) => addVariosArtigos([{ ...art, quantidade: 1 }])}
+                      onChangeMulti={addVariosArtigos}
+                      testid="add-line-artigos"
+                    />
+                  )}
+                  <BotaoAdicionar testid="add-line-item" onClick={addLinha} title="Linha em branco (artigo, serviço ou texto livre)">
+                    Adicionar linha
+                  </BotaoAdicionar>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -1916,6 +1958,14 @@ export default function OrcamentoDetail() {
           className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-50 resize-y min-h-[4.5rem]"
         />
       </div>
+
+      <CamposPersonalizados
+        modulo="orcamentos"
+        className="mb-4"
+        value={orc.campos_extra}
+        disabled={!editavel}
+        onChange={(vals) => upd({ campos_extra: vals })}
+      />
 
       <OrcamentoTotais
         subtotalVenda={subtotalVenda}

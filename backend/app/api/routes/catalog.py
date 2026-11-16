@@ -4,6 +4,7 @@ import copy
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import campos as campos_svc
 from app.domain.models import (
     Maquina, MaquinaInput, Consumivel, ConsumivelInput, MaoObra, MaoObraInput,
     Artigo, ArtigoInput, TipoPersonalizacao, TipoPersonalizacaoInput,
@@ -400,6 +401,7 @@ async def artigo_resumo(aid: str, _u: dict = Depends(require_perm("artigos", "vi
 @router.post("/artigos")
 async def create_artigo(data: ArtigoInput, user: dict = Depends(require_perm("artigos", "create"))):
     payload = await _resolve_categorias(data.model_dump(), exigir=True)
+    payload = await campos_svc.aplicar("artigos", payload, "criar")
     payload = aplicar_custo_placa_mp(payload)
     a = Artigo(**payload)
     if a.diversos:
@@ -424,6 +426,7 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     if not existing:
         raise HTTPException(404, "Artigo não encontrado")
     update = await _resolve_categorias(data.model_dump(), exigir=True)
+    update = await campos_svc.aplicar("artigos", update, "guardar", existing)
     update.pop("anexos", None)
     # Flag «diversos» só na criação (código DIV-); updates preservam o valor.
     update["diversos"] = bool(existing.get("diversos"))

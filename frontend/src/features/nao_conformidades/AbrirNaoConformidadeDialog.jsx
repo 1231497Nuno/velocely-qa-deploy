@@ -128,7 +128,7 @@ export default function AbrirNaoConformidadeDialog({
             data-testid="nc-dialog-confirm"
             disabled={busy}
             onClick={submit}
-            className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="btn btn-primario"
           >
             {busy ? "A abrir..." : "Abrir NC"}
           </button>

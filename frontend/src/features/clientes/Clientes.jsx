@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +24,7 @@ const empty = {
   contacto: "", email: "", nif: "", notas: "", responsavel: "",
   condicoes_pagamento: "", desconto_comercial_pct: "", limite_credito: "",
   contactos: [],
+  campos_extra: {},
 };
 
 const FORM_BLOCOS = [
@@ -76,8 +80,10 @@ function SortTh({ label, field, sortBy, sortDir, onSort, testid, className = "" 
 }
 
 export default function Clientes() {
+  const { corLinha } = useCampos();
   const { can } = useAuth();
   const nav = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [sortBy, setSortBy] = useState("nome");
   const [sortDir, setSortDir] = useState("asc");
   const extraParams = useMemo(() => ({ sort: sortBy, order: sortDir }), [sortBy, sortDir]);
@@ -135,6 +141,7 @@ export default function Clientes() {
       desconto_comercial_pct: c.desconto_comercial_pct ?? "",
       limite_credito: c.limite_credito ?? "",
       contactos: c.contactos || [],
+      campos_extra: c.campos_extra || {},
     });
     setEditId(c.id);
     setOpen(true);
@@ -198,7 +205,7 @@ export default function Clientes() {
                 </button>
               )}
               {can("clientes", "create") && (
-                <button data-testid="new-cliente-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Cliente</button>
+                <button data-testid="new-cliente-btn" onClick={openNew} className="btn btn-primario"><Plus size={16} /> Novo Cliente</button>
               )}
             </div>
           }
@@ -234,13 +241,13 @@ export default function Clientes() {
           </thead>
           <tbody data-testid="clientes-table">
             {items.map((c) => (
-              <tr
+              <tr style={estiloCor(corLinha("clientes", c))}
                 key={c.id}
                 data-testid={`cliente-row-${c.id}`}
                 onClick={() => nav(`/clientes/${c.id}`)}
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
               >
-                <td className="px-4 py-2.5 mono tabular-nums text-gray-600 text-xs whitespace-nowrap">{c.codigo || "—"}</td>
+                <td className="px-4 py-2.5 mono tabular-nums text-gray-600 text-xs whitespace-nowrap">{c.codigo || "—"}<ExtrasResumo modulo="clientes" registo={c} /></td>
                 <td className="px-4 py-2.5 font-medium text-gray-900">
                   <span data-testid={`cliente-link-${c.id}`} className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
                     <span className="truncate" title={c.nome}>{c.nome}</span>
@@ -276,7 +283,7 @@ export default function Clientes() {
 
       <MobileCards testid="clientes-cards">
         {items.map((c) => (
-          <MobileCard key={c.id} testid={`cliente-card-${c.id}`} onClick={() => nav(`/clientes/${c.id}`)}>
+          <MobileCard style={estiloCor(corLinha("clientes", c))} key={c.id} testid={`cliente-card-${c.id}`} onClick={() => nav(`/clientes/${c.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 truncate" title={c.nome}>{c.nome}</div>
@@ -334,7 +341,7 @@ export default function Clientes() {
                           onClick={() => set({ tipo: opt.value })}
                           className={`rounded-sm px-3 py-2 text-sm font-medium border transition-colors ${
                             form.tipo === opt.value
-                              ? "bg-black text-white border-black"
+                              ? "bg-brand text-brand-fg border-brand"
                               : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -416,9 +423,11 @@ export default function Clientes() {
             }}
           />
 
+          <CamposPersonalizados modulo="clientes" className="mt-3" value={form.campos_extra} onChange={(vals) => set({ campos_extra: vals })} />
+
           <DialogFooter>
             <button type="button" onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button type="button" data-testid="save-cliente-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button type="button" data-testid="save-cliente-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

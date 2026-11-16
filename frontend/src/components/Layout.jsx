@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTema } from "@/context/TemaContext";
+import { corEscura } from "@/lib/tema";
 import { api, setCurrency } from "@/lib/api";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationsBell from "@/components/NotificationsBell";
@@ -35,6 +37,7 @@ import {
   AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
+  Kanban,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -67,6 +70,7 @@ const NAV_GROUPS = [
     id: "comercial",
     label: "Comercial",
     items: [
+      { to: "/crm", label: "CRM / Leads", icon: Kanban, tid: "nav-crm", modulo: "crm" },
       { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
       { to: "/fornecedores", label: "Fornecedores", icon: Truck, tid: "nav-fornecedores", modulo: "fornecedores" },
       { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade" },
@@ -136,6 +140,8 @@ export default function Layout({ children }) {
   const [alertas, setAlertas] = useState({});
   const [expanded, setExpanded] = useState({});
   const { user, isAdmin, can, logout } = useAuth();
+  const { tema, logo: logoEmpresa } = useTema();
+  const menuEscuro = corEscura(tema.cor_menu);
   const location = useLocation();
 
   useEffect(() => {
@@ -222,8 +228,8 @@ export default function Layout({ children }) {
       className={() =>
         `flex items-center gap-3 px-3 py-2 rounded-sm text-sm font-medium transition-colors ${
           linkIsActive(n, location)
-            ? "bg-gray-900 text-white"
-            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            ? "bg-brand text-brand-fg"
+            : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-strong"
         }`
       }
     >
@@ -246,7 +252,7 @@ export default function Layout({ children }) {
   const mobileHeaderTop = "top-[calc(var(--mobile-header-h)+env(safe-area-inset-top,0px))]";
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex bg-[#F8F9FA] overflow-x-hidden">
+    <div className="min-h-screen min-h-[100dvh] flex bg-appbg overflow-x-hidden">
       <header className="lg:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-gray-200 safe-top safe-x">
         <div
           className="flex items-center justify-between px-2 sm:px-4 gap-1"
@@ -301,21 +307,25 @@ export default function Layout({ children }) {
       )}
 
       <aside
-        className={`w-[min(18rem,88vw)] shrink-0 border-r border-gray-200 bg-white flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-300 lg:w-64 lg:translate-x-0 safe-top safe-bottom ${
+        className={`w-[min(18rem,88vw)] shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-300 lg:w-64 lg:translate-x-0 safe-top safe-bottom ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="px-5 py-4 border-b border-gray-200 flex items-start justify-between gap-2">
+        <div className="px-5 py-4 border-b border-sidebar-border flex items-start justify-between gap-2">
           <div className="min-w-0">
             <Link to="/" data-testid="sidebar-logo-link" onClick={() => setOpen(false)}>
-              <img src="/logo-full.png" alt="Velocely" className="h-8 w-auto max-w-[11.5rem] object-contain object-left" />
+              {logoEmpresa ? (
+                <img src={logoEmpresa} alt="Logótipo" className="h-10 w-auto max-w-[11.5rem] object-contain object-left" />
+              ) : (
+                <img src="/logo-full.png" alt="Velocely" className={`h-8 w-auto max-w-[11.5rem] object-contain object-left ${menuEscuro ? "brightness-0 invert" : ""}`} />
+              )}
             </Link>
-            <div className="text-xs text-gray-500 mt-1.5">Gestão de Produção</div>
+            <div className="text-xs text-sidebar-muted mt-1.5">Gestão de Produção</div>
           </div>
           <button
             data-testid="mobile-menu-close"
             onClick={() => setOpen(false)}
-            className="lg:hidden p-2 -mr-1 rounded-sm text-gray-500 hover:bg-gray-100 min-h-10 min-w-10 inline-flex items-center justify-center"
+            className="lg:hidden p-2 -mr-1 rounded-sm text-sidebar-fg hover:bg-sidebar-hover min-h-10 min-w-10 inline-flex items-center justify-center"
             aria-label="Fechar menu"
           >
             <X size={20} />
@@ -334,7 +344,7 @@ export default function Layout({ children }) {
                   type="button"
                   data-testid={`nav-group-toggle-${g.id}`}
                   onClick={() => toggleGroup(g.id)}
-                  className="w-full flex items-center justify-between px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 hover:text-gray-600 transition-colors"
+                  className="w-full flex items-center justify-between px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-sidebar-muted hover:text-sidebar-fg transition-colors"
                 >
                   <span>{g.label}</span>
                   <ChevronDown
@@ -352,11 +362,11 @@ export default function Layout({ children }) {
           })}
         </nav>
 
-        <div className="border-t border-gray-200 p-3 safe-bottom">
+        <div className="border-t border-sidebar-border p-3 safe-bottom">
           {user && (
             <div className="px-2 py-1.5 mb-1" data-testid="current-user">
-              <div className="text-sm font-medium text-gray-900 truncate">{user.name || user.email}</div>
-              <div className="text-xs text-gray-500 flex items-center gap-1">
+              <div className="text-sm font-medium text-sidebar-strong truncate">{user.name || user.email}</div>
+              <div className="text-xs text-sidebar-muted flex items-center gap-1">
                 {isAdmin ? <Shield size={11} /> : <Users size={11} />}
                 {isAdmin ? "Administrador" : "Colaborador"}
               </div>
@@ -365,7 +375,7 @@ export default function Layout({ children }) {
           <button
             data-testid="logout-btn"
             onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors min-h-11"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-strong transition-colors min-h-11"
           >
             <LogOut size={18} strokeWidth={1.8} /> Terminar sessão
           </button>

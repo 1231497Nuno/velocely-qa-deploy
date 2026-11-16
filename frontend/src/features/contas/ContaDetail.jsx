@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { fileApiUrl } from "@/lib/authFileUrl";
@@ -81,6 +82,7 @@ export default function ContaDetail() {
     try {
       const updated = await api.put(`/contas/${id}`, {
         tipo: conta.tipo,
+        campos_extra: conta.campos_extra || {},
         entidade: conta.entidade,
         entidade_tipo: conta.entidade_tipo || "",
         entidade_id: conta.entidade_id || null,
@@ -121,6 +123,7 @@ export default function ContaDetail() {
     try {
       const updated = await api.put(`/contas/${id}`, {
         tipo: conta.tipo,
+        campos_extra: conta.campos_extra || {},
         entidade: conta.entidade,
         entidade_tipo: conta.entidade_tipo || "",
         entidade_id: conta.entidade_id || null,
@@ -194,17 +197,17 @@ export default function ContaDetail() {
         actions={
           <>
             {can("contas", "edit") && !anulada && (
-              <button data-testid="conta-save-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="conta-save-btn" onClick={save} className="btn btn-primario">
                 <Save size={15} /> Guardar
               </button>
             )}
             {can("contas", "edit") && !anulada && (
-              <button data-testid="conta-anular-btn" onClick={anular} className="bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium">
+              <button data-testid="conta-anular-btn" onClick={anular} className="btn btn-secundario">
                 Anular
               </button>
             )}
             {can("contas", "delete") && (
-              <button data-testid="conta-delete-btn" onClick={remove} className="bg-white text-red-700 border border-red-200 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="conta-delete-btn" onClick={remove} className="btn btn-perigo-contorno">
                 <Trash2 size={15} /> Eliminar
               </button>
             )}
@@ -311,7 +314,7 @@ export default function ContaDetail() {
                   <span className="tabular-nums font-medium text-gray-900" data-testid="conta-pendente">{eur(conta.valor_pendente)}</span>
                 </div>
                 {can("contas", "edit") && !anulada && Number(conta.valor_pago) < Number(conta.valor) && (
-                  <button type="button" data-testid="conta-liquidar-btn" onClick={liquidar} className="w-full text-sm border border-gray-300 rounded-sm px-3 py-2 hover:bg-gray-50">
+                  <button type="button" data-testid="conta-liquidar-btn" onClick={liquidar} className="btn btn-secundario w-full">
                     Marcar como liquidada
                   </button>
                 )}
@@ -365,6 +368,16 @@ export default function ContaDetail() {
             )}
           </div>
         </>
+      )}
+
+      {tab === "conta" && (
+        <CamposPersonalizados
+          modulo="contas"
+          className="mt-4"
+          value={conta.campos_extra}
+          disabled={!can("contas", "edit") || anulada}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "historico" && (

@@ -79,7 +79,7 @@ export function ConfirmProvider({ children }) {
               className={
                 state?.tone === "danger"
                   ? "bg-red-600 text-white rounded-sm px-4 py-2 text-sm font-medium hover:bg-red-700"
-                  : "bg-gray-900 text-white rounded-sm px-4 py-2 text-sm font-medium hover:bg-black"
+                  : "bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium hover:bg-brand-hover"
               }
             >
               {state?.confirmLabel || "Confirmar"}

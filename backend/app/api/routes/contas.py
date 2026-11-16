@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
+from app.services import campos as campos_svc
 from app.core.database import new_id, now_iso, round2
 from app.core.pagination import parse_page, page_payload, text_search
 from app.core.security import require_perm
@@ -114,7 +115,7 @@ async def create_conta(
     data: ContaInput,
     user: dict = Depends(require_perm("contas", "create")),
 ):
-    payload = data.model_dump()
+    payload = await campos_svc.aplicar("contas", data.model_dump(), "criar")
     payload["anexos"] = []
     payload = _normalizar(payload)
     conta = Conta(**payload)
@@ -142,7 +143,8 @@ async def update_conta(
         raise HTTPException(404, "Conta não encontrada")
     patch = data.model_dump(exclude_unset=True)
     patch.pop("anexos", None)
-    patch = {k: patch[k] for k in _CAMPOS if k in patch}
+    patch = await campos_svc.aplicar("contas", patch, "guardar", existing)
+    patch = {k: patch[k] for k in _CAMPOS + ["campos_extra"] if k in patch}
     if not patch:
         return enrich_conta(existing)
     merged = {**existing, **patch}

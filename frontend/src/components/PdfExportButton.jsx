@@ -17,7 +17,7 @@ export default function PdfExportButton({ modulo, recordId, label = "PDF" }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button data-testid="pdf-export-btn" className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+        <button data-testid="pdf-export-btn" className="btn btn-secundario">
           <FileDown size={16} /> {label} <ChevronDown size={14} className="text-gray-400" />
         </button>
       </PopoverTrigger>

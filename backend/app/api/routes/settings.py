@@ -8,6 +8,9 @@ from app.core.security import get_current_user, require_admin, require_perm, inv
 from app.repositories import empresa_repo, pdf_templates_repo
 from app.services import numeracao as numeracao_svc
 from app.services import email_templates as email_tpl_svc
+from app.domain.campos import MODULOS_CAMPOS, CamposConfigInput
+from app.services import campos as campos_svc
+from app.domain.tema import TEMA_DEFAULT, TEMA_PRESETS, TemaInput, normalizar_tema
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -69,12 +72,43 @@ async def backfill_numeracao(admin: dict = Depends(require_admin)):
 
 @router.get("/branding")
 async def get_branding():
-    """Branding público (sem autenticação) para o ecrã de login."""
+    """Branding público (sem autenticação): login, cores e logótipo da barra lateral."""
     s = await empresa_repo.find_one({"id": "empresa"}) or {}
+    tema = normalizar_tema(s.get("tema"))
     return {
         "nome": s.get("nome") or "Velocely",
         "login_bg_base64": s.get("login_bg_base64") or "",
+        "tema": tema,
+        "logo_base64": (s.get("logo_base64") or "") if tema.get("usar_logo_empresa") else "",
     }
+
+
+# ----------------------- Campos por módulo -----------------------
+@router.get("/settings/campos")
+async def get_campos(_u: dict = Depends(get_current_user)):
+    """Campos obrigatórios, personalizados e cores das linhas de todos os módulos."""
+    return await campos_svc.catalogo_completo()
+
+
+@router.put("/settings/campos/{modulo}")
+async def update_campos(modulo: str, data: CamposConfigInput, admin: dict = Depends(require_admin)):
+    if modulo not in MODULOS_CAMPOS:
+        raise HTTPException(404, "Módulo desconhecido")
+    return await campos_svc.guardar_config(modulo, data)
+
+
+# ----------------------- Aparência (tema) -----------------------
+@router.get("/settings/aparencia")
+async def get_aparencia(_u: dict = Depends(require_perm("definicoes", "view"))):
+    s = await empresa_repo.find_one({"id": "empresa"}) or {}
+    return {"tema": normalizar_tema(s.get("tema")), "predefinido": TEMA_DEFAULT, "presets": TEMA_PRESETS}
+
+
+@router.put("/settings/aparencia")
+async def update_aparencia(data: TemaInput, admin: dict = Depends(require_admin)):
+    tema = normalizar_tema(data.model_dump())
+    await empresa_repo.update_where({"id": "empresa"}, {"id": "empresa", "tema": tema}, upsert=True)
+    return {"tema": tema, "predefinido": TEMA_DEFAULT, "presets": TEMA_PRESETS}
 
 
 # ----------------------- Modelos de PDF -----------------------

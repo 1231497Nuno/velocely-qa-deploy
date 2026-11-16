@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import campos as campos_svc
 from app.core.security import get_current_user, require_perm
 from app.core.pagination import parse_page, page_payload, text_search_cliente
 from app.domain.models import Cliente, ClienteInput
@@ -150,7 +151,7 @@ async def list_clientes(
 
 @router.post("/clientes")
 async def create_cliente(data: ClienteInput, user: dict = Depends(require_perm("clientes", "create"))):
-    payload = data.model_dump()
+    payload = await campos_svc.aplicar("clientes", data.model_dump(), "criar")
     payload["sistema"] = False
     # is_default=True só a partir das Configurações (cliente default extra)
     c = Cliente(**payload)
@@ -165,7 +166,7 @@ async def update_cliente(cid: str, data: ClienteInput, user: dict = Depends(requ
     existing = await clientes_repo.get(cid)
     if not existing:
         raise HTTPException(404, "Cliente não encontrado")
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("clientes", data.model_dump(), "guardar", existing)
     novo["sistema"] = bool(existing.get("sistema"))
     novo["is_default"] = bool(existing.get("is_default") or novo.get("is_default"))
     if existing.get("sistema"):

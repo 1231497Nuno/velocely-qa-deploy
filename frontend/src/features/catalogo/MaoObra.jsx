@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY, MobileCards, MobileCard } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -85,7 +85,7 @@ export default function MaoObra() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="mao_obra" ids={items.map((m) => m.id)} />
               {can("mao_obra", "create") && (
-                <button data-testid="new-maoobra-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-maoobra-btn" onClick={openNew} className="btn btn-primario">
                   <Plus size={16} /> Nova Função
                 </button>
               )}
@@ -107,7 +107,7 @@ export default function MaoObra() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[560px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -144,6 +144,20 @@ export default function MaoObra() {
           </tbody>
         </table>
       </ScrollableTable>
+      <MobileCards testid="maoobra-cards">
+        {items.map((m) => (
+          <MobileCard key={m.id} testid={`maoobra-card-${m.id}`} onClick={can("mao_obra", "edit") ? () => openEdit(m) : undefined}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 truncate">{m.nome}</div>
+                <div className="text-xs text-gray-500 mono">{m.codigo || "—"}</div>
+              </div>
+              <div className="text-sm font-semibold tabular-nums text-gray-900 shrink-0">{eur(m.custo_hora)} / h</div>
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Sem funções.</p>}
+      </MobileCards>
     </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -171,7 +185,7 @@ export default function MaoObra() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-maoobra-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-maoobra-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

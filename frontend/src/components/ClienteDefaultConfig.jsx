@@ -116,7 +116,7 @@ export default function ClienteDefaultConfig({ open, onOpenChange, onChanged }) 
                 type="button"
                 data-testid="cliente-default-novo-btn"
                 onClick={openNew}
-                className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
+                className="btn btn-primario"
               >
                 <Plus size={14} /> Novo default
               </button>
@@ -204,7 +204,7 @@ export default function ClienteDefaultConfig({ open, onOpenChange, onChanged }) 
               data-testid="cliente-default-save"
               disabled={saving}
               onClick={save}
-              className="px-3 py-2 text-sm bg-black text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              className="btn btn-primario"
             >
               {saving ? "A guardar…" : "Guardar"}
             </button>

@@ -13,6 +13,23 @@ module.exports = {
         sm: 'calc(var(--radius) - 4px)'
       },
       colors: {
+        // Aparência editável (Definições → Aparência) — ver src/lib/tema.js
+        brand: {
+          DEFAULT: 'rgb(var(--brand) / <alpha-value>)',
+          hover: 'rgb(var(--brand-hover) / <alpha-value>)',
+          fg: 'rgb(var(--brand-fg) / <alpha-value>)',
+          soft: 'rgb(var(--brand-soft) / <alpha-value>)'
+        },
+        destaque: 'rgb(var(--accent-c) / <alpha-value>)',
+        sidebar: {
+          DEFAULT: 'rgb(var(--sidebar-bg) / <alpha-value>)',
+          fg: 'rgb(var(--sidebar-fg) / <alpha-value>)',
+          strong: 'rgb(var(--sidebar-fg-strong) / <alpha-value>)',
+          muted: 'rgb(var(--sidebar-muted) / <alpha-value>)',
+          hover: 'rgb(var(--sidebar-hover) / <alpha-value>)',
+          border: 'rgb(var(--sidebar-border) / <alpha-value>)'
+        },
+        appbg: 'rgb(var(--app-bg) / <alpha-value>)',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {

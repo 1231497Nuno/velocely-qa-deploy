@@ -802,6 +802,12 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                         ).model_dump()
                     )
         it["operacoes"] = operacoes or []
+        # Materiais a consumir acompanham a quantidade do item (base por unidade)
+        qtd_item = float(it.get("quantidade") or 0)
+        for m in it.get("materiais") or []:
+            if m.get("quantidade_unit") is not None:
+                m["quantidade"] = round(float(m["quantidade_unit"]) * qtd_item, 4)
+                m["custo"] = round2(m["quantidade"] * float(m.get("custo_unitario") or 0))
         out.append(it)
     await _apply_pers_tempo(out)
     return out

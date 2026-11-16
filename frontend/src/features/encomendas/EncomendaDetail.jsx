@@ -1,11 +1,15 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { SelectAdicionar } from "@/components/BotaoAdicionar";
+import OfResumoDialog from "./OfResumoDialog";
+import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
+import ArtigoCombobox from "@/components/ArtigoCombobox";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
-import Combobox from "@/components/Combobox";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
@@ -24,10 +28,7 @@ import BlocosShell from "@/components/BlocosShell";
 import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
 import AbrirNaoConformidadeDialog from "@/features/nao_conformidades/AbrirNaoConformidadeDialog";
 import { ymdHoje } from "@/lib/orcamento";
-import SelecionarVariantesDialog, {
-  artigosParaSelector,
-  artigoTemVariantes,
-} from "@/components/SelecionarVariantesDialog";
+import SelecionarVariantesDialog from "@/components/SelecionarVariantesDialog";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 
@@ -69,6 +70,8 @@ export default function EncomendaDetail() {
   const [docs, setDocs] = useState([]);
   const [ofOpen, setOfOpen] = useState(false);
   const [ofQtys, setOfQtys] = useState({});
+  const [ofPrevisao, setOfPrevisao] = useState(null); // resumo para validar antes de criar a OF
+  const [ofCriando, setOfCriando] = useState(false);
   const [emitOpen, setEmitOpen] = useState(false);
   const [emitDefaultTipo, setEmitDefaultTipo] = useState("fatura");
   const [ncs, setNcs] = useState([]);
@@ -136,7 +139,7 @@ export default function EncomendaDetail() {
     return (
       <div className="text-sm space-y-3 py-8 text-center" data-testid="enc-load-error">
         <p className="text-gray-600">{loadError}</p>
-        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">
+        <button type="button" onClick={() => load()} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">
           Tentar novamente
         </button>
       </div>
@@ -190,6 +193,7 @@ export default function EncomendaDetail() {
   const bodyFrom = (e) => ({
     cliente: e.cliente,
     cliente_id: e.cliente_id || null,
+    campos_extra: e.campos_extra || {},
     contacto_id: e.contacto_id || null,
     contacto_nome: e.contacto_nome || "",
     contacto_email: e.contacto_email || "",
@@ -260,18 +264,14 @@ export default function EncomendaDetail() {
     personalizacoes: [],
   });
 
-  const addArtigo = (artigoId) => {
+  /** Seletor único: recebe o artigo (pode ter sido criado agora e ainda não estar na lista). */
+  const addArtigoObj = (a) => {
     if (valoresDoOrc) {
       toast.error("Os artigos desta encomenda vêm do orçamento e não podem ser alterados");
       return;
     }
-    const a = artigos.find((x) => x.id === artigoId);
-    if (!a) return;
-    if (artigoTemVariantes(a)) {
-      setVariantesPick({ pai: a });
-      return;
-    }
-    persist({ artigos: [...(enc.artigos || []), linhaFromArtigo(a)] }, "Artigo adicionado");
+    const base = artigos.find((x) => x.id === a.id) || a;
+    persist({ artigos: [...(enc.artigos || []), linhaFromArtigo(base)] }, "Artigo adicionado");
   };
 
   const addVariantes = async (picked) => {
@@ -297,7 +297,7 @@ export default function EncomendaDetail() {
     }
     persist(
       { artigos: [...(enc.artigos || []), ...novas] },
-      picked.length === 1 ? "Variante adicionada" : `${picked.length} variantes adicionadas`,
+      picked.length === 1 ? "Artigo adicionado" : `${picked.length} artigos adicionados`,
     );
     setVariantesPick(null);
   };
@@ -380,41 +380,58 @@ export default function EncomendaDetail() {
     persist({ artigos: list }, "Personalização removida");
   };
 
+  // 1.º passo: monta os itens e pede o resumo (operações e materiais do orçamento / catálogo)
+  const itensParaOF = () => (enc.artigos || [])
+    .filter((a) => a.artigo_id && (Number(ofQtys[a.id]) || 0) > 0)
+    .map((a) => ({
+      enc_artigo_id: a.id,
+      artigo_id: a.artigo_id,
+      artigo_nome: a.artigo_nome,
+      artigo_codigo: a.artigo_codigo || "",
+      imagem: a.imagem || "",
+      quantidade: Number(ofQtys[a.id]) || 0,
+      preco_unit: Number(a.preco_unit) || 0,
+      personalizacoes: a.personalizacoes || [],
+      cor: a.cor || "",
+      arte_path: a.arte_path || "",
+      arte_nome: a.arte_nome || "",
+      arte_content_type: a.arte_content_type || "",
+    }));
+
   const criarOF = async () => {
-    const itens = (enc.artigos || [])
-      .filter((a) => a.artigo_id && (Number(ofQtys[a.id]) || 0) > 0)
-      .map((a) => ({
-        artigo_id: a.artigo_id,
-        artigo_nome: a.artigo_nome,
-        artigo_codigo: a.artigo_codigo || "",
-        imagem: a.imagem || "",
-        quantidade: Number(ofQtys[a.id]) || 0,
-        preco_unit: Number(a.preco_unit) || 0,
-        personalizacoes: a.personalizacoes || [],
-        operacoes: [],
-        arte_path: a.arte_path || "",
-        arte_nome: a.arte_nome || "",
-        arte_content_type: a.arte_content_type || "",
-      }));
+    const itens = itensParaOF();
     if (itens.length === 0) return toast.error("Indica pelo menos uma quantidade a produzir");
-    const resumo = itens.map((i) => `• ${i.artigo_nome || "Artigo"}: ${i.quantidade}`).join("\n");
-    const avisoAuth = enc.autorizada_producao ? "" : "\n\nA produção ainda não está autorizada.";
-    if (!await confirmAction({
-      title: "Criar ordem de fabrico",
-      description: `${resumo}${avisoAuth}\n\nSeguem artigos, quantidades, personalizações, artes e preços da encomenda.`,
-      confirmLabel: "Criar OF",
-    })) return;
-    const of = await api.post(`/encomendas/${id}/ordens-fabrico`, {
-      cliente: enc.cliente,
-      descricao: enc.descricao || "",
-      notas: enc.notas || "",
-      prazo_entrega: enc.prazo_entrega || null,
-      numero_encomenda: enc.referencia_cliente || enc.numero || "",
-      itens,
-      imagens: enc.imagens || [],
-    });
-    toast.success("Ordem de fabrico criada");
-    nav(`/ordens-fabrico/${of.id}`);
+    try {
+      const prev = await api.post(`/encomendas/${id}/ordens-fabrico/previsao`, { itens });
+      setOfPrevisao(prev);
+      setOfOpen(false);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível preparar a ordem de fabrico");
+    }
+  };
+
+  // 2.º passo: depois de validado o resumo, cria a OF com os dados mostrados
+  const confirmarOF = async () => {
+    if (!ofPrevisao) return;
+    setOfCriando(true);
+    try {
+      const of = await api.post(`/encomendas/${id}/ordens-fabrico`, {
+        cliente: enc.cliente,
+        descricao: enc.descricao || "",
+        notas: enc.notas || "",
+        prazo_entrega: enc.prazo_entrega || null,
+        numero_encomenda: enc.referencia_cliente || enc.numero || "",
+        itens: ofPrevisao.itens,
+        imagens: enc.imagens || [],
+      });
+      setOfPrevisao(null);
+      toast.success("Ordem de fabrico criada");
+      nav(`/ordens-fabrico/${of.id}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível criar a ordem de fabrico");
+    } finally {
+      setOfCriando(false);
+    }
   };
 
   const remaining = (a) => Math.max(0, (Number(a.quantidade) || 0) - (ofQtyByArtigo[a.artigo_id] || 0));
@@ -426,11 +443,6 @@ export default function EncomendaDetail() {
     setOfOpen(true);
   };
 
-  const artigoOptions = artigosParaSelector(artigos).map((a) => ({
-    value: a.id,
-    label: a.tem_variantes ? `${a.nome} (variantes)` : a.nome,
-    hint: eur(a.preco_venda),
-  }));
   const podeProduzir = enc.pode_produzir;
 
   return (
@@ -473,7 +485,7 @@ export default function EncomendaDetail() {
               </button>
             )}
             {can("encomendas", "edit") && (
-              <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Save size={15} /> Guardar</button>
+              <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Save size={15} /> Guardar</button>
             )}
           </>
         }
@@ -561,8 +573,15 @@ export default function EncomendaDetail() {
                 )}
               </div>
               {canEditValores && (
-                <div className="sm:w-72">
-                  <Combobox options={artigoOptions} value="" onChange={(v) => addArtigo(v)} placeholder="+ Adicionar artigo..." searchPlaceholder="Pesquisar artigo..." emptyText="Nenhum artigo." testid="enc-add-artigo" optionTestidPrefix="enc-artigo-option" />
+                <div className="sm:w-auto">
+                  <ArtigoCombobox
+                    modo="adicionar"
+                    artigos={artigos}
+                    onChange={(a) => addArtigoObj(a)}
+                    onChangeMulti={addVariantes}
+                    onArtigosRefresh={async () => setArtigos(await api.get("/artigos?lite=1"))}
+                    testid="enc-add-artigo"
+                  />
                 </div>
               )}
             </div>
@@ -588,9 +607,15 @@ export default function EncomendaDetail() {
                     {enc.artigos.map((a, i) => {
                       const unitPers = (Number(a.preco_unit) || 0) + persUnitOf(a);
                       return (
-                        <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100">
+                        <tr key={a.id || i} data-testid={`enc-artigo-row-${i}`} className="border-b border-gray-100" style={estiloLinhaCor(a.cor)}>
                           <td className="px-4 py-2.5 font-medium text-gray-900">
                             <div className="flex items-center gap-2.5">
+                              <CorLinhaPicker
+                                value={a.cor || ""}
+                                disabled={!can("encomendas", "edit")}
+                                onChange={(cor) => persist({ artigos: enc.artigos.map((x, j) => (j === i ? { ...x, cor } : x)) })}
+                                testid={`enc-artigo-cor-${i}`}
+                              />
                               <ImagemUpload value={a.imagem} editable={false} size={40} testid={`enc-artigo-imagem-${i}`} />
                               <span>{a.artigo_nome}</span>
                             </div>
@@ -615,10 +640,9 @@ export default function EncomendaDetail() {
                                 <span className="text-xs text-gray-400">—</span>
                               )}
                               {canEditValores && (
-                                <select data-testid={`enc-artigo-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
-                                  <option value="">+ Personalização…</option>
+                                <SelectAdicionar tamanho="sm" largo label="Personalização" testid={`enc-artigo-pers-add-${i}`} onChange={(v) => addPers(i, v)}>
                                   {tipos.map((t) => <option key={t.id} value={t.id}>{`${t.nome} (${eur(t.valor)})`}</option>)}
-                                </select>
+                                </SelectAdicionar>
                               )}
                             </div>
                           </td>
@@ -838,6 +862,16 @@ export default function EncomendaDetail() {
         </>
       )}
 
+      {tab === "encomenda" && (
+        <CamposPersonalizados
+          modulo="encomendas"
+          className="mt-4"
+          value={enc.campos_extra}
+          disabled={!can("encomendas", "edit")}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
+      )}
+
       {tab === "pagamentos" && (
         <div className="space-y-4" data-testid="enc-tab-pagamentos-panel">
           <EncPagamentoResumo enc={enc} />
@@ -958,6 +992,14 @@ export default function EncomendaDetail() {
         remaining={remaining}
         artUnidade={artUnidade}
         onCriar={criarOF}
+      />
+
+      <OfResumoDialog
+        open={!!ofPrevisao}
+        onOpenChange={(o) => { if (!o) { setOfPrevisao(null); setOfOpen(true); } }}
+        previsao={ofPrevisao}
+        criando={ofCriando}
+        onConfirmar={confirmarOF}
       />
 
       {can("nao_conformidades", "create") && (

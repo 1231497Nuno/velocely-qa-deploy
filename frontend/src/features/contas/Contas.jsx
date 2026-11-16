@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
+import ExportExcelButton from "@/components/ExportExcelButton";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip, FiltroSelect, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { ymdHoje } from "@/lib/orcamento";
@@ -48,6 +53,7 @@ const emptyForm = () => ({
 });
 
 export default function Contas() {
+  const { corLinha } = useCampos();
   const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
@@ -69,6 +75,8 @@ export default function Contas() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel,
   } = useServerPagedList("/contas", { extraParams });
+  const { sort, toggle, apply } = useSort();
+  const sortedItems = apply(items);
 
   useEffect(() => {
     if (!FILTROS.some((t) => t.id === filtro)) {
@@ -147,18 +155,21 @@ export default function Contas() {
           title={title}
           subtitle="Controlo de valores a receber e a pagar, com documentos associados. Independente do módulo de faturas."
           actions={
-            can("contas", "create") && (
-              <button
-                data-testid="new-conta-btn"
-                onClick={() => {
-                  setForm({ ...emptyForm(), tipo: filtro === "pagar" ? "pagar" : "receber" });
-                  setOpen(true);
-                }}
-                className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
-              >
-                <Plus size={16} /> Nova conta
-              </button>
-            )
+            <>
+              <ExportExcelButton entity="contas" ids={items.map((x) => x.id)} />
+              {can("contas", "create") && (
+                <button
+                  data-testid="new-conta-btn"
+                  onClick={() => {
+                    setForm({ ...emptyForm(), tipo: filtro === "pagar" ? "pagar" : "receber" });
+                    setOpen(true);
+                  }}
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
+                >
+                  <Plus size={16} /> Nova conta
+                </button>
+              )}
+            </>
           }
         />
       }
@@ -174,34 +185,18 @@ export default function Contas() {
           >
             {({ mobile }) => (
               <div className={mobile ? "flex flex-col gap-3" : "flex flex-col gap-3 sm:flex-row sm:items-center w-full"} data-testid="contas-tabs">
-                <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"}>
-                  {FILTROS.map((t) => {
-                    const active = filtro === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        data-testid={`contas-tab-${t.id}`}
-                        onClick={() => setFiltro(t.id)}
-                        className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-                      >
-                        {t.label}
-                        {active && (
-                          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <select
-                  data-testid="contas-filtro-estado"
-                  value={estadoFilter}
-                  onChange={(e) => setEstadoFilter(e.target.value)}
-                  className={`${mobile ? "w-full" : "sm:ml-auto shrink-0"} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white min-h-11`}
-                >
+                <FiltroGrupo mobile={mobile}>
+                  {FILTROS.map((t) => (
+                    <FiltroChip key={t.id} active={filtro === t.id} onClick={() => setFiltro(t.id)} count={total} testid={`contas-tab-${t.id}`}>
+                      {t.label}
+                    </FiltroChip>
+                  ))}
+                </FiltroGrupo>
+                <FiltroSelect mobile={mobile} value={estadoFilter} onChange={setEstadoFilter} testid="contas-filtro-estado" className={mobile ? "" : "sm:ml-auto shrink-0"}>
                   {ESTADOS.map((e) => (
                     <option key={e.id || "all"} value={e.id}>{e.label}</option>
                   ))}
-                </select>
+                </FiltroSelect>
               </div>
             )}
           </MobileFiltersButton>
@@ -224,14 +219,14 @@ export default function Contas() {
         <table className="w-full text-sm min-w-[920px]" data-testid="contas-table">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Entidade</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Vencimento</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pendente</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
+              <SortTh label="Nº" sortKey="numero" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Tipo" sortKey="tipo" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Entidade" sortKey="entidade" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Descrição" sortKey="descricao" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Vencimento" sortKey="vencimento" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Valor" sortKey="valor" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Pendente" sortKey="valor_pendente" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="left" />
               <th className="w-16"></th>
             </tr>
           </thead>
@@ -242,14 +237,14 @@ export default function Contas() {
                   Sem contas neste filtro.
                 </td>
               </tr>
-            ) : items.map((c) => (
-              <tr
+            ) : sortedItems.map((c) => (
+              <tr style={estiloCor(corLinha("contas", c))}
                 key={c.id}
                 data-testid={`conta-row-${c.id}`}
                 onClick={() => nav(`/contas/${c.id}`)}
                 className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
               >
-                <td className="px-4 py-2.5 font-medium mono text-gray-900">{c.numero}</td>
+                <td className="px-4 py-2.5 font-medium mono text-gray-900">{c.numero}<ExtrasResumo modulo="contas" registo={c} /></td>
                 <td className="px-4 py-2.5 text-gray-600">{CONTA_TIPO_PT[c.tipo] || c.tipo}</td>
                 <td className="px-4 py-2.5 font-medium text-gray-900 truncate max-w-[200px]">{c.entidade || "—"}</td>
                 <td className="px-4 py-2.5 text-gray-600 truncate max-w-[220px]">{c.descricao || "—"}</td>
@@ -272,8 +267,8 @@ export default function Contas() {
       </ScrollableTable>
 
       <MobileCards testid="contas-cards">
-        {items.map((c) => (
-          <MobileCard key={c.id} testid={`conta-card-${c.id}`} onClick={() => nav(`/contas/${c.id}`)}>
+        {sortedItems.map((c) => (
+          <MobileCard style={estiloCor(corLinha("contas", c))} key={c.id} testid={`conta-card-${c.id}`} onClick={() => nav(`/contas/${c.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="mono font-semibold text-gray-900">{c.numero}</div>
@@ -389,7 +384,7 @@ export default function Contas() {
         </div>
         <DialogFooter>
           <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-          <button data-testid="save-conta-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Criar</button>
+          <button data-testid="save-conta-btn" onClick={create} className="btn btn-primario">Criar</button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

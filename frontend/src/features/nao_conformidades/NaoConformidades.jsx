@@ -1,4 +1,9 @@
 import { useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
+import ExportExcelButton from "@/components/ExportExcelButton";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -23,6 +28,7 @@ const ESTADOS = [
 const TIPO_PT = Object.fromEntries(NC_TIPOS.map((t) => [t.id, t.label]));
 
 export default function NaoConformidades() {
+  const { corLinha } = useCampos();
   const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
@@ -38,6 +44,8 @@ export default function NaoConformidades() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel,
   } = useServerPagedList("/nao-conformidades", { extraParams });
+  const { sort, toggle, apply } = useSort();
+  const sortedItems = apply(items);
 
   const remove = async (e, id) => {
     e.stopPropagation();
@@ -57,6 +65,7 @@ export default function NaoConformidades() {
         <PageHeader
           title="Não conformidades"
           subtitle="Abertas a partir das referências das encomendas"
+          actions={<ExportExcelButton entity="nao_conformidades" ids={items.map((x) => x.id)} />}
         />
       }
       toolbar={
@@ -70,16 +79,13 @@ export default function NaoConformidades() {
             description="Estado da não conformidade."
           >
             {({ mobile }) => (
-              <select
-                data-testid="nc-filtro-estado"
-                value={estadoFilter}
-                onChange={(e) => setEstadoFilter(e.target.value)}
-                className={`${mobile ? "w-full" : ""} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white shrink-0 min-h-11`}
-              >
+              <FiltroGrupo mobile={mobile}>
                 {ESTADOS.map((e) => (
-                  <option key={e.id || "all"} value={e.id}>{e.label}</option>
+                  <FiltroChip key={e.id || "all"} active={estadoFilter === e.id} onClick={() => setEstadoFilter(e.id)} count={total} testid={`nc-filtro-estado-${e.id || "todos"}`}>
+                    {e.id ? e.label : "Todos"}
+                  </FiltroChip>
                 ))}
-              </select>
+              </FiltroGrupo>
             )}
           </MobileFiltersButton>
         </div>
@@ -101,12 +107,12 @@ export default function NaoConformidades() {
         <table className="w-full text-sm min-w-[820px]" data-testid="nc-table">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Encomenda</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Referência</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
+              <SortTh label="Nº" sortKey="numero" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Encomenda" sortKey="encomenda_numero" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Referência" sortKey="artigo_codigo" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Tipo" sortKey="tipo" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Data" sortKey="created_at" sort={sort} onSort={toggle} align="left" />
               <th className="w-16"></th>
             </tr>
           </thead>
@@ -117,14 +123,14 @@ export default function NaoConformidades() {
                   Sem não conformidades. Abra-as a partir do artigo da encomenda.
                 </td>
               </tr>
-            ) : items.map((n) => (
-              <tr
+            ) : sortedItems.map((n) => (
+              <tr style={estiloCor(corLinha("nao_conformidades", n))}
                 key={n.id}
                 data-testid={`nc-row-${n.id}`}
                 onClick={() => nav(`/nao-conformidades/${n.id}`)}
                 className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
               >
-                <td className="px-4 py-2.5 font-medium mono text-gray-900">{n.numero}</td>
+                <td className="px-4 py-2.5 font-medium mono text-gray-900">{n.numero}<ExtrasResumo modulo="nao_conformidades" registo={n} /></td>
                 <td className="px-4 py-2.5 text-gray-700">{n.encomenda_numero || "—"}</td>
                 <td className="px-4 py-2.5">
                   <div className="font-medium text-gray-900 truncate max-w-[220px]">{n.artigo_codigo || n.artigo_nome || "—"}</div>
@@ -148,8 +154,8 @@ export default function NaoConformidades() {
       </ScrollableTable>
 
       <MobileCards testid="nc-cards">
-        {items.map((n) => (
-          <MobileCard key={n.id} testid={`nc-card-${n.id}`} onClick={() => nav(`/nao-conformidades/${n.id}`)}>
+        {sortedItems.map((n) => (
+          <MobileCard style={estiloCor(corLinha("nao_conformidades", n))} key={n.id} testid={`nc-card-${n.id}`} onClick={() => nav(`/nao-conformidades/${n.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="mono font-semibold text-gray-900">{n.numero}</div>

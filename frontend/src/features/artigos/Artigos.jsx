@@ -1,4 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Layout";
@@ -22,6 +24,7 @@ const filtroClsDesktop = "w-[11.5rem] lg:w-[13rem]";
 const filtroClsMobile = "w-full";
 
 export default function Artigos() {
+  const { corLinha } = useCampos();
   const { can } = useAuth();
   const nav = useNavigate();
   const [filtroTipo, setFiltroTipo] = useState("");
@@ -206,7 +209,7 @@ export default function Artigos() {
                 <button
                   data-testid="add-artigo-btn"
                   onClick={() => nav("/artigos/novo")}
-                  className="inline-flex items-center gap-1.5 bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-2 text-sm font-medium"
+                  className="inline-flex items-center gap-1.5 bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-2 text-sm font-medium"
                 >
                   <Plus size={16} /> Novo Artigo
                 </button>
@@ -286,7 +289,7 @@ export default function Artigos() {
                       type="button"
                       data-testid="artigos-limpar-filtros"
                       onClick={limparFiltros}
-                      className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50"
+                      className="btn btn-secundario"
                     >
                       Limpar filtros
                     </button>
@@ -403,7 +406,7 @@ export default function Artigos() {
               const prod = tipo === "ativo" && isProduzido(a);
               const un = unidadeMedida(a);
               return (
-                <tr
+                <tr style={estiloCor(corLinha("artigos", a))}
                   key={a.id}
                   data-testid={`artigo-row-${a.id}`}
                   onClick={() => nav(`/artigos/${a.id}`)}
@@ -420,7 +423,7 @@ export default function Artigos() {
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 mono tabular-nums text-gray-600">{a.codigo}</td>
+                  <td className="px-4 py-3 mono tabular-nums text-gray-600">{a.codigo}<ExtrasResumo modulo="artigos" registo={a} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <ImagemUpload value={a.imagem} editable={false} size={40} testid={`artigo-row-imagem-${a.id}`} />
@@ -492,7 +495,7 @@ export default function Artigos() {
         {rows.map((a) => {
           const tipo = normalizarTipo(a);
           return (
-            <MobileCard key={a.id} testid={`artigo-card-${a.id}`} onClick={() => nav(`/artigos/${a.id}`)}>
+            <MobileCard style={estiloCor(corLinha("artigos", a))} key={a.id} testid={`artigo-card-${a.id}`} onClick={() => nav(`/artigos/${a.id}`)}>
               <div className="flex items-start gap-3">
                 {can("artigos", "edit") && (
                   <input

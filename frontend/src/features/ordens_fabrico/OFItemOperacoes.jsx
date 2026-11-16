@@ -1,4 +1,5 @@
-import { Plus, Trash2, Cog } from "lucide-react";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
+import { Trash2, Cog } from "lucide-react";
 
 export function OFItemOperacoes({ item, i, maquinas, maoObra, addOp, updOp, delOp }) {
   const ops = item.operacoes || [];
@@ -7,7 +8,7 @@ export function OFItemOperacoes({ item, i, maquinas, maoObra, addOp, updOp, delO
     <div className="border-t border-gray-100 pt-2 mt-1">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 flex items-center gap-1.5"><Cog size={12} /> Operações</span>
-        <button data-testid={`of-add-op-${i}`} onClick={() => addOp(i)} className="text-xs text-gray-900 font-medium flex items-center gap-1 hover:underline"><Plus size={12} /> Operação</button>
+        <BotaoAdicionar tamanho="sm" testid={`of-add-op-${i}`} onClick={() => addOp(i)}>Adicionar operação</BotaoAdicionar>
       </div>
       {ops.length === 0 && <p className="text-xs text-gray-400">Sem operações. Guarde para carregar o roteiro ou adicione manualmente.</p>}
       <div className="space-y-2">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -59,6 +60,7 @@ export default function NaoConformidadeDetail() {
         estado: nc.estado,
         quantidade: Number(nc.quantidade) || 0,
         notas: nc.notas || "",
+        campos_extra: nc.campos_extra || {},
       });
       setNc(updated);
       setDirty(false);
@@ -91,12 +93,12 @@ export default function NaoConformidadeDetail() {
         actions={
           <>
             {can("nao_conformidades", "edit") && (
-              <button data-testid="nc-save-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="nc-save-btn" onClick={save} className="btn btn-primario">
                 <Save size={15} /> Guardar
               </button>
             )}
             {can("nao_conformidades", "delete") && (
-              <button data-testid="nc-delete-btn" onClick={remove} className="bg-white text-red-700 border border-red-200 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="nc-delete-btn" onClick={remove} className="btn btn-perigo-contorno">
                 <Trash2 size={15} /> Eliminar
               </button>
             )}
@@ -177,6 +179,16 @@ export default function NaoConformidadeDetail() {
         </div>
       </div>
         </>
+      )}
+
+      {tab === "nc" && (
+        <CamposPersonalizados
+          modulo="nao_conformidades"
+          className="mt-4"
+          value={nc.campos_extra}
+          disabled={!can("nao_conformidades", "edit")}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "ficheiros" && (

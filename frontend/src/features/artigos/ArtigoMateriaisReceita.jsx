@@ -1,4 +1,5 @@
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
 import { eur } from "@/lib/api";
 import {
   emptyMaterialLinha,
@@ -98,14 +99,7 @@ export default function ArtigoMateriaisReceita({
           <p className="text-xs text-gray-500">
             Um material por bloco. Adicione várias medidas (cortes/áreas) no mesmo material — a unidade e o preço vêm do artigo.
           </p>
-          <button
-            type="button"
-            data-testid="artigo-add-material"
-            onClick={addMaterial}
-            className="text-xs font-medium text-gray-900 inline-flex items-center gap-1 hover:underline shrink-0"
-          >
-            <Plus size={13} /> Material
-          </button>
+          <BotaoAdicionar tamanho="sm" testid="artigo-add-material" onClick={addMaterial}>Adicionar material</BotaoAdicionar>
         </div>
       )}
 
@@ -170,14 +164,7 @@ export default function ArtigoMateriaisReceita({
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Medidas / consumos</span>
                       {editing && (
-                        <button
-                          type="button"
-                          data-testid={`artigo-add-medida-${i}`}
-                          onClick={() => addMedida(i)}
-                          className="text-xs font-medium text-gray-900 inline-flex items-center gap-1 hover:underline"
-                        >
-                          <Plus size={12} /> Medida
-                        </button>
+                        <BotaoAdicionar tamanho="sm" testid={`artigo-add-medida-${i}`} onClick={() => addMedida(i)}>Adicionar medida</BotaoAdicionar>
                       )}
                     </div>
 
@@ -214,7 +201,7 @@ export default function ArtigoMateriaisReceita({
                                   type="button"
                                   data-testid={`artigo-material-${i}-medida-${mi}-modo-area`}
                                   onClick={() => updMedida(i, mi, setModoMedida(med, "area"))}
-                                  className={`px-2.5 py-1 font-medium ${modo === "area" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                                  className={`px-2.5 py-1 font-medium ${modo === "area" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}
                                 >
                                   Área (m²)
                                 </button>
@@ -222,7 +209,7 @@ export default function ArtigoMateriaisReceita({
                                   type="button"
                                   data-testid={`artigo-material-${i}-medida-${mi}-modo-dim`}
                                   onClick={() => updMedida(i, mi, setModoMedida(med, "dimensoes"))}
-                                  className={`px-2.5 py-1 font-medium border-l border-gray-300 ${modo === "dimensoes" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                                  className={`px-2.5 py-1 font-medium border-l border-gray-300 ${modo === "dimensoes" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}
                                 >
                                   Comprimento × Largura
                                 </button>

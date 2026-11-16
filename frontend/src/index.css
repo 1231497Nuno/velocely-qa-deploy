@@ -8,6 +8,19 @@
  * e respirar um pouco em ecrãs maiores — sem layouts fixos.
  */
 :root {
+    /* Aparência por defeito — substituída em runtime por src/lib/tema.js */
+    --brand: 17 24 39;
+    --brand-hover: 55 65 81;
+    --brand-fg: 255 255 255;
+    --brand-soft: 243 244 246;
+    --accent-c: 37 99 235;
+    --sidebar-bg: 255 255 255;
+    --sidebar-fg: 75 85 99;
+    --sidebar-fg-strong: 17 24 39;
+    --sidebar-muted: 156 163 175;
+    --sidebar-hover: 243 244 246;
+    --sidebar-border: 229 231 235;
+    --app-bg: 248 249 250;
     --mobile-header-h: 3.25rem;
     --app-pad-x: clamp(0.5rem, 2.8vw, 1.25rem);
     --app-pad-y: clamp(0.45rem, 1.4vh, 0.9rem);
@@ -130,6 +143,19 @@ body.mobile-nav-open {
 }
 
 @layer components {
+  /* ---------- Botões: um só estilo em todo o ERP (ver docs/guides/padroes-interface.md) ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-sm px-3.5 py-2 min-h-9 text-sm font-medium
+      whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-sm { @apply px-2.5 py-1.5 min-h-8 text-xs gap-1; }
+  .btn-primario { @apply bg-brand text-brand-fg hover:bg-brand-hover; }
+  .btn-secundario { @apply border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 hover:border-gray-400; }
+  .btn-perigo { @apply bg-red-600 text-white hover:bg-red-700; }
+  .btn-perigo-contorno { @apply border border-red-200 bg-white text-red-700 hover:bg-red-50; }
+  .btn-sucesso { @apply bg-emerald-700 text-white hover:bg-emerald-800; }
+  .btn-aviso { @apply bg-amber-600 text-white hover:bg-amber-700; }
     .app-shell-pad {
         padding-left: max(var(--app-pad-x), env(safe-area-inset-left, 0px));
         padding-right: max(var(--app-pad-x), env(safe-area-inset-right, 0px));

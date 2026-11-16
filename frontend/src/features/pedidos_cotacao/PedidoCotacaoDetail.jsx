@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import ArtigoCombobox from "@/components/ArtigoCombobox";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +13,7 @@ import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Save, Pencil, X, Send, CheckCircle2, Ban, ShoppingCart,
+  Trash2, Save, Pencil, X, Send, CheckCircle2, Ban, ShoppingCart,
 } from "lucide-react";
 
 const ESTADO_LABEL = {
@@ -98,6 +100,14 @@ export default function PedidoCotacaoDetail() {
       nav(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, nav]);
+  const [artigos, setArtigos] = useState([]);
+  const carregarArtigos = useCallback(async () => {
+    try {
+      const r = await api.get("/artigos?lite=1");
+      setArtigos(Array.isArray(r) ? r : (r.items || []));
+    } catch { /* sem catálogo disponível */ }
+  }, []);
+  useEffect(() => { carregarArtigos(); }, [carregarArtigos]);
   useEffect(() => {
     api.get("/fornecedores").then((r) => {
       setFornecedores(Array.isArray(r) ? r : (r.items || []));
@@ -123,9 +133,40 @@ export default function PedidoCotacaoDetail() {
       return { ...f, linhas };
     });
   };
-  const addLinha = () => {
+
+  /** Linhas só com artigos do catálogo (seletor único do ERP). */
+  const linhaDoArtigo = (a, quantidade) => ({
+    artigo_id: a.id,
+    artigo_nome: a.nome || "",
+    nome: a.nome || "",
+    unidade: a.unidade || "un",
+    ...(quantidade ? { quantidade } : {}),
+  });
+  const escolherArtigo = (idx, a) => {
     setDirty(true);
-    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
+    setForm((f) => {
+      const linhas = [...(f.linhas || [])];
+      linhas[idx] = { ...linhas[idx], ...linhaDoArtigo(a) };
+      return { ...f, linhas };
+    });
+  };
+  const escolherVariantes = (idx, picked) => {
+    if (!picked?.length) return;
+    setDirty(true);
+    setForm((f) => {
+      const linhas = [...(f.linhas || [])];
+      const [primeira, ...resto] = picked;
+      linhas[idx] = { ...linhas[idx], ...linhaDoArtigo(primeira, primeira.quantidade) };
+      const novas = resto.map((p) => ({ ...emptyLinha(), ...linhaDoArtigo(p, p.quantidade) }));
+      linhas.splice(idx + 1, 0, ...novas);
+      return { ...f, linhas };
+    });
+  };
+  const adicionarLinhasDoCatalogo = (lista) => {
+    const novas = (lista || []).map((art) => ({ ...emptyLinha(), ...linhaDoArtigo(art, Number(art.quantidade) > 0 ? Number(art.quantidade) : 1) }));
+    if (!novas.length) return;
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), ...novas] }));
   };
   const removeLinha = (idx) => {
     setDirty(true);
@@ -165,6 +206,7 @@ export default function PedidoCotacaoDetail() {
     moeda: form.moeda || "EUR",
     responsavel: form.responsavel || "",
     notas: form.notas || "",
+    campos_extra: form.campos_extra || {},
     linhas: (form.linhas || []).map((l) => ({
       id: l.id,
       nome: l.nome || "",
@@ -283,7 +325,7 @@ export default function PedidoCotacaoDetail() {
               </button>
             )}
             {podeEditar && !editing && form.estado === "respondido" && temPrecos && (
-              <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="btn btn-sucesso">
                 <ShoppingCart size={15} /> Adjudicar → OC
               </button>
             )}
@@ -295,7 +337,7 @@ export default function PedidoCotacaoDetail() {
             {podeEditar && (
               editing ? (
                 <>
-                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
+                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="btn btn-secundario">
                     <X size={15} /> Cancelar
                   </button>
                   {(form.estado === "enviado" || form.estado === "rascunho") && (
@@ -303,12 +345,12 @@ export default function PedidoCotacaoDetail() {
                       <CheckCircle2 size={15} /> Guardar como respondido
                     </button>
                   )}
-                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
                     <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                   </button>
                 </>
               ) : (
-                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="btn btn-primario">
                   <Pencil size={15} /> Editar
                 </button>
               )
@@ -423,9 +465,15 @@ export default function PedidoCotacaoDetail() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-700">Linhas</h2>
           {editing && (
-            <button type="button" onClick={addLinha} className="text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1" data-testid="pc-add-linha">
-              <Plus size={14} /> Adicionar linha
-            </button>
+            <ArtigoCombobox
+              modo="adicionar"
+              artigos={artigos}
+              onChange={(art) => adicionarLinhasDoCatalogo([{ ...art, quantidade: 1 }])}
+              onChangeMulti={adicionarLinhasDoCatalogo}
+              onArtigosRefresh={carregarArtigos}
+              preco={(a) => Number(a.preco_compra) || Number(a.custo_artigo) || 0}
+              testid="pc-add-linha"
+            />
           )}
         </div>
         <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">
@@ -451,7 +499,16 @@ export default function PedidoCotacaoDetail() {
                     <td className="px-4 py-2">
                       {editing ? (
                         <>
-                          <input className={inputCls} value={l.nome || ""} onChange={(e) => setLinha(idx, "nome", e.target.value)} placeholder="Nome do item" />
+                          <ArtigoCombobox
+                            artigos={artigos}
+                            value={l.artigo_id || ""}
+                            onChange={(art) => escolherArtigo(idx, art)}
+                            onChangeMulti={(picked) => escolherVariantes(idx, picked)}
+                            onArtigosRefresh={carregarArtigos}
+                            preco={(a) => Number(a.preco_compra) || Number(a.custo_artigo) || 0}
+                            placeholder={l.nome && !l.artigo_id ? `${l.nome} (sem artigo — escolha do catálogo)` : "Escolher artigo do catálogo..."}
+                            testid={`linha-artigo-${idx}`}
+                          />
                           <input
                             className={`${inputCls} mt-1 text-xs`}
                             value={l.notas || ""}
@@ -526,6 +583,16 @@ export default function PedidoCotacaoDetail() {
         Criado em {fmtDate(pc?.created_at)}
       </div>
         </>
+      )}
+
+      {tab === "pc" && (
+        <CamposPersonalizados
+          modulo="pedidos_cotacao"
+          className="mt-4"
+          value={form.campos_extra}
+          disabled={!editing}
+          onChange={(vals) => set("campos_extra", vals)}
+        />
       )}
 
       {tab === "ficheiros" && (

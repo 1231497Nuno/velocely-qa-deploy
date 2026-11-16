@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY, MobileCards, MobileCard } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -70,7 +70,7 @@ export default function Materiais() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="materiais" ids={items.map((c) => c.id)} />
               {can("materiais", "create") && (
-                <button data-testid="new-material-btn" onClick={openNew} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-material-btn" onClick={openNew} className="btn btn-primario">
                   <Plus size={16} /> Novo Material
                 </button>
               )}
@@ -92,7 +92,7 @@ export default function Materiais() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[560px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -125,6 +125,20 @@ export default function Materiais() {
           </tbody>
         </table>
       </ScrollableTable>
+      <MobileCards testid="material-cards">
+        {items.map((c) => (
+          <MobileCard key={c.id} testid={`material-card-${c.id}`} onClick={can("materiais", "edit") ? () => openEdit(c) : undefined}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 truncate">{c.nome}</div>
+                <div className="text-xs text-gray-500 mono">{c.codigo || "—"}</div>
+              </div>
+              <div className="text-sm font-semibold tabular-nums text-gray-900 shrink-0">{eur(c.custo_unitario)} / {c.unidade}</div>
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Sem materiais.</p>}
+      </MobileCards>
     </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -153,7 +167,7 @@ export default function Materiais() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-material-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-material-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

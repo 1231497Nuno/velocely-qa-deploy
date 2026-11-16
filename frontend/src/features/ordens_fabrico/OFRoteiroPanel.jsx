@@ -94,7 +94,7 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota,
                             running ? (
                               <button data-testid={`op-stop-${op.id}`} onClick={() => pararOp(it.id, op.id)} className="shrink-0 bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors"><Square size={13} /> Parar</button>
                             ) : (
-                              <button data-testid={`op-start-${op.id}`} onClick={() => iniciarOp(it.id, op.id)} className="shrink-0 bg-gray-900 text-white hover:bg-gray-700 rounded-sm px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors"><Play size={13} /> Iniciar</button>
+                              <button data-testid={`op-start-${op.id}`} onClick={() => iniciarOp(it.id, op.id)} className="shrink-0 bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors"><Play size={13} /> Iniciar</button>
                             )
                           )}
                           {op.concluida && <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />}

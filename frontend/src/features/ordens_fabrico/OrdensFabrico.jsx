@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip } from "@/components/Filtros";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -65,6 +69,7 @@ const KANBAN_COLS = [
 ];
 
 export default function OrdensFabrico() {
+  const { corLinha } = useCampos();
   const { can, user } = useAuth();
   const [tab, setTab] = useState("ativas");
   const [view, setView] = useState("lista");
@@ -115,24 +120,15 @@ export default function OrdensFabrico() {
     reload();
   };
 
-  const rows = items;
+  const { sort, toggle, apply } = useSort();
+  const rows = apply(items);
   const hoje = new Date().toISOString().slice(0, 10);
 
-  const Tab = ({ id, label }) => {
-    const active = tab === id;
-    return (
-      <button
-        data-testid={`of-tab-${id}`}
-        onClick={() => setTab(id)}
-        className={`px-3 py-1.5 text-sm font-medium rounded-sm flex items-center gap-1.5 transition-colors ${active ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-      >
-        {label}
-        {active && (
-          <span className="text-[11px] tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-        )}
-      </button>
-    );
-  };
+  const Tab = ({ id, label }) => (
+    <FiltroChip active={tab === id} onClick={() => setTab(id)} count={total} testid={`of-tab-${id}`}>
+      {label}
+    </FiltroChip>
+  );
 
   return (
     <ListPage
@@ -144,7 +140,7 @@ export default function OrdensFabrico() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="ordens_fabrico" ids={rows.map((o) => o.id)} />
               {can("ordens_fabrico", "create") && (
-                <button data-testid="new-of-btn" onClick={create} className="bg-black text-white hover:bg-gray-800 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-of-btn" onClick={create} className="btn btn-primario">
                   <Plus size={16} /> Nova OF
                 </button>
               )}
@@ -159,8 +155,8 @@ export default function OrdensFabrico() {
               <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do nº, cliente ou encomenda..." testid="ofs-search" />
             </div>
             <div className="inline-flex rounded-sm border border-gray-300 overflow-hidden shrink-0 self-end sm:self-auto">
-              <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "lista" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
-              <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "kanban" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
+              <button data-testid="of-view-lista" onClick={() => setView("lista")} title="Lista" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "lista" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}><List size={15} /></button>
+              <button data-testid="of-view-kanban" onClick={() => setView("kanban")} title="Kanban" className={`px-2.5 py-2 flex items-center min-h-11 ${view === "kanban" ? "bg-brand text-brand-fg" : "bg-white text-gray-600 hover:bg-gray-50"}`}><LayoutGrid size={15} /></button>
             </div>
           </div>
           <MobileFiltersButton
@@ -173,13 +169,9 @@ export default function OrdensFabrico() {
             {({ mobile }) => (
               <div className={mobile ? "flex flex-col gap-3" : "flex items-center justify-between gap-2 flex-wrap w-full"}>
                 <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-1.5 flex-wrap"}>
-                  <button
-                    data-testid="of-filter-minhas"
-                    onClick={() => setMine((m) => !m)}
-                    className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-1.5 border transition-colors min-h-11 ${mine ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-                  >
-                    <UserCheck size={14} /> As minhas
-                  </button>
+                  <FiltroChip testid="of-filter-minhas" active={mine} onClick={() => setMine((m) => !m)} icon={UserCheck}>
+                    As minhas
+                  </FiltroChip>
                   {view === "lista" && (
                     <>
                       <Tab id="ativas" label="Ativas" />
@@ -274,20 +266,20 @@ export default function OrdensFabrico() {
                 <tr>
                   <th className="px-2 py-2.5 w-10 bg-gray-50"></th>
                   {tab === "ativas" && <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cronómetro</th>}
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº Enc.</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Prazo</th>
+                  <SortTh label="Código" sortKey="numero" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Cliente" sortKey="cliente" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Nº Enc." sortKey="numero_encomenda" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Prazo" sortKey="prazo_entrega" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
                   <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Origem</th>
-                  <th className="text-right px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Progresso</th>
-                  <th className="text-center px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
+                  <SortTh label="Progresso" sortKey="progresso" sort={sort} onSort={toggle} align="right" className="!px-3 !py-2.5" />
+                  <SortTh label="Estado" sortKey="status" sort={sort} onSort={toggle} align="center" className="!px-3 !py-2.5" />
                   <th className="px-3 py-2.5 w-12 bg-gray-50"></th>
                 </tr>
               </thead>
               <tbody data-testid="ofs-table">
                 {rows.map((o) => (
-                  <tr
+                  <tr style={estiloCor(corLinha("ordens_fabrico", o))}
                     key={o.id}
                     data-testid={`of-row-${o.id}`}
                     onClick={() => nav(`/ordens-fabrico/${o.id}`)}
@@ -297,7 +289,7 @@ export default function OrdensFabrico() {
                       <button data-testid={`of-prioridade-${o.id}`} onClick={(e) => togglePrioridade(e, o)} title={o.prioritaria ? "Prioritária" : "Marcar como prioritária"} className="p-1 rounded-sm hover:bg-amber-100">
                         <Star size={15} className={o.prioritaria ? "text-amber-500 fill-amber-400" : "text-gray-300"} />
                       </button>
-                    </td>
+                    <ExtrasResumo modulo="ordens_fabrico" registo={o} /></td>
                     {tab === "ativas" && (
                       <td className="px-3 py-2">
                         <TimerDot estado={o.timer_estado} liveSec={o.timer_estado === "em_curso" ? elapsedSec(o, now) : null} />
@@ -340,6 +332,7 @@ export default function OrdensFabrico() {
               <div
                 key={o.id}
                 data-testid={`of-card-${o.id}`}
+                style={estiloCor(corLinha("ordens_fabrico", o))}
                 onClick={() => nav(`/ordens-fabrico/${o.id}`)}
                 className={`bg-white border border-gray-200 rounded-sm p-3 cursor-pointer active:bg-gray-50 ${o.prioritaria ? "border-amber-300 bg-amber-50/40" : ""}`}
               >

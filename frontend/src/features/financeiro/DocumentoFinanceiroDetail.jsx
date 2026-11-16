@@ -161,18 +161,18 @@ export default function DocumentoFinanceiroDetail() {
               <button
                 data-testid="doc-emitir-recibo-btn"
                 onClick={openRecibo}
-                className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5"
+                className="btn btn-sucesso"
               >
                 <Receipt size={15} /> Registar pagamento
               </button>
             )}
             {can("financeiro", "edit") && doc.estado !== "anulada" && (
-              <button data-testid="doc-anular-btn" onClick={anular} className="bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="doc-anular-btn" onClick={anular} className="btn btn-secundario">
                 <Ban size={15} /> Anular
               </button>
             )}
             {can("financeiro", "delete") && (
-              <button data-testid="doc-del-btn" onClick={remove} className="bg-white text-red-700 border border-red-300 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="doc-del-btn" onClick={remove} className="btn btn-secundario">
                 <Trash2 size={15} /> Eliminar
               </button>
             )}
@@ -283,7 +283,7 @@ export default function DocumentoFinanceiroDetail() {
               <button
                 data-testid="doc-recibo-add-btn"
                 onClick={openRecibo}
-                className="text-sm border border-gray-300 rounded-sm px-3 py-1.5 hover:bg-gray-50 flex items-center gap-1.5"
+                className="btn btn-secundario"
               >
                 <Plus size={14} /> Novo recibo
               </button>
@@ -398,7 +398,7 @@ export default function DocumentoFinanceiroDetail() {
               data-testid="recibo-confirm"
               disabled={busy}
               onClick={emitirRecibo}
-              className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="btn btn-sucesso"
             >
               {busy ? "A emitir…" : "Emitir recibo"}
             </button>

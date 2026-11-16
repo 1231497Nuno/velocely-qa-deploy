@@ -2,6 +2,8 @@ import "@/App.css";
 import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { TemaProvider } from "@/context/TemaContext";
+import { CamposProvider } from "@/context/CamposContext";
 import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
 import { ConfirmProvider } from "@/hooks/useConfirm";
 import Layout from "@/components/Layout";
@@ -42,6 +44,7 @@ import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
 import Historico from "@/features/historico/Historico";
+import Crm from "@/features/crm/Crm";
 
 function Protected({ children, adminOnly, modulo }) {
   const { user, ready, isAdmin, can } = useAuth();
@@ -71,6 +74,7 @@ const router = createBrowserRouter([
       { path: "/definir-password", element: <DefinirPassword /> },
       { path: "/", element: <Protected><Dashboard /></Protected> },
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
+      { path: "/crm", element: <Protected modulo="crm"><Crm /></Protected> },
       { path: "/clientes", element: <Protected modulo="clientes"><Clientes /></Protected> },
       { path: "/clientes/:id", element: <Protected modulo="clientes"><ClienteDetail /></Protected> },
       { path: "/fornecedores", element: <Protected modulo="fornecedores"><Fornecedores /></Protected> },
@@ -115,9 +119,13 @@ function App() {
     <>
       <Toaster position="top-right" richColors />
       <ErrorBoundary>
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
+        <TemaProvider>
+          <AuthProvider>
+            <CamposProvider>
+              <RouterProvider router={router} />
+            </CamposProvider>
+          </AuthProvider>
+        </TemaProvider>
       </ErrorBoundary>
     </>
   );

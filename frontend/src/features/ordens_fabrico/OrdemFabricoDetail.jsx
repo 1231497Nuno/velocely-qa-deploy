@@ -1,4 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { SelectAdicionar } from "@/components/BotaoAdicionar";
+import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -15,7 +18,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
+import { ArrowLeft, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -82,7 +85,7 @@ export default function OrdemFabricoDetail() {
     return (
       <div className="text-sm space-y-3 py-8 text-center">
         <p className="text-gray-600">{loadError}</p>
-        <button type="button" onClick={() => load()} className="bg-black text-white rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
+        <button type="button" onClick={() => load()} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Tentar novamente</button>
       </div>
     );
   }
@@ -93,10 +96,20 @@ export default function OrdemFabricoDetail() {
     setOf({ ...of, ...patch });
   };
 
-  const addItem = () => {
-    upd({ itens: [...of.itens, { artigo_id: "", artigo_nome: "", quantidade: 1, personalizacoes: [], operacoes: [] }] });
-    setItemAberto(of.itens.length);
+  /** Escolha múltipla: acrescenta uma linha por artigo (o roteiro carrega-se ao guardar). */
+  const addItensDoCatalogo = (lista) => {
+    const novos = (lista || []).map((art) => ({
+      artigo_id: art.id,
+      artigo_nome: art.nome || "",
+      quantidade: Number(art.quantidade) > 0 ? Number(art.quantidade) : 1,
+      personalizacoes: [],
+      operacoes: [],
+    }));
+    if (!novos.length) return;
+    upd({ itens: [...of.itens, ...novos] });
+    toast.success(novos.length === 1 ? "Artigo adicionado — guarde para carregar o roteiro" : `${novos.length} artigos adicionados — guarde para carregar os roteiros`);
   };
+
 
   const updItem = (i, patch) => {
     const it = [...of.itens];
@@ -142,6 +155,7 @@ export default function OrdemFabricoDetail() {
   const bodyFrom = (o) => ({
     cliente: o.cliente,
     cliente_id: o.cliente_id || null,
+    campos_extra: o.campos_extra || {},
     encomenda_id: o.encomenda_id || null,
     descricao: o.descricao || "",
     numero_encomenda: o.numero_encomenda || "",
@@ -265,12 +279,12 @@ export default function OrdemFabricoDetail() {
               </button>
               <PdfExportButton modulo="of" recordId={id} />
               {of.status !== "concluido" && (
-                <button data-testid="finalizar-of-btn" onClick={finalizar} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button data-testid="finalizar-of-btn" onClick={finalizar} className="btn btn-sucesso">
                   <Flag size={15} /> Finalizar
                 </button>
               )}
               {can("ordens_fabrico", "edit") && (
-                <button data-testid="save-of-btn" onClick={save} className="bg-black text-white hover:bg-gray-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button data-testid="save-of-btn" onClick={save} className="btn btn-primario">
                   <Save size={15} /> Guardar
                 </button>
               )}
@@ -389,9 +403,15 @@ export default function OrdemFabricoDetail() {
                   <FileText size={16} /> Artigos
                   <span className="text-xs font-normal tabular-nums text-gray-400">{of.itens.length}</span>
                 </h2>
-                <button data-testid="add-of-item" onClick={addItem} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline">
-                  <Plus size={14} /> Artigo
-                </button>
+                {can("ordens_fabrico", "edit") ? (
+                  <ArtigoCombobox
+                    modo="adicionar"
+                    artigos={artigos}
+                    onChange={(art) => addItensDoCatalogo([{ ...art, quantidade: 1 }])}
+                    onChangeMulti={addItensDoCatalogo}
+                    testid="add-of-item"
+                  />
+                ) : null}
               </div>
               <div
                 className="min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain divide-y divide-gray-100"
@@ -402,12 +422,19 @@ export default function OrdemFabricoDetail() {
                   const nDone = (it.operacoes || []).filter((o) => o.concluida).length;
                   const pers = it.personalizacoes || [];
                   return (
-                    <div key={it.id || i} className={`${aberto ? "bg-gray-50/80" : "bg-white hover:bg-gray-50/60"}`} data-testid={`of-item-row-${i}`}>
+                    <div key={it.id || i} className={`${aberto ? "bg-gray-50/80" : "bg-white hover:bg-gray-50/60"}`} style={estiloLinhaCor(it.cor)} data-testid={`of-item-row-${i}`}>
+                      <div className="flex items-center pl-3">
+                      <CorLinhaPicker
+                        value={it.cor || ""}
+                        disabled={!can("ordens_fabrico", "edit")}
+                        onChange={(cor) => updItem(i, { cor })}
+                        testid={`of-item-cor-${i}`}
+                      />
                       <button
                         type="button"
                         data-testid={`of-item-toggle-${i}`}
                         onClick={() => setItemAberto(aberto ? null : i)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
+                        className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5 text-left"
                       >
                         <ImagemUpload value={it.imagem} size={36} editable={false} testid={`of-item-imagem-${i}`} />
                         <div className="flex-1 min-w-0">
@@ -457,6 +484,7 @@ export default function OrdemFabricoDetail() {
                         </div>
                         <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${aberto ? "rotate-180" : ""}`} />
                       </button>
+                      </div>
 
                       {aberto && (
                         <div className="px-3 pb-3 space-y-2 border-t border-gray-100/80" onClick={(e) => e.stopPropagation()}>
@@ -533,20 +561,45 @@ export default function OrdemFabricoDetail() {
                                 </span>
                               ))}
                             </div>
-                            <select
-                              data-testid={`of-item-add-pers-${i}`}
-                              value=""
-                              onChange={(e) => { addItemPers(i, e.target.value); e.target.value = ""; }}
-                              className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-                            >
-                              <option value="">+ Adicionar personalização</option>
+                            <SelectAdicionar largo label="Adicionar personalização" testid={`of-item-add-pers-${i}`} onChange={(v) => addItemPers(i, v)}>
                               {tipos.filter((t) => !pers.some((p) => p.id === t.id)).map((t) => (
                                 <option key={t.id} value={t.id}>{t.nome}</option>
                               ))}
-                            </select>
+                            </SelectAdicionar>
                           </div>
                           {it.artigo_id && (
                             <OFItemOperacoes item={it} i={i} maquinas={maquinas} maoObra={maoObra} addOp={addOp} updOp={updOp} delOp={delOp} />
+                          )}
+                          {(it.materiais || []).length > 0 && (
+                            <div className="rounded-sm border border-gray-200 bg-white" data-testid={`of-item-materiais-${i}`}>
+                              <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-gray-100">
+                                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Materiais a consumir</span>
+                                <span className="text-[10px] text-gray-400">{it.origem_materiais === "orcamento" ? "do orçamento" : it.origem_materiais === "catalogo" ? "do catálogo" : ""}</span>
+                              </div>
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  {it.materiais.map((m, mi) => (
+                                    <tr key={m.id || mi} className="border-t border-gray-50 first:border-0">
+                                      <td className="px-2.5 py-1 text-gray-800">
+                                        <label className="inline-flex items-center gap-1.5">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!m.consumido}
+                                            disabled={!can("ordens_fabrico", "edit")}
+                                            onChange={(e) => updItem(i, { materiais: it.materiais.map((x, xi) => (xi === mi ? { ...x, consumido: e.target.checked } : x)) })}
+                                            title="Marcar como consumido / separado"
+                                          />
+                                          <span className={m.consumido ? "line-through text-gray-400" : ""}>{m.nome}</span>
+                                        </label>
+                                      </td>
+                                      <td className="px-2.5 py-1 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                                        {new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 3 }).format(Number(m.quantidade) || 0)} {m.unidade}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           )}
                           <p className="text-[11px] text-gray-400">A produção (iniciar/parar) faz-se no roteiro à direita.</p>
                         </div>
@@ -567,6 +620,16 @@ export default function OrdemFabricoDetail() {
           </div>
         </div>
       </div>
+      )}
+
+      {tab === "of" && (
+        <CamposPersonalizados
+          modulo="ordens_fabrico"
+          className="mt-4"
+          value={of.campos_extra}
+          disabled={!can("ordens_fabrico", "edit")}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "ficheiros" && (

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
-import { Plus, X, Calculator, Tag } from "lucide-react";
+import { X, Calculator, Tag } from "lucide-react";
 import { toast } from "sonner";
 import {
   emptyArtigoForm,
@@ -215,7 +217,7 @@ export default function ArtigoNovo() {
               data-testid="artigo-novo-guardar"
               disabled={saving}
               onClick={save}
-              className="bg-black text-white rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-60"
+              className="btn btn-primario"
             >
               {saving ? "A guardar…" : "Guardar"}
             </button>
@@ -263,15 +265,13 @@ export default function ArtigoNovo() {
             return (
               <div className="p-4 space-y-3">
                 <div className="flex justify-end">
-                  <button type="button" onClick={() => updForm((p) => ({
+                  <BotaoAdicionar onClick={() => updForm((p) => ({
                     ...p,
                     roteiro: [...(p.roteiro || []), {
                       nome: "", maquina_id: "", maquina_nome: "", tempo_maquina: 0, tempo_maquina_unidade: "min",
                       mao_obra_id: "", mao_obra_nome: "", tempo_mao_obra: 0, tempo_mao_obra_unidade: "min",
                     }],
-                  }))} className="text-sm font-medium flex items-center gap-1 hover:underline">
-                    <Plus size={14} /> Operação
-                  </button>
+                  }))}>Adicionar operação</BotaoAdicionar>
                 </div>
                 {(form.roteiro || []).map((op, i) => (
                   <div key={i} className="border border-gray-200 rounded-sm p-3 space-y-2">
@@ -318,7 +318,7 @@ export default function ArtigoNovo() {
 
           if (blocoId === "custo") {
             return (
-              <section className="bg-gray-900 text-white p-5">
+              <section className="bg-brand text-brand-fg p-5">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300 mb-4">
                   <Calculator size={14} /> Custo total calculado
                 </div>
@@ -364,6 +364,12 @@ export default function ArtigoNovo() {
 
           return null;
         }}
+      />
+      <CamposPersonalizados
+        modulo="artigos"
+        className="mt-3"
+        value={form.campos_extra}
+        onChange={(vals) => setForm((f) => ({ ...f, campos_extra: vals }))}
       />
 
       {form.tem_variantes && (

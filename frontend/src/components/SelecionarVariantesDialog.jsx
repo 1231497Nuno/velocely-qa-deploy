@@ -186,7 +186,7 @@ export default function SelecionarVariantesDialog({
                 onUsePai();
                 onOpenChange?.(false);
               }}
-              className="rounded-sm bg-black text-white px-3 py-1.5 text-sm font-medium hover:bg-gray-800"
+              className="rounded-sm bg-brand text-brand-fg px-3 py-1.5 text-sm font-medium hover:bg-brand-hover"
               data-testid="variante-pick-use-pai"
             >
               Usar artigo pai
@@ -196,7 +196,7 @@ export default function SelecionarVariantesDialog({
               type="button"
               onClick={confirm}
               disabled={loading || selectedCount === 0}
-              className="rounded-sm bg-black text-white px-3 py-1.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              className="btn btn-primario"
               data-testid="variante-pick-confirm"
             >
               Adicionar{selectedCount > 0 ? ` (${selectedCount})` : ""}

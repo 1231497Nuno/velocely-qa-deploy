@@ -1,11 +1,13 @@
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional
 import copy
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.services import of_previsao
+from app.services import campos as campos_svc
 from app.core.database import now_iso, next_sequence, new_id, round2
 from app.core.security import get_current_user, require_perm, resolve_perfil
 from app.core.pagination import parse_page, page_payload, text_search
@@ -27,7 +29,7 @@ _ENC_CAMPOS = [
 ]
 
 def _artigos_congelados_do_orcamento(existing: dict, novo_artigos: list) -> list:
-    """Mantém valores do ORC; só permite actualizar imagem (não comercial)."""
+    """Mantém valores do ORC; só permite actualizar imagem e cor da linha (não comerciais)."""
     new_by_id = {a.get("id"): a for a in (novo_artigos or []) if a.get("id")}
     out = []
     for old in existing.get("artigos") or []:
@@ -35,6 +37,8 @@ def _artigos_congelados_do_orcamento(existing: dict, novo_artigos: list) -> list
         n = new_by_id.get(old.get("id")) or {}
         if "imagem" in n:
             row["imagem"] = n.get("imagem") or row.get("imagem") or ""
+        if "cor" in n:  # marcação visual, não comercial
+            row["cor"] = n.get("cor") or ""
         out.append(row)
     return out
 
@@ -200,6 +204,7 @@ async def get_encomenda(eid: str, _u: dict = Depends(require_perm("encomendas", 
 @router.post("/encomendas")
 async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_perm("encomendas", "create"))):
     payload = await contactos_svc.apply_contacto_denorm(data.model_dump())
+    payload = await campos_svc.aplicar("encomendas", payload, "criar")
     enc = Encomenda(**payload)
     enc.numero = await next_sequence("ENC")
     if not enc.data:
@@ -255,7 +260,7 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     existing = await encomendas_repo.get(eid)
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
-    novo = data.model_dump()
+    novo = await campos_svc.aplicar("encomendas", data.model_dump(), "guardar", existing)
     novo.pop("anexos", None)
     if "entregue" not in data.model_fields_set:
         novo["entregue"] = bool(existing.get("entregue"))
@@ -395,8 +400,9 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
         for a in (enc.get("artigos") or [])
         if isinstance(a, dict) and a.get("artigo_id")
     }
+    enc_por_linha = {a.get("id"): a for a in (enc.get("artigos") or []) if isinstance(a, dict)}
     for it in payload.get("itens") or []:
-        src = enc_por_id.get(it.get("artigo_id")) or {}
+        src = enc_por_linha.get(it.get("enc_artigo_id")) or enc_por_id.get(it.get("artigo_id")) or {}
         if not it.get("artigo_nome"):
             it["artigo_nome"] = src.get("artigo_nome") or ""
         if not it.get("artigo_codigo"):
@@ -407,6 +413,8 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
             it["preco_unit"] = float(src.get("preco_unit") or 0)
         if not it.get("personalizacoes"):
             it["personalizacoes"] = src.get("personalizacoes") or []
+        if not it.get("cor"):
+            it["cor"] = src.get("cor") or ""
         if not it.get("arte_path"):
             it["arte_path"] = src.get("arte_path") or ""
             it["arte_nome"] = src.get("arte_nome") or ""
@@ -415,6 +423,8 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
         payload["imagens"] = enc.get("imagens") or []
     if not payload.get("anexos"):
         payload["anexos"] = list(enc.get("anexos") or [])
+    # Operações e materiais: do orçamento de origem (ou do catálogo), para a qtd de cada item
+    payload["itens"] = await of_previsao.montar_itens(enc, payload.get("itens") or [])
     of = OrdemFabrico(**payload)
     of.orcamento_id = enc.get("orcamento_id")
     of.orcamento_numero = enc.get("orcamento_numero")
@@ -431,6 +441,23 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
     await audit.registar("encomenda", eid, "editado", user,
                          f"OF {of.numero} associada à encomenda {enc.get('numero')}", enc.get("numero"))
     return doc
+
+
+class PrevisaoOFBody(BaseModel):
+    itens: List[dict] = []
+
+
+@router.post("/encomendas/{eid}/ordens-fabrico/previsao")
+async def previsao_of(eid: str, data: PrevisaoOFBody, _u: dict = Depends(require_perm("ordens_fabrico", "create"))):
+    """Resumo para validar antes de criar a OF: operações, materiais, tempos e custos por artigo."""
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    itens = await of_previsao.montar_itens(enc, data.itens or [])
+    if not itens:
+        raise HTTPException(400, "Indique pelo menos uma quantidade a produzir")
+    return {"itens": itens, "resumo": of_previsao.resumo(itens, enc),
+            "orcamento_numero": enc.get("orcamento_numero")}
 
 
 @router.get("/encomendas/{eid}/pdf")
