@@ -219,3 +219,18 @@ async def reset_email_template(tipo: str, admin: dict = Depends(require_admin)):
     if tipo not in email_tpl_svc.EMAIL_TEMPLATE_TYPES:
         raise HTTPException(404, "Template não encontrado")
     return await email_tpl_svc.reset_template(tipo)
+
+
+
+# ---------------- Avisos automáticos ao cliente ----------------
+@router.get("/avisos-cliente/config")
+async def avisos_cliente_config(_u: dict = Depends(require_perm("definicoes", "view"))):
+    from app.services import avisos_cliente
+    from app.services.email import smtp_configured
+    return {**await avisos_cliente.get_config(), "eventos_disponiveis": avisos_cliente.EVENTOS, "smtp": smtp_configured()}
+
+
+@router.put("/avisos-cliente/config")
+async def avisos_cliente_guardar(dados: dict, _a: dict = Depends(require_admin)):
+    from app.services import avisos_cliente
+    return await avisos_cliente.guardar_config(dados)

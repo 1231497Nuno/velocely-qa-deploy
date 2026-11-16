@@ -664,6 +664,15 @@ async def _enviar_encomenda_notificacao(eid: str, body: EnviarEmailBody, user: d
     }
 
 
+@router.get("/encomendas/{eid}/custo-real", summary="Custo real vs previsto da encomenda")
+async def custo_real_encomenda(eid: str, user: dict = Depends(require_perm("encomendas", "view"))):
+    from app.core.security import pode_ver_custos
+    from app.services import custo_real
+    if not await pode_ver_custos(user):
+        raise HTTPException(403, "O seu perfil não tem acesso a custos e margens")
+    return await custo_real.encomenda(eid)
+
+
 @router.post("/encomendas/{eid}/enviar-email-pronta", summary="Notificar cliente: encomenda pronta")
 async def enviar_encomenda_pronta_email(
     eid: str,

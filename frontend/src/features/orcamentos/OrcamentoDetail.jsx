@@ -1184,6 +1184,17 @@ export default function OrcamentoDetail() {
         }
       />
       <AprovacaoBanner entidade="orcamento" entidadeId={orc.id} recarregarEm={orc.updated_at} />
+      {orc.resposta_cliente && (
+        <div className={`mb-3 rounded-sm border px-4 py-3 text-sm flex flex-wrap items-center gap-3 ${orc.resposta_cliente.aceite ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-gray-200 bg-gray-50 text-gray-700"}`} data-testid="orc-resposta-cliente">
+          <div className="flex-1 min-w-[14rem]">
+            <b>{orc.resposta_cliente.aceite ? "Aceite online pelo cliente" : "Recusado pelo cliente no link"}</b>
+            {" — "}{orc.resposta_cliente.nome || "sem nome"} · {fmtDate(orc.resposta_cliente.at)} {(orc.resposta_cliente.at || "").slice(11, 16)}
+            {orc.resposta_cliente.comentario && <div className="text-xs mt-0.5">«{orc.resposta_cliente.comentario}»</div>}
+            {orc.resposta_cliente.aceite && !orc.encomenda_id && <div className="text-xs mt-0.5 text-amber-800">A encomenda não foi criada automaticamente — use «Criar Encomenda».</div>}
+          </div>
+          {orc.resposta_cliente.assinatura && <img src={orc.resposta_cliente.assinatura} alt="Assinatura do cliente" className="h-12 bg-white border border-emerald-200 rounded-sm px-2" />}
+        </div>
+      )}
 
       <DetailTabs
         testid="orcamento-tabs"

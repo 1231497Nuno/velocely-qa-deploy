@@ -8,6 +8,7 @@ import IntegracoesTab from "./IntegracoesTab";
 import WorkflowTab from "./WorkflowTab";
 import ListasTab from "./ListasTab";
 import SimulacaoCard from "./SimulacaoCard";
+import AvisosClienteCard from "./AvisosClienteCard";
 import BackupsCard from "./BackupsCard";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -815,7 +816,7 @@ export default function Definicoes() {
       {tab === "referencias" && <ReferenciasTab />}
       {tab === "dados" && <><BackupsCard /><SimulacaoCard /><DadosTab /></>}
       {tab === "modelos" && <ModelosTab />}
-      {tab === "emails" && <EmailsTab />}
+      {tab === "emails" && <><AvisosClienteCard /><EmailsTab /></>}
       {tab === "listas" && <ListasTab />}
       {tab === "workflow" && <WorkflowTab />}
       {tab === "integracoes" && <IntegracoesTab />}

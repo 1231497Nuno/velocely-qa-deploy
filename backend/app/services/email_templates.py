@@ -28,6 +28,8 @@ EMAIL_TEMPLATE_META: Dict[str, Dict[str, Any]] = {
             {"key": "numero", "label": "Número do orçamento"},
             {"key": "total", "label": "Valor total (ex.: 100,00 €)"},
             {"key": "total_linha", "label": "Linha 'Valor: …' ou vazia"},
+            {"key": "link", "label": "Link para o cliente ver, aceitar e assinar online"},
+            {"key": "link_linha", "label": "Frase com o link para aceitar online"},
             {"key": "mensagem", "label": "Mensagem extra do envio"},
         ],
     },
@@ -80,7 +82,8 @@ EMAIL_TEMPLATE_DEFAULTS: Dict[str, Dict[str, str]] = {
         "body": (
             "Olá {nome},\n\n"
             "Segue em anexo o orçamento {numero} da Velocely.\n"
-            "{total_linha}\n"
+            "{total_linha}\n\n"
+            "{link_linha}\n"
             "{mensagem}\n\n"
             "Qualquer dúvida, estamos ao dispor.\n\n"
             "— Equipa Velocely\n"

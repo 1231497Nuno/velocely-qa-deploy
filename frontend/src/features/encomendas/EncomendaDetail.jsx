@@ -14,6 +14,7 @@ import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
+import CustoRealTab from "./CustoRealTab";
 import PdfExportButton from "@/components/PdfExportButton";
 import PartilharLinkButton from "@/features/portal/PartilharLinkButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
@@ -52,7 +53,7 @@ const NC_BLOCOS = [{ id: "ncs", label: "Não conformidades" }];
 
 export default function EncomendaDetail() {
   const confirmAction = useConfirm();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { id } = useParams();
   const listas = useListas();
   const [bloqueioOpen, setBloqueioOpen] = useState(false);
@@ -64,6 +65,7 @@ export default function EncomendaDetail() {
     "producao",
     "orcamentos",
     ...(can("nao_conformidades", "view") ? ["nao_conformidades"] : []),
+    ...(user?.perfil?.ver_custos !== false ? ["custo_real"] : []),
     "ficheiros",
     "historico",
   ];
@@ -603,6 +605,7 @@ export default function EncomendaDetail() {
           { id: "producao", label: "Ordens de fabrico", testid: "enc-tab-producao" },
           { id: "orcamentos", label: "Orçamentos", testid: "enc-tab-orcamentos" },
           ...(can("nao_conformidades", "view") ? [{ id: "nao_conformidades", label: "Não conformidades", testid: "enc-tab-ncs" }] : []),
+          ...(user?.perfil?.ver_custos !== false ? [{ id: "custo_real", label: "Custo real", testid: "enc-tab-custo-real" }] : []),
           { id: "ficheiros", label: "Ficheiros", testid: "enc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "enc-tab-historico" },
         ]}
@@ -1089,6 +1092,8 @@ export default function EncomendaDetail() {
       {tab === "ficheiros" && (
         <FicheirosTab tipo="encomenda" id={id} canEdit={can("encomendas", "edit") && enc.estado !== "cancelada"} />
       )}
+
+      {tab === "custo_real" && <CustoRealTab id={id} />}
 
       {tab === "historico" && (
         <HistoricoTimeline tipo="encomenda" id={id} hideTitle />
