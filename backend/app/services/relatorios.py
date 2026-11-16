@@ -774,6 +774,46 @@ async def resultado_periodo(d: Dados, p: Params) -> dict:
                       "As compras de material também podem estar refletidas no custo das OF; leia o resultado como tendência."]}
 
 
+async def resultado_centro_custo(d: Dados, p: Params) -> dict:
+    """Vendas (pela categoria do artigo → centro de custo) e compras/despesas (centro da OC) por centro de custo."""
+    from app.repositories import artigos_repo, categorias_repo
+    cats = {c["id"]: c.get("centro_custo") or "" for c in await categorias_repo.find({}, limit=5000)}
+    arts = {a["id"]: cats.get(a.get("categoria_id"), "") for a in await artigos_repo.find({}, limit=50000,
+                                                                                         projection={"id": 1, "categoria_id": 1})}
+    g: Dict[str, dict] = defaultdict(lambda: {"vendas": 0.0, "custo_producao": 0.0, "compras": 0.0})
+    for e in _filtrar_cliente(await d.encomendas(), p):
+        if not no_periodo(e["_dia"], p):
+            continue
+        linhas = (e.get("_orig") or {}).get("artigos") or e.get("artigos") or []
+        bruto = sum(_linha_valor_artigo(a) for a in linhas) or 1
+        valor = float(e.get("valor_total") or 0)
+        custo = float(e.get("custo_producao_real") or 0)
+        for a in linhas:
+            peso = _linha_valor_artigo(a) / bruto
+            cc = arts.get(a.get("artigo_id"), "") or "Sem centro"
+            g[cc]["vendas"] += valor * peso
+            g[cc]["custo_producao"] += custo * peso
+    for o in await d.compras():
+        if no_periodo(_dia(o, "data", "created_at"), p) and o.get("tipo_despesa") != "compra":
+            g[o.get("centro_custo") or "Sem centro"]["compras"] += float(o.get("total") or 0)
+    linhas = []
+    for cc, v in g.items():
+        r = v["vendas"] - v["custo_producao"] - v["compras"]
+        linhas.append({"centro": cc, "vendas": round2(v["vendas"]), "custo_producao": round2(v["custo_producao"]),
+                       "compras": round2(v["compras"]), "resultado": round2(r),
+                       "margem": round2(r / v["vendas"] * 100) if v["vendas"] else None})
+    linhas.sort(key=lambda l: -l["vendas"])
+    colunas = [_col("centro", "Centro de custo"), _col("vendas", "Vendas s/ IVA", "moeda", True),
+               _col("custo_producao", "Custo de produção", "moeda", True), _col("compras", "Despesas", "moeda", True),
+               _col("resultado", "Resultado", "moeda", True), _col("margem", "Margem", "pct")]
+    tot = _totais(colunas, linhas)
+    tot["margem"] = round2(tot["resultado"] / tot["vendas"] * 100) if tot.get("vendas") else None
+    return {"colunas": colunas, "linhas": linhas, "totais": tot,
+            "grafico": {"tipo": "barras", "x": "centro", "series": ["vendas", "resultado"]},
+            "notas": ["O centro de custo das vendas vem da categoria do artigo (Relatórios → Objetivos → Centros de custo).",
+                      "Despesas = ordens de compra que não são compra de material (essas já entram no custo de produção)."]}
+
+
 async def margem_encomenda(d: Dados, p: Params) -> dict:
     linhas = []
     for e in _filtrar_cliente(await d.encomendas(), p):
@@ -891,6 +931,8 @@ RELATORIOS: Dict[str, dict] = {
                            "descricao": "Ordens de compra, material por receber e valores em dívida."},
     "resultado_periodo": {"custos": True, "area": "compras", "titulo": "Vendas vs compras", "fn": resultado_periodo, "tempo": True,
                           "descricao": "Vendas, compras, custo de produção e resultado indicativo por período."},
+    "resultado_centro_custo": {"custos": True, "area": "compras", "titulo": "Resultado por centro de custo", "fn": resultado_centro_custo,
+                               "descricao": "Vendas, custo de produção, despesas e margem por área de negócio (centro de custo)."},
     "margem_encomenda": {"custos": True, "area": "compras", "titulo": "Margem por encomenda", "fn": margem_encomenda, "ranking": True,
                          "descricao": "Venda, custo real e margem de cada encomenda."},
     "margem_cliente": {"custos": True, "area": "compras", "titulo": "Margem por cliente", "fn": margem_cliente, "ranking": True,

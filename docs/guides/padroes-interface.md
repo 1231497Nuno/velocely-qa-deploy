@@ -278,3 +278,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   hash) → sugestões por valor/número/nome → conciliar regista o pagamento (encomenda) ou `valor_pago` (OC).
   Contabilista: Excel com documentos de venda, recebimentos, compras e contas do período.
 - Lembrete de cobrança (alerta «cobranca»): entregue há mais de N dias (Tesouraria → configuração) e ainda por pagar.
+
+## Reservas, centros de custo e objetivos
+
+- Stock: `stock.reservas()` = encomendas abertas por entregar (artigos com stock não produzidos) + materiais das OF por
+  fechar; o ecrã Stock mostra Reservado e Disponível; as sugestões de compra usam as mesmas reservas.
+  `artigo.localizacao` (Stock → ⚙).
+- Centros de custo: lista «centros_custo» (Definições → Listas); `categoria.centro_custo` (Objetivos → Centros de
+  custo; `PUT /categorias/{id}/centro-custo`) e `ordem_compra.centro_custo`. Relatório «Resultado por centro de custo».
+- Objetivos (`/objetivos`, `services/objetivos.py`): vendas e despesas previstas por mês vs real (encomendas sem IVA e
+  ordens de compra), acumulado e % atingida; «Partir do ano anterior» com crescimento.

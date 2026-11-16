@@ -16,7 +16,7 @@ _OC_CAMPOS = [
     "assunto", "fornecedor_id", "fornecedor_nome", "tipo_compra", "tipo_despesa", "estado",
     "data", "vencimento", "data_pagamento", "subtotal", "total", "valor_pago",
     "desconto_percentual", "valor_desconto", "valor_taxa", "moeda", "responsavel",
-    "tipologia", "transportadora", "notas",
+    "tipologia", "transportadora", "centro_custo", "notas",
 ]
 
 router = APIRouter()
