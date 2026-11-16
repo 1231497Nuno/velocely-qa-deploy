@@ -24,6 +24,12 @@ export default class ErrorBoundary extends Component {
     if (typeof this.props.onReset === "function") this.props.onReset();
   };
 
+  componentDidUpdate(prevProps) {
+    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+      this.reset();
+    }
+  }
+
   render() {
     if (this.state.error) {
       const msg = this.state.error?.message || "Erro inesperado";
