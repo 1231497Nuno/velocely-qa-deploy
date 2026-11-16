@@ -82,6 +82,10 @@ async def guardar_localizacao(dados: dict, lid: Optional[str] = None) -> dict:
         raise HTTPException(400, "Indique o nome da localização")
     doc = {"nome": nome[:80], "codigo": (dados.get("codigo") or "").strip()[:20], "descricao": (dados.get("descricao") or "").strip()[:200],
            "ativo": dados.get("ativo", True) is not False}
+    if doc["codigo"]:
+        outra = await localizacoes_repo.find_one({"codigo": doc["codigo"]})
+        if outra and outra.get("id") != lid:
+            raise HTTPException(409, f"O código «{doc['codigo']}» já é da localização «{outra.get('nome')}»")
     if dados.get("padrao"):
         await localizacoes_repo.col.update_many({}, {"$set": {"padrao": False}})
         doc["padrao"] = True

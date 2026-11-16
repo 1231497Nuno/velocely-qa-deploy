@@ -225,6 +225,7 @@ async def ocs_abertas(_u: dict = Depends(require_perm("ordens_compra", "view")))
         if not any(l["falta"] > 0 for l in linhas):
             continue
         out.append({"id": o["id"], "codigo": o.get("codigo"), "fornecedor": o.get("fornecedor_nome") or "", "data": o.get("data"),
+                    "fornecedor_id": o.get("fornecedor_id") or "",
                     "assunto": o.get("assunto") or "", "linhas": linhas})
     return out
 
@@ -282,3 +283,104 @@ async def contar_movel(iid: str, dados: dict, _u: dict = Depends(require_perm("a
     await inventarios_repo.update(iid, {"linhas": linhas})
     return {"linha": l, "anterior": anterior, "n_contados": sum(1 for x in linhas if x.get("qtd_contada") is not None),
             "n_linhas": len(linhas)}
+
+
+
+@router.get("/movel/resumo")
+async def movel_resumo(user: dict = Depends(require_perm("artigos", "view"))):
+    """Números do ecrã inicial da app móvel."""
+    from app.repositories import ordens_compra_repo
+    ocs = 0
+    forns = set()
+    for o in await ordens_compra_repo.find({"estado": "criada"}, limit=500):
+        if any(float(l.get("quantidade") or 0) - float(l.get("qtd_recebida") or 0) > 1e-9 for l in o.get("linhas") or []):
+            ocs += 1
+            forns.add(o.get("fornecedor_id") or o.get("fornecedor_nome") or "")
+    baixo = 0
+    for a in await artigos_repo.find({"gere_stock": True}, limit=50000):
+        nivel = float(a.get("nivel_reabastecimento") or 0)
+        if stock_svc.gere_stock(a) and nivel and float(a.get("qtd_stock") or 0) < nivel:
+            baixo += 1
+    inv = await inventarios_repo.find_one({"estado": "aberto"})
+    inv_r = None
+    if inv:
+        ls = inv.get("linhas") or []
+        inv_r = {"id": inv["id"], "n_linhas": len(ls), "n_contados": sum(1 for l in ls if l.get("qtd_contada") is not None)}
+    return {"ocs_por_receber": ocs, "fornecedores_por_receber": len(forns), "stock_baixo": baixo, "inventario": inv_r}
+
+
+@router.post("/movel/movimento")
+async def movel_movimento(dados: dict, user: dict = Depends(require_perm("artigos", "edit"))):
+    """Entrada ou saída avulsa (sem documento): consumo interno, amostra, quebra, devolução, oferta…"""
+    a = await artigos_repo.get(dados.get("artigo_id") or "")
+    if not a:
+        raise HTTPException(404, "Artigo não encontrado")
+    if not stock_svc.gere_stock(a):
+        raise HTTPException(400, "Este artigo não tem gestão de stock")
+    tipo = dados.get("tipo")
+    if tipo not in ("entrada", "saida"):
+        raise HTTPException(400, "Tipo inválido")
+    try:
+        q = abs(float(dados.get("quantidade")))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Quantidade inválida")
+    if q <= 0:
+        raise HTTPException(400, "Indique a quantidade")
+    motivo = (dados.get("motivo") or "").strip()
+    if not motivo:
+        raise HTTPException(400, "Indique o motivo")
+    loc = dados.get("localizacao_id") or None
+    if tipo == "saida":
+        padrao = await stock_svc.local_padrao()
+        disp = stock_svc.stock_por_local(a, padrao["id"]).get(loc or a.get("localizacao_id") or padrao["id"], 0.0)
+        if q > disp + 1e-9 and not dados.get("permitir_negativo"):
+            raise HTTPException(400, f"Só há {disp:g} {a.get('unidade') or 'un'} nessa localização")
+    m = await stock_svc.movimentar(a["id"], q if tipo == "entrada" else -q, tipo, user=user, nota=motivo, localizacao_id=loc,
+                                   origem={"tipo": "movel", "numero": motivo[:40]})
+    return m or {"ok": True}
+
+
+@router.get("/stock/localizacoes/etiquetas.pdf")
+async def etiquetas_localizacoes(ids: str = Query(""), _u: dict = Depends(require_perm("artigos", "view"))):
+    """Etiquetas A4 (3 × 7) com QR do código da localização — para colar nas prateleiras e ler na app móvel."""
+    from io import BytesIO
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics import renderPDF
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    lista = await stock_svc.listar_localizacoes()
+    sel = [x for x in ids.split(",") if x]
+    if sel:
+        lista = [l for l in lista if l["id"] in sel]
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+    cols, rows = 3, 7
+    lw, lh = (w - 14 * mm) / cols, (h - 14 * mm) / rows
+    for i, l in enumerate(lista):
+        if i and i % (cols * rows) == 0:
+            c.showPage()
+        k = i % (cols * rows)
+        x0 = 7 * mm + (k % cols) * lw
+        y0 = h - 7 * mm - (k // cols + 1) * lh
+        c.setStrokeColorRGB(0.85, 0.85, 0.85)
+        c.rect(x0 + 1.5 * mm, y0 + 1.5 * mm, lw - 3 * mm, lh - 3 * mm)
+        codigo = l.get("codigo") or l.get("nome") or l["id"]
+        qr = QrCodeWidget(codigo)
+        b = qr.getBounds()
+        tam = lh - 10 * mm
+        d = Drawing(tam, tam, transform=[tam / (b[2] - b[0]), 0, 0, tam / (b[3] - b[1]), 0, 0])
+        d.add(qr)
+        renderPDF.draw(d, c, x0 + 4 * mm, y0 + 5 * mm)
+        tx = x0 + tam + 7 * mm
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(tx, y0 + lh / 2 + 2 * mm, str(codigo)[:12])
+        c.setFont("Helvetica", 8.5)
+        c.drawString(tx, y0 + lh / 2 - 4 * mm, (l.get("nome") or "")[:24])
+    if not lista:
+        c.drawString(20 * mm, h - 30 * mm, "Sem localizações.")
+    c.save()
+    return Response(buf.getvalue(), media_type="application/pdf", headers={"Content-Disposition": 'inline; filename="etiquetas-localizacoes.pdf"'})

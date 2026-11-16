@@ -13,6 +13,7 @@ import MovelHome from "@/features/movel/MovelHome";
 import MovelInventario from "@/features/movel/MovelInventario";
 import { MovelRececoes, MovelRececao } from "@/features/movel/MovelRececoes";
 import { MovelTransferir, MovelConsultar, MovelAcertar } from "@/features/movel/MovelStock";
+import { MovelLocalizacoes, MovelLocalizacao, MovelMovimento, MovelStockBaixo, MovelMovimentos } from "@/features/movel/MovelExtra";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import VisualizadorFicheiro from "@/components/VisualizadorFicheiro";
 import Login from "@/features/auth/Login";
@@ -110,7 +111,13 @@ const router = createBrowserRouter([
       { path: "/m", element: <MovelProtected><MovelHome /></MovelProtected> },
       { path: "/m/inventario", element: <MovelProtected modulo="artigos"><MovelInventario /></MovelProtected> },
       { path: "/m/rececoes", element: <MovelProtected modulo="ordens_compra"><MovelRececoes /></MovelProtected> },
+      { path: "/m/rececoes/f/:fid", element: <MovelProtected modulo="ordens_compra"><MovelRececao /></MovelProtected> },
       { path: "/m/rececoes/:id", element: <MovelProtected modulo="ordens_compra"><MovelRececao /></MovelProtected> },
+      { path: "/m/localizacoes", element: <MovelProtected modulo="artigos"><MovelLocalizacoes /></MovelProtected> },
+      { path: "/m/localizacoes/:id", element: <MovelProtected modulo="artigos"><MovelLocalizacao /></MovelProtected> },
+      { path: "/m/movimento", element: <MovelProtected modulo="artigos"><MovelMovimento /></MovelProtected> },
+      { path: "/m/stock-baixo", element: <MovelProtected modulo="artigos"><MovelStockBaixo /></MovelProtected> },
+      { path: "/m/movimentos", element: <MovelProtected modulo="artigos"><MovelMovimentos /></MovelProtected> },
       { path: "/m/transferir", element: <MovelProtected modulo="artigos"><MovelTransferir /></MovelProtected> },
       { path: "/m/consultar", element: <MovelProtected modulo="artigos"><MovelConsultar /></MovelProtected> },
       { path: "/m/acertar", element: <MovelProtected modulo="artigos"><MovelAcertar /></MovelProtected> },

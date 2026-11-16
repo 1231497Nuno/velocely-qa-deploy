@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, ArrowDown } from "lucide-react";
 import { api, fmtDate } from "@/lib/api";
@@ -23,8 +24,9 @@ const porLocal = (s) => Object.fromEntries((s?.localizacoes || []).map((l) => [l
 
 /** Transferir stock entre localizações. */
 export function MovelTransferir() {
+  const { state } = useLocation();
   const [locs] = useLocalizacoes();
-  const [artigo, setArtigo] = useState(null);
+  const [artigo, setArtigo] = useState(state?.artigo || null);
   const [s] = useStockArtigo(artigo);
   const [de, setDe] = useState("");
   const [para, setPara] = useState("");
@@ -32,7 +34,11 @@ export function MovelTransferir() {
   const [busy, setBusy] = useState(false);
   const q = porLocal(s);
   const origens = (s?.localizacoes || []).filter((l) => l.quantidade > 0).map((l) => ({ id: l.localizacao_id, nome: l.nome }));
-  useEffect(() => { if (s) { setDe(origens[0]?.id || ""); setPara(""); setQtd(""); } }, [s]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!s) return;
+    setDe(state?.loc && origens.some((o) => o.id === state.loc) ? state.loc : origens[0]?.id || "");
+    setPara(""); setQtd("");
+  }, [s]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gravar = async () => {
     if (!de || !para) { toast.error("Escolha a origem e o destino"); return; }
@@ -81,7 +87,8 @@ const TIPO = { entrada: "Entrada", saida: "Saída", ajuste: "Acerto", consumo: "
 
 /** Consultar stock de um artigo: total, reservado, por localização e últimos movimentos. */
 export function MovelConsultar() {
-  const [artigo, setArtigo] = useState(null);
+  const { state } = useLocation();
+  const [artigo, setArtigo] = useState(state?.artigo || null);
   const [s] = useStockArtigo(artigo);
   return (
     <Pagina>
@@ -139,15 +146,16 @@ export function MovelConsultar() {
 export function MovelAcertar() {
   const { can } = useAuth();
   const confirm = useConfirm();
+  const { state } = useLocation();
   const [locs] = useLocalizacoes();
-  const [artigo, setArtigo] = useState(null);
+  const [artigo, setArtigo] = useState(state?.artigo || null);
   const [s, recarregar] = useStockArtigo(artigo);
   const [loc, setLoc] = useState("");
   const [qtd, setQtd] = useState("");
   const [motivo, setMotivo] = useState("");
   const [busy, setBusy] = useState(false);
   const q = porLocal(s);
-  useEffect(() => { if (s) { setLoc(s.localizacoes[0]?.localizacao_id || s.localizacao_padrao_id || ""); setQtd(""); setMotivo(""); } }, [s?.total, artigo]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (s) { setLoc(state?.loc || s.localizacoes[0]?.localizacao_id || s.localizacao_padrao_id || ""); setQtd(""); setMotivo(""); } }, [s?.total, artigo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gravar = async () => {
     if (qtd === "" || Number(qtd) < 0) { toast.error("Indique a quantidade real"); return; }

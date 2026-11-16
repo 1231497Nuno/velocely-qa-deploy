@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Camera, Loader2, Search, X, MapPin, Check } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, Search, X, MapPin, Check, Plus } from "lucide-react";
 import { api } from "@/lib/api";
-import { useLocalizacoes } from "@/features/stock/StockLocais";
+import { useLocalizacoes, limparCacheLocalizacoes } from "@/features/stock/StockLocais";
+import { useAuth } from "@/context/AuthContext";
 
 export const num = (v) => Number(v || 0).toLocaleString("pt-PT", { maximumFractionDigits: 3 });
 export const erro = (e, d) => toast.error(typeof e?.response?.data?.detail === "string" ? e.response.data.detail : d);
@@ -207,38 +208,106 @@ export function ArtigoCartao({ artigo, onLimpar, children }) {
   );
 }
 
-/** Escolha de localização em «chips» grandes; aceita também ler o QR/código da localização. */
-export function LocalPicker({ value, onChange, titulo = "Localização", opcoes = null, quantidades = null, testid = "movel-local" }) {
-  const [locs] = useLocalizacoes();
+const RECENTES = "velocely_movel_locs_recentes";
+const lerRecentes = () => { try { return JSON.parse(localStorage.getItem(RECENTES) || "[]"); } catch { return []; } };
+const guardarRecente = (id) => { try { localStorage.setItem(RECENTES, JSON.stringify([id, ...lerRecentes().filter((x) => x !== id)].slice(0, 6))); } catch { /* sem storage */ } };
+
+/**
+ * Escolha de localização: chips grandes (poucas), ou pesquisa + recentes (muitas); ler o QR da etiqueta;
+ * criar uma localização nova no momento.
+ */
+export function LocalPicker({ value, onChange, titulo = "Localização", opcoes = null, quantidades = null, testid = "movel-local", permitirNova = true }) {
+  const [locs, recarregar] = useLocalizacoes();
+  const { can } = useAuth();
   const [camara, setCamara] = useState(false);
+  const [q, setQ] = useState("");
+  const [aberto, setAberto] = useState(false);
+  const [nova, setNova] = useState(null);
   const lista = (opcoes || locs).filter((l) => l.ativo !== false || l.id === value);
-  if (!lista.length) return null;
+  const escolher = (id) => { guardarRecente(id); onChange(id); setAberto(false); setQ(""); };
   const ler = (c) => {
     setCamara(false);
     const cl = c.toLowerCase();
     const l = lista.find((x) => (x.codigo || "").toLowerCase() === cl || (x.nome || "").toLowerCase() === cl || x.id === c);
-    if (l) onChange(l.id); else toast.error(`Localização «${c}» não encontrada`);
+    if (l) { vibrar(); escolher(l.id); } else toast.error(`Localização «${c}» não encontrada`);
+  };
+  const criar = async () => {
+    if (!nova?.nome?.trim()) { toast.error("Indique o nome"); return; }
+    try {
+      const l = await api.post("/stock/localizacoes", { nome: nova.nome.trim(), codigo: (nova.codigo || "").trim() });
+      limparCacheLocalizacoes(); await recarregar();
+      toast.success(`Localização «${l.nome}» criada`);
+      setNova(null); escolher(l.id);
+    } catch (e) { erro(e, "Não foi possível criar"); }
+  };
+  if (!lista.length && !permitirNova) return null;
+  const sel = lista.find((l) => l.id === value);
+  const muitas = lista.length > 6;
+  const recentes = lerRecentes().map((id) => lista.find((l) => l.id === id)).filter(Boolean).filter((l) => l.id !== value).slice(0, 4);
+  const ql = q.trim().toLowerCase();
+  const filtradas = lista.filter((l) => !ql || `${l.nome} ${l.codigo || ""}`.toLowerCase().includes(ql));
+  const chip = (l, compacto = false) => {
+    const ativo = l.id === value;
+    const qt = quantidades ? quantidades[l.id] : null;
+    return (
+      <button key={l.id} type="button" onClick={() => escolher(l.id)}
+        className={`${compacto ? "min-h-[2.5rem]" : "min-h-[2.75rem]"} px-3 rounded-xl border-2 text-sm font-medium flex items-center gap-1.5 ${ativo ? "bg-[#0A0A0A] text-white border-[#0A0A0A]" : "bg-white border-gray-300 active:bg-gray-100"}`}>
+        {ativo && <Check className="w-4 h-4" />}
+        {l.nome}{l.codigo ? <span className={`text-[11px] ${ativo ? "text-white/60" : "text-gray-400"}`}>{l.codigo}</span> : null}
+        {qt != null && <span className={`text-xs ${ativo ? "text-white/70" : "text-gray-500"}`}>({num(qt)})</span>}
+      </button>
+    );
   };
   return (
     <div data-testid={testid}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{titulo}</span>
-        <button type="button" className="text-xs text-gray-600 flex items-center gap-1 px-2 py-1 rounded active:bg-gray-200" onClick={() => setCamara(true)}><Camera className="w-3.5 h-3.5" /> Ler</button>
+        <div className="flex items-center gap-1">
+          {permitirNova && !opcoes && can("artigos", "edit") && (
+            <button type="button" className="text-xs text-gray-600 flex items-center gap-1 px-2 py-1 rounded active:bg-gray-200" onClick={() => setNova({ nome: "", codigo: "" })}><Plus className="w-3.5 h-3.5" /> Nova</button>
+          )}
+          <button type="button" className="text-xs text-gray-600 flex items-center gap-1 px-2 py-1 rounded active:bg-gray-200" onClick={() => setCamara(true)}><Camera className="w-3.5 h-3.5" /> Ler etiqueta</button>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {lista.map((l) => {
-          const sel = l.id === value;
-          const q = quantidades ? quantidades[l.id] : null;
-          return (
-            <button key={l.id} type="button" onClick={() => onChange(l.id)}
-              className={`min-h-[2.75rem] px-3 rounded-xl border-2 text-sm font-medium flex items-center gap-1.5 ${sel ? "bg-[#0A0A0A] text-white border-[#0A0A0A]" : "bg-white border-gray-300 active:bg-gray-100"}`}>
-              {sel && <Check className="w-4 h-4" />}
-              {l.nome}
-              {q != null && <span className={`text-xs ${sel ? "text-white/70" : "text-gray-500"}`}>({num(q)})</span>}
-            </button>
-          );
-        })}
-      </div>
+      {!muitas ? (
+        <div className="flex flex-wrap gap-2">{lista.map((l) => chip(l))}</div>
+      ) : (
+        <div className="space-y-2">
+          <button type="button" onClick={() => setAberto((v) => !v)} className={`w-full min-h-[3rem] px-3 rounded-xl border-2 text-left flex items-center gap-2 ${sel ? "border-[#0A0A0A] bg-white" : "border-gray-300 bg-white"}`}>
+            <MapPin className="w-5 h-5 text-gray-500" />
+            <span className="flex-1 font-semibold truncate">{sel ? sel.nome : "Escolher localização…"}</span>
+            {sel?.codigo && <span className="text-xs text-gray-500">{sel.codigo}</span>}
+            {sel && quantidades && <span className="text-xs text-gray-500">({num(quantidades[sel.id] || 0)})</span>}
+          </button>
+          {!aberto && recentes.length > 0 && <div className="flex flex-wrap gap-2">{recentes.map((l) => chip(l, true))}</div>}
+          {aberto && (
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-2 space-y-2">
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar localização…" className="w-full h-11 rounded-lg border border-gray-300 px-3" />
+              <ul className="max-h-64 overflow-auto divide-y">
+                {filtradas.map((l) => (
+                  <li key={l.id}><button type="button" onClick={() => escolher(l.id)} className={`w-full text-left px-3 py-2.5 flex items-center gap-2 ${l.id === value ? "bg-gray-100" : "active:bg-gray-100"}`}>
+                    <span className="flex-1">{l.nome}</span>
+                    {l.codigo && <span className="text-xs text-gray-500">{l.codigo}</span>}
+                    {quantidades && <span className="text-xs text-gray-500">{num(quantidades[l.id] || 0)}</span>}
+                  </button></li>
+                ))}
+                {!filtradas.length && <li className="px-3 py-3 text-sm text-gray-500">Nenhuma localização.</li>}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {nova && (
+        <div className="mt-2 bg-white rounded-xl border-2 border-gray-200 p-3 space-y-2">
+          <div className="text-sm font-semibold">Nova localização</div>
+          <input autoFocus value={nova.nome} onChange={(e) => setNova({ ...nova, nome: e.target.value })} placeholder="Nome (ex.: Prateleira A2)" className="w-full h-11 rounded-lg border border-gray-300 px-3" />
+          <input value={nova.codigo} onChange={(e) => setNova({ ...nova, codigo: e.target.value })} placeholder="Código da etiqueta (ex.: A2)" className="w-full h-11 rounded-lg border border-gray-300 px-3" />
+          <div className="grid grid-cols-2 gap-2">
+            <BotaoGrande variante="secundario" onClick={() => setNova(null)}>Cancelar</BotaoGrande>
+            <BotaoGrande onClick={criar}>Criar</BotaoGrande>
+          </div>
+        </div>
+      )}
       {camara && <Scanner onLido={ler} onFechar={() => setCamara(false)} />}
     </div>
   );
