@@ -180,9 +180,16 @@ async def list_encomendas(
     q: str = Query(""),
     estado_grupo: Optional[str] = Query(None, description="pendentes|concluidas"),
     origem: Optional[str] = Query(None, description="loja = só encomendas da loja online"),
+    quadro: bool = Query(False, description="Quadro kanban: sem canceladas e só entregas recentes"),
+    entregues_dias: int = Query(30, ge=1, le=3650),
     _u: dict = Depends(require_perm("encomendas", "view")),
 ):
     query = {}
+    if quadro:
+        from datetime import datetime, timedelta, timezone
+        limite = (datetime.now(timezone.utc) - timedelta(days=entregues_dias)).date().isoformat()
+        query["estado"] = {"$ne": "cancelada"}
+        query["$or"] = [{"entregue": {"$ne": True}}, {"data_entrega": {"$gte": limite}}]
     if origem == "loja":
         query["origem_externa.canal"] = "woocommerce"
     if estado_grupo == "pendentes":
@@ -191,7 +198,7 @@ async def list_encomendas(
         query["estado"] = "concluida"
     ts = text_search(["numero", "cliente", "orcamento_numero", "referencia_cliente"], q)
     if ts:
-        query.update(ts)
+        query = {"$and": [query, ts]} if "$or" in query else {**query, **ts}
     if page is None:
         encs = await encomendas_repo.find(query, sort=("created_at", -1), limit=5000)
         return await compute_encomendas_many(encs)
@@ -346,6 +353,31 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
         await audit.registar("encomenda", eid, "editado", user, f"Encomenda {numero} editada", numero, alteracoes)
     merged = {**existing, **novo}
     return await _attach_ofs(await compute_encomenda(merged))
+
+
+class EntregaBody(BaseModel):
+    entregue: bool
+    data_entrega: Optional[str] = None
+
+
+@router.post("/encomendas/{eid}/entrega")
+async def marcar_entrega(eid: str, body: EntregaBody, user: dict = Depends(require_perm("encomendas", "edit"))):
+    """Marca/desmarca a encomenda como entregue (usado também pelo quadro kanban)."""
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    if enc.get("estado") == "cancelada":
+        raise HTTPException(409, "Encomenda cancelada")
+    if bool(enc.get("entregue")) == body.entregue:
+        return await _attach_ofs(await compute_encomenda(enc))
+    data = ((body.data_entrega or enc.get("data_entrega") or now_iso())[:10]) if body.entregue else None
+    await encomendas_repo.update(eid, {"entregue": body.entregue, "data_entrega": data})
+    await audit.registar(
+        "encomenda", eid, "editado", user,
+        f"Material {'entregue' if body.entregue else 'marcado como não entregue'} na encomenda {enc.get('numero')}",
+        enc.get("numero"),
+    )
+    return await _attach_ofs(await compute_encomenda({**enc, "entregue": body.entregue, "data_entrega": data}))
 
 
 @router.delete("/encomendas/{eid}")

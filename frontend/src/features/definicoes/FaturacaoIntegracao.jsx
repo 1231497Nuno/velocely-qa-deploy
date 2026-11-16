@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, ExternalLink, ListRestart, PlugZap, Receipt, Save } from "lucide-react";
 import { api, fmtDate } from "@/lib/api";
 import { API } from "@/infrastructure/api/client";
-import { METODOS_PAGAMENTO } from "@/features/pagamentos/PagamentoDialog";
+import { METODOS_PAGAMENTO } from "@/features/pagamentos/metodos";
 
 const inputCls = "w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand disabled:bg-gray-50";
 const labelCls = "text-sm font-medium text-gray-700 mb-1.5 block";

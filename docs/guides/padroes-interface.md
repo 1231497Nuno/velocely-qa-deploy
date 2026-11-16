@@ -114,7 +114,10 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 
 ## Pagamentos e faturas
 
-- **Pagamentos** (`/pagamentos`): todos os pagamentos/devoluções das encomendas, com totais (recebido, devolvido, líquido, por faturar) e filtros.
+- **Pagamentos** (`/pagamentos`): lista igual às encomendas (colunas ordenáveis, filtros, totais) e vista **Por cliente**
+  (`?vista=clientes`: total, recebido, em falta e por faturar, com as encomendas de cada cliente).
+- Cada pagamento tem **ficha própria** (`/pagamentos/:encomenda/:pagamento`): dados editáveis com «Editar», encomenda
+  (total, pago, em falta), documento fiscal, outros pagamentos e emissão da fatura. Na encomenda, cada recibo abre esta ficha.
 - Um pagamento edita-se (data, valor, método, nota) enquanto não tiver documento fiscal assinado. Pagamentos criados por recibos fiscais ou já faturados ficam bloqueados — para corrigir anula-se o documento.
 - A partir de um pagamento emite-se **fatura-recibo** ou **fatura (+ recibo)**: em rascunho (editável: data, notas, linhas) ou já assinada.
 - **Assinar** atribui o número definitivo e um hash encadeado (assinatura interna, não certificada pela AT). Documento assinado não se edita — só se anula; ao anular/eliminar, o pagamento volta a ficar por faturar.
@@ -134,3 +137,17 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 
 - **Loja online (WooCommerce)**: webhook `POST /api/integracoes/woocommerce/webhook` (assinatura HMAC do WooCommerce) + importação manual pela API REST (chaves só de leitura). Cada pedido vira uma encomenda (referência `#nº da loja`, `origem_externa`), sem duplicar; o cliente é encontrado por NIF/email ou criado; os artigos ligam-se pelo SKU (código, código de produto ou de fabricante); personalizações da loja ficam em `observacoes` da linha e passam para a OF. Pedido pago → pagamento registado uma vez; cancelado na loja → encomenda cancelada (se ainda não tiver OF); concluído → marcado como entregue.
 - **Formulários do site**: `POST /api/integracoes/site/pedido?token=…` (JSON ou formulário; Elementor/CF7) → lead no CRM com origem «Site»; o mesmo contacto com lead em aberto acrescenta uma mensagem em vez de duplicar.
+
+## Encomendas em quadro (kanban)
+
+- Botão Lista / Quadro nas Encomendas (fica guardado no browser). Colunas: Aberta, Em produção, Concluída, Entregue.
+- Aberta → Em produção → Concluída seguem as ordens de fabrico (não se arrastam). Arrastar para/da coluna Entregue marca/desmarca
+  a entrega (`POST /encomendas/{id}/entrega`). Entregues: só as dos últimos N dias (`GET /encomendas?quadro=true&entregues_dias=`).
+
+## Relatórios (`/relatorios`)
+
+- Catálogo e cálculo em `services/relatorios.py` (`RELATORIOS`): cada relatório devolve colunas tipadas, linhas (com `_link`
+  para abrir o registo), totais, gráfico e notas. Parâmetros comuns: período, agrupamento (dia/semana/mês/trimestre/ano),
+  comparação (período anterior / ano anterior), cliente e top N.
+- Exportação: `GET /relatorios/gerar/{id}?formato=xlsx|pdf`. Módulo de permissões: `relatorios`.
+- Para acrescentar um relatório: escrever a função `async def x(d: Dados, p: Params)` e registá-la em `RELATORIOS`.

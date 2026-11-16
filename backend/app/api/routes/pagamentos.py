@@ -13,7 +13,7 @@ from app.core.pagination import parse_page, page_payload
 from app.core.security import require_perm
 from app.repositories import documentos_financeiros_repo, encomendas_repo
 from app.services import audit
-from app.services.costing import compute_encomenda, soma_valor_pago
+from app.services.costing import compute_encomenda, compute_encomendas_many, soma_valor_pago
 from app.services.financeiro import (
     PAG_METODO_PT, criar_documento_de_pagamento, estado_pagamento_fiscal,
 )
@@ -120,6 +120,102 @@ async def list_pagamentos(
     out = page_payload(linhas[skip:skip + ps], len(linhas), p, ps)
     out["resumo"] = resumo
     return out
+
+
+def _resumo_encomenda(c: dict) -> dict:
+    return {
+        "id": c.get("id"), "numero": c.get("numero") or "", "cliente": c.get("cliente") or "",
+        "cliente_id": c.get("cliente_id"), "estado": c.get("estado") or "", "data": c.get("data"),
+        "prazo_entrega": c.get("prazo_entrega"), "descricao": c.get("descricao") or "",
+        "total": round2(c.get("total_com_iva") or c.get("valor_total") or 0),
+        "pago": round2(c.get("valor_pago") or 0), "em_falta": round2(c.get("valor_pendente") or 0),
+        "devolvido": round2(c.get("valor_devolvido") or 0),
+        "percentual_pago": c.get("percentual_pago") or 0, "status_pagamento": c.get("status_pagamento") or "pendente",
+    }
+
+
+@router.get("/pagamentos/clientes")
+async def pagamentos_por_cliente(
+    q: str = Query(""),
+    situacao: str = Query("", description="em_falta | por_faturar"),
+    _u: dict = Depends(require_perm("encomendas", "view")),
+):
+    """Vista agrupada: por cliente, o total das encomendas, o recebido, o que falta e o que está por faturar."""
+    encs = await encomendas_repo.find({"estado": {"$ne": "cancelada"}}, limit=5000)
+    calc = await compute_encomendas_many(encs)
+    originais = {e["id"]: e for e in encs}
+    docs = await _docs_por_id(p.get("documento_id") for e in encs for p in (e.get("pagamentos") or []))
+    grupos: dict = {}
+    for c in calc:
+        if c.get("estado") == "cancelada":
+            continue
+        key = c.get("cliente_id") or f"nome:{c.get('cliente') or '—'}"
+        g = grupos.setdefault(key, {
+            "cliente_id": c.get("cliente_id"), "cliente": c.get("cliente") or "—",
+            "n_encomendas": 0, "total": 0.0, "pago": 0.0, "em_falta": 0.0, "por_faturar": 0.0,
+            "n_pagamentos": 0, "ultimo_pagamento": None, "encomendas": [],
+        })
+        r = _resumo_encomenda(c)
+        pags = (originais.get(c["id"]) or {}).get("pagamentos") or []
+        linhas = [_linha_pagamento(c, p, docs) for p in pags]
+        r["por_faturar"] = round2(sum(l["valor"] for l in linhas if l["tipo"] != "devolucao" and l["faturado"] == "nao"))
+        r["n_pagamentos"] = len(linhas)
+        r["ultimo_pagamento"] = max((l["data"] or "" for l in linhas), default="") or None
+        g["n_encomendas"] += 1
+        g["total"] += r["total"]
+        g["pago"] += r["pago"]
+        g["em_falta"] += r["em_falta"]
+        g["por_faturar"] += r["por_faturar"]
+        g["n_pagamentos"] += r["n_pagamentos"]
+        if r["ultimo_pagamento"] and (g["ultimo_pagamento"] or "") < r["ultimo_pagamento"]:
+            g["ultimo_pagamento"] = r["ultimo_pagamento"]
+        g["encomendas"].append(r)
+    out = []
+    termo = _fold(q.strip())
+    for g in grupos.values():
+        for k in ("total", "pago", "em_falta", "por_faturar"):
+            g[k] = round2(g[k])
+        if termo and termo not in _fold(g["cliente"]):
+            continue
+        if situacao == "em_falta" and g["em_falta"] <= 0.009:
+            continue
+        if situacao == "por_faturar" and g["por_faturar"] <= 0.009:
+            continue
+        if not g["n_pagamentos"] and g["em_falta"] <= 0.009:
+            continue
+        g["encomendas"].sort(key=lambda r: (r["em_falta"] <= 0.009, r.get("data") or ""), reverse=False)
+        out.append(g)
+    out.sort(key=lambda g: (-g["em_falta"], -g["total"]))
+    resumo = {k: round2(sum(g[k] for g in out)) for k in ("total", "pago", "em_falta", "por_faturar")}
+    resumo["n_clientes"] = len(out)
+    return {"items": out, "resumo": resumo, "total": len(out)}
+
+
+@router.get("/pagamentos/{eid}/{pid}")
+async def get_pagamento(eid: str, pid: str, _u: dict = Depends(require_perm("encomendas", "view"))):
+    """Ficha do pagamento: dados, encomenda (total, pago, em falta), documento fiscal e outros pagamentos."""
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    pags = enc.get("pagamentos") or []
+    pag = next((p for p in pags if p.get("id") == pid), None)
+    if not pag:
+        raise HTTPException(404, "Pagamento não encontrado")
+    docs = await _docs_por_id(p.get("documento_id") for p in pags)
+    c = await compute_encomenda(enc)
+    linha = _linha_pagamento(c, pag, docs)
+    doc = docs.get(pag.get("documento_id") or "")
+    if not doc and pag.get("origem") == "fatura" and pag.get("recibo_numero"):
+        # Pagamento criado por um recibo fiscal: mostra esse recibo
+        r = await documentos_financeiros_repo.find({"tipo": "recibo", "numero": pag["recibo_numero"]}, limit=1)
+        doc = r[0] if r else None
+    documento = None
+    if doc:
+        documento = {k: doc.get(k) for k in ("id", "numero", "tipo", "estado", "total", "data", "assinado_at", "fatura_id", "fatura_numero")}
+        documento["faturacao"] = {k: (doc.get("faturacao") or {}).get(k) for k in ("fornecedor_nome", "atcud", "estado", "estado_at")}
+    outros = [_linha_pagamento(c, p, docs) for p in pags if p.get("id") != pid]
+    outros.sort(key=lambda l: l.get("data") or "")
+    return {"pagamento": linha, "encomenda": _resumo_encomenda(c), "documento": documento, "outros": outros}
 
 
 class EditarPagamentoBody(BaseModel):
