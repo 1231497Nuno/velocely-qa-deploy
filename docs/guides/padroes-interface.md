@@ -300,3 +300,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   descarregar (JSON gz de todas as coleções) e restaurar (escrever RESTAURAR; faz cópia antes).
 - RGPD (separador no cliente): consentimento de marketing com histórico (`cliente.rgpd`), exportar dados (JSON) e
   anonimizar (admin; mantém encomendas e documentos fiscais, sem dados pessoais nas encomendas/orçamentos/leads).
+
+## Seleções com pesquisa
+
+- Listas vindas da base de dados usam sempre pesquisa: `components/EntitySelect.jsx` (Combobox; pesquisa em qualquer
+  parte do nome e do código; `clearLabel` para opção vazia; `size="sm"` em linhas/tabelas). Máquinas, mão de obra,
+  categorias, subcategorias, fornecedores, materiais.
+- `SelectAdicionar` (botões «Adicionar material/personalização…») passou a abrir uma lista com pesquisa (mesma API com
+  `<option>`). `InlineSelect` com mais de 6 opções também.
+- Fornecedor do artigo escolhido da base de dados (`fornecedor_id`, `FornecedorSelect`, `lib/useFornecedores`).
+- Responsável (clientes, fornecedores, artigos): `components/UtilizadorSelect.jsx` (lista de utilizadores; guarda o nome).

@@ -23,6 +23,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import UtilizadorSelect from "@/components/UtilizadorSelect";
 
 const CONDICOES_PAGAMENTO = [
   "", "Pronto pagamento", "15 dias", "30 dias", "45 dias", "60 dias", "90 dias",
@@ -343,13 +344,8 @@ export default function ClienteDetail() {
                     </FieldRow>
                     <FieldRow label="Responsável" testid="cli-campo-responsavel">
                       {canEdit ? (
-                        <input
-                          data-testid="cli-responsavel-input"
-                          value={c.responsavel || ""}
-                          onChange={(e) => setData((d) => ({ ...d, cliente: { ...c, responsavel: e.target.value } }))}
-                          onBlur={() => persistField({ responsavel: c.responsavel })}
-                          className={inputCls}
-                        />
+                        <UtilizadorSelect testid="cli-responsavel-input" value={c.responsavel || ""}
+                          onChange={(v) => { setData((d) => ({ ...d, cliente: { ...c, responsavel: v } })); persistField({ responsavel: v }); }} />
                       ) : (
                         <span className="truncate">{c.responsavel || "—"}</span>
                       )}

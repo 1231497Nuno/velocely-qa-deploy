@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import BotaoAdicionar from "@/components/BotaoAdicionar";
+import EntitySelect from "@/components/EntitySelect";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
@@ -679,17 +680,8 @@ export default function ArtigoDetail() {
                             </td>
                             <td className="px-4 py-2">
                               {editing ? (
-                                <select
-                                  value={op.maquina_id || ""}
-                                  onChange={(e) => {
-                                    const mq = maquinas.find((x) => x.id === e.target.value);
-                                    updOp(i, { maquina_id: e.target.value, maquina_nome: mq?.nome || "" });
-                                  }}
-                                  className={fieldCls}
-                                >
-                                  <option value="">—</option>
-                                  {maquinas.map((mq) => <option key={mq.id} value={mq.id}>{mq.nome}</option>)}
-                                </select>
+                                <EntitySelect items={maquinas} value={op.maquina_id} clearLabel="— Sem máquina —" placeholder="Máquina…" size="sm"
+                                  onChange={(id, mq) => updOp(i, { maquina_id: id, maquina_nome: mq?.nome || "" })} />
                               ) : (op.maquina_nome || "—")}
                             </td>
                             <td className="px-4 py-2 text-right">
@@ -722,17 +714,8 @@ export default function ArtigoDetail() {
                             </td>
                             <td className="px-4 py-2">
                               {editing ? (
-                                <select
-                                  value={op.mao_obra_id || ""}
-                                  onChange={(e) => {
-                                    const mo = maoObra.find((x) => x.id === e.target.value);
-                                    updOp(i, { mao_obra_id: e.target.value, mao_obra_nome: mo?.nome || "" });
-                                  }}
-                                  className={fieldCls}
-                                >
-                                  <option value="">—</option>
-                                  {maoObra.map((mo) => <option key={mo.id} value={mo.id}>{mo.nome}</option>)}
-                                </select>
+                                <EntitySelect items={maoObra} value={op.mao_obra_id} clearLabel="— Sem mão de obra —" placeholder="Mão de obra…" size="sm"
+                                  onChange={(id, mo) => updOp(i, { mao_obra_id: id, mao_obra_nome: mo?.nome || "" })} />
                               ) : (op.mao_obra_nome || "—")}
                             </td>
                             <td className="px-4 py-2 text-right">

@@ -1,5 +1,6 @@
 import BotaoAdicionar from "@/components/BotaoAdicionar";
 import { Trash2, Cog } from "lucide-react";
+import EntitySelect from "@/components/EntitySelect";
 
 export function OFItemOperacoes({ item, i, maquinas, maoObra, addOp, updOp, delOp }) {
   const ops = item.operacoes || [];
@@ -22,18 +23,12 @@ export function OFItemOperacoes({ item, i, maquinas, maoObra, addOp, updOp, delO
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <div className="flex items-center gap-1">
-                <select data-testid={`of-op-maquina-${i}-${oi}`} value={op.maquina_id || ""} onChange={(e) => { const m = maquinas.find((x) => x.id === e.target.value); updOp(i, op.id, { maquina_id: e.target.value, maquina_nome: m ? m.nome : "", maquina_custo_hora: 0 }); }} className="flex-1 min-w-0 border border-gray-300 rounded-sm px-1.5 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                  <option value="">Máquina…</option>
-                  {maquinas.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </select>
+                <div className="flex-1 min-w-0"><EntitySelect testid={`of-op-maquina-${i}-${oi}`} items={maquinas} value={op.maquina_id} clearLabel="— Sem máquina —" placeholder="Máquina…" size="sm" onChange={(id, m) => updOp(i, op.id, { maquina_id: id, maquina_nome: m ? m.nome : "", maquina_custo_hora: 0 })} /></div>
                 <input data-testid={`of-op-tmaq-${i}-${oi}`} type="number" min="0" step="0.1" value={op.tempo_maquina_base ?? 0} onChange={(e) => updOp(i, op.id, { tempo_maquina_base: e.target.value })} title="min por unidade" className="w-14 text-right border border-gray-300 rounded-sm px-1 py-1 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                 <span className="text-[10px] text-gray-400">/un</span>
               </div>
               <div className="flex items-center gap-1">
-                <select data-testid={`of-op-mo-${i}-${oi}`} value={op.mao_obra_id || ""} onChange={(e) => { const m = maoObra.find((x) => x.id === e.target.value); updOp(i, op.id, { mao_obra_id: e.target.value, mao_obra_nome: m ? m.nome : "", mao_obra_custo_hora: 0 }); }} className="flex-1 min-w-0 border border-gray-300 rounded-sm px-1.5 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                  <option value="">Mão de obra…</option>
-                  {maoObra.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </select>
+                <div className="flex-1 min-w-0"><EntitySelect testid={`of-op-mo-${i}-${oi}`} items={maoObra} value={op.mao_obra_id} clearLabel="— Sem mão de obra —" placeholder="Mão de obra…" size="sm" onChange={(id, m) => updOp(i, op.id, { mao_obra_id: id, mao_obra_nome: m ? m.nome : "", mao_obra_custo_hora: 0 })} /></div>
                 <input data-testid={`of-op-tmo-${i}-${oi}`} type="number" min="0" step="0.1" value={op.tempo_mao_obra_base ?? 0} onChange={(e) => updOp(i, op.id, { tempo_mao_obra_base: e.target.value })} title="min por unidade" className="w-14 text-right border border-gray-300 rounded-sm px-1 py-1 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-black/20" />
                 <span className="text-[10px] text-gray-400">/un</span>
               </div>

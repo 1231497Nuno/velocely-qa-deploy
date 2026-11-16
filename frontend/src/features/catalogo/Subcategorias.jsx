@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import EntitySelect from "@/components/EntitySelect";
 
 export default function Subcategorias() {
   const { can } = useAuth();
@@ -82,15 +83,7 @@ export default function Subcategorias() {
       />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-3">
-        <select
-          data-testid="sub-filtro-categoria"
-          value={filtroCat}
-          onChange={(e) => setFiltroCat(e.target.value)}
-          className="border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white w-full sm:w-56 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-        >
-          <option value="">Todas as categorias</option>
-          {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-        </select>
+        <div className="w-full sm:w-56"><EntitySelect items={categorias} value={filtroCat} clearLabel="Todas as categorias" testid="sub-filtro-categoria" placeholder="Todas as categorias" onChange={(id) => setFiltroCat(id)} /></div>
         <div className="flex-1">
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código ou nome..." testid="subcategorias-search" />
         </div>
@@ -136,15 +129,7 @@ export default function Subcategorias() {
           <div className="space-y-4 py-2">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1.5 block">Categoria</label>
-              <select
-                data-testid="subcategoria-cat-select"
-                value={form.categoria_id}
-                onChange={(e) => setForm({ ...form, categoria_id: e.target.value })}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-              >
-                <option value="">— Selecionar —</option>
-                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <div className="w-full"><EntitySelect items={categorias} value={form.categoria_id} testid="subcategoria-cat-select" placeholder="— Selecionar —" onChange={(id) => setForm({ ...form, categoria_id: id })} /></div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome</label>

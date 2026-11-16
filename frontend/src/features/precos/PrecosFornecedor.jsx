@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { FileUp, Loader2, RefreshCw } from "lucide-react";
 import { API, api, eur, getToken } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
+import EntitySelect from "@/components/EntitySelect";
 
 const inputCls = "border border-gray-300 rounded-sm px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand";
 
@@ -56,10 +57,7 @@ export default function PrecosFornecedor() {
       <div className="bg-white border border-gray-200 rounded-sm p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-gray-600">Fornecedor
-            <select className={`${inputCls} block min-w-[14rem]`} value={fid} onChange={(e) => setFid(e.target.value)} data-testid="pf-fornecedor">
-              <option value="">Escolher…</option>
-              {forns.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select></label>
+            <div className="min-w-[16rem]"><EntitySelect items={forns} value={fid} placeholder="Escolher fornecedor…" hint={(f) => [f.codigo, f.nif].filter(Boolean).join(" · ")} onChange={(id) => setFid(id)} testid="pf-fornecedor" /></div></label>
           <label className="btn btn-secundario cursor-pointer">
             {busy === "ler" ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />} Carregar tabela
             <input type="file" accept=".xlsx,.xlsm,.csv,.txt" className="hidden" onChange={(e) => ler(e.target.files?.[0])} data-testid="pf-ficheiro" />

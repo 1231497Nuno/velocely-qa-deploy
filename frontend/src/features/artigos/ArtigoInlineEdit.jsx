@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const fieldCls = "w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black";
 
@@ -137,6 +139,35 @@ export function InlineSelect({
 
   if (!canEdit || disabled) {
     return <span data-testid={testid} className="text-right font-medium text-gray-900 block">{shown || "—"}</span>;
+  }
+
+  if (open && options.length > 6) {
+    // Listas grandes: lista com pesquisa
+    return (
+      <Popover open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <PopoverTrigger asChild>
+          <button type="button" data-testid={testid} className="text-right font-medium text-gray-900 rounded-sm px-1 -mx-1 py-0.5 bg-gray-100 ring-1 ring-gray-200 w-full">
+            {shown || <span className="text-gray-400">—</span>}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 w-72" align="end">
+          <Command filter={(v, q) => (v.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").includes(q.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").trim()) ? 1 : 0)}>
+            <CommandInput placeholder="Pesquisar…" data-testid={testid ? `${testid}-search` : undefined} />
+            <CommandList>
+              <CommandEmpty>Sem resultados.</CommandEmpty>
+              <CommandGroup>
+                {allowEmpty && <CommandItem value={emptyLabel} onSelect={() => { setOpen(false); if (value) onSave(""); }}>{emptyLabel}</CommandItem>}
+                {options.map((o) => (
+                  <CommandItem key={o.value} value={`${o.label} ${o.hint || ""}`} onSelect={() => { setOpen(false); if (o.value !== (value || "")) onSave(o.value); }}>
+                    <span className="truncate">{o.label}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
   }
 
   if (open) {

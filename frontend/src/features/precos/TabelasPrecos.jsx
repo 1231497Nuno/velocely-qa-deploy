@@ -10,6 +10,7 @@ import ClienteSelector from "@/components/ClienteSelector";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import EntitySelect from "@/components/EntitySelect";
 
 const inputCls = "border border-gray-300 rounded-sm px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand";
 
@@ -91,10 +92,7 @@ function Editor({ tabela, artigos, categorias, onClose, onSaved }) {
                   </div>
                 )}
                 {r.alvo === "categoria" && (
-                  <select className={`${inputCls} flex-1`} value={r.categoria_id || ""} onChange={(e) => setR(i, { categoria_id: e.target.value, categoria_nome: categorias.find((c) => c.id === e.target.value)?.nome || "" })}>
-                    <option value="">Escolher categoria…</option>
-                    {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
+                  <div className="flex-1"><EntitySelect items={categorias} value={r.categoria_id} placeholder="Escolher categoria…" onChange={(id, c) => setR(i, { categoria_id: id, categoria_nome: c?.nome || "" })} /></div>
                 )}
                 <select className={inputCls} value={r.tipo} onChange={(e) => setR(i, { tipo: e.target.value })}>
                   <option value="preco">Preço por unidade (€)</option><option value="desconto">Desconto (%)</option>
