@@ -426,6 +426,12 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     if not existing:
         raise HTTPException(404, "Artigo não encontrado")
     update = await _resolve_categorias(data.model_dump(), exigir=True)
+    if "localizacao_id" not in data.model_fields_set:  # pedidos antigos sem o campo não apagam a localização
+        update.pop("localizacao_id", None)
+    elif update.get("localizacao_id"):
+        from app.repositories import localizacoes_repo
+        if not await localizacoes_repo.get(update["localizacao_id"]):
+            raise HTTPException(400, "Localização não encontrada")
     update = await campos_svc.aplicar("artigos", update, "guardar", existing)
     update.pop("anexos", None)
     # Flag «diversos» só na criação (código DIV-); updates preservam o valor.

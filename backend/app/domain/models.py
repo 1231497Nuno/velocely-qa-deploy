@@ -308,6 +308,7 @@ class Artigo(BaseModel):
     gere_stock: bool = False
     unidade_compra: str = ""
     fator_compra: float = 1.0
+    localizacao_id: Optional[str] = None  # localização por defeito (para onde vão as entradas)
     # Variantes livres: artigo pai + filhos com etiqueta/atributos definidos pelo utilizador
     pai_id: Optional[str] = None
     pai_codigo: str = ""
@@ -377,6 +378,7 @@ class ArtigoInput(BaseModel):
     gere_stock: bool = False
     unidade_compra: str = ""
     fator_compra: float = 1.0
+    localizacao_id: Optional[str] = None  # localização por defeito (para onde vão as entradas)
     pai_id: Optional[str] = None
     pai_codigo: str = ""
     variante_label: str = ""

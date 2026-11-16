@@ -2,7 +2,7 @@ import { ComprasAutomaticasCard } from "@/features/ordens_compra/OcEnviar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowRightLeft, ClipboardCheck, FileDown, Lock, MapPin, Pencil, Plus, Settings2, ShoppingCart, SlidersHorizontal, Star, Trash2 } from "lucide-react";
+import { ArrowRightLeft, ClipboardCheck, FileDown, Lock, MapPin, Pencil, Plus, Settings2, ShoppingCart, SlidersHorizontal, Star, Trash2, Warehouse } from "lucide-react";
 import { API, api, eur, fmtDate } from "@/lib/api";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
@@ -74,9 +74,11 @@ function TabStock({ podeEditar, verCustos }) {
   const [aj, setAj] = useState(null);
   const [tr, setTr] = useState(null);
   const [loc, setLoc] = useState("");
+  const [arm, setArm] = useState("");
   const [locs] = useLocalizacoes();
+  const armazens = useMemo(() => Object.values(locs.reduce((m, l) => { if (l.armazem_id) m[l.armazem_id] = { id: l.armazem_id, nome: l.armazem_nome }; return m; }, {})), [locs]);
   const [artigos, setArtigos] = useState([]);
-  const carregar = useCallback(() => api.get(`/stock?filtro=${filtro}&q=${encodeURIComponent(q)}&localizacao=${loc}`).then(setDados).catch(() => toast.error("Não foi possível carregar o stock")), [filtro, q, loc]);
+  const carregar = useCallback(() => api.get(`/stock?filtro=${filtro}&q=${encodeURIComponent(q)}&localizacao=${loc}&armazem=${loc ? "" : arm}`).then(setDados).catch(() => toast.error("Não foi possível carregar o stock")), [filtro, q, loc, arm]);
   useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t); }, [carregar]);
   useEffect(() => { if (podeEditar) api.get("/artigos?lite=1").then((r) => setArtigos((Array.isArray(r) ? r : r.items || []).filter((a) => a.tipo_artigo !== "servico"))).catch(() => {}); }, [podeEditar]);
   return (
@@ -86,7 +88,13 @@ function TabStock({ podeEditar, verCustos }) {
         <select className={`${inputCls} w-auto`} value={filtro} onChange={(e) => setFiltro(e.target.value)} data-testid="stock-filtro">
           <option value="todos">Todos</option><option value="abaixo">Abaixo do nível</option><option value="negativo">Negativos</option>
         </select>
-        <div className="w-56"><EntitySelect items={locs} value={loc} onChange={(id) => setLoc(id || "")} clearLabel="Todas as localizações" placeholder="Todas as localizações" testid="stock-filtro-local" /></div>
+        {armazens.length > 1 && (
+          <select className={`${inputCls} w-auto`} value={arm} onChange={(e) => { setArm(e.target.value); setLoc(""); }} data-testid="stock-filtro-armazem">
+            <option value="">Todos os armazéns</option>
+            {armazens.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+        )}
+        <div className="w-56"><EntitySelect items={arm ? locs.filter((l) => l.armazem_id === arm) : locs} value={loc} onChange={(id) => setLoc(id || "")} clearLabel="Todas as localizações" placeholder="Todas as localizações" testid="stock-filtro-local" /></div>
         {podeEditar && (
           <div className="w-72"><ArtigoCombobox artigos={artigos} value="" permitirCriar={false} placeholder="Ativar stock noutro artigo…" testid="stock-add-artigo"
             onChange={(a) => a && setCfg({ ...a, qtd_stock: a.qtd_stock || 0, gere_stock: false })} /></div>
@@ -110,7 +118,7 @@ function TabStock({ podeEditar, verCustos }) {
                 <td className="px-3 py-2"><div className="font-medium">{a.nome}</div><div className="text-xs text-gray-400">{a.codigo}</div>
                   {a.por_local?.length > 0 && <div className="text-xs text-gray-500 flex flex-wrap gap-x-2"><MapPin size={11} className="mt-0.5" />{a.por_local.map((p) => <span key={p.id}>{p.nome}: <b className="tabular-nums">{num(p.quantidade)}</b></span>)}</div>}</td>
                 <td className="px-3 text-gray-600">{a.fornecedor_nome || "—"}</td>
-                <td className="px-3 text-right tabular-nums font-medium">{loc ? <>{num(a.qtd_local)} <span className="text-xs text-gray-400">de {num(a.qtd_stock)}</span></> : num(a.qtd_stock)} <span className="text-xs text-gray-400">{a.unidade}</span></td>
+                <td className="px-3 text-right tabular-nums font-medium">{(loc || arm) && a.qtd_local != null ? <>{num(a.qtd_local)} <span className="text-xs text-gray-400">de {num(a.qtd_stock)}</span></> : num(a.qtd_stock)} <span className="text-xs text-gray-400">{a.unidade}</span></td>
                 <td className="px-3 text-right tabular-nums text-gray-600">{a.reservado ? num(a.reservado) : "—"}</td>
                 <td className={`px-3 text-right tabular-nums ${a.disponivel < 0 ? "text-red-700 font-medium" : ""}`}>{num(a.disponivel)}</td>
                 <td className="px-3 text-right tabular-nums text-gray-600">{a.nivel_reabastecimento ? num(a.nivel_reabastecimento) : "—"}</td>
@@ -354,9 +362,12 @@ function TabInventarios({ podeEditar, verCustos }) {
 
 function TabLocalizacoes({ podeEditar, verCustos }) {
   const [lista, setLista] = useState(null);
+  const [arms, setArms] = useState([]);
   const [edit, setEdit] = useState(null);
+  const [editArm, setEditArm] = useState(null);
   const confirm = useConfirm();
-  const carregar = () => api.get("/stock/localizacoes").then(setLista).catch(() => toast.error("Não foi possível carregar"));
+  const carregar = () => Promise.all([api.get("/stock/localizacoes"), api.get("/stock/armazens")])
+    .then(([l, a]) => { setLista(l); setArms(a); }).catch(() => toast.error("Não foi possível carregar"));
   useEffect(() => { carregar(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const guardar = async () => {
     try {
@@ -364,40 +375,77 @@ function TabLocalizacoes({ podeEditar, verCustos }) {
       limparCacheLocalizacoes(); setEdit(null); carregar(); toast.success("Localização guardada");
     } catch (e) { erro(e, "Não foi possível guardar"); }
   };
+  const guardarArm = async () => {
+    try {
+      if (editArm.id) await api.put(`/stock/armazens/${editArm.id}`, editArm); else await api.post("/stock/armazens", editArm);
+      limparCacheLocalizacoes(); setEditArm(null); carregar(); toast.success("Armazém guardado");
+    } catch (e) { erro(e, "Não foi possível guardar"); }
+  };
   const apagar = async (l) => {
     if (!(await confirm({ title: "Apagar localização?", description: l.nome, confirmLabel: "Apagar", tone: "danger" }))) return;
     try { await api.del(`/stock/localizacoes/${l.id}`); limparCacheLocalizacoes(); carregar(); } catch (e) { erro(e, "Não foi possível apagar"); }
+  };
+  const apagarArm = async (a) => {
+    if (!(await confirm({ title: "Apagar armazém?", description: a.nome, confirmLabel: "Apagar", tone: "danger" }))) return;
+    try { await api.del(`/stock/armazens/${a.id}`); limparCacheLocalizacoes(); carregar(); } catch (e) { erro(e, "Não foi possível apagar"); }
   };
   if (!lista) return null;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm text-gray-600 flex-1">Armazéns, estantes, prateleiras ou zonas onde guarda o material. Cada artigo tem stock por localização; as entradas vão para a localização por defeito do artigo (ou a da empresa, marcada com estrela).</p>
-        <button type="button" className="btn btn-secundario" data-testid="loc-etiquetas" title="Etiquetas com QR para colar nas prateleiras e ler na app móvel"
-          onClick={() => openAuthenticated(`${API}/stock/localizacoes/etiquetas.pdf`).catch((e) => toast.error(e.message))}><FileDown size={15} /> Etiquetas QR</button>
-        {podeEditar && <button type="button" className="btn btn-primario" onClick={() => setEdit({ nome: "", codigo: "", descricao: "" })} data-testid="loc-nova"><Plus size={15} /> Localização</button>}
+        <p className="text-sm text-gray-600 flex-1">Cada <b>armazém</b> (ou espaço: armazém, loja, carrinha…) tem as suas <b>localizações</b> (estantes, prateleiras, zonas). O stock conta-se por localização; as entradas vão para a localização por defeito do artigo (ou a da empresa, com estrela).</p>
+        {podeEditar && <button type="button" className="btn btn-secundario" onClick={() => setEditArm({ nome: "", codigo: "", morada: "" })} data-testid="arm-novo"><Warehouse size={15} /> Armazém</button>}
       </div>
-      <div className="bg-white border border-gray-200 rounded-sm divide-y divide-gray-100">
-        {lista.map((l) => (
-          <div key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
-            <MapPin size={16} className="text-gray-400" />
-            <div className="flex-1 min-w-[12rem]">
-              <div className="font-medium flex items-center gap-1.5">{l.nome}{l.codigo ? <span className="text-xs text-gray-400">{l.codigo}</span> : null}{l.padrao && <Star size={13} className="fill-amber-400 text-amber-500" title="Por defeito" />}{l.ativo === false && <span className="text-xs text-gray-400">(inativa)</span>}</div>
-              {l.descricao && <div className="text-xs text-gray-500">{l.descricao}</div>}
+      {arms.map((ar) => {
+        const locs = lista.filter((l) => l.armazem_id === ar.id);
+        return (
+          <div key={ar.id} className="bg-white border border-gray-200 rounded-sm" data-testid={`arm-${ar.id}`}>
+            <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+              <Warehouse size={17} className="text-gray-500" />
+              <div className="flex-1 min-w-[12rem]">
+                <div className="font-semibold flex items-center gap-1.5">{ar.nome}{ar.codigo ? <span className="text-xs text-gray-400 font-normal">{ar.codigo}</span> : null}{ar.padrao && <span className="text-[11px] font-normal text-gray-500">(principal)</span>}{ar.ativo === false && <span className="text-xs text-gray-400 font-normal">(inativo)</span>}</div>
+                {ar.morada && <div className="text-xs text-gray-500">{ar.morada}</div>}
+              </div>
+              <span className="text-xs text-gray-600">{ar.n_localizacoes} localização(ões) · {ar.n_artigos} artigo(s)</span>
+              {verCustos && ar.valor != null && <span className="text-sm text-gray-700 tabular-nums dado-custo w-24 text-right">{eur(ar.valor)}</span>}
+              <button type="button" className="p-1.5 text-gray-500" title="Etiquetas QR das localizações deste armazém"
+                onClick={() => openAuthenticated(`${API}/stock/localizacoes/etiquetas.pdf?armazem=${ar.id}`).catch((e) => toast.error(e.message))}><FileDown size={15} /></button>
+              {podeEditar && <>
+                <button type="button" className="btn btn-secundario" onClick={() => setEdit({ nome: "", codigo: "", descricao: "", armazem_id: ar.id })} data-testid={`loc-nova-${ar.id}`}><Plus size={14} /> Localização</button>
+                <button type="button" className="p-1.5 text-gray-500" onClick={() => setEditArm({ ...ar })}><Pencil size={15} /></button>
+                {!ar.padrao && <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagarArm(ar)}><Trash2 size={15} /></button>}
+              </>}
             </div>
-            <span className="text-gray-600">{l.n_artigos} artigo(s)</span>
-            {verCustos && <span className="text-gray-600 tabular-nums dado-custo w-24 text-right">{eur(l.valor)}</span>}
-            {podeEditar && <>
-              <button type="button" className="p-1.5 text-gray-500" onClick={() => setEdit({ ...l })}><Pencil size={15} /></button>
-              {!l.padrao && <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagar(l)}><Trash2 size={15} /></button>}
-            </>}
+            <div className="divide-y divide-gray-100">
+              {!locs.length && <div className="px-4 py-3 text-sm text-gray-400">Sem localizações.</div>}
+              {locs.map((l) => (
+                <div key={l.id} className="flex flex-wrap items-center gap-3 pl-10 pr-4 py-2 text-sm">
+                  <MapPin size={15} className="text-gray-400" />
+                  <div className="flex-1 min-w-[12rem]">
+                    <div className="font-medium flex items-center gap-1.5">{l.nome}{l.codigo ? <span className="text-xs text-gray-400">{l.codigo}</span> : null}{l.padrao && <Star size={13} className="fill-amber-400 text-amber-500" title="Por defeito" />}{l.ativo === false && <span className="text-xs text-gray-400">(inativa)</span>}</div>
+                    {l.descricao && <div className="text-xs text-gray-500">{l.descricao}</div>}
+                  </div>
+                  <span className="text-gray-600">{l.n_artigos} artigo(s)</span>
+                  {verCustos && <span className="text-gray-600 tabular-nums dado-custo w-24 text-right">{eur(l.valor)}</span>}
+                  {podeEditar && <>
+                    <button type="button" className="p-1.5 text-gray-500" onClick={() => setEdit({ ...l })}><Pencil size={15} /></button>
+                    {!l.padrao && <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagar(l)}><Trash2 size={15} /></button>}
+                  </>}
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
+        );
+      })}
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{edit?.id ? "Editar localização" : "Nova localização"}</DialogTitle><DialogDescription>Ex.: «Armazém», «Estante A», «Loja», «Carrinha».</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{edit?.id ? "Editar localização" : "Nova localização"}</DialogTitle><DialogDescription>Ex.: «Estante A», «Prateleira 3», «Zona de acrílicos».</DialogDescription></DialogHeader>
           {edit && <div className="space-y-2">
+            <label className="text-xs text-gray-600 block">Armazém
+              <select className={inputCls} value={edit.armazem_id || ""} onChange={(e) => setEdit({ ...edit, armazem_id: e.target.value })} data-testid="loc-armazem">
+                {arms.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              </select>
+            </label>
             <label className="text-xs text-gray-600 block">Nome<input className={inputCls} value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} data-testid="loc-nome" /></label>
             <label className="text-xs text-gray-600 block">Código (opcional)<input className={inputCls} value={edit.codigo || ""} onChange={(e) => setEdit({ ...edit, codigo: e.target.value })} placeholder="Ex.: A3" /></label>
             <label className="text-xs text-gray-600 block">Descrição<input className={inputCls} value={edit.descricao || ""} onChange={(e) => setEdit({ ...edit, descricao: e.target.value })} /></label>
@@ -405,6 +453,19 @@ function TabLocalizacoes({ podeEditar, verCustos }) {
             {edit.id && !edit.padrao && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.ativo === false} onChange={(e) => setEdit({ ...edit, ativo: !e.target.checked })} /> Inativa</label>}
           </div>}
           <DialogFooter><button type="button" className="btn btn-secundario" onClick={() => setEdit(null)}>Cancelar</button><button type="button" className="btn btn-primario" onClick={guardar} data-testid="loc-guardar">Guardar</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!editArm} onOpenChange={(o) => !o && setEditArm(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{editArm?.id ? "Editar armazém" : "Novo armazém"}</DialogTitle><DialogDescription>Ex.: «Armazém», «Loja», «Carrinha», «Armazém 2».{!editArm?.id && " Fica já com uma localização «Geral»."}</DialogDescription></DialogHeader>
+          {editArm && <div className="space-y-2">
+            <label className="text-xs text-gray-600 block">Nome<input className={inputCls} value={editArm.nome} onChange={(e) => setEditArm({ ...editArm, nome: e.target.value })} data-testid="arm-nome" /></label>
+            <label className="text-xs text-gray-600 block">Código (opcional)<input className={inputCls} value={editArm.codigo || ""} onChange={(e) => setEditArm({ ...editArm, codigo: e.target.value })} placeholder="Ex.: ARM2" /></label>
+            <label className="text-xs text-gray-600 block">Morada<input className={inputCls} value={editArm.morada || ""} onChange={(e) => setEditArm({ ...editArm, morada: e.target.value })} /></label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!editArm.padrao} onChange={(e) => setEditArm({ ...editArm, padrao: e.target.checked })} /> Armazém principal</label>
+            {editArm.id && !editArm.padrao && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editArm.ativo === false} onChange={(e) => setEditArm({ ...editArm, ativo: !e.target.checked })} /> Inativo</label>}
+          </div>}
+          <DialogFooter><button type="button" className="btn btn-secundario" onClick={() => setEditArm(null)}>Cancelar</button><button type="button" className="btn btn-primario" onClick={guardarArm} data-testid="arm-guardar">Guardar</button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -421,7 +482,7 @@ export default function Stock() {
       <PageHeader title="Stock" subtitle="Só os artigos marcados «Gere stock». Os outros (compra à medida, serviços) não contam stock." />
       <DetailTabs testid="stock-tabs" value={tab} onChange={setTab} tabs={[
         { id: "stock", label: "Stock", testid: "stock-tab-stock" },
-        { id: "localizacoes", label: "Localizações", testid: "stock-tab-localizacoes" },
+        { id: "localizacoes", label: "Armazéns e localizações", testid: "stock-tab-localizacoes" },
         { id: "movimentos", label: "Movimentos", testid: "stock-tab-movimentos" },
         ...(can("ordens_compra", "view") ? [{ id: "sugestoes", label: "Sugestões de compra", testid: "stock-tab-sugestoes" }] : []),
         { id: "inventarios", label: "Inventários", testid: "stock-tab-inventarios" },

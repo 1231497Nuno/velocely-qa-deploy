@@ -228,7 +228,7 @@ export function LocalPicker({ value, onChange, titulo = "Localização", opcoes 
   const ler = (c) => {
     setCamara(false);
     const cl = c.toLowerCase();
-    const l = lista.find((x) => (x.codigo || "").toLowerCase() === cl || (x.nome || "").toLowerCase() === cl || x.id === c);
+    const l = lista.find((x) => (x.codigo || "").toLowerCase() === cl || (x.nome || "").toLowerCase() === cl || (x.nome_curto || "").toLowerCase() === cl || x.id === c);
     if (l) { vibrar(); escolher(l.id); } else toast.error(`Localização «${c}» não encontrada`);
   };
   const criar = async () => {

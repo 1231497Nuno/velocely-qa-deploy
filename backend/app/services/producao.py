@@ -321,9 +321,8 @@ async def marcar_preparado(ofid: str, item_id: str, preparado: bool, user: dict)
 
 async def picking_lista() -> List[dict]:
     """OF por fechar com materiais de stock ainda por separar, com onde estão no armazém."""
-    from app.repositories import localizacoes_repo
     padrao = await stock_svc.local_padrao()
-    locs = {l["id"]: l.get("nome") or l.get("codigo") or "" for l in await localizacoes_repo.find({}, limit=2000)}
+    locs = await stock_svc.nomes_localizacoes()
     ofs = await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, sort=("prazo_entrega", 1), limit=500)
     ids = {m.get("material_id") for of in ofs for it in of.get("itens") or [] for m in it.get("materiais") or [] if m.get("material_id")}
     ids |= {it.get("artigo_id") for of in ofs for it in of.get("itens") or [] if it.get("artigo_id") and a_preparar(it)}

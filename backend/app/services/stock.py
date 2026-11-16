@@ -55,8 +55,8 @@ async def local_padrao() -> dict:
     if p:
         await localizacoes_repo.update(p["id"], {"padrao": True})
         return {**p, "padrao": True}
-    p = {"id": new_id(), "codigo": "ARM", "nome": "Armazém", "descricao": "Localização principal", "padrao": True, "ativo": True,
-         "created_at": now_iso()}
+    p = {"id": new_id(), "codigo": "ARM", "nome": "Geral", "descricao": "Localização principal", "padrao": True, "ativo": True,
+         "armazem_id": (await armazem_padrao())["id"], "created_at": now_iso()}
     await localizacoes_repo.insert(p)
     return p
 
@@ -72,9 +72,90 @@ def stock_por_local(a: dict, padrao_id: str) -> Dict[str, float]:
     return {k: round2(v) for k, v in sl.items() if abs(v) > 1e-9}
 
 
+# ---------------------------------------------------------------------------
+# Armazéns (cada localização pertence a um armazém)
+# ---------------------------------------------------------------------------
+async def armazem_padrao() -> dict:
+    from app.repositories import armazens_repo
+    a = await armazens_repo.find_one({"padrao": True})
+    if a:
+        return a
+    a = await armazens_repo.find_one({"ativo": {"$ne": False}})
+    if a:
+        await armazens_repo.update(a["id"], {"padrao": True})
+        return {**a, "padrao": True}
+    a = {"id": new_id(), "codigo": "ARM", "nome": "Armazém principal", "morada": "", "padrao": True, "ativo": True, "created_at": now_iso()}
+    await armazens_repo.insert(a)
+    return a
+
+
+async def listar_armazens() -> List[dict]:
+    from app.repositories import armazens_repo
+    await armazem_padrao()
+    return await armazens_repo.find({}, sort=("nome", 1), limit=200)
+
+
+async def guardar_armazem(dados: dict, aid: Optional[str] = None) -> dict:
+    from app.repositories import armazens_repo
+    nome = (dados.get("nome") or "").strip()
+    if not nome:
+        raise HTTPException(400, "Indique o nome do armazém")
+    doc = {"nome": nome[:80], "codigo": (dados.get("codigo") or "").strip().upper()[:12], "morada": (dados.get("morada") or "").strip()[:200],
+           "ativo": dados.get("ativo", True) is not False}
+    if doc["codigo"]:
+        outro = await armazens_repo.find_one({"codigo": doc["codigo"]})
+        if outro and outro.get("id") != aid:
+            raise HTTPException(409, f"O código «{doc['codigo']}» já é do armazém «{outro.get('nome')}»")
+    if dados.get("padrao"):
+        await armazens_repo.col.update_many({}, {"$set": {"padrao": False}})
+        doc["padrao"] = True
+    if aid:
+        atual = await armazens_repo.get(aid)
+        if not atual:
+            raise HTTPException(404, "Armazém não encontrado")
+        if atual.get("padrao") and not doc["ativo"]:
+            raise HTTPException(400, "O armazém principal não pode ficar inativo")
+        await armazens_repo.update(aid, doc)
+        return await armazens_repo.get(aid)
+    doc.update({"id": new_id(), "created_at": now_iso(), "padrao": bool(doc.get("padrao"))})
+    await armazens_repo.insert(doc)
+    return doc
+
+
+async def apagar_armazem(aid: str) -> None:
+    from app.repositories import armazens_repo
+    a = await armazens_repo.get(aid)
+    if not a:
+        raise HTTPException(404, "Armazém não encontrado")
+    if a.get("padrao"):
+        raise HTTPException(400, "Não pode apagar o armazém principal — escolha outro como principal primeiro")
+    if await localizacoes_repo.find_one({"armazem_id": aid}):
+        raise HTTPException(400, "O armazém ainda tem localizações — mude-as de armazém ou apague-as primeiro")
+    await armazens_repo.delete({"id": aid})
+
+
 async def listar_localizacoes() -> List[dict]:
+    """Localizações com o armazém a que pertencem (`armazem_nome`, `nome_completo`)."""
     await local_padrao()
-    return await localizacoes_repo.find({}, sort=("nome", 1), limit=2000)
+    arms = {a["id"]: a for a in await listar_armazens()}
+    padrao_arm = next((a for a in arms.values() if a.get("padrao")), None)
+    lista = await localizacoes_repo.find({}, sort=("nome", 1), limit=2000)
+    varios = len(arms) > 1
+    for l in lista:
+        if not l.get("armazem_id") or l["armazem_id"] not in arms:
+            l["armazem_id"] = padrao_arm["id"]
+            await localizacoes_repo.update(l["id"], {"armazem_id": padrao_arm["id"]})
+        a = arms[l["armazem_id"]]
+        l["armazem_nome"] = a.get("nome") or ""
+        l["armazem_codigo"] = a.get("codigo") or ""
+        l["nome_completo"] = f"{a.get('nome')} › {l.get('nome')}" if varios else l.get("nome") or ""
+    lista.sort(key=lambda l: (not arms[l["armazem_id"]].get("padrao"), l["armazem_nome"].lower(), (l.get("nome") or "").lower()))
+    return lista
+
+
+async def nomes_localizacoes() -> Dict[str, str]:
+    """id → nome para mostrar (com o armazém quando há mais do que um)."""
+    return {l["id"]: l["nome_completo"] for l in await listar_localizacoes()}
 
 
 async def guardar_localizacao(dados: dict, lid: Optional[str] = None) -> dict:
@@ -83,6 +164,12 @@ async def guardar_localizacao(dados: dict, lid: Optional[str] = None) -> dict:
         raise HTTPException(400, "Indique o nome da localização")
     doc = {"nome": nome[:80], "codigo": (dados.get("codigo") or "").strip()[:20], "descricao": (dados.get("descricao") or "").strip()[:200],
            "ativo": dados.get("ativo", True) is not False}
+    from app.repositories import armazens_repo
+    arm_id = dados.get("armazem_id") or ""
+    if arm_id and not await armazens_repo.get(arm_id):
+        raise HTTPException(400, "Armazém não encontrado")
+    if arm_id or not lid:
+        doc["armazem_id"] = arm_id or (await armazem_padrao())["id"]
     if doc["codigo"]:
         outra = await localizacoes_repo.find_one({"codigo": doc["codigo"]})
         if outra and outra.get("id") != lid:
@@ -138,10 +225,11 @@ async def stock_artigo(artigo_id: str) -> dict:
     if not a:
         raise HTTPException(404, "Artigo não encontrado")
     padrao = await local_padrao()
-    locs = {l["id"]: l for l in await localizacoes_repo.find({}, limit=2000)}
+    locs = {l["id"]: l for l in await listar_localizacoes()}
     sl = stock_por_local(a, padrao["id"]) if gere_stock(a) else {}
     res = (await reservas()).get(artigo_id, 0.0) if gere_stock(a) else 0.0
-    linhas = [{"localizacao_id": k, "nome": (locs.get(k) or {}).get("nome") or "Localização removida",
+    linhas = [{"localizacao_id": k, "nome": (locs.get(k) or {}).get("nome_completo") or "Localização removida",
+               "armazem_id": (locs.get(k) or {}).get("armazem_id"), "armazem": (locs.get(k) or {}).get("armazem_nome") or "",
                "codigo": (locs.get(k) or {}).get("codigo") or "", "quantidade": v} for k, v in sl.items()]
     linhas.sort(key=lambda x: -x["quantidade"])
     movs = await movimentos_stock_repo.find({"artigo_id": artigo_id}, sort=("created_at", -1), limit=30)
