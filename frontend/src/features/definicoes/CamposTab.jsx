@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CornerDownRight, GitBranch, Plus, Save, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCampos } from "@/context/CamposContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import { CORES_LINHA } from "@/components/CorLinhaPicker";
+import { slugCampo } from "@/lib/camposDependentes";
 
 const TIPOS = [
   { key: "texto", label: "Texto" },
@@ -47,8 +48,93 @@ function Paleta({ value, onChange, disabled }) {
   );
 }
 
+function Chips({ opcoes, valor, onChange, disabled, vazio }) {
+  const sel = valor || [];
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {opcoes.map((o) => {
+        const on = sel.includes(o);
+        return (
+          <button
+            key={o} type="button" disabled={disabled}
+            onClick={() => onChange(on ? sel.filter((x) => x !== o) : [...sel, o])}
+            className={`rounded-sm border px-2 py-0.5 text-xs ${on ? "border-brand bg-brand-soft text-gray-900" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}
+          >
+            {o}
+          </button>
+        );
+      })}
+      {!sel.length && vazio && <span className="text-xs text-gray-400 ml-1">{vazio}</span>}
+    </div>
+  );
+}
+
+/** Chaves dos campos que dependem (direta ou indiretamente) de `key` — não podem ser o "pai" dele. */
+function descendentes(extras, key) {
+  const out = new Set();
+  let mudou = true;
+  while (mudou) {
+    mudou = false;
+    for (const c of extras) {
+      const pai = c.depende_de?.campo;
+      if (pai && (pai === key || out.has(pai)) && !out.has(c.key)) { out.add(c.key); mudou = true; }
+    }
+  }
+  return out;
+}
+
+/** "Mostrar só quando…": escolher o campo de que este depende e a condição. */
+function Dependencia({ campo, extras, onChange, disabled }) {
+  const dep = campo.depende_de;
+  const proibidos = descendentes(extras, campo.key);
+  const candidatos = extras.filter((x) => x.key && x.key !== campo.key && !proibidos.has(x.key) && x.label.trim());
+  const pai = dep?.campo ? extras.find((x) => x.key === dep.campo) : null;
+  const opcoesPai = pai?.tipo === "lista" ? pai.opcoes.map((o) => o.valor) : [];
+
+  if (!dep) {
+    if (disabled || !candidatos.length) return null;
+    return (
+      <button type="button" onClick={() => onChange({ depende_de: { campo: candidatos[0].key, valores: [] } })} className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900" data-testid={`campos-dep-add-${campo.key}`}>
+        <GitBranch size={13} /> Mostrar só consoante outro campo
+      </button>
+    );
+  }
+  return (
+    <div className="rounded-sm border border-dashed border-gray-300 bg-gray-50/60 px-3 py-2 space-y-1.5" data-testid={`campos-dep-${campo.key}`}>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <GitBranch size={14} className="text-gray-500" />
+        <span className="text-gray-600">Mostrar só quando</span>
+        <select className={`${inputCls} !py-1`} value={dep.campo} disabled={disabled}
+          onChange={(e) => onChange({ depende_de: { campo: e.target.value, valores: [] }, opcoes: campo.opcoes.map((o) => ({ ...o, pais: [] })) })}>
+          {!pai && <option value={dep.campo}>(campo removido)</option>}
+          {candidatos.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+        </select>
+        {pai?.tipo === "sim_nao" ? (
+          <select className={`${inputCls} !py-1`} value={(dep.valores || [])[0] || "sim"} disabled={disabled} onChange={(e) => onChange({ depende_de: { ...dep, valores: [e.target.value] } })}>
+            <option value="sim">estiver marcado (Sim)</option>
+            <option value="nao">não estiver marcado (Não)</option>
+          </select>
+        ) : pai?.tipo === "lista" ? (
+          <span className="text-gray-600">for</span>
+        ) : (
+          <span className="text-gray-600">estiver preenchido</span>
+        )}
+        {!disabled && (
+          <button type="button" onClick={() => onChange({ depende_de: null, opcoes: campo.opcoes.map((o) => ({ ...o, pais: [] })) })} className="ml-auto text-gray-400 hover:text-red-600" title="Mostrar sempre"><X size={14} /></button>
+        )}
+      </div>
+      {pai?.tipo === "lista" && (
+        <div className="pl-6">
+          <Chips opcoes={opcoesPai} valor={(dep.valores || []).filter((v) => opcoesPai.includes(v))} disabled={disabled}
+            onChange={(valores) => onChange({ depende_de: { ...dep, valores } })} vazio="qualquer opção" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function novoCampo() {
-  return { key: "", label: "", tipo: "texto", opcoes: [], obrigatorio: false, ajuda: "", mostrar_na_lista: false, ativo: true, _novo: true };
+  return { key: "", label: "", tipo: "texto", opcoes: [], obrigatorio: false, ajuda: "", mostrar_na_lista: false, ativo: true, depende_de: null, _novo: true };
 }
 
 /** Definições → Campos: obrigatórios, campos personalizados e cores das linhas, por módulo. */
@@ -87,6 +173,25 @@ export default function CamposTab() {
 
   const disabled = !isAdmin;
   const setExtra = (i, patch) => setForm((f) => ({ ...f, extras: f.extras.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
+  // Campos novos ganham já a chave (a partir do nome) para poderem ser usados como "pai" de outros
+  const mudarNome = (i, label) => setForm((f) => {
+    const c = f.extras[i];
+    if (!c._novo) return { ...f, extras: f.extras.map((x, j) => (j === i ? { ...x, label } : x)) };
+    const usadas = new Set(f.extras.filter((_, j) => j !== i).map((x) => x.key).filter(Boolean));
+    const base = slugCampo(label);
+    let key = base;
+    for (let n = 2; usadas.has(key); n += 1) key = `${base}_${n}`;
+    const antiga = c.key;
+    return {
+      ...f,
+      extras: f.extras.map((x, j) => {
+        if (j === i) return { ...x, label, key: label.trim() ? key : "" };
+        if (antiga && x.depende_de?.campo === antiga) return { ...x, depende_de: { ...x.depende_de, campo: key } };
+        return x;
+      }),
+      cores_linhas: antiga && f.cores_linhas.campo === `extra:${antiga}` ? { ...f.cores_linhas, campo: `extra:${key}` } : f.cores_linhas,
+    };
+  });
   const moverExtra = (i, d) => setForm((f) => {
     const ex = [...f.extras];
     const j = i + d;
@@ -111,7 +216,7 @@ export default function CamposTab() {
       toast.error("Essa opção já existe");
       return;
     }
-    setExtra(i, { opcoes: [...c.opcoes, { valor, cor: "" }] });
+    setExtra(i, { opcoes: [...c.opcoes, { valor, cor: "", pais: [] }] });
     setNovaOpcao((n) => ({ ...n, [i]: "" }));
   }
 
@@ -127,7 +232,9 @@ export default function CamposTab() {
       if (!ok) return;
     }
     setForm((f) => {
-      const extras = f.extras.filter((_, j) => j !== i);
+      const extras = f.extras.filter((_, j) => j !== i).map((x) => (
+        c.key && x.depende_de?.campo === c.key ? { ...x, depende_de: null, opcoes: x.opcoes.map((o) => ({ ...o, pais: [] })) } : x
+      ));
       const cl = f.cores_linhas.campo === `extra:${c.key}` ? { campo: "", mapa: {} } : f.cores_linhas;
       return { ...f, extras, cores_linhas: cl };
     });
@@ -199,7 +306,7 @@ export default function CamposTab() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className={h2Cls}>Campos personalizados</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Campos novos que aparecem na ficha de {meta.label.toLowerCase()}, no bloco «Outros dados».</p>
+              <p className="text-xs text-gray-500 mt-0.5">Campos novos que aparecem na ficha de {meta.label.toLowerCase()}, no bloco «Outros dados». Um campo pode aparecer só consoante a resposta a outro (ex.: Categoria → Subcategoria, ou «Tem logótipo?» → «Ficheiro do logótipo»).</p>
             </div>
             {!disabled && (
               <button type="button" onClick={() => setForm((f) => ({ ...f, extras: [...f.extras, novoCampo()] }))} className="btn btn-secundario shrink-0" data-testid="campos-add-extra">
@@ -210,13 +317,18 @@ export default function CamposTab() {
           {form.extras.length === 0 && <p className="text-sm text-gray-400 py-2">Sem campos personalizados.</p>}
           <ul className="space-y-2">
             {form.extras.map((c, i) => (
-              <li key={c.key || `novo-${i}`} className={`border rounded-sm p-3 space-y-2 ${c.ativo === false ? "border-dashed border-gray-300 bg-gray-50" : "border-gray-200"}`} data-testid={`campos-extra-row-${i}`}>
+              <li key={c._novo ? `novo-${i}` : c.key} className={`border rounded-sm p-3 space-y-2 ${c.ativo === false ? "border-dashed border-gray-300 bg-gray-50" : "border-gray-200"} ${c.depende_de?.campo ? "ml-6 border-l-4 border-l-brand/40" : ""}`} data-testid={`campos-extra-row-${i}`}>
+                {c.depende_de?.campo && (
+                  <div className="flex items-center gap-1 text-[11px] text-gray-500 -mb-1">
+                    <CornerDownRight size={12} /> depende de «{form.extras.find((x) => x.key === c.depende_de.campo)?.label || "?"}»
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex flex-col">
                     <button type="button" disabled={disabled || i === 0} onClick={() => moverExtra(i, -1)} className="p-0.5 text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowUp size={13} /></button>
                     <button type="button" disabled={disabled || i === form.extras.length - 1} onClick={() => moverExtra(i, 1)} className="p-0.5 text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowDown size={13} /></button>
                   </div>
-                  <input className={`${inputCls} flex-1 min-w-[12rem]`} placeholder="Nome do campo (ex.: Setor de atividade)" value={c.label} disabled={disabled} onChange={(e) => setExtra(i, { label: e.target.value })} data-testid={`campos-extra-label-${i}`} />
+                  <input className={`${inputCls} flex-1 min-w-[12rem]`} placeholder="Nome do campo (ex.: Setor de atividade)" value={c.label} disabled={disabled} onChange={(e) => mudarNome(i, e.target.value)} data-testid={`campos-extra-label-${i}`} />
                   <select className={inputCls} value={c.tipo} disabled={disabled || !c._novo} onChange={(e) => setExtra(i, { tipo: e.target.value })} title={c._novo ? "" : "O tipo não muda depois de guardado"}>
                     {TIPOS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                   </select>
@@ -232,13 +344,34 @@ export default function CamposTab() {
                   <label className="inline-flex items-center gap-1.5"><input type="checkbox" disabled={disabled} checked={c.ativo !== false} onChange={(e) => setExtra(i, { ativo: e.target.checked })} /> Ativo</label>
                   <input className={`${inputCls} flex-1 min-w-[12rem] !py-1 text-xs`} placeholder="Texto de ajuda (opcional)" value={c.ajuda || ""} disabled={disabled} onChange={(e) => setExtra(i, { ajuda: e.target.value })} />
                 </div>
+                <div className="pl-7">
+                  <Dependencia campo={c} extras={form.extras} disabled={disabled} onChange={(patch) => setExtra(i, patch)} />
+                </div>
                 {c.tipo === "lista" && (
                   <div className="pl-7 space-y-1.5">
                     <div className="text-xs text-gray-500">Opções {listas.some((l) => l.key === c.key) && form.cores_linhas.campo === `extra:${c.key}` ? "— as cores pintam as linhas da listagem" : "— pode dar uma cor a cada opção"}</div>
+                    {(() => {
+                      const pai = c.depende_de?.campo ? form.extras.find((x) => x.key === c.depende_de.campo) : null;
+                      return pai?.tipo === "lista" ? (
+                        <p className="text-xs text-gray-500">Escolha em que opções de «{pai.label}» aparece cada opção (sem escolha = aparece sempre).</p>
+                      ) : null;
+                    })()}
                     {c.opcoes.map((o, oi) => (
                       <div key={oi} className="flex flex-wrap items-center gap-2">
                         <span className="text-sm min-w-[8rem]">{o.valor}</span>
                         <Paleta value={o.cor} disabled={disabled} onChange={(cor) => setExtra(i, { opcoes: c.opcoes.map((x, xi) => (xi === oi ? { ...x, cor } : x)) })} />
+                        {(() => {
+                          const pai = c.depende_de?.campo ? form.extras.find((x) => x.key === c.depende_de.campo) : null;
+                          if (pai?.tipo !== "lista") return null;
+                          const op = pai.opcoes.map((x) => x.valor);
+                          return (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                              <CornerDownRight size={12} />
+                              <Chips opcoes={op} valor={(o.pais || []).filter((p) => op.includes(p))} disabled={disabled} vazio="todas"
+                                onChange={(pais) => setExtra(i, { opcoes: c.opcoes.map((x, xi) => (xi === oi ? { ...x, pais } : x)) })} />
+                            </span>
+                          );
+                        })()}
                         {!disabled && (
                           <button type="button" onClick={() => setExtra(i, { opcoes: c.opcoes.filter((_, xi) => xi !== oi) })} className="text-gray-400 hover:text-red-600"><X size={14} /></button>
                         )}

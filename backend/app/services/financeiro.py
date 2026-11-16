@@ -13,7 +13,7 @@ from app.domain.models import (
     DOC_TIPOS_PRINCIPAIS, DOC_TIPOS_COM_RECIBOS, DOC_TIPO_PT,
     DocumentoFinanceiro, DocumentoLinha, Pagamento,
 )
-from app.repositories import documentos_financeiros_repo, encomendas_repo, empresa_repo
+from app.repositories import clientes_repo, documentos_financeiros_repo, encomendas_repo, empresa_repo
 from app.services.costing import compute_encomenda, iva_calc, pers_valor_unit, soma_valor_pago
 from app.services.numeracao import next_codigo
 from app.services import audit
@@ -453,6 +453,24 @@ async def emitir_from_encomenda(
         linhas_parcial=linhas,
         adiantamento=adiantamento,
     )
+    from app.services import faturacao as fat
+    if tipo in fat.TIPOS_CERTIFICADOS and await fat.config_ativa():
+        # Programa certificado: o documento nasce em rascunho e é emitido lá (número oficial + ATCUD)
+        doc.update({"numero": "", "estado": "rascunho", "valor_pago": 0})
+        await documentos_financeiros_repo.insert(doc)
+        label = DOC_TIPO_PT.get(tipo, tipo)
+        await audit.registar(
+            "documento_financeiro", doc["id"], "criado", user,
+            f"{label} em rascunho a partir da encomenda {enc.get('numero')}", enc.get("numero"),
+        )
+        try:
+            return await assinar_documento(doc["id"], user)
+        except HTTPException as ex:
+            out = await enrich_documento(await documentos_financeiros_repo.get(doc["id"]) or doc)
+            out["aviso_faturacao"] = (f"{ex.detail if isinstance(ex.detail, str) else 'Erro no programa de faturação'}"
+                                      " — o documento ficou em rascunho; corrija e carregue em «Assinar».")
+            return out
+
     await documentos_financeiros_repo.insert(doc)
 
     if tipo == "fatura_recibo" and (doc.get("valor_pago") or 0) > 0:
@@ -504,6 +522,10 @@ async def _criar_recibo_na_fatura(
     if valor > pendente + 0.009:
         raise HTTPException(400, f"Valor excede o pendente da fatura ({pendente:.2f}€)")
 
+    from app.services import faturacao as fat
+    data_recibo = now_iso()[:10]
+    bloco_fat = await fat.registar_recebimento(fatura, valor, metodo_pagamento or "transferencia", data_recibo)
+
     recibo = DocumentoFinanceiro(
         tipo="recibo",
         cliente=fatura.get("cliente") or "",
@@ -523,8 +545,10 @@ async def _criar_recibo_na_fatura(
         metodo_pagamento=metodo_pagamento or "transferencia",
         notas=notas or "",
         estado="emitida",
+        faturacao=bloco_fat or {},
     )
-    recibo.numero = await next_codigo("recibo")
+    recibo.data = data_recibo
+    recibo.numero = (bloco_fat or {}).get("numero") or await next_codigo("recibo")
     dumped = recibo.model_dump()
     await documentos_financeiros_repo.insert(dumped)
 
@@ -705,7 +729,14 @@ async def criar_documento_de_pagamento(
         enc.get("numero"),
     )
     if assinar:
-        return await assinar_documento(doc["id"], user)
+        try:
+            return await assinar_documento(doc["id"], user)
+        except HTTPException as ex:
+            # O rascunho fica criado (e ligado ao pagamento): devolve-o com o motivo, para corrigir e voltar a assinar
+            out = await enrich_documento(await documentos_financeiros_repo.get(doc["id"]) or doc)
+            out["aviso_faturacao"] = (f"{ex.detail if isinstance(ex.detail, str) else 'Não foi possível assinar'}"
+                                      " — o documento ficou em rascunho.")
+            return out
     return await enrich_documento(doc)
 
 
@@ -804,24 +835,40 @@ async def assinar_documento(did: str, user: dict) -> dict:
                 f"O total do documento ({float(doc.get('total') or 0):.2f}€) tem de ser igual ao "
                 f"pagamento ({float(pag.get('valor') or 0):.2f}€). Acerte as linhas ou o pagamento.",
             )
+    from app.services import faturacao as fat
     ts = now_iso()
-    numero = await next_codigo(NUMERACAO_POR_TIPO[doc["tipo"]])
-    ultimo = await documentos_financeiros_repo.find(
-        {"hash": {"$ne": ""}, "tipo": doc["tipo"]}, sort=("assinado_at", -1), limit=1,
-    )
-    anterior = (ultimo[0].get("hash") if ultimo else "") or ""
-    patch = {
-        "numero": numero,
-        "estado": "emitida",
-        "assinado_at": ts,
-        "assinado_por": (user or {}).get("nome") or (user or {}).get("email") or "",
-        "hash_anterior": anterior,
-    }
-    if doc["tipo"] == "fatura_recibo":
-        patch["valor_pago"] = round2(doc.get("total") or 0)
-    doc = {**doc, **patch}
-    doc["hash"] = _hash_documento(doc, anterior)
-    await documentos_financeiros_repo.update(did, {**patch, "hash": doc["hash"]})
+    assinado_por = (user or {}).get("nome") or (user or {}).get("email") or ""
+    cfg_fat = await fat.config_ativa() if doc["tipo"] in fat.TIPOS_CERTIFICADOS else None
+    if cfg_fat:
+        # Emitido no programa certificado: número oficial, ATCUD e PDF vêm de lá
+        cliente = (await clientes_repo.get(doc["cliente_id"]) if doc.get("cliente_id") else None) or {"nome": doc.get("cliente") or ""}
+        bloco = await fat.emitir_documento(doc, cliente)
+        numero = bloco.get("numero") or bloco.get("externo_id")
+        patch = {"numero": numero, "estado": "emitida", "assinado_at": ts, "assinado_por": assinado_por,
+                 "hash_anterior": "", "hash": bloco.get("hash_curto") or "", "faturacao": bloco}
+        if doc["tipo"] == "fatura_recibo":
+            patch["valor_pago"] = round2(doc.get("total") or 0)
+        doc = {**doc, **patch}
+        await documentos_financeiros_repo.update(did, patch)
+    else:
+        numero = await next_codigo(NUMERACAO_POR_TIPO[doc["tipo"]])
+        ultimo = await documentos_financeiros_repo.find(
+            {"hash": {"$ne": ""}, "tipo": doc["tipo"], "faturacao.externo_id": {"$exists": False}},
+            sort=("assinado_at", -1), limit=1,
+        )
+        anterior = (ultimo[0].get("hash") if ultimo else "") or ""
+        patch = {
+            "numero": numero,
+            "estado": "emitida",
+            "assinado_at": ts,
+            "assinado_por": assinado_por,
+            "hash_anterior": anterior,
+        }
+        if doc["tipo"] == "fatura_recibo":
+            patch["valor_pago"] = round2(doc.get("total") or 0)
+        doc = {**doc, **patch}
+        doc["hash"] = _hash_documento(doc, anterior)
+        await documentos_financeiros_repo.update(did, {**patch, "hash": doc["hash"]})
     if pag:
         await _ligar_pagamento(doc.get("encomenda_id"), pag["id"], doc)
         if doc["tipo"] == "fatura":
@@ -832,7 +879,15 @@ async def assinar_documento(did: str, user: dict) -> dict:
                 notas=f"Pagamento {pag.get('recibo_numero') or ''}".strip(),
                 user=user, registar_encomenda=False,
             )
+    elif doc["tipo"] == "fatura_recibo" and doc.get("encomenda_id"):
+        # Fatura-recibo emitida a partir da encomenda: regista o recebimento (recibo interno de controlo)
+        await _criar_recibo_na_fatura(
+            doc, valor=round2(doc.get("total") or 0),
+            metodo_pagamento=doc.get("metodo_pagamento") or "transferencia",
+            notas="Liquidação na emissão da fatura-recibo", user=user, registar_encomenda=True,
+        )
     label = DOC_TIPO_PT.get(doc["tipo"], doc["tipo"])
+    onde = f" no {doc['faturacao'].get('fornecedor_nome')}" if (doc.get("faturacao") or {}).get("estado") == "emitido" else ""
     await audit.registar("documento_financeiro", did, "estado_alterado", user,
-                         f"{label} {numero} assinada", numero)
+                         f"{label} {numero} assinada{onde}", numero)
     return await enrich_documento(doc)

@@ -1,4 +1,5 @@
 import { useCampos } from "@/context/CamposContext";
+import { camposVisiveis, limparDependentes, opcoesDisponiveis } from "@/lib/camposDependentes";
 
 const inputCls =
   "w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand disabled:bg-gray-50 disabled:text-gray-500";
@@ -13,20 +14,24 @@ export default function CamposPersonalizados({ modulo, value, onChange, onCommit
   const campos = extras(modulo);
   if (!campos.length) return null;
   const v = value || {};
-  const set = (key, val) => onChange({ ...v, [key]: val });
+  // Campos dependentes: ao mudar um campo, limpa os que deixam de fazer sentido (em cascata)
+  const set = (key, val) => onChange(limparDependentes(campos, { ...v, [key]: val }));
   // Fichas com gravação automática: grava ao sair do campo (texto) ou logo (listas, datas, sim/não)
   const setCommit = (key, val) => {
-    const novo = { ...v, [key]: val };
+    const novo = limparDependentes(campos, { ...v, [key]: val });
     onChange(novo);
     onCommit?.(novo);
   };
   const blur = () => onCommit?.(v);
+  const visiveis = camposVisiveis(campos, v);
+  const mostrar = campos.filter((c) => visiveis[c.key] !== false);
+  if (!mostrar.length) return null;
 
   return (
     <section className={`bg-white border border-gray-200 rounded-sm p-4 ${className}`} data-testid={`campos-extra-${modulo}`}>
       {titulo && <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 mb-3">{titulo}</h3>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {campos.map((c) => {
+        {mostrar.map((c) => {
           const id = `cx-${modulo}-${c.key}`;
           const val = v[c.key];
           const label = (
@@ -56,7 +61,7 @@ export default function CamposPersonalizados({ modulo, value, onChange, onCommit
                   })()}
                   <select id={id} className={inputCls} value={val ?? ""} disabled={disabled} onChange={(e) => setCommit(c.key, e.target.value || null)}>
                     <option value="">—</option>
-                    {(c.opcoes || []).map((o) => <option key={o.valor} value={o.valor}>{o.valor}</option>)}
+                    {opcoesDisponiveis(c, v).map((o) => <option key={o.valor} value={o.valor}>{o.valor}</option>)}
                   </select>
                 </div>
               ) : (

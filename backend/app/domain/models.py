@@ -1096,6 +1096,8 @@ class DocumentoFinanceiroInput(BaseModel):
     hash_anterior: str = ""
     assinado_at: Optional[str] = None
     assinado_por: str = ""
+    # Emissão num programa certificado (FIZ / TOConline / Moloni): número oficial, ATCUD, PDF, estado na AT
+    faturacao: dict = Field(default_factory=dict)
 
 
 class DocumentoFinanceiro(DocumentoFinanceiroInput):

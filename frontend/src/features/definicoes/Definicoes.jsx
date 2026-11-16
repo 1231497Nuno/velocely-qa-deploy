@@ -698,7 +698,8 @@ function ModulosTab() {
 }
 
 export default function Definicoes() {
-  const [tab, setTab] = useState("empresa");
+  // ?tab=integracoes (ex.: regresso da autorização do TOConline)
+  const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get("tab") || "empresa");
   const confirmLeave = useConfirmLeave();
   const goTab = async (k) => {
     if (k === tab) return;
@@ -707,7 +708,7 @@ export default function Definicoes() {
   };
   return (
     <div>
-      <PageHeader title="Definições" subtitle="Empresa, aparência, campos, módulos, referências, dados Excel, modelos PDF, emails e integrações com o site" />
+      <PageHeader title="Definições" subtitle="Empresa, aparência, campos, módulos, referências, dados Excel, modelos PDF, emails e integrações (faturação, loja e site)" />
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5 overflow-x-auto">
         {[["empresa", "Empresa"], ["aparencia", "Aparência"], ["campos", "Campos e cores"], ["modulos", "Módulos"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"], ["integracoes", "Integrações"]].map(([k, l]) => (
           <button key={k} type="button" data-testid={`tab-${k}`} onClick={() => goTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-brand text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>

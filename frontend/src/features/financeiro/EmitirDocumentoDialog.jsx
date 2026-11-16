@@ -112,7 +112,8 @@ export default function EmitirDocumentoDialog({
         linhas,
         adiantamento: precisaAdiantamento ? adiantamento : false,
       });
-      toast.success(`${DOC_TIPO_PT[tipo] || "Fatura"} ${doc.numero} emitida`);
+      if (doc.aviso_faturacao) toast.error(doc.aviso_faturacao, { duration: 10000 });
+      else toast.success(`${DOC_TIPO_PT[tipo] || "Fatura"} ${doc.numero} emitida${doc.faturacao?.fornecedor_nome ? ` no ${doc.faturacao.fornecedor_nome}` : ""}`);
       onOpenChange(false);
       setNotas("");
       setAdiantamento(false);
