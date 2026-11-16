@@ -25,7 +25,7 @@ from app.services.cliente_default import ensure_consumidor_final
 from app.repositories import (
     users_repo, artigos_repo, subcategorias_repo, clientes_repo, fornecedores_repo,
     encomendas_repo, orcamentos_repo, ordens_repo, documentos_financeiros_repo, historico_repo,
-    contas_repo,
+    contas_repo, leads_repo,
 )
 from app.api.routes.catalog import router as catalog_router
 from app.api.routes.orcamentos import router as orcamentos_router
@@ -46,6 +46,7 @@ from app.api.routes.historico import router as historico_router
 from app.api.routes.uploads import router as uploads_router
 from app.api.routes.referencias import router as referencias_router
 from app.api.routes.io_excel import router as io_excel_router
+from app.api.routes.crm import router as crm_router, ensure_estados as ensure_crm_estados
 from app.services.storage import init_storage
 
 API_DESCRIPTION = """
@@ -85,6 +86,7 @@ for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router, fornecedores_router,
     ordens_compra_router, pedidos_cotacao_router, encomendas_router, nao_conformidades_router, financeiro_router, contas_router, settings_router, analytics_router,
     admin_router, historico_router, uploads_router, referencias_router, io_excel_router, ficheiros_router,
+    crm_router,
 ):
     api_router.include_router(r)
 
@@ -179,6 +181,9 @@ async def _startup_seed_admin() -> None:
         await contas_repo.create_index("numero")
         await historico_repo.create_index("timestamp")
         await historico_repo.create_index("entidade_tipo")
+        await leads_repo.create_index("estado_id")
+        await leads_repo.create_index("ordem")
+        await leads_repo.create_index("cliente_id")
     except Exception as e:
         logger.error(f"Índices catálogo falharam: {e}")
     await seed_perfis()
@@ -199,6 +204,10 @@ async def _startup_seed_admin() -> None:
             logger.info(f"Backfill códigos: {stats}")
     except Exception as e:
         logger.error(f"Backfill códigos falhou: {e}")
+    try:
+        await ensure_crm_estados()
+    except Exception as e:
+        logger.error(f"Seed estados CRM falhou: {e}")
     try:
         await ensure_consumidor_final()
     except Exception as e:

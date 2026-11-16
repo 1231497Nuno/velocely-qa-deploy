@@ -22,7 +22,7 @@ def perms_colaborador() -> dict:
     for m in ("orcamentos", "ordens_fabrico"):
         p[m]["create"] = True
         p[m]["edit"] = True
-    for m in ("clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "financeiro", "nao_conformidades", "contas"):
+    for m in ("clientes", "fornecedores", "encomendas", "ordens_compra", "pedidos_cotacao", "financeiro", "nao_conformidades", "contas", "crm"):
         p[m]["create"] = True
         p[m]["edit"] = True
     return p

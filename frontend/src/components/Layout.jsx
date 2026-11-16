@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
+  Kanban,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -67,6 +68,7 @@ const NAV_GROUPS = [
     id: "comercial",
     label: "Comercial",
     items: [
+      { to: "/crm", label: "CRM / Leads", icon: Kanban, tid: "nav-crm", modulo: "crm" },
       { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
       { to: "/fornecedores", label: "Fornecedores", icon: Truck, tid: "nav-fornecedores", modulo: "fornecedores" },
       { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade" },

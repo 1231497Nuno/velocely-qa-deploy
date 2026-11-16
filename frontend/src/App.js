@@ -42,6 +42,7 @@ import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
 import Historico from "@/features/historico/Historico";
+import Crm from "@/features/crm/Crm";
 
 function Protected({ children, adminOnly, modulo }) {
   const { user, ready, isAdmin, can } = useAuth();
@@ -71,6 +72,7 @@ const router = createBrowserRouter([
       { path: "/definir-password", element: <DefinirPassword /> },
       { path: "/", element: <Protected><Dashboard /></Protected> },
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
+      { path: "/crm", element: <Protected modulo="crm"><Crm /></Protected> },
       { path: "/clientes", element: <Protected modulo="clientes"><Clientes /></Protected> },
       { path: "/clientes/:id", element: <Protected modulo="clientes"><ClienteDetail /></Protected> },
       { path: "/fornecedores", element: <Protected modulo="fornecedores"><Fornecedores /></Protected> },

@@ -20,6 +20,8 @@ TIPO_LABELS = {
     "conta": "Conta",
     "nao_conformidade": "Não conformidade",
     "cliente": "Cliente",
+    "lead": "Lead (CRM)",
+    "crm_estado": "Estado do funil (CRM)",
     "artigo": "Artigo",
     "consumivel": "Material",
     "maquina": "Máquina",
