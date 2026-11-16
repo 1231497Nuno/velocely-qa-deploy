@@ -315,12 +315,12 @@ export default function PedidoCotacaoDetail() {
         actions={
           <>
             {podeEditar && !editing && form.estado === "rascunho" && (
-              <button type="button" data-testid="pc-enviar-btn" disabled={saving} onClick={() => setEstado("enviado", "Marcado como enviado")} className="border border-indigo-300 text-indigo-800 hover:bg-indigo-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button type="button" data-testid="pc-enviar-btn" disabled={saving} onClick={() => setEstado("enviado", "Marcado como enviado")} className="btn btn-secundario">
                 <Send size={15} /> Marcar enviado
               </button>
             )}
             {podeEditar && !editing && (form.estado === "enviado" || form.estado === "rascunho") && (
-              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => { startEdit(); toast.message("Preenche os preços cotados e guarda como Respondido"); }} className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => { startEdit(); toast.message("Preenche os preços cotados e guarda como Respondido"); }} className="btn btn-aviso-contorno">
                 <CheckCircle2 size={15} /> Registar resposta
               </button>
             )}
@@ -330,7 +330,7 @@ export default function PedidoCotacaoDetail() {
               </button>
             )}
             {podeEditar && !editing && form.estado !== "cancelado" && (
-              <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={async () => { if (await confirmAction({ title: "Cancelar pedido", description: "Este pedido deixa de poder ser adjudicado.", confirmLabel: "Cancelar pedido", tone: "danger" })) setEstado("cancelado", "Pedido cancelado"); }} className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={async () => { if (await confirmAction({ title: "Cancelar pedido", description: "Este pedido deixa de poder ser adjudicado.", confirmLabel: "Cancelar pedido", tone: "danger" })) setEstado("cancelado", "Pedido cancelado"); }} className="btn btn-perigo-contorno">
                 <Ban size={15} /> Cancelar
               </button>
             )}
@@ -341,11 +341,11 @@ export default function PedidoCotacaoDetail() {
                     <X size={15} /> Cancelar
                   </button>
                   {(form.estado === "enviado" || form.estado === "rascunho") && (
-                    <button type="button" data-testid="pc-save-respondido-btn" disabled={saving || !temPrecos} onClick={() => save({ estado: "respondido" }, { msg: "Resposta registada" })} className="border border-amber-400 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
+                    <button type="button" data-testid="pc-save-respondido-btn" disabled={saving || !temPrecos} onClick={() => save({ estado: "respondido" }, { msg: "Resposta registada" })} className="btn btn-aviso-contorno">
                       <CheckCircle2 size={15} /> Guardar como respondido
                     </button>
                   )}
-                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="btn btn-primario">
                     <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                   </button>
                 </>

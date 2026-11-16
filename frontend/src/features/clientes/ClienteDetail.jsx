@@ -1,3 +1,5 @@
+import BotoesEdicao from "@/components/BotoesEdicao";
+import { useModoEdicao } from "@/hooks/useModoEdicao";
 import { useEffect, useState, useCallback, useRef } from "react";
 import BotaoAdicionar from "@/components/BotaoAdicionar";
 import { useParams, useNavigate } from "react-router-dom";
@@ -133,7 +135,9 @@ export default function ClienteDetail() {
     onSave: async () => (saveContactoRef.current ? saveContactoRef.current() : true),
   });
 
-  const canEdit = can("clientes", "edit");
+  const modo = useModoEdicao({ permitido: can("clientes", "edit") });
+  // Campos gravam ao sair; só ficam editáveis depois de carregar em "Editar"
+  const canEdit = modo.ativo;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -230,12 +234,12 @@ export default function ClienteDetail() {
     }
     const o = await api.post("/orcamentos", body);
     toast.success("Rascunho criado");
-    nav(`/orcamentos/${o.id}`);
+    nav(`/orcamentos/${o.id}`, { state: { edit: true } });
   };
   const novaEncomenda = async () => {
     const enc = await api.post("/encomendas", { cliente: c.nome, cliente_id: c.id, descricao: "", prazo_entrega: "", notas: "" });
     toast.success("Encomenda criada");
-    nav(`/encomendas/${enc.id}`);
+    nav(`/encomendas/${enc.id}`, { state: { edit: true } });
   };
 
   const visibleIds = [
@@ -256,6 +260,7 @@ export default function ClienteDetail() {
         subtitle={empresa ? "Empresa" : "Particular"}
         actions={
           <>
+            <BotoesEdicao modo={modo} autoGuardado testid="cliente" />
             {can("orcamentos", "create") && (
               <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="btn btn-secundario">
                 <FileText size={15} /> Novo Orçamento

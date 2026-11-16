@@ -5,7 +5,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 
 const persUnit = (it) => (it.personalizacoes || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
 
-function OpNota({ op, itemId, onSave }) {
+function OpNota({ op, itemId, onSave, bloqueado = false }) {
   const [val, setVal] = useState(op.nota || "");
   return (
     <div className="w-full mt-1">
@@ -15,7 +15,8 @@ function OpNota({ op, itemId, onSave }) {
           data-testid={`op-nota-${op.id}`}
           value={val}
           onChange={(e) => setVal(e.target.value)}
-          onBlur={() => { if ((op.nota || "") !== val) onSave(itemId, op.id, val); }}
+          readOnly={bloqueado}
+          onBlur={() => { if (!bloqueado && (op.nota || "") !== val) onSave(itemId, op.id, val); }}
           placeholder="Notas desta operação…"
           rows={1}
           className="flex-1 resize-y border border-gray-200 rounded-sm px-2 py-1 text-xs text-gray-700 bg-gray-50/60 focus:outline-none focus:ring-1 focus:ring-black/20 focus:bg-white"
@@ -25,7 +26,7 @@ function OpNota({ op, itemId, onSave }) {
   );
 }
 
-export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota, elapsedSeg, fmtDur }) {
+export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota, elapsedSeg, fmtDur, bloqueado = false }) {
   const hasRoteiro = itens.filter((it) => (it.operacoes || []).length > 0).length > 0;
   return (
     <div className="bg-white border border-gray-200 rounded-sm overflow-hidden flex flex-col h-[min(55vh,26rem)] lg:h-[min(70vh,32rem)]">
@@ -98,7 +99,7 @@ export function OFRoteiroPanel({ itens, toggleOp, iniciarOp, pararOp, updOpNota,
                             )
                           )}
                           {op.concluida && <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />}
-                          <OpNota op={op} itemId={it.id} onSave={updOpNota} />
+                          <OpNota op={op} itemId={it.id} onSave={updOpNota} bloqueado={bloqueado} />
                         </div>
                       );
                     })}

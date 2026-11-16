@@ -50,13 +50,13 @@ export default function Encomendas() {
     const enc = await api.post("/encomendas", form);
     toast.success("Encomenda criada");
     setOpen(false);
-    nav(`/encomendas/${enc.id}`);
+    nav(`/encomendas/${enc.id}`, { state: { edit: true } });
   };
   const duplicar = async (e, id) => {
     e.stopPropagation();
     const enc = await api.post(`/encomendas/${id}/duplicar`);
     toast.success("Encomenda duplicada");
-    nav(`/encomendas/${enc.id}`);
+    nav(`/encomendas/${enc.id}`, { state: { edit: true } });
   };
   const remove = async (e, id) => {
     e.stopPropagation();

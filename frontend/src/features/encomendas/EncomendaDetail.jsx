@@ -18,7 +18,7 @@ import PdfExportButton from "@/components/PdfExportButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
-  Save, Trash2, X,
+  Trash2, X,
   ShieldCheck, ShieldAlert, FileOutput, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +29,8 @@ import EmitirDocumentoDialog from "@/features/financeiro/EmitirDocumentoDialog";
 import AbrirNaoConformidadeDialog from "@/features/nao_conformidades/AbrirNaoConformidadeDialog";
 import { ymdHoje } from "@/lib/orcamento";
 import SelecionarVariantesDialog from "@/components/SelecionarVariantesDialog";
+import BotoesEdicao from "@/components/BotoesEdicao";
+import { useModoEdicao } from "@/hooks/useModoEdicao";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
 
@@ -81,6 +83,11 @@ export default function EncomendaDetail() {
   const [variantesPick, setVariantesPick] = useState(null); // { pai }
   const [dirty, setDirty] = useState(false);
   const saveForLeaveRef = useRef(null);
+  const bloqueioEnc = !enc ? "" : enc.estado === "cancelada" ? "Encomenda cancelada"
+    : enc.estado === "concluida" ? "Encomenda concluída"
+    : enc.entregue ? "Encomenda entregue" : "";
+  const modo = useModoEdicao({ permitido: can("encomendas", "edit"), bloqueio: bloqueioEnc });
+  const edicao = modo.ativo;
 
   useUnsavedChanges({
     dirty,
@@ -149,7 +156,7 @@ export default function EncomendaDetail() {
 
   /** Encomenda gerada de orçamento: preços/qtd/descontos congelados. */
   const valoresDoOrc = !!enc.orcamento_id;
-  const canEditValores = can("encomendas", "edit") && !valoresDoOrc;
+  const canEditValores = edicao && !valoresDoOrc;
 
   const upd = (patch) => {
     setDirty(true);
@@ -479,14 +486,12 @@ export default function EncomendaDetail() {
               <button
                 data-testid="enc-emitir-doc-btn"
                 onClick={() => openEmitir("fatura")}
-                className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                className="btn btn-sucesso"
               >
                 <FileOutput size={15} /> Emitir fatura
               </button>
             )}
-            {can("encomendas", "edit") && (
-              <button data-testid="save-encomenda-btn" onClick={() => save()} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"><Save size={15} /> Guardar</button>
-            )}
+            <BotoesEdicao modo={modo} onGuardar={save} onCancelar={load} testid="encomenda" />
           </>
         }
       />
@@ -528,7 +533,8 @@ export default function EncomendaDetail() {
                       enc={enc}
                       cliente={cliente}
                       moradaCompleta={moradaCompleta}
-                      canEdit={can("encomendas", "edit")}
+                      canEdit={edicao}
+                      podeEntregar={can("encomendas", "edit") && enc.estado !== "cancelada"}
                       onContactoChange={(cid, c) => {
                         persist(
                           {
@@ -612,7 +618,7 @@ export default function EncomendaDetail() {
                             <div className="flex items-center gap-2.5">
                               <CorLinhaPicker
                                 value={a.cor || ""}
-                                disabled={!can("encomendas", "edit")}
+                                disabled={!edicao}
                                 onChange={(cor) => persist({ artigos: enc.artigos.map((x, j) => (j === i ? { ...x, cor } : x)) })}
                                 testid={`enc-artigo-cor-${i}`}
                               />
@@ -867,7 +873,7 @@ export default function EncomendaDetail() {
           modulo="encomendas"
           className="mt-4"
           value={enc.campos_extra}
-          disabled={!can("encomendas", "edit")}
+          disabled={!edicao}
           onChange={(vals) => upd({ campos_extra: vals })}
         />
       )}
@@ -1012,7 +1018,7 @@ export default function EncomendaDetail() {
           onCreated={(nc) => {
             setNcs((prev) => [nc, ...prev]);
             load();
-            if (nc?.id) nav(`/nao-conformidades/${nc.id}`);
+            if (nc?.id) nav(`/nao-conformidades/${nc.id}`, { state: { edit: true } });
           }}
         />
       )}

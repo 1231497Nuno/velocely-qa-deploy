@@ -183,7 +183,7 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
       await api.post(`/crm/leads/${base.id}/orcamentos`, { orcamento_id: orc.id });
       toast.success("Orçamento criado");
       onOpenChange(false);
-      nav(`/orcamentos/${orc.id}`);
+      nav(`/orcamentos/${orc.id}`, { state: { edit: true } });
     } catch (e) {
       toast.error(apiError(e, "Não foi possível criar o orçamento"));
     }

@@ -517,7 +517,7 @@ export default function ArtigoDetail() {
                 type="button"
                 data-testid="artigo-uso-btn"
                 onClick={() => setUsoOpen(true)}
-                className="inline-flex items-center gap-1.5 bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium"
+                className="btn btn-secundario"
                 title="Onde é usado nas receitas"
               >
                 <Eye size={14} /> Onde é usado

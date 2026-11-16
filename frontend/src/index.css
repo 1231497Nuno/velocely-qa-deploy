@@ -156,6 +156,7 @@ body.mobile-nav-open {
   .btn-perigo-contorno { @apply border border-red-200 bg-white text-red-700 hover:bg-red-50; }
   .btn-sucesso { @apply bg-emerald-700 text-white hover:bg-emerald-800; }
   .btn-aviso { @apply bg-amber-600 text-white hover:bg-amber-700; }
+  .btn-aviso-contorno { @apply border border-amber-300 bg-white text-amber-900 hover:bg-amber-50; }
     .app-shell-pad {
         padding-left: max(var(--app-pad-x), env(safe-area-inset-left, 0px));
         padding-right: max(var(--app-pad-x), env(safe-area-inset-right, 0px));

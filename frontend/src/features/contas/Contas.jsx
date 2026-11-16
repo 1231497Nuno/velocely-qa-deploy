@@ -138,7 +138,7 @@ export default function Contas() {
       toast.success("Conta criada");
       setOpen(false);
       setForm(emptyForm());
-      nav(`/contas/${created.id}`);
+      nav(`/contas/${created.id}`, { state: { edit: true } });
     } catch (err) {
       const d = err?.response?.data?.detail;
       toast.error(typeof d === "string" ? d : "Não foi possível criar");

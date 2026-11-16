@@ -141,7 +141,7 @@ export default function FicheirosTab({ tipo, id, canEdit = false, addLabel = "Ad
               disabled={busy}
               onClick={() => inputRef.current?.click()}
               data-testid="ficheiros-add"
-              className="bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 shrink-0"
+              className="btn btn-secundario shrink-0"
             >
               {busy ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
               {addLabel}

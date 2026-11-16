@@ -11,7 +11,9 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
-import { Save, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
+import BotoesEdicao from "@/components/BotoesEdicao";
+import { useModoEdicao } from "@/hooks/useModoEdicao";
 import { NC_TIPOS } from "@/features/nao_conformidades/AbrirNaoConformidadeDialog";
 
 const ESTADOS = [
@@ -29,6 +31,10 @@ export default function NaoConformidadeDetail() {
   const [nc, setNc] = useState(null);
   const [dirty, setDirty] = useState(false);
   const saveForLeaveRef = useRef(null);
+  const modo = useModoEdicao({
+    permitido: can("nao_conformidades", "edit"),
+    bloqueio: nc?.estado === "fechada" ? "NC fechada" : "",
+  });
 
   useUnsavedChanges({
     dirty,
@@ -74,6 +80,20 @@ export default function NaoConformidadeDetail() {
   };
   saveForLeaveRef.current = save;
 
+  const cancelarEdicao = async () => { await load(); };
+
+  const reabrir = async () => {
+    if (!await confirmAction({ title: "Reabrir não conformidade", description: "A não conformidade volta ao estado \"Em análise\" e pode ser editada.", confirmLabel: "Reabrir" })) return;
+    try {
+      setNc(await api.put(`/nao-conformidades/${id}`, { estado: "em_analise" }));
+      setDirty(false);
+      toast.success("Não conformidade reaberta");
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Não foi possível reabrir");
+    }
+  };
+
   const remove = async () => {
     if (!await confirmAction({ title: "Eliminar não conformidade", description: "Este registo é eliminado.", confirmLabel: "Eliminar", tone: "danger" })) return;
     await api.del(`/nao-conformidades/${id}`);
@@ -92,9 +112,10 @@ export default function NaoConformidadeDetail() {
         subtitle={`Não conformidade · ${refLabel}`}
         actions={
           <>
-            {can("nao_conformidades", "edit") && (
-              <button data-testid="nc-save-btn" onClick={save} className="btn btn-primario">
-                <Save size={15} /> Guardar
+            <BotoesEdicao modo={modo} onGuardar={save} onCancelar={cancelarEdicao} testid="nc" />
+            {modo.bloqueio && modo.permitido && (
+              <button data-testid="nc-reabrir-btn" onClick={reabrir} className="btn btn-secundario">
+                <RotateCcw size={15} /> Reabrir
               </button>
             )}
             {can("nao_conformidades", "delete") && (
@@ -118,7 +139,7 @@ export default function NaoConformidadeDetail() {
       />
 
       {tab === "nc" && (
-        <>
+        <fieldset disabled={!modo.ativo} className="contents" data-testid="nc-campos">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-4">
           <h3 className="text-sm font-semibold text-gray-700">Referência</h3>
@@ -178,7 +199,7 @@ export default function NaoConformidadeDetail() {
           <textarea data-testid="nc-notas" rows={2} value={nc.notas || ""} onChange={(e) => upd({ notas: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm resize-y" />
         </div>
       </div>
-        </>
+        </fieldset>
       )}
 
       {tab === "nc" && (
@@ -186,7 +207,7 @@ export default function NaoConformidadeDetail() {
           modulo="nao_conformidades"
           className="mt-4"
           value={nc.campos_extra}
-          disabled={!can("nao_conformidades", "edit")}
+          disabled={!modo.ativo}
           onChange={(vals) => upd({ campos_extra: vals })}
         />
       )}

@@ -139,11 +139,11 @@ export default function FornecedorDetail() {
           <>
             {podeEditar && (
               editando ? (
-                <button type="button" data-testid="fornecedor-concluir-btn" onClick={() => setEditando(false)} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <button type="button" data-testid="fornecedor-concluir-btn" onClick={() => setEditando(false)} className="btn btn-primario">
                   <Check size={15} /> Concluir edição
                 </button>
               ) : (
-                <button type="button" data-testid="fornecedor-edit-btn" onClick={() => setEditando(true)} className="border border-gray-300 text-gray-800 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                <button type="button" data-testid="fornecedor-edit-btn" onClick={() => setEditando(true)} className="btn btn-primario">
                   <Pencil size={15} /> Editar
                 </button>
               )
