@@ -129,7 +129,7 @@ export default function OfResumoDialog({ open, onOpenChange, previsao, criando, 
 
         <DialogFooter className="gap-2">
           <button type="button" onClick={() => onOpenChange(false)} className="border border-gray-300 bg-white hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Voltar</button>
-          <button type="button" onClick={onConfirmar} disabled={criando} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-50" data-testid="of-resumo-confirmar">
+          <button type="button" onClick={onConfirmar} disabled={criando} className="btn btn-primario" data-testid="of-resumo-confirmar">
             {criando ? "A criar..." : "Confirmar e criar OF"}
           </button>
         </DialogFooter>

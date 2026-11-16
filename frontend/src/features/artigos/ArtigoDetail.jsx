@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
@@ -11,7 +12,7 @@ import FicheirosTab from "@/components/FicheirosTab";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
-  FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight, Plus, X, Pencil, Calculator, Tag, Eye,
+  FileText, ClipboardList, Factory, Coins, Package, TrendingUp, ChevronRight, X, Pencil, Calculator, Tag, Eye,
 } from "lucide-react";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { toast } from "sonner";
@@ -527,7 +528,7 @@ export default function ArtigoDetail() {
                 type="button"
                 data-testid="artigo-edit-btn"
                 onClick={startFullEdit}
-                className="inline-flex items-center gap-1.5 bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium"
+                className="btn btn-primario"
               >
                 <Pencil size={14} /> Editar
               </button>
@@ -538,7 +539,7 @@ export default function ArtigoDetail() {
                   type="button"
                   onClick={cancelEdit}
                   disabled={saving}
-                  className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium"
+                  className="btn btn-secundario"
                 >
                   Cancelar
                 </button>
@@ -547,7 +548,7 @@ export default function ArtigoDetail() {
                   data-testid="artigo-save-btn"
                   onClick={saveEdit}
                   disabled={saving}
-                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium disabled:opacity-60"
+                  className="btn btn-primario"
                 >
                   {saving ? "A guardar…" : "Guardar"}
                 </button>
@@ -639,9 +640,9 @@ export default function ArtigoDetail() {
                   <div className="overflow-x-auto" data-testid="artigo-operacoes">
                     {editing && (
                       <div className="px-4 py-2 border-b border-gray-100 flex justify-end">
-                        <button
-                          type="button"
-                          data-testid="artigo-add-operacao"
+                        <BotaoAdicionar
+                          tamanho="sm"
+                          testid="artigo-add-operacao"
                           onClick={() => setDraft((p) => ({
                             ...p,
                             roteiro: [...(p.roteiro || []), {
@@ -649,10 +650,9 @@ export default function ArtigoDetail() {
                               mao_obra_id: "", mao_obra_nome: "", tempo_mao_obra: 0, tempo_mao_obra_unidade: "min",
                             }],
                           }))}
-                          className="text-xs font-medium text-gray-900 inline-flex items-center gap-1 hover:underline"
                         >
-                          <Plus size={13} /> Operação
-                        </button>
+                          Adicionar operação
+                        </BotaoAdicionar>
                       </div>
                     )}
                     <table className="w-full text-sm min-w-[520px]">

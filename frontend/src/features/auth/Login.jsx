@@ -207,7 +207,7 @@ export default function Login() {
               data-testid="login-submit"
               type="submit"
               disabled={loading}
-              className="w-full bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+              className="btn btn-primario w-full"
             >
               <LogIn size={16} /> {loading ? "A entrar..." : "Entrar"}
             </button>
@@ -271,7 +271,7 @@ export default function Login() {
                   data-testid="forgot-verify-code"
                   disabled={!!forgotBusy}
                   onClick={verifyForgotCode}
-                  className="w-full bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2.5 text-sm font-medium disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed"
+                  className="btn btn-primario w-full"
                 >
                   {forgotBusy === "verify" ? "A validar..." : "Validar código"}
                 </button>
@@ -315,7 +315,7 @@ export default function Login() {
               data-testid="forgot-save-password"
               disabled={!!forgotBusy}
               onClick={saveForgotPassword}
-              className="w-full bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2.5 text-sm font-medium disabled:opacity-60 disabled:pointer-events-none"
+              className="btn btn-primario w-full"
             >
               {forgotBusy === "save" ? "A guardar..." : "Guardar password"}
             </button>

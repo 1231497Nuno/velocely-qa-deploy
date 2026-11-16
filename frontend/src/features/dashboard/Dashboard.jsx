@@ -83,7 +83,7 @@ export default function Dashboard() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <Greeting nome={user?.name} />
         {d.total_artigos === 0 && (
-          <button data-testid="seed-btn" onClick={seed} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium transition-colors">Criar dados demo</button>
+          <button data-testid="seed-btn" onClick={seed} className="btn btn-primario">Criar dados demo</button>
         )}
       </div>
 

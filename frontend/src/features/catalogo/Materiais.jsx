@@ -70,7 +70,7 @@ export default function Materiais() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="materiais" ids={items.map((c) => c.id)} />
               {can("materiais", "create") && (
-                <button data-testid="new-material-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-material-btn" onClick={openNew} className="btn btn-primario">
                   <Plus size={16} /> Novo Material
                 </button>
               )}
@@ -167,7 +167,7 @@ export default function Materiais() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-material-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-material-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

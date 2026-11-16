@@ -156,7 +156,7 @@ export default function PropagaPrecoVariantesDialog({
             data-testid="propaga-preco-sim"
             disabled={busy || loading || selected.size === 0}
             onClick={aplicar}
-            className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
+            className="btn btn-primario"
           >
             {busy ? "A aplicar…" : `Aplicar a ${selected.size || 0}`}
           </button>

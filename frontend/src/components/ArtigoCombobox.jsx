@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { api, eur } from "@/lib/api";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
 import { useAuth } from "@/context/AuthContext";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import SelecionarVariantesDialog, { artigosParaSelector, artigoTemVariantes } from "./SelecionarVariantesDialog";
@@ -152,14 +153,9 @@ export default function ArtigoCombobox({
       <Popover open={open} onOpenChange={(o) => !disabled && setOpen(o)}>
         <PopoverTrigger asChild>
           {modo === "adicionar" ? (
-            <button
-              type="button"
-              disabled={disabled}
-              data-testid={testid}
-              className="inline-flex items-center gap-1.5 border border-dashed border-gray-400 hover:border-gray-700 rounded-sm px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 bg-white disabled:opacity-50"
-            >
-              <Plus size={14} /> {placeholder === "Escolher artigo..." ? (multiplo ? "Adicionar artigos" : "Adicionar artigo") : placeholder}
-            </button>
+            <BotaoAdicionar disabled={disabled} testid={testid}>
+              {placeholder === "Escolher artigo..." ? (multiplo ? "Adicionar artigos" : "Adicionar artigo") : placeholder}
+            </BotaoAdicionar>
           ) : (
             <button
               type="button"
@@ -233,7 +229,7 @@ export default function ArtigoCombobox({
                 <button
                   type="button"
                   onClick={confirmarSelecao}
-                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium"
+                  className="btn btn-primario"
                   data-testid={`${testid}-confirmar`}
                 >
                   Adicionar {nSel} {nSel === 1 ? "artigo" : "artigos"}
@@ -288,7 +284,7 @@ export default function ArtigoCombobox({
           </div>
           <DialogFooter>
             <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-sm hover:bg-gray-50">Cancelar</button>
-            <button type="button" disabled={creating} onClick={criar} className="px-4 py-2 text-sm bg-brand text-brand-fg rounded-sm hover:bg-brand-hover disabled:opacity-50" data-testid={`${testid}-create-save`}>
+            <button type="button" disabled={creating} onClick={criar} className="btn btn-primario" data-testid={`${testid}-create-save`}>
               {creating ? "A criar..." : "Criar e escolher"}
             </button>
           </DialogFooter>

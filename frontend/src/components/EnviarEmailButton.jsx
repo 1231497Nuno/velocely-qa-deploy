@@ -146,7 +146,7 @@ function EmailDialog({
             data-testid="enviar-email-confirm"
             disabled={busy}
             onClick={send}
-            className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="btn btn-primario"
           >
             {busy ? "A enviar..." : "Enviar email"}
           </button>
@@ -198,7 +198,7 @@ export default function EnviarEmailButton({
               type="button"
               data-testid="enviar-email-encomenda-btn"
               disabled={disabled}
-              className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-60"
+              className="btn btn-secundario"
             >
               <Mail size={16} /> Notificar <ChevronDown size={14} className="text-gray-400" />
             </button>

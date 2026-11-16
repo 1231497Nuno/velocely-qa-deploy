@@ -39,7 +39,7 @@ export default class ErrorBoundary extends Component {
               <button
                 type="button"
                 onClick={this.reset}
-                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium"
+                className="btn btn-primario"
               >
                 Tentar novamente
               </button>

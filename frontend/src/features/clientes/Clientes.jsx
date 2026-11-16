@@ -205,7 +205,7 @@ export default function Clientes() {
                 </button>
               )}
               {can("clientes", "create") && (
-                <button data-testid="new-cliente-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Cliente</button>
+                <button data-testid="new-cliente-btn" onClick={openNew} className="btn btn-primario"><Plus size={16} /> Novo Cliente</button>
               )}
             </div>
           }
@@ -427,7 +427,7 @@ export default function Clientes() {
 
           <DialogFooter>
             <button type="button" onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button type="button" data-testid="save-cliente-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button type="button" data-testid="save-cliente-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -149,12 +149,12 @@ export default function FornecedorDetail() {
               )
             )}
             {can("pedidos_cotacao", "create") && (
-              <button data-testid="fornecedor-nova-pc-btn" onClick={novoPedidoCotacao} className="border border-gray-300 text-gray-800 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="fornecedor-nova-pc-btn" onClick={novoPedidoCotacao} className="btn btn-secundario">
                 <FileQuestion size={15} /> Novo pedido de cotação
               </button>
             )}
             {can("ordens_compra", "create") && (
-              <button data-testid="fornecedor-nova-oc-btn" onClick={novaOc} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="fornecedor-nova-oc-btn" onClick={novaOc} className="btn btn-primario">
                 <Plus size={15} /> Nova Ordem de Compra
               </button>
             )}

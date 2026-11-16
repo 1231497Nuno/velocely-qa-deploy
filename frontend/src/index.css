@@ -143,6 +143,19 @@ body.mobile-nav-open {
 }
 
 @layer components {
+  /* ---------- Botões: um só estilo em todo o ERP (ver docs/guides/padroes-interface.md) ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-sm px-3.5 py-2 min-h-9 text-sm font-medium
+      whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-sm { @apply px-2.5 py-1.5 min-h-8 text-xs gap-1; }
+  .btn-primario { @apply bg-brand text-brand-fg hover:bg-brand-hover; }
+  .btn-secundario { @apply border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 hover:border-gray-400; }
+  .btn-perigo { @apply bg-red-600 text-white hover:bg-red-700; }
+  .btn-perigo-contorno { @apply border border-red-200 bg-white text-red-700 hover:bg-red-50; }
+  .btn-sucesso { @apply bg-emerald-700 text-white hover:bg-emerald-800; }
+  .btn-aviso { @apply bg-amber-600 text-white hover:bg-amber-700; }
     .app-shell-pad {
         padding-left: max(var(--app-pad-x), env(safe-area-inset-left, 0px));
         padding-right: max(var(--app-pad-x), env(safe-area-inset-right, 0px));

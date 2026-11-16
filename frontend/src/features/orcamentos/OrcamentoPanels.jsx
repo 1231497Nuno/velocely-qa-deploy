@@ -1,4 +1,5 @@
 import { eur } from "@/lib/api";
+import { SelectAdicionar } from "@/components/BotaoAdicionar";
 import { Trash2, AlertTriangle } from "lucide-react";
 import { orcSemaforoMargem } from "@/lib/orcamento";
 
@@ -12,15 +13,9 @@ export function OrcamentoMateriais({ materiais, consumiveis, addMaterial, delMat
             Materiais soltos (fora da receita das linhas). Os materiais de cada artigo editam-se dentro da linha.
           </p>
         </div>
-        <select
-          data-testid="add-material-select"
-          value=""
-          onChange={(e) => { if (e.target.value) addMaterial(e.target.value); e.target.value = ""; }}
-          className="border border-dashed border-gray-300 rounded-sm px-3 py-2 text-sm bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-black/20 sm:w-64"
-        >
-          <option value="">+ Adicionar material…</option>
+        <SelectAdicionar label="Adicionar material" testid="add-material-select" onChange={addMaterial} className="sm:w-64">
           {consumiveis.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.unidade} · {eur(c.custo_unitario)})</option>)}
-        </select>
+        </SelectAdicionar>
       </div>
 
       {(materiais || []).length === 0 ? (

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { SelectAdicionar } from "@/components/BotaoAdicionar";
 import OfResumoDialog from "./OfResumoDialog";
 import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
@@ -639,10 +640,9 @@ export default function EncomendaDetail() {
                                 <span className="text-xs text-gray-400">—</span>
                               )}
                               {canEditValores && (
-                                <select data-testid={`enc-artigo-pers-add-${i}`} value="" onChange={(e) => { if (e.target.value) addPers(i, e.target.value); e.target.value = ""; }} className="w-full border border-dashed border-gray-300 rounded-sm px-2 py-1.5 text-xs bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-black/20">
-                                  <option value="">+ Personalização…</option>
+                                <SelectAdicionar tamanho="sm" largo label="Personalização" testid={`enc-artigo-pers-add-${i}`} onChange={(v) => addPers(i, v)}>
                                   {tipos.map((t) => <option key={t.id} value={t.id}>{`${t.nome} (${eur(t.valor)})`}</option>)}
-                                </select>
+                                </SelectAdicionar>
                               )}
                             </div>
                           </td>

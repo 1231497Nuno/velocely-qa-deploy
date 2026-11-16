@@ -167,7 +167,7 @@ export default function EstadosDialog({ open, onOpenChange, estados, cores, onCh
                 </select>
                 <span className="text-xs text-gray-500 tabular-nums w-14 text-right">{l.total_leads ?? 0} lead{l.total_leads === 1 ? "" : "s"}</span>
                 {alterado(l) && (
-                  <button type="button" className={btnPrimary + " !py-1.5 !px-3"} onClick={() => guardar(l)} disabled={busy} data-testid={`crm-estado-save-${l.id}`}>
+                  <button type="button" className={btnPrimary + " btn-sm"} onClick={() => guardar(l)} disabled={busy} data-testid={`crm-estado-save-${l.id}`}>
                     Guardar
                   </button>
                 )}

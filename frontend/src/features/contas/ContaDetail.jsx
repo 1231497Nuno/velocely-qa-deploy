@@ -197,17 +197,17 @@ export default function ContaDetail() {
         actions={
           <>
             {can("contas", "edit") && !anulada && (
-              <button data-testid="conta-save-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="conta-save-btn" onClick={save} className="btn btn-primario">
                 <Save size={15} /> Guardar
               </button>
             )}
             {can("contas", "edit") && !anulada && (
-              <button data-testid="conta-anular-btn" onClick={anular} className="bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium">
+              <button data-testid="conta-anular-btn" onClick={anular} className="btn btn-secundario">
                 Anular
               </button>
             )}
             {can("contas", "delete") && (
-              <button data-testid="conta-delete-btn" onClick={remove} className="bg-white text-red-700 border border-red-200 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button data-testid="conta-delete-btn" onClick={remove} className="btn btn-perigo-contorno">
                 <Trash2 size={15} /> Eliminar
               </button>
             )}
@@ -314,7 +314,7 @@ export default function ContaDetail() {
                   <span className="tabular-nums font-medium text-gray-900" data-testid="conta-pendente">{eur(conta.valor_pendente)}</span>
                 </div>
                 {can("contas", "edit") && !anulada && Number(conta.valor_pago) < Number(conta.valor) && (
-                  <button type="button" data-testid="conta-liquidar-btn" onClick={liquidar} className="w-full text-sm border border-gray-300 rounded-sm px-3 py-2 hover:bg-gray-50">
+                  <button type="button" data-testid="conta-liquidar-btn" onClick={liquidar} className="btn btn-secundario w-full">
                     Marcar como liquidada
                   </button>
                 )}

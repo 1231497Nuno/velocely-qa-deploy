@@ -289,7 +289,7 @@ export default function Artigos() {
                       type="button"
                       data-testid="artigos-limpar-filtros"
                       onClick={limparFiltros}
-                      className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50"
+                      className="btn btn-secundario"
                     >
                       Limpar filtros
                     </button>

@@ -196,7 +196,7 @@ export default function SelecionarVariantesDialog({
               type="button"
               onClick={confirm}
               disabled={loading || selectedCount === 0}
-              className="rounded-sm bg-brand text-brand-fg px-3 py-1.5 text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
+              className="btn btn-primario"
               data-testid="variante-pick-confirm"
             >
               Adicionar{selectedCount > 0 ? ` (${selectedCount})` : ""}

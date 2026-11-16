@@ -95,7 +95,7 @@ export default function Maquinas() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="maquinas" ids={items.map((m) => m.id)} />
               {can("maquinas", "create") && (
-                <button data-testid="new-maquina-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-maquina-btn" onClick={openNew} className="btn btn-primario">
                   <Plus size={16} /> Nova Máquina
                 </button>
               )}
@@ -196,7 +196,7 @@ export default function Maquinas() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-maquina-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-maquina-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

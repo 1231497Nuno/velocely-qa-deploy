@@ -261,7 +261,7 @@ export default function Encomendas() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-encomenda-btn" onClick={create} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Criar</button>
+            <button data-testid="save-encomenda-btn" onClick={create} className="btn btn-primario">Criar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

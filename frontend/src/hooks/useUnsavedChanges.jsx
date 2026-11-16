@@ -29,7 +29,7 @@ function UnsavedChangesDialog({ open, busy, canSave, onSave, onDiscard, onCancel
             data-testid="unsaved-cancel-btn"
             disabled={busy}
             onClick={onCancel}
-            className="border border-gray-300 rounded-sm px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            className="btn btn-secundario"
           >
             Continuar a editar
           </button>
@@ -38,7 +38,7 @@ function UnsavedChangesDialog({ open, busy, canSave, onSave, onDiscard, onCancel
             data-testid="unsaved-discard-btn"
             disabled={busy}
             onClick={onDiscard}
-            className="border border-red-200 text-red-700 rounded-sm px-4 py-2 text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+            className="btn btn-perigo-contorno"
           >
             Descartar
           </button>
@@ -48,7 +48,7 @@ function UnsavedChangesDialog({ open, busy, canSave, onSave, onDiscard, onCancel
               data-testid="unsaved-save-btn"
               disabled={busy}
               onClick={onSave}
-              className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
+              className="btn btn-primario"
             >
               {busy ? "A guardar…" : "Guardar"}
             </button>

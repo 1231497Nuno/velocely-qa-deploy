@@ -70,7 +70,7 @@ export default function MobileFiltersButton({
             type="button"
             data-testid={`${testid}-clear-inline`}
             onClick={onClear}
-            className="inline-flex items-center gap-1 px-2 py-2 text-sm text-gray-600 border border-gray-300 rounded-sm hover:bg-gray-50 min-h-[var(--touch)]"
+            className="btn btn-secundario"
           >
             <X size={14} /> Limpar
           </button>
@@ -93,7 +93,7 @@ export default function MobileFiltersButton({
                 data-testid={`${testid}-clear`}
                 onClick={onClear}
                 disabled={count <= 0}
-                className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2.5 text-sm font-medium disabled:opacity-40 min-h-11"
+                className="btn btn-secundario"
               >
                 Limpar
               </button>

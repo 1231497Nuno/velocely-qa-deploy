@@ -25,10 +25,8 @@ export const CORES_FALLBACK = [
   "#64748b", "#2563eb", "#0891b2", "#7c3aed", "#d97706", "#ea580c", "#16a34a", "#dc2626", "#0f172a",
 ];
 
-export const btnPrimary =
-  "bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium inline-flex items-center gap-2 transition-colors disabled:opacity-50";
-export const btnSecondary =
-  "border border-gray-300 bg-white hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium inline-flex items-center gap-2 transition-colors disabled:opacity-50";
+export const btnPrimary = "btn btn-primario";
+export const btnSecondary = "btn btn-secundario";
 export const inputCls =
   "w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black";
 export const labelCls = "block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 mb-1";

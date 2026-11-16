@@ -50,3 +50,26 @@ cada um com a sua quantidade (Orçamentos, Encomendas, Ordens de Fabrico, Compra
 - Validação: `services/campos.py → aplicar(modulo, doc, momento, existente)` chamado nas rotas de criar/guardar/finalizar.
 - Um módulo novo precisa de: entrada em `MODULOS_CAMPOS`, `campos_extra: dict` no modelo `…Input`
   e a chamada a `campos_svc.aplicar` nas rotas.
+
+## Botões
+
+Todos os botões usam as classes de componente definidas em `frontend/src/index.css`:
+
+| Classe | Uso |
+|---|---|
+| `btn btn-primario` | Ação principal (Guardar, Criar, Confirmar) — cor da marca |
+| `btn btn-secundario` | Ações secundárias (Cancelar, Exportar, Editar) |
+| `btn btn-perigo` / `btn-perigo-contorno` | Apagar / anular |
+| `btn btn-sucesso` | Aprovar, concluir, marcar como pago |
+| `btn btn-aviso` | Ações que requerem atenção |
+| `btn-sm` | Variante compacta (dentro de tabelas, linhas) |
+
+Classes de layout (`w-full`, `ml-auto`, etc.) podem ser acrescentadas, mas não se redefinem cores nem padding.
+
+### Botões de adicionar
+
+Para adicionar linhas, artigos, materiais, operações, personalizações, medidas ou contactos usa-se sempre `components/BotaoAdicionar.jsx`:
+
+- `<BotaoAdicionar onClick={...}>Adicionar linha</BotaoAdicionar>` — contorno tracejado na cor da marca e círculo "+" preenchido; `tamanho="sm"` dentro de linhas; `largo` ocupa a largura toda.
+- `<SelectAdicionar label="Adicionar material" onChange={...}>…options…</SelectAdicionar>` — o mesmo aspeto quando a ação é escolher de uma lista.
+- O `ArtigoCombobox` em `modo="adicionar"` já usa este aspeto e permite escolher vários artigos de uma vez.

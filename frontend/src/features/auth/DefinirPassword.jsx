@@ -95,7 +95,7 @@ export default function DefinirPassword() {
             data-testid="set-password-submit"
             type="submit"
             disabled={loading}
-            className="w-full bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+            className="btn btn-primario w-full"
           >
             <KeyRound size={16} /> {loading ? "A guardar..." : "Guardar e entrar"}
           </button>

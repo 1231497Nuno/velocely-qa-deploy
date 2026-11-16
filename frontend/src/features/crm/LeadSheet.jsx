@@ -209,13 +209,13 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
           {!novo && (form.telefone || form.email) && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {form.telefone && (
-                <a href={`tel:${form.telefone}`} className={btnSecondary + " !py-1 !px-2 text-xs"}><Phone size={13} /> Ligar</a>
+                <a href={`tel:${form.telefone}`} className={btnSecondary + " btn-sm"}><Phone size={13} /> Ligar</a>
               )}
               {wa && (
-                <a href={wa} target="_blank" rel="noopener noreferrer" className={btnSecondary + " !py-1 !px-2 text-xs"}><MessageCircle size={13} /> WhatsApp</a>
+                <a href={wa} target="_blank" rel="noopener noreferrer" className={btnSecondary + " btn-sm"}><MessageCircle size={13} /> WhatsApp</a>
               )}
               {form.email && (
-                <a href={`mailto:${form.email}`} className={btnSecondary + " !py-1 !px-2 text-xs"}><Mail size={13} /> Email</a>
+                <a href={`mailto:${form.email}`} className={btnSecondary + " btn-sm"}><Mail size={13} /> Email</a>
               )}
             </div>
           )}
@@ -332,7 +332,7 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Orçamentos</h4>
                       {can("orcamentos", "create") && can("crm", "edit") && (
-                        <button type="button" className={btnSecondary + " !py-1 !px-2 text-xs"} onClick={() => criarOrcamento()} data-testid="crm-lead-novo-orc">
+                        <button type="button" className={btnSecondary + " btn-sm"} onClick={() => criarOrcamento()} data-testid="crm-lead-novo-orc">
                           <Plus size={13} /> Novo orçamento
                         </button>
                       )}

@@ -11,7 +11,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
-import { Plus, Trash2, Save, Pencil, X } from "lucide-react";
+import { Trash2, Save, Pencil, X } from "lucide-react";
 
 const TIPO_DESPESA_OPTS = [
   { value: "compra", label: "Compra — stock / matéria-prima para vender" },
@@ -270,15 +270,15 @@ export default function OrdemCompraDetail() {
           podeEditar ? (
             editing ? (
               <>
-                <button type="button" data-testid="oc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
+                <button type="button" data-testid="oc-cancel-btn" onClick={cancelEdit} disabled={saving} className="btn btn-secundario">
                   <X size={15} /> Cancelar
                 </button>
-                <button data-testid="oc-save-btn" onClick={save} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                <button data-testid="oc-save-btn" onClick={save} disabled={saving} className="btn btn-primario">
                   <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                 </button>
               </>
             ) : (
-              <button type="button" data-testid="oc-edit-btn" onClick={startEdit} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button type="button" data-testid="oc-edit-btn" onClick={startEdit} className="btn btn-primario">
                 <Pencil size={15} /> Editar
               </button>
             )

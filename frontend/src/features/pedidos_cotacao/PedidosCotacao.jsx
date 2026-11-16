@@ -85,7 +85,7 @@ export default function PedidosCotacao() {
                 <button
                   data-testid="new-pedido-cotacao-btn"
                   onClick={create}
-                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="btn btn-primario"
                 >
                   <Plus size={16} /> Novo pedido
                 </button>

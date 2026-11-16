@@ -500,7 +500,7 @@ export const OFsPanel = ({ enc, onCriar, canCreate, embedded = false }) => (
           type="button"
           data-testid="encomenda-criar-of-btn"
           onClick={onCriar}
-          className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors ml-auto"
+          className="btn btn-primario ml-auto"
         >
           <Plus size={15} /> Ver resumo da OF
         </button>

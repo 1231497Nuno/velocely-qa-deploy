@@ -159,7 +159,7 @@ export default function AparenciaTab() {
             <button type="button" onClick={() => setForm(TEMA_DEFAULT)} className="border border-gray-300 bg-white hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
               <RotateCcw size={15} /> Repor original
             </button>
-            <button type="button" onClick={guardar} disabled={busy || !sujo} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium inline-flex items-center gap-2 disabled:opacity-50" data-testid="tema-guardar">
+            <button type="button" onClick={guardar} disabled={busy || !sujo} className="btn btn-primario" data-testid="tema-guardar">
               <Save size={15} /> {busy ? "A guardar..." : "Guardar aparência"}
             </button>
           </div>

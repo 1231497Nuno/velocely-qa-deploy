@@ -183,9 +183,9 @@ export default function GestaoUtilizadores() {
           subtitle="Faça a gestão de logins e defina perfis de acesso por módulo e ação"
           actions={
             tab === "users" ? (
-              <button data-testid="new-user-btn" onClick={openNewUser} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Utilizador</button>
+              <button data-testid="new-user-btn" onClick={openNewUser} className="btn btn-primario"><Plus size={16} /> Novo Utilizador</button>
             ) : (
-              <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"><Plus size={16} /> Novo Perfil</button>
+              <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="btn btn-primario"><Plus size={16} /> Novo Perfil</button>
             )
           }
         />
@@ -332,7 +332,7 @@ export default function GestaoUtilizadores() {
           </div>
           <DialogFooter>
             <button onClick={() => setUOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-user-btn" onClick={saveUser} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-user-btn" onClick={saveUser} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -358,7 +358,7 @@ export default function GestaoUtilizadores() {
             </div>
           )}
           <DialogFooter>
-            <button onClick={copyInvite} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Copy size={15} /> Copiar</button>
+            <button onClick={copyInvite} className="btn btn-secundario"><Copy size={15} /> Copiar</button>
             <button data-testid="invite-done-btn" onClick={() => setInviteInfo(null)} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Feito</button>
           </DialogFooter>
         </DialogContent>
@@ -413,7 +413,7 @@ export default function GestaoUtilizadores() {
           )}
           <DialogFooter>
             <button onClick={() => setPOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-perfil-btn" onClick={savePerfil} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-perfil-btn" onClick={savePerfil} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

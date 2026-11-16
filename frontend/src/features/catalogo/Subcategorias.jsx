@@ -75,7 +75,7 @@ export default function Subcategorias() {
         title="Subcategorias"
         subtitle="Dentro de cada categoria — ex.: Têxtil → T-shirt"
         actions={can("categorias", "create") && (
-          <button data-testid="new-subcategoria-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+          <button data-testid="new-subcategoria-btn" onClick={openNew} className="btn btn-primario">
             <Plus size={16} /> Nova Subcategoria
           </button>
         )}
@@ -153,7 +153,7 @@ export default function Subcategorias() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white border border-gray-300 rounded-sm px-4 py-2 text-sm">Cancelar</button>
-            <button data-testid="save-subcategoria-btn" onClick={save} className="bg-brand text-brand-fg rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-subcategoria-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

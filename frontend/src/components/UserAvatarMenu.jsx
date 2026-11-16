@@ -236,7 +236,7 @@ export default function UserAvatarMenu() {
                 <AvatarFallback className="bg-brand text-brand-fg text-lg font-semibold">{initials(form)}</AvatarFallback>
               </Avatar>
               <div className="space-y-1.5">
-                <button type="button" data-testid="account-avatar-upload" disabled={uploading} onClick={onPick} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 disabled:opacity-60">
+                <button type="button" data-testid="account-avatar-upload" disabled={uploading} onClick={onPick} className="btn btn-secundario btn-sm">
                   <Camera size={13} /> {uploading ? "A carregar..." : "Alterar foto"}
                 </button>
                 {form.avatar && (
@@ -266,7 +266,7 @@ export default function UserAvatarMenu() {
               <p className="text-sm font-medium text-gray-800">Alterar password</p>
 
               {pwStep === "idle" && (
-                <button type="button" data-testid="account-send-code" disabled={!!pwBusy} onClick={sendCode} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium disabled:opacity-60 disabled:pointer-events-none">
+                <button type="button" data-testid="account-send-code" disabled={!!pwBusy} onClick={sendCode} className="btn btn-secundario">
                   {pwBusy === "send" ? "A enviar..." : "Enviar código para o email"}
                 </button>
               )}
@@ -276,7 +276,7 @@ export default function UserAvatarMenu() {
                   <p className="text-xs text-gray-600">Enviámos um código para <span className="font-medium">{emailHint}</span>. Introduza-o abaixo.</p>
                   <input data-testid="account-code" value={form.code} onChange={(e) => upd("code", e.target.value)} placeholder="Código de 6 dígitos" disabled={!!pwBusy} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm mono tracking-widest focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:opacity-60" />
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" data-testid="account-verify-code" disabled={!!pwBusy} onClick={verifyCode} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-2 text-sm font-medium disabled:opacity-60 disabled:pointer-events-none">
+                    <button type="button" data-testid="account-verify-code" disabled={!!pwBusy} onClick={verifyCode} className="btn btn-primario">
                       {pwBusy === "verify" ? "A validar..." : "Validar código"}
                     </button>
                     <button type="button" disabled={!!pwBusy || resendIn > 0} onClick={sendCode} className="text-xs text-gray-500 hover:text-gray-800 disabled:opacity-50 disabled:pointer-events-none">
@@ -299,7 +299,7 @@ export default function UserAvatarMenu() {
                       <input data-testid="account-password-confirm" type="password" value={form.password_confirm} onChange={(e) => upd("password_confirm", e.target.value)} disabled={!!pwBusy} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:opacity-60" />
                     </div>
                   </div>
-                  <button type="button" data-testid="account-set-password" disabled={!!pwBusy} onClick={setNewPassword} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-2 text-sm font-medium disabled:opacity-60 disabled:pointer-events-none">
+                  <button type="button" data-testid="account-set-password" disabled={!!pwBusy} onClick={setNewPassword} className="btn btn-primario">
                     {pwBusy === "save" ? "A guardar..." : "Guardar nova password"}
                   </button>
                 </div>
@@ -313,7 +313,7 @@ export default function UserAvatarMenu() {
 
           <DialogFooter>
             <button type="button" onClick={() => setAccountOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button type="button" data-testid="account-save-btn" disabled={saving} onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60">
+            <button type="button" data-testid="account-save-btn" disabled={saving} onClick={save} className="btn btn-primario">
               {saving ? "A guardar..." : "Guardar dados"}
             </button>
           </DialogFooter>

@@ -254,7 +254,7 @@ export default function ClienteSelector({ value, onChange, testid = "cliente-sel
           </div>
           <DialogFooter>
             <button type="button" onClick={() => setFormOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button type="button" data-testid="save-novo-cliente" onClick={create} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Criar e associar</button>
+            <button type="button" data-testid="save-novo-cliente" onClick={create} className="btn btn-primario">Criar e associar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

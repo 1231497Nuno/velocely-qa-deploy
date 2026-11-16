@@ -162,7 +162,7 @@ export default function Fornecedores() {
                 <button
                   data-testid="new-fornecedor-btn"
                   onClick={openNew}
-                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="btn btn-primario"
                 >
                   <Plus size={16} /> Novo Fornecedor
                 </button>
@@ -367,7 +367,7 @@ export default function Fornecedores() {
           <CamposPersonalizados modulo="fornecedores" className="mt-3" value={form.campos_extra} onChange={(vals) => setForm({ ...form, campos_extra: vals })} />
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-fornecedor-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button data-testid="save-fornecedor-btn" onClick={save} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

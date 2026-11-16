@@ -13,7 +13,7 @@ import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Save, Pencil, X, Send, CheckCircle2, Ban, ShoppingCart,
+  Trash2, Save, Pencil, X, Send, CheckCircle2, Ban, ShoppingCart,
 } from "lucide-react";
 
 const ESTADO_LABEL = {
@@ -325,7 +325,7 @@ export default function PedidoCotacaoDetail() {
               </button>
             )}
             {podeEditar && !editing && form.estado === "respondido" && temPrecos && (
-              <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+              <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="btn btn-sucesso">
                 <ShoppingCart size={15} /> Adjudicar → OC
               </button>
             )}
@@ -337,7 +337,7 @@ export default function PedidoCotacaoDetail() {
             {podeEditar && (
               editing ? (
                 <>
-                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
+                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="btn btn-secundario">
                     <X size={15} /> Cancelar
                   </button>
                   {(form.estado === "enviado" || form.estado === "rascunho") && (
@@ -350,7 +350,7 @@ export default function PedidoCotacaoDetail() {
                   </button>
                 </>
               ) : (
-                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button type="button" data-testid="pc-edit-btn" onClick={startEdit} className="btn btn-primario">
                   <Pencil size={15} /> Editar
                 </button>
               )

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -256,12 +257,12 @@ export default function ClienteDetail() {
         actions={
           <>
             {can("orcamentos", "create") && (
-              <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="btn btn-secundario">
                 <FileText size={15} /> Novo Orçamento
               </button>
             )}
             {can("encomendas", "create") && (
-              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="btn btn-primario">
                 <Plus size={15} /> Nova Encomenda
               </button>
             )}
@@ -471,9 +472,7 @@ export default function ClienteDetail() {
                     <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-gray-100">
                       <span className="text-xs tabular-nums text-gray-400">{contactos.length} contacto(s)</span>
                       {canEdit && (
-                        <button type="button" data-testid="cliente-contacto-add-btn" onClick={openNewContacto} className="text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-1.5">
-                          <Plus size={14} /> Novo contacto
-                        </button>
+                        <BotaoAdicionar tamanho="sm" testid="cliente-contacto-add-btn" onClick={openNewContacto}>Novo contacto</BotaoAdicionar>
                       )}
                     </div>
                     <div className="overflow-x-auto">
@@ -724,7 +723,7 @@ export default function ClienteDetail() {
           </div>
           <DialogFooter>
             <button type="button" onClick={() => setContactoOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button type="button" data-testid="save-contacto-btn" onClick={saveContacto} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>
+            <button type="button" data-testid="save-contacto-btn" onClick={saveContacto} className="btn btn-primario">Guardar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

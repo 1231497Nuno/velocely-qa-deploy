@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { SelectAdicionar } from "@/components/BotaoAdicionar";
 import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -17,7 +18,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Plus, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
+import { ArrowLeft, Trash2, Save, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -278,12 +279,12 @@ export default function OrdemFabricoDetail() {
               </button>
               <PdfExportButton modulo="of" recordId={id} />
               {of.status !== "concluido" && (
-                <button data-testid="finalizar-of-btn" onClick={finalizar} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button data-testid="finalizar-of-btn" onClick={finalizar} className="btn btn-sucesso">
                   <Flag size={15} /> Finalizar
                 </button>
               )}
               {can("ordens_fabrico", "edit") && (
-                <button data-testid="save-of-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <button data-testid="save-of-btn" onClick={save} className="btn btn-primario">
                   <Save size={15} /> Guardar
                 </button>
               )}
@@ -560,17 +561,11 @@ export default function OrdemFabricoDetail() {
                                 </span>
                               ))}
                             </div>
-                            <select
-                              data-testid={`of-item-add-pers-${i}`}
-                              value=""
-                              onChange={(e) => { addItemPers(i, e.target.value); e.target.value = ""; }}
-                              className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-                            >
-                              <option value="">+ Adicionar personalização</option>
+                            <SelectAdicionar largo label="Adicionar personalização" testid={`of-item-add-pers-${i}`} onChange={(v) => addItemPers(i, v)}>
                               {tipos.filter((t) => !pers.some((p) => p.id === t.id)).map((t) => (
                                 <option key={t.id} value={t.id}>{t.nome}</option>
                               ))}
-                            </select>
+                            </SelectAdicionar>
                           </div>
                           {it.artigo_id && (
                             <OFItemOperacoes item={it} i={i} maquinas={maquinas} maoObra={maoObra} addOp={addOp} updOp={updOp} delOp={delOp} />

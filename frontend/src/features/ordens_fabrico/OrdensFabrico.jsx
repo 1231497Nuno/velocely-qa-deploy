@@ -140,7 +140,7 @@ export default function OrdensFabrico() {
             <div className="flex items-center gap-2 flex-wrap">
               <ExportExcelButton entity="ordens_fabrico" ids={rows.map((o) => o.id)} />
               {can("ordens_fabrico", "create") && (
-                <button data-testid="new-of-btn" onClick={create} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors">
+                <button data-testid="new-of-btn" onClick={create} className="btn btn-primario">
                   <Plus size={16} /> Nova OF
                 </button>
               )}

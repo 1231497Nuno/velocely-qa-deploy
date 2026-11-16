@@ -113,7 +113,7 @@ function EmpresaTab() {
     <div className="bg-white border border-gray-200 rounded-sm p-5 sm:p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Building2 size={16} className="text-gray-400" /> Dados da Empresa (cabeçalho dos PDFs)</h2>
-        <button data-testid="save-empresa-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Save size={16} /> Guardar</button>
+        <button data-testid="save-empresa-btn" onClick={save} className="btn btn-primario"><Save size={16} /> Guardar</button>
       </div>
 
       <div className="flex items-center gap-4 mb-5">
@@ -349,7 +349,7 @@ function ModelosTab() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><FileText size={16} className="text-gray-400" /> Modelos de PDF reutilizáveis</h2>
-        <button data-testid="novo-modelo-btn" onClick={openNew} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Plus size={16} /> Novo modelo</button>
+        <button data-testid="novo-modelo-btn" onClick={openNew} className="btn btn-primario"><Plus size={16} /> Novo modelo</button>
       </div>
 
       {items.length === 0 ? (
@@ -434,7 +434,7 @@ function ModelosTab() {
           </div>
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-modelo-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar modelo</button>
+            <button data-testid="save-modelo-btn" onClick={save} className="btn btn-primario">Guardar modelo</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -526,10 +526,10 @@ function ReferenciasTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button data-testid="backfill-codigos-btn" onClick={backfill} className="bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 rounded-sm px-3 py-2 text-sm font-medium">
+          <button data-testid="backfill-codigos-btn" onClick={backfill} className="btn btn-secundario">
             Preencher em falta
           </button>
-          <button data-testid="save-numeracao-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+          <button data-testid="save-numeracao-btn" onClick={save} className="btn btn-primario">
             <Save size={16} /> Guardar
           </button>
         </div>
@@ -650,7 +650,7 @@ function ModulosTab() {
       <div className="flex items-center justify-between mb-2 gap-3">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Layers size={16} className="text-gray-400" /> Packs e módulos</h2>
         {isAdmin && (
-          <button data-testid="save-modulos-btn" onClick={save} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover disabled:opacity-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2">
+          <button data-testid="save-modulos-btn" onClick={save} disabled={saving} className="btn btn-primario">
             <Save size={16} /> Guardar
           </button>
         )}
@@ -901,7 +901,7 @@ function EmailsTab() {
                   data-testid="email-tpl-save"
                   disabled={busy}
                   onClick={save}
-                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
+                  className="btn btn-primario"
                 >
                   <Save size={15} /> {busy ? "A guardar..." : "Guardar"}
                 </button>
@@ -910,7 +910,7 @@ function EmailsTab() {
                   data-testid="email-tpl-reset"
                   disabled={busy}
                   onClick={reset}
-                  className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
+                  className="btn btn-secundario"
                 >
                   <RotateCcw size={15} /> Repor original
                 </button>
@@ -1071,7 +1071,7 @@ function DadosTab() {
           type="button"
           disabled={exporting}
           onClick={doExport}
-          className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60"
+          className="btn btn-primario"
         >
           {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           {exporting ? "A exportar…" : "Exportar seleccionados"}
@@ -1149,7 +1149,7 @@ function DadosTab() {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={busy} onClick={doTemplate} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 disabled:opacity-60">
+          <button type="button" disabled={busy} onClick={doTemplate} className="btn btn-secundario">
             <Download size={16} /> Template
           </button>
           <button
