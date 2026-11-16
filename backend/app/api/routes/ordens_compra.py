@@ -166,3 +166,18 @@ async def delete_ordem_compra(oid: str, user: dict = Depends(require_perm("orden
         f"Ordem de compra «{existing.get('codigo')}» eliminada", existing.get("codigo"),
     )
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Receções (parciais) e fatura do fornecedor
+# ---------------------------------------------------------------------------
+@router.post("/ordens-compra/{oid}/rececoes")
+async def receber_ordem_compra(oid: str, dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
+    from app.services import stock as stock_svc
+    return await stock_svc.receber(oid, dados, user)
+
+
+@router.post("/ordens-compra/{oid}/fatura-fornecedor")
+async def fatura_fornecedor_oc(oid: str, dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
+    from app.services import stock as stock_svc
+    return await stock_svc.fatura_fornecedor(oid, dados, user)

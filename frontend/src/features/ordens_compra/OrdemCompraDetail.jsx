@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Trash2, Save, Pencil, X, Lock } from "lucide-react";
 import FornecedorSelect, { opcoesFornecedores } from "@/components/FornecedorSelect";
 import Combobox from "@/components/Combobox";
+import OcRececaoTab from "./OcRececaoTab";
 
 const TIPO_DESPESA_OPTS = [
   { value: "compra", label: "Compra — stock / matéria-prima para vender" },
@@ -69,7 +70,7 @@ export default function OrdemCompraDetail() {
   const listas = useListas();
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["oc", "ficheiros", "historico"], "oc");
+  const [tab, setTab] = useDetailTab(["oc", "rececao", "ficheiros", "historico"], "oc");
   const location = useLocation();
   const { can } = useAuth();
   const [oc, setOc] = useState(null);
@@ -338,6 +339,7 @@ export default function OrdemCompraDetail() {
         onChange={setTab}
         tabs={[
           { id: "oc", label: "Ordem de compra", testid: "oc-tab-oc" },
+          { id: "rececao", label: "Receção e fatura", testid: "oc-tab-rececao" },
           { id: "ficheiros", label: "Ficheiros", testid: "oc-tab-ficheiros" },
           { id: "historico", label: "Histórico", testid: "oc-tab-historico" },
         ]}
@@ -604,6 +606,9 @@ export default function OrdemCompraDetail() {
         />
       )}
 
+      {tab === "rececao" && oc && (
+        <OcRececaoTab oc={oc} podeEditar={podeEditar && !editing} onChanged={load} />
+      )}
       {tab === "ficheiros" && (
         <FicheirosTab tipo="ordem_compra" id={id} canEdit={can("ordens_compra", "edit") && form?.estado !== "cancelada"} />
       )}

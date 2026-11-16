@@ -278,6 +278,10 @@ class Artigo(BaseModel):
     qtd_stock: float = 0.0
     nivel_reabastecimento: float = 0.0
     qtd_ultima_compra: float = 0.0
+    # Stock: unidade de compra e conversão (ex.: compra «rolo», stock «m», fator 50)
+    gere_stock: bool = False
+    unidade_compra: str = ""
+    fator_compra: float = 1.0
     # Variantes livres: artigo pai + filhos com etiqueta/atributos definidos pelo utilizador
     pai_id: Optional[str] = None
     pai_codigo: str = ""
@@ -343,6 +347,10 @@ class ArtigoInput(BaseModel):
     qtd_stock: float = 0.0
     nivel_reabastecimento: float = 0.0
     qtd_ultima_compra: float = 0.0
+    # Stock: unidade de compra e conversão (ex.: compra «rolo», stock «m», fator 50)
+    gere_stock: bool = False
+    unidade_compra: str = ""
+    fator_compra: float = 1.0
     pai_id: Optional[str] = None
     pai_codigo: str = ""
     variante_label: str = ""
@@ -360,7 +368,7 @@ class ArtigoInput(BaseModel):
         "website", "ficha_produto", "plano_contas", "conta_proveitos",
         "codigo_produto", "comprimento_unidade", "largura_unidade",
         "espessura_unidade", "peso_unidade", "responsavel", "pai_codigo",
-        "variante_label", "variante_tamanho", "variante_cor", "codigo_origem",
+        "variante_label", "variante_tamanho", "variante_cor", "codigo_origem", "unidade_compra",
         mode="before",
     )
     @classmethod
@@ -370,7 +378,7 @@ class ArtigoInput(BaseModel):
     @field_validator(
         "custo_artigo", "preco_compra", "margem", "comissao_pct",
         "comprimento_mm", "largura_mm", "espessura_mm", "peso_kg",
-        "qtd_uni", "qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra",
+        "qtd_uni", "qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra", "fator_compra",
         mode="before",
     )
     @classmethod
@@ -379,7 +387,7 @@ class ArtigoInput(BaseModel):
             return 0.0
         return v
 
-    @field_validator("produzido", "ativo", "diversos", "tem_variantes", mode="before")
+    @field_validator("produzido", "ativo", "diversos", "tem_variantes", "gere_stock", mode="before")
     @classmethod
     def _null_bool_to_false(cls, v: Any):
         return False if v is None else v
@@ -416,6 +424,9 @@ class ArtigoInput(BaseModel):
             self.qtd_stock = 0.0
             self.nivel_reabastecimento = 0.0
             self.qtd_ultima_compra = 0.0
+            self.gere_stock = False
+        if not self.fator_compra or self.fator_compra <= 0:
+            self.fator_compra = 1.0
         # Unidades de dimensão — defaults
         self.comprimento_unidade = (self.comprimento_unidade or "mm").strip() or "mm"
         self.largura_unidade = (self.largura_unidade or "mm").strip() or "mm"
@@ -762,6 +773,8 @@ class OrdemCompraLinha(BaseModel):
     comentario: str = ""
     artigo_id: Optional[str] = None
     artigo_nome: str = ""
+    # Quantidade já recebida (receções parciais; em unidades de compra)
+    qtd_recebida: float = 0.0
 
 
 class OrdemCompraInput(BaseModel):
