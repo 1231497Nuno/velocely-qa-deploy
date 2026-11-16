@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 from app.core.database import new_id, now_iso, round2
 from app.repositories import (
+    empresa_repo,
     artigos_repo, encomendas_repo, inventarios_repo, localizacoes_repo, movimentos_stock_repo, ordens_compra_repo,
 )
 from app.services import audit
@@ -308,6 +309,12 @@ async def fatura_fornecedor(oid: str, dados: dict, user: dict) -> dict:
     ff = {"numero": numero, "data": (dados.get("data") or now_iso())[:10], "total": total, "portes": portes,
           "esperado": esperado, "desvio": desvio, "estado": estado, "notas": (dados.get("notas") or "").strip(),
           "portes_repartidos": portes > 0, "por": _quem(user), "at": now_iso()}
+    if isinstance(dados.get("conferencia"), list):
+        # Conferência linha a linha feita a partir do PDF da fatura
+        ff["conferencia"] = dados["conferencia"][:200]
+        ff["n_avisos"] = sum(1 for x in ff["conferencia"] if x.get("avisos"))
+        if ff["n_avisos"] and estado == "conferida":
+            ff["estado"] = "com_diferencas"
     await ordens_compra_repo.update(oid, {"fatura_fornecedor": ff})
     await audit.registar("ordem_compra", oid, "editado", user,
                          f"Fatura do fornecedor {numero} ({total:.2f}€) {'conferida' if estado == 'conferida' else f'com diferença de {desvio:+.2f}€'}",
@@ -374,7 +381,7 @@ async def sugestoes() -> List[dict]:
     return out
 
 
-async def criar_oc_de_sugestoes(itens: List[dict], user: dict) -> List[dict]:
+async def criar_oc_de_sugestoes(itens: List[dict], user: dict, automatica: bool = False) -> List[dict]:
     from app.domain.models import OrdemCompra, OrdemCompraLinha
     from app.services.numeracao import next_codigo
     grupos: Dict[str, List[dict]] = {}
@@ -386,11 +393,21 @@ async def criar_oc_de_sugestoes(itens: List[dict], user: dict) -> List[dict]:
         linhas = [OrdemCompraLinha(nome=i.get("nome") or "", artigo_id=i["artigo_id"], artigo_nome=i.get("nome") or "",
                                    quantidade=float(i["quantidade"]), preco_unit=float(i.get("preco_compra") or 0)).model_dump() for i in lst]
         total = round2(sum(l["quantidade"] * l["preco_unit"] for l in linhas))
-        oc = OrdemCompra(assunto="Reposição de stock", fornecedor_id=fid or None, fornecedor_nome=lst[0].get("fornecedor_nome") or "",
+        oc = OrdemCompra(assunto="Reposição de stock" + (" (automática)" if automatica else ""), fornecedor_id=fid or None, fornecedor_nome=lst[0].get("fornecedor_nome") or "",
                          tipo_despesa="compra", tipo_compra="Produtos", data=now_iso()[:10], linhas=linhas, subtotal=total, total=total)
         oc.codigo = await next_codigo("ordem_compra")
-        await ordens_compra_repo.insert(oc.model_dump())
-        await audit.registar("ordem_compra", oc.id, "criado", user, f"OC {oc.codigo} criada a partir das sugestões de compra", oc.codigo)
+        doc_oc = oc.model_dump()
+        artigos_ref = {i["artigo_id"]: (await artigos_repo.get(i["artigo_id"]) or {}) for i in lst}
+        for l in doc_oc.get("linhas") or []:
+            a = artigos_ref.get(l.get("artigo_id")) or {}
+            l.setdefault("cod_fornecedor", a.get("cod_fornecedor") or "")
+            l["cod_fornecedor"] = l.get("cod_fornecedor") or a.get("cod_fornecedor") or ""
+            l["unidade"] = l.get("unidade") or a.get("unidade_compra") or a.get("unidade") or ""
+        if automatica:
+            doc_oc.update({"automatica": True, "aprovada": False})
+        await ordens_compra_repo.insert(doc_oc)
+        await audit.registar("ordem_compra", oc.id, "criado", user,
+                             f"OC {oc.codigo} criada {'automaticamente (stock abaixo do nível)' if automatica else 'a partir das sugestões de compra'}", oc.codigo)
         criadas.append({"id": oc.id, "codigo": oc.codigo, "fornecedor": oc.fornecedor_nome, "total": total})
     return criadas
 
@@ -500,3 +517,70 @@ def csv_at(inv: dict) -> bytes:
                     (l.get("codigo_barras") or l.get("codigo") or "")[:60], f"{q:.2f}", (l.get("unidade") or "UN").upper()[:20],
                     f"{q * float(l.get('custo') or 0):.2f}"])
     return buf.getvalue().encode("utf-8")
+
+
+
+# ---------------------------------------------------------------------------
+# Compras automáticas (stock abaixo do nível de reabastecimento)
+# ---------------------------------------------------------------------------
+async def get_config_compras() -> dict:
+    e = await empresa_repo.find_one({"id": "empresa"}) or {}
+    return {"ativo": False, "ultima": "", **(e.get("compras_auto") or {})}
+
+
+async def compras_automaticas(forcar: bool = False) -> List[dict]:
+    """Uma vez por dia: cria as OC das sugestões de compra (por fornecedor) para aprovar.
+    Não duplica: as quantidades já em OC abertas contam como «em compra»."""
+    from datetime import date
+    cfg = await get_config_compras()
+    hoje = date.today().isoformat()
+    if not forcar and (not cfg.get("ativo") or cfg.get("ultima") == hoje):
+        return []
+    await empresa_repo.update_where({"id": "empresa"}, {"compras_auto": {**cfg, "ultima": hoje}}, upsert=True)
+    itens = [{**s, "quantidade": s["qtd_sugerida"]} for s in await sugestoes() if s.get("fornecedor_id")]
+    if not itens:
+        return []
+    criadas = await criar_oc_de_sugestoes(itens, {"id": "sistema", "name": "Compras automáticas"}, automatica=True)
+    from app.services import workflow
+    for c in criadas:
+        await workflow.evento("compra_automatica", f"OC {c['codigo']} por aprovar ({c['fornecedor']})",
+                              f"Criada automaticamente porque há artigos abaixo do nível de reabastecimento · {c['total']:.2f} €",
+                              link=f"/ordens-compra/{c['id']}", entidade="ordem_compra", entidade_id=c["id"], chave=f"oc_auto:{c['id']}")
+    return criadas
+
+
+async def aprovar_e_enviar_oc(oid: str, user: dict, enviar: bool = True, mensagem: str = "") -> dict:
+    """Aprova a OC e (se pedido) envia-a por email ao fornecedor com a nota de encomenda em PDF."""
+    import asyncio
+    from app.repositories import fornecedores_repo
+    from app.services import email as email_svc
+    from app.services.email_templates import text_to_html_fragments
+    from app.services.pdf import build_oc_pdf
+    oc = await ordens_compra_repo.get(oid)
+    if not oc:
+        raise HTTPException(404, "Ordem de compra não encontrada")
+    patch = {"aprovada": True, "aprovada_por": _quem(user), "aprovada_at": now_iso()}
+    enviado_para = None
+    if enviar:
+        f = await fornecedores_repo.get(oc.get("fornecedor_id") or "") or {}
+        to = (f.get("email") or "").strip()
+        if not to or "@" not in to:
+            raise HTTPException(400, "O fornecedor não tem email — aprove sem enviar ou preencha o email na ficha do fornecedor")
+        if not email_svc.smtp_configured():
+            raise HTTPException(503, "O envio de email não está configurado no servidor")
+        emp = await empresa_repo.find_one({"id": "empresa"}) or {}
+        pdf = build_oc_pdf(oc, emp, f)
+        corpo = (f"Bom dia,\n\nSegue em anexo a nossa nota de encomenda {oc.get('codigo')}.\n"
+                 + (f"\n{mensagem.strip()}\n" if (mensagem or "").strip() else "")
+                 + f"\nAgradecemos a confirmação e o prazo de entrega previsto.\n\nCumprimentos,\n{emp.get('nome') or ''}\n")
+        ok, motivo = await asyncio.to_thread(email_svc.send_email, to, f"Nota de encomenda {oc.get('codigo')} — {emp.get('nome') or ''}".strip(" —"),
+                                             corpo, html=email_svc._branded_html(text_to_html_fragments(corpo)),
+                                             attachments=[(f"{oc.get('codigo')}.pdf", pdf, "application/pdf")])
+        if not ok:
+            raise HTTPException(500, f"Não foi possível enviar o email: {motivo}")
+        enviado_para = email_svc.mask_email(to)
+        patch.update({"enviada_fornecedor_at": now_iso(), "enviada_para": enviado_para})
+    await ordens_compra_repo.update(oid, patch)
+    await audit.registar("ordem_compra", oid, "editado", user,
+                         f"OC {oc.get('codigo')} aprovada" + (f" e enviada ao fornecedor ({enviado_para})" if enviado_para else ""), oc.get("codigo"))
+    return {**oc, **patch}

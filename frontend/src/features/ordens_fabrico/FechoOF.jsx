@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardCheck, RotateCcw } from "lucide-react";
+import { ClipboardCheck, RotateCcw, Camera, ShieldCheck } from "lucide-react";
+import ZonaArrastar from "@/components/ZonaArrastar";
 import { api, eur } from "@/lib/api";
 import { useConfirm } from "@/hooks/useConfirm";
 import {
@@ -20,8 +21,24 @@ export function FechoOFDialog({ ofId, open, onClose, onDone }) {
   const [f, setF] = useState({});
   const [opts, setOpts] = useState({ abater_stock: true, entrada_stock: true, notas: "" });
   const [busy, setBusy] = useState(false);
+  const [qual, setQual] = useState({ ok: {}, fotos: [], obs: "" });
+  const [aEnviar, setAEnviar] = useState(false);
+  const enviarFotos = async (files) => {
+    setAEnviar(true);
+    const nomes = [];
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        await api.post(`/ficheiros/ordem_fabrico/${ofId}`, fd);
+        nomes.push(file.name);
+      }
+      setQual((q) => ({ ...q, fotos: [...q.fotos, ...nomes] }));
+    } catch (e) { erro(e, "Não foi possível enviar a foto"); } finally { setAEnviar(false); }
+  };
   useEffect(() => {
     if (!open) return;
+    setQual({ ok: {}, fotos: [], obs: "" });
     api.get(`/ordens-fabrico/${ofId}/fecho`).then((r) => {
       setPv(r);
       setF(Object.fromEntries(r.itens.map((it) => [it.item_id, {
@@ -36,6 +53,7 @@ export function FechoOFDialog({ ofId, open, onClose, onDone }) {
     try {
       const r = await api.post(`/ordens-fabrico/${ofId}/fechar`, {
         ...opts,
+        qualidade: { itens: (pv.qualidade?.itens || []).map((t) => ({ texto: t, ok: !!qual.ok[t] })), fotos: qual.fotos, obs: qual.obs },
         itens: pv.itens.map((it) => ({
           item_id: it.item_id, qtd_produzida: Number(f[it.item_id].qtd_produzida) || 0, qtd_refugo: Number(f[it.item_id].qtd_refugo) || 0,
           motivo_refugo: f[it.item_id].motivo_refugo,
@@ -80,6 +98,22 @@ export function FechoOFDialog({ ofId, open, onClose, onDone }) {
                 <div className="text-xs text-gray-500 dado-custo">Operações: estimado {eur(it.custo_operacoes_estimado)} · real {eur(it.custo_operacoes_real)}</div>
               </div>
             ))}
+            {pv.qualidade?.itens?.length > 0 && (
+              <div className="border border-gray-200 rounded-sm p-3 space-y-2" data-testid="fecho-qualidade">
+                <div className="font-medium text-sm flex items-center gap-2"><ShieldCheck size={15} className="text-emerald-700" /> Controlo de qualidade{pv.qualidade.obrigatorio ? " (obrigatório)" : ""}</div>
+                <div className="grid sm:grid-cols-2 gap-1.5">
+                  {pv.qualidade.itens.map((t) => (
+                    <label key={t} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={!!qual.ok[t]} onChange={(e) => setQual((q) => ({ ...q, ok: { ...q.ok, [t]: e.target.checked } }))} /> {t}
+                    </label>
+                  ))}
+                </div>
+                <ZonaArrastar compacto multiple accept="image/*" onFicheiros={enviarFotos} disabled={aEnviar} testid="fecho-fotos"
+                  texto={aEnviar ? "A enviar…" : `Fotos do trabalho final${pv.qualidade.foto_obrigatoria ? " (obrigatório)" : ""} — arraste ou clique`} />
+                {qual.fotos.length > 0 && <div className="text-xs text-gray-600 flex items-center gap-1"><Camera size={13} /> {qual.fotos.length} foto(s): {qual.fotos.join(", ")}</div>}
+                <input className={`${inputCls} w-full`} placeholder="Observações da qualidade (opcional)" value={qual.obs} onChange={(e) => setQual((q) => ({ ...q, obs: e.target.value }))} />
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={opts.abater_stock} onChange={(e) => setOpts({ ...opts, abater_stock: e.target.checked })} /> Abater os materiais gastos ao stock</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={opts.entrada_stock} onChange={(e) => setOpts({ ...opts, entrada_stock: e.target.checked })} /> Dar entrada em stock do que foi produzido para stock (linhas sem encomenda)</label>
             <textarea className={`${inputCls} w-full`} rows={2} placeholder="Notas do fecho" value={opts.notas} onChange={(e) => setOpts({ ...opts, notas: e.target.value })} />
@@ -128,6 +162,13 @@ export function FechoOFResumo({ of, podeEditar, onChanged }) {
       </table>
       <div className="mt-2 text-right dado-custo">Total real <b>{eur(fe.custo_total)}</b> · estimado {eur(fe.custo_estimado)}</div>
       {fe.notas && <div className="mt-1 text-gray-600">{fe.notas}</div>}
+      {fe.qualidade && (
+        <div className="mt-2 text-xs" data-testid="of-fecho-qualidade">
+          <span className={`font-medium ${fe.qualidade.ok ? "text-emerald-700" : "text-amber-700"}`}>Qualidade: {fe.qualidade.ok ? "tudo OK" : `${fe.qualidade.itens.filter((i) => !i.ok).length} ponto(s) por confirmar`}</span>
+          {fe.qualidade.fotos?.length > 0 && <span className="text-gray-500"> · {fe.qualidade.fotos.length} foto(s) nos Ficheiros da OF</span>}
+          {fe.qualidade.obs && <span className="text-gray-500"> · {fe.qualidade.obs}</span>}
+        </div>
+      )}
     </div>
   );
 }

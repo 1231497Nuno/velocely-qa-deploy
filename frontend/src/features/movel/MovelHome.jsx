@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ClipboardList, PackageCheck, ArrowLeftRight, Search, SlidersHorizontal, QrCode, Monitor, LogOut, MapPin,
-  ArrowUpFromLine, AlertTriangle, History, RefreshCw,
+  ArrowUpFromLine, AlertTriangle, History, RefreshCw, PackageSearch, WifiOff, CloudUpload,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useFilaOffline } from "@/lib/filaOffline";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -17,6 +19,10 @@ export default function MovelHome() {
   const nav = useNavigate();
   const [res, setRes] = useState(null);
   const carregar = () => api.get("/movel/resumo").then(setRes).catch(() => {});
+  const fila = useFilaOffline((r) => {
+    if (r.enviados) toast.success(`${r.enviados} registo(s) feitos sem rede foram enviados`);
+    r.rejeitados.forEach((x) => toast.error(`${x.descricao || "Registo"}: ${x.erro}`));
+  });
   useEffect(() => { carregar(); }, []);
 
   const inv = res?.inventario;
@@ -30,6 +36,7 @@ export default function MovelHome() {
     { to: "/m/stock-baixo", label: "Stock baixo", desc: res ? `${res.stock_baixo} artigo(s) a repor` : "Abaixo do nível", icon: AlertTriangle, ok: podeMovel(user, can, "stock_baixo"), cor: "bg-yellow-600", badge: res?.stock_baixo },
     { to: "/m/movimentos", label: "Movimentos", desc: "Últimos registos", icon: History, ok: podeMovel(user, can, "movimentos"), cor: "bg-gray-700" },
     { to: "/m/consultar", label: "Consultar stock", desc: "Onde está e quanto há", icon: Search, ok: podeMovel(user, can, "consultar"), cor: "bg-gray-800" },
+    { to: "/m/picking", label: "Separar material", desc: "Picking do material das OF", icon: PackageSearch, ok: podeMovel(user, can, "picking"), cor: "bg-teal-600" },
     { to: "/oficina", label: "Oficina", desc: "Operações das OF", icon: QrCode, ok: podeMovel(user, can, "oficina"), cor: "bg-rose-700" },
   ].filter((o) => o.ok);
   const sair = async () => {
@@ -43,6 +50,13 @@ export default function MovelHome() {
           <button type="button" aria-label="Sair" className="p-2 rounded-lg active:bg-white/10" onClick={sair}><LogOut className="w-5 h-5" /></button>
         </>} />
       <div className="p-4 space-y-4">
+        {(!fila.online || fila.pendentes > 0) && (
+          <div className={`rounded-xl px-3 py-2 text-sm flex items-center gap-2 ${fila.online ? "bg-sky-50 text-sky-800" : "bg-amber-50 text-amber-800"}`} data-testid="movel-offline">
+            {fila.online ? <CloudUpload className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+            <span className="flex-1">{fila.online ? `${fila.pendentes} registo(s) por enviar` : `Sem rede — os registos ficam guardados${fila.pendentes ? ` (${fila.pendentes} por enviar)` : ""}`}</span>
+            {fila.online && <button type="button" className="font-semibold underline" onClick={fila.sincronizar}>Enviar</button>}
+          </div>
+        )}
         <p className="text-sm text-gray-600">Olá, <b>{user?.name?.split(" ")[0] || ""}</b>. Leia um código ou escolha o que vai registar.</p>
         {podeMovel(user, can, "consultar") && <ArtigoPicker autoFocus={false} placeholder="Procurar ou ler um artigo…" onEscolher={(a) => nav("/m/consultar", { state: { artigo: a } })} />}
         <div className="grid grid-cols-2 gap-3">

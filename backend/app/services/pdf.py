@@ -962,3 +962,35 @@ async def fetch_orcamento(oid: Optional[str]):
     if not oid:
         return None
     return await orcamentos_repo.get(oid)
+
+
+
+def build_oc_pdf(oc: dict, settings: dict = None, fornecedor: dict = None) -> bytes:
+    """Nota de encomenda ao fornecedor (ordem de compra): referências do fornecedor, quantidades e preços."""
+    _set_currency(settings)
+    st = _pdf_styles()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm)
+    elems = []
+    f = fornecedor or {}
+    pares = [("Fornecedor", f.get("nome") or oc.get("fornecedor_nome")), ("NIF", f.get("nif")), ("Morada", f.get("morada")),
+             ("Cód. Postal", f.get("codigo_postal")), ("Cidade", f.get("cidade")), ("Email", f.get("email")),
+             ("Data", oc.get("data")), ("Assunto", oc.get("assunto"))]
+    _header(elems, st, "NOTA DE ENCOMENDA", oc.get("codigo", ""), pares, settings, True)
+    data = [_th_row(st, ["Ref. fornecedor", "Artigo", "Qtd", "Preço Unit.", "Total"])]
+    for l in oc.get("linhas") or []:
+        q = float(l.get("quantidade") or 0)
+        pu = float(l.get("preco_unit") or 0) * (1 - float(l.get("desconto") or 0) / 100)
+        ref = l.get("cod_fornecedor") or ""
+        data.append([Paragraph(_esc(ref) or "—", st["cell"]), Paragraph(_esc(l.get("artigo_nome") or l.get("nome") or "—"), st["cell"]),
+                     Paragraph(f"{q:g} {_esc(l.get('unidade') or '')}", st["cell"]), Paragraph(fmt_eur(pu), st["cell"]),
+                     Paragraph(fmt_eur(q * pu), st["cellb"])])
+    elems.append(_data_table(data, [30 * mm, 70 * mm, 20 * mm, 24 * mm, 26 * mm], align=[("ALIGN", (2, 0), (-1, -1), "RIGHT")]))
+    elems.append(Spacer(1, 10))
+    elems.append(_totais_table([["TOTAL (s/ IVA)", fmt_eur(oc.get("total") or oc.get("subtotal"))]], True))
+    if (oc.get("notas") or "").strip():
+        elems += [Spacer(1, 8), Paragraph(_esc(oc["notas"]), st["small"])]
+    elems += [Spacer(1, 12), Paragraph("Por favor confirme a receção desta encomenda e o prazo de entrega previsto.", st["small"])]
+    _pdf_footer(elems, st, settings)
+    doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
+    return buf.getvalue()

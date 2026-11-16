@@ -1,14 +1,17 @@
 import { useRef, useState } from "react";
 import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import axios from "axios";
-import { Paperclip, X, Loader2, FileText } from "lucide-react";
+import { Paperclip, X, Loader2, FileText, Images } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { GrelhaArtes, useArtesCliente } from "@/features/clientes/ArtesCliente";
 import { toast } from "sonner";
 import { API, getToken } from "@/lib/api";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 
 /** Anexa PDF/JPEG à linha do orçamento (maqueta / arte final). */
-export default function LinhaArteButton({ linha, onChange, canEdit, testid }) {
+export default function LinhaArteButton({ linha, onChange, canEdit, testid, clienteId = null }) {
+  const [escolher, setEscolher] = useState(false);
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const hasArte = !!(linha?.arte_path);
@@ -100,7 +103,31 @@ export default function LinhaArteButton({ linha, onChange, canEdit, testid }) {
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
         </button>
       ) : null}
+      {!hasArte && canEdit && clienteId && (
+        <button type="button" title="Usar uma arte já usada com este cliente" onClick={() => setEscolher(true)}
+          className="p-1 rounded-sm text-gray-400 hover:text-gray-800 hover:bg-gray-100" data-testid={testid ? `${testid}-cliente` : undefined}>
+          <Images size={14} />
+        </button>
+      )}
+      {escolher && <EscolherArte clienteId={clienteId} onFechar={() => setEscolher(false)}
+        onEscolher={(a) => { onChange?.({ arte_path: a.path, arte_nome: a.nome, arte_content_type: a.content_type || "" }); setEscolher(false); toast.success("Arte do cliente associada à linha"); }} />}
     </div>
     </ZonaArrastar>
+  );
+}
+
+
+function EscolherArte({ clienteId, onEscolher, onFechar }) {
+  const artes = useArtesCliente(clienteId);
+  return (
+    <Dialog open onOpenChange={(o) => !o && onFechar()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="font-display">Arte do cliente</DialogTitle>
+          <DialogDescription>Artes e maquetas já usadas com este cliente.</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[65vh] overflow-y-auto"><GrelhaArtes artes={artes} onEscolher={onEscolher} compacto /></div>
+      </DialogContent>
+    </Dialog>
   );
 }

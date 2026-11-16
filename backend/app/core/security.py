@@ -192,6 +192,7 @@ async def user_public(u: dict) -> dict:
         },
         "modulos_ativos": await get_modulos_ativos(),
         "must_set_password": bool(u.get("must_set_password")),
+        "dois_passos": bool(u.get("totp_ativo")),
         "status": u.get("status") or ("pending_activation" if u.get("must_set_password") else "active"),
         "invite_expires_at": u.get("invite_expires_at"),
         "avatar": u.get("avatar") or "",
@@ -334,6 +335,14 @@ async def login(data: LoginInput, request: Request):
     if not verify_password(secret, user.get("password_hash", "")):
         _note_failed_auth(rk)
         raise bad
+    if user.get("totp_ativo") and user.get("totp_segredo"):
+        from app.core import totp
+        if not (data.codigo_2fa or "").strip():
+            return {"must_set_password": False, "activation_token": None, "token": None, "user": None, "precisa_2fa": True,
+                    "message": "Introduza o código da sua app de autenticação."}
+        if not totp.verificar(user["totp_segredo"], data.codigo_2fa):
+            _note_failed_auth(rk)
+            raise HTTPException(status_code=401, detail="Código de verificação incorreto")
     _clear_auth_attempts(rk)
     perfil = await resolve_perfil(user)
     role = "admin" if perfil.get("admin") else "colaborador"
@@ -344,6 +353,45 @@ async def login(data: LoginInput, request: Request):
         "token": token,
         "user": await user_public(user),
     }
+
+
+@auth_router.post("/2fa/iniciar", summary="Verificação em dois passos — gerar segredo e QR")
+async def dois_passos_iniciar(user: dict = Depends(get_current_user)):
+    from app.core import totp
+    segredo = totp.gerar_segredo()
+    await users_repo.update(user["id"], {"totp_pendente": segredo})
+    conta = user.get("email") or user.get("login") or user["id"]
+    u = totp.uri(segredo, conta)
+    return {"segredo": segredo, "uri": u, "qr_svg": totp.qr_svg(u)}
+
+
+@auth_router.post("/2fa/ativar", summary="Verificação em dois passos — confirmar com o primeiro código")
+async def dois_passos_ativar(dados: dict, user: dict = Depends(get_current_user)):
+    from app.core import totp
+    u = await users_repo.get(user["id"]) or {}
+    if not u.get("totp_pendente"):
+        raise HTTPException(400, "Comece por gerar o código QR")
+    if not totp.verificar(u["totp_pendente"], dados.get("codigo") or ""):
+        raise HTTPException(400, "Código incorreto — confirme a hora do telemóvel e tente de novo")
+    await users_repo.update(user["id"], {"totp_segredo": u["totp_pendente"], "totp_pendente": None, "totp_ativo": True,
+                                         "totp_ativado_at": datetime.now(timezone.utc).isoformat()})
+    from app.services import audit
+    await audit.registar("utilizador", user["id"], "editado", user, "Verificação em dois passos ativada", user.get("name"))
+    return {"ok": True, "dois_passos": True}
+
+
+@auth_router.post("/2fa/desativar", summary="Verificação em dois passos — desligar (pede password e código)")
+async def dois_passos_desativar(dados: dict, user: dict = Depends(get_current_user)):
+    from app.core import totp
+    u = await users_repo.get(user["id"]) or {}
+    if not verify_password(dados.get("password") or "", u.get("password_hash", "")):
+        raise HTTPException(400, "Password incorreta")
+    if u.get("totp_ativo") and not totp.verificar(u.get("totp_segredo") or "", dados.get("codigo") or ""):
+        raise HTTPException(400, "Código incorreto")
+    await users_repo.update(user["id"], {"totp_segredo": None, "totp_pendente": None, "totp_ativo": False})
+    from app.services import audit
+    await audit.registar("utilizador", user["id"], "editado", user, "Verificação em dois passos desativada", user.get("name"))
+    return {"ok": True, "dois_passos": False}
 
 
 @auth_router.post("/set-password", summary="Definir password (activação)")

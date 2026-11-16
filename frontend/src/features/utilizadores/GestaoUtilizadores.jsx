@@ -6,10 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import { useConfirmLeave, useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useConfirm } from "@/hooks/useConfirm";
 import SearchBar from "@/components/SearchBar";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
 import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
-import { Plus, Pencil, Trash2, Shield, User, Users as UsersIcon, Lock, KeyRound, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Shield, User, Users as UsersIcon, Lock, KeyRound, Copy, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -20,6 +21,7 @@ const emptyUser = { login: "", email: "", name: "", cargo: "", perfil_id: "" };
 export default function GestaoUtilizadores() {
   const [tab, setTab] = useState("users");
   const confirmLeave = useConfirmLeave();
+  const confirmAction = useConfirm();
   const {
     items: users, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload: reloadUsers, rangeLabel,
@@ -108,6 +110,11 @@ export default function GestaoUtilizadores() {
       showInvite(res);
       reloadUsers();
     } catch (e) { toast.error(e?.response?.data?.detail || "Erro ao gerar código"); }
+  };
+  const repor2fa = async (u) => {
+    if (!(await confirmAction({ title: `Repor a verificação em dois passos de ${u.name}?`, description: "Use quando o utilizador perdeu o telemóvel. Passa a entrar só com a password e pode voltar a ativar.", confirmLabel: "Repor" }))) return;
+    try { await api.post(`/users/${u.id}/2fa/repor`); toast.success("Verificação em dois passos reposta"); reloadUsers(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Não foi possível repor"); }
   };
   const copyInvite = async () => {
     if (!inviteInfo) return;
@@ -275,6 +282,7 @@ export default function GestaoUtilizadores() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      {u.totp_ativo && <button title="Repor verificação em dois passos (telemóvel perdido)" data-testid={`reset-2fa-${u.id}`} onClick={() => repor2fa(u)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><ShieldOff size={15} /></button>}
                       <button title="Gerar novo código de convite" data-testid={`reinvite-user-${u.id}`} onClick={() => reinvitar(u)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><KeyRound size={15} /></button>
                       <button data-testid={`edit-user-${u.id}`} onClick={() => openEditUser(u)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600"><Pencil size={15} /></button>
                       <button data-testid={`delete-user-${u.id}`} onClick={() => removeUser(u.id)} className="p-1.5 rounded-sm hover:bg-red-100 text-red-600"><Trash2 size={15} /></button>

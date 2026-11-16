@@ -1,3 +1,4 @@
+import { enviarOuGuardar } from "@/lib/filaOffline";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -126,9 +127,11 @@ export function MovelMovimento() {
     if (!motivo.trim()) { toast.error("Indique o motivo"); return; }
     setBusy(true);
     try {
-      await api.post("/movel/movimento", { artigo_id: artigo.id, localizacao_id: loc || null, tipo, quantidade: Number(qtd), motivo: motivo.trim() });
+      const r = await enviarOuGuardar("/movel/movimento", { artigo_id: artigo.id, localizacao_id: loc || null, tipo, quantidade: Number(qtd), motivo: motivo.trim() },
+        `${tipo === "saida" ? "Saída" : "Entrada"} ${num(qtd)} · ${artigo.nome}`);
       vibrar(40);
-      toast.success(`${tipo === "saida" ? "Saída" : "Entrada"} de ${num(qtd)} ${artigo.unidade || ""} · ${artigo.nome}`);
+      if (r?.offline) toast.info("Sem rede: ficou guardado no telemóvel e é enviado quando a rede voltar");
+      else toast.success(`${tipo === "saida" ? "Saída" : "Entrada"} de ${num(qtd)} ${artigo.unidade || ""} · ${artigo.nome}`);
       setArtigo(null); setQtd(""); setMotivo("");
     } catch (e) { erro(e, "Não foi possível registar"); } finally { setBusy(false); }
   };

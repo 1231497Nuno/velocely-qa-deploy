@@ -10,6 +10,7 @@ export const MOVEL_OPS = [
   { op: "movimentos", label: "Movimentos", modulo: "artigos", acao: "view" },
   { op: "consultar", label: "Consultar stock", modulo: "artigos", acao: "view" },
   { op: "oficina", label: "Oficina", modulo: "ordens_fabrico", acao: "view" },
+  { op: "picking", label: "Separar material (OF)", modulo: "ordens_fabrico", acao: "view" },
 ];
 
 /**

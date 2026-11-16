@@ -1,3 +1,4 @@
+import { ComprasAutomaticasCard } from "@/features/ordens_compra/OcEnviar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -90,6 +91,11 @@ function TabStock({ podeEditar, verCustos }) {
           <div className="w-72"><ArtigoCombobox artigos={artigos} value="" permitirCriar={false} placeholder="Ativar stock noutro artigo…" testid="stock-add-artigo"
             onChange={(a) => a && setCfg({ ...a, qtd_stock: a.qtd_stock || 0, gere_stock: false })} /></div>
         )}
+        <button type="button" className="btn btn-secundario" disabled={!dados.items.length} data-testid="stock-etiquetas"
+          title="Etiquetas com código de barras dos artigos listados (para ler na app móvel)"
+          onClick={() => openAuthenticated(`${API}/stock/artigos/etiquetas.pdf?ids=${dados.items.slice(0, 500).map((a) => a.id).join(",")}`).catch((e) => toast.error(e.message))}>
+          <FileDown size={15} /> Etiquetas ({Math.min(dados.items.length, 500)})
+        </button>
         {verCustos && <div className="ml-auto text-sm text-gray-600 dado-custo">Valor em stock: <b className="tabular-nums">{eur(dados.valor_total)}</b></div>}
       </div>
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
@@ -423,7 +429,7 @@ export default function Stock() {
       {tab === "stock" && <TabStock podeEditar={podeEditar} verCustos={verCustos} />}
       {tab === "localizacoes" && <TabLocalizacoes podeEditar={podeEditar} verCustos={verCustos} />}
       {tab === "movimentos" && <TabMovimentos />}
-      {tab === "sugestoes" && <TabSugestoes podeCriar={can("ordens_compra", "create")} />}
+      {tab === "sugestoes" && <><ComprasAutomaticasCard podeEditar={can("ordens_compra", "edit")} /><TabSugestoes podeCriar={can("ordens_compra", "create")} /></>}
       {tab === "inventarios" && <TabInventarios podeEditar={podeEditar} verCustos={verCustos} />}
     </div>
   );

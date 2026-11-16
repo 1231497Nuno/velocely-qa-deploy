@@ -392,7 +392,7 @@ async def faturacao_documentos(d: Dados, p: Params) -> dict:
             "notas": ["Documentos assinados/emitidos (sem rascunhos). Valores com IVA."]}
 
 
-ORC_GANHO, ORC_PERDIDO = ("aceite",), ("rejeitado",)
+ORC_GANHO, ORC_PERDIDO = ("aceite", "ganho"), ("rejeitado", "perdido")
 
 
 async def orcamentos_conversao(d: Dados, p: Params) -> dict:
@@ -435,6 +435,35 @@ async def orcamentos_conversao(d: Dados, p: Params) -> dict:
     return {"colunas": colunas, "linhas": linhas, "totais": tot,
             "grafico": {"tipo": "barras", "x": "periodo", "series": ["valor", "valor_ganho"]},
             "notas": ["Taxa de conversão = ganhos ÷ (ganhos + perdidos). Rascunhos não contam."]}
+
+
+async def orcamentos_perdidos(d: Dados, p: Params) -> dict:
+    """Orçamentos perdidos por motivo (número, valor e peso), para perceber onde se perde negócio."""
+    g: Dict[str, dict] = defaultdict(lambda: {"n": 0, "valor": 0.0, "exemplos": []})
+    for o in await d.orcamentos():
+        if o.get("status") not in ORC_PERDIDO:
+            continue
+        dia = _dia(o, "data", "created_at")
+        if not no_periodo(dia, p) or (p.cliente_id and o.get("cliente_id") != p.cliente_id):
+            continue
+        try:
+            total = float(compute_orcamento_totais(o).get("total") or 0)
+        except Exception:
+            total = float(o.get("total") or 0)
+        motivo = (o.get("motivo_perda") or (o.get("resposta_cliente") or {}).get("comentario") or "").strip() or "Sem motivo indicado"
+        x = g[motivo[:80]]
+        x["n"] += 1
+        x["valor"] += total
+        if len(x["exemplos"]) < 3:
+            x["exemplos"].append(o.get("numero") or "")
+    n_tot = sum(x["n"] for x in g.values()) or 1
+    linhas = sorted(({"motivo": k, "n": x["n"], "peso": round2(x["n"] / n_tot * 100), "valor": round2(x["valor"]),
+                      "exemplos": ", ".join(e for e in x["exemplos"] if e)} for k, x in g.items()), key=lambda r: -r["valor"])
+    colunas = [_col("motivo", "Motivo"), _col("n", "Orçamentos", "inteiro", True), _col("peso", "% dos perdidos", "pct"),
+               _col("valor", "Valor perdido", "moeda", True), _col("exemplos", "Exemplos")]
+    return {"colunas": colunas, "linhas": linhas, "totais": _totais(colunas, linhas),
+            "grafico": {"tipo": "barras", "x": "motivo", "series": ["valor"]},
+            "notas": ["O motivo é pedido ao marcar o orçamento como perdido (ou vem da resposta do cliente no link)."]}
 
 
 async def clientes_novos(d: Dados, p: Params) -> dict:
@@ -913,6 +942,8 @@ RELATORIOS: Dict[str, dict] = {
                       "descricao": "Loja online, orçamentos e encomendas diretas."},
     "faturacao_documentos": {"area": "vendas", "titulo": "Faturação emitida", "fn": faturacao_documentos, "tempo": True,
                              "descricao": "Faturas, recebimentos, anulações e proformas por período."},
+    "orcamentos_perdidos": {"area": "vendas", "titulo": "Orçamentos perdidos por motivo", "fn": orcamentos_perdidos, "ranking": True,
+                             "descricao": "Quantos e quanto valor se perdeu por cada motivo (preço, prazo, sem resposta…)."},
     "custos_encomenda": {"custos": True, "area": "producao", "titulo": "Custo previsto vs real", "fn": custos_encomenda, "ranking": True,
                          "descricao": "Desvios de custo de produção por encomenda."},
     "producao_operacoes": {"custos": True, "area": "producao", "titulo": "Tempos por operação e máquina", "fn": producao_operacoes,

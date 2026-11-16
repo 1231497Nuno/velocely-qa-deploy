@@ -16,7 +16,7 @@ export default function AvisosClienteCard() {
     const novo = { ...cfg, ...patch };
     setBusy(true);
     try {
-      const r = await api.put("/avisos-cliente/config", { ativo: novo.ativo, eventos: novo.eventos, anexar_pdf: novo.anexar_pdf });
+      const r = await api.put("/avisos-cliente/config", { ativo: novo.ativo, eventos: novo.eventos, anexar_pdf: novo.anexar_pdf, lembrete_orcamento_dias: Number(novo.lembrete_orcamento_dias) || 0 });
       setCfg({ ...cfg, ...r });
       if (patch.ativo === true) toast.success("Avisos ligados — a partir de agora o cliente recebe um email quando a encomenda avança");
     } catch (e) { toast.error(e?.response?.data?.detail || "Não foi possível guardar"); } finally { setBusy(false); }
@@ -42,6 +42,14 @@ export default function AvisosClienteCard() {
           <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={cfg.eventos.includes(k)} disabled={!isAdmin || busy} onChange={() => alternar(k)} /> {l}</label>
         ))}
         <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={!!cfg.anexar_pdf} disabled={!isAdmin || busy} onChange={(e) => guardar({ anexar_pdf: e.target.checked })} /> Anexar o PDF da encomenda (pronta e prazo)</label>
+      </div>
+      <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium">Lembrete de orçamento:</span>
+        <span>se o cliente não responder em</span>
+        <input type="number" min="0" max="60" className="w-16 border border-gray-300 rounded-sm px-2 py-1 text-right" disabled={!isAdmin || busy}
+          value={cfg.lembrete_orcamento_dias ?? 0} onChange={(e) => setCfg({ ...cfg, lembrete_orcamento_dias: e.target.value })}
+          onBlur={() => guardar({ lembrete_orcamento_dias: cfg.lembrete_orcamento_dias })} data-testid="avisos-lembrete-dias" />
+        <span>dias, envia-lhe um lembrete com o link para aceitar online (0 = não enviar). Um só lembrete por orçamento.</span>
       </div>
     </div>
   );

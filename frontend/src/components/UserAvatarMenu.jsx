@@ -11,6 +11,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { HEADER_ICON_BTN } from "@/components/HeaderIconBadge";
+import { DoisPassos, AlertasTelemovel } from "@/components/SegurancaConta";
 
 function initials(user) {
   const n = (user?.name || user?.login || user?.email || "?").trim();
@@ -308,6 +309,9 @@ export default function UserAvatarMenu() {
                 </div>
               )}
             </div>
+
+            <DoisPassos />
+            <AlertasTelemovel />
 
             {user.perfil?.nome && (
               <p className="text-xs text-gray-400">Perfil: {user.perfil.nome} (definido pelo administrador)</p>

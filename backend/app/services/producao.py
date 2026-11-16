@@ -39,6 +39,33 @@ def previsao_fecho(of: dict) -> dict:
             "itens": itens, "fecho": of.get("fecho")}
 
 
+CHECKLIST_QUALIDADE_PADRAO = [
+    "Quantidade conferida", "Medidas e posição conforme a arte aprovada", "Cores / gravação sem defeitos",
+    "Limpo e sem marcas", "Embalado e identificado",
+]
+
+
+async def config_qualidade() -> dict:
+    from app.repositories import empresa_repo
+    e = await empresa_repo.find_one({"id": "empresa"}) or {}
+    q = e.get("qualidade_of") or {}
+    return {"itens": q.get("itens") or CHECKLIST_QUALIDADE_PADRAO, "obrigatorio": bool(q.get("obrigatorio")),
+            "foto_obrigatoria": bool(q.get("foto_obrigatoria"))}
+
+
+def validar_qualidade(cfg: dict, q: dict) -> dict:
+    """Normaliza o controlo de qualidade do fecho; com `obrigatorio`, todos os pontos têm de estar OK."""
+    marcados = {str(i.get("texto")): bool(i.get("ok")) for i in (q or {}).get("itens") or []}
+    itens = [{"texto": t, "ok": marcados.get(t, False)} for t in cfg["itens"]]
+    fotos = [str(f) for f in (q or {}).get("fotos") or [] if f][:20]
+    falham = [i["texto"] for i in itens if not i["ok"]]
+    if cfg["obrigatorio"] and falham:
+        raise HTTPException(400, f"Controlo de qualidade por confirmar: {', '.join(falham)}")
+    if cfg["foto_obrigatoria"] and not fotos:
+        raise HTTPException(400, "Tire pelo menos uma foto do trabalho final antes de fechar a OF")
+    return {"itens": itens, "fotos": fotos, "ok": not falham, "obs": ((q or {}).get("obs") or "").strip()}
+
+
 async def fechar_of(ofid: str, dados: dict, user: dict) -> dict:
     of = await ordens_repo.get(ofid)
     if not of:
@@ -49,6 +76,7 @@ async def fechar_of(ofid: str, dados: dict, user: dict) -> dict:
         for op in it.get("operacoes") or []:
             if op.get("timer_inicio"):
                 raise HTTPException(400, f"Pare o cronómetro de «{op.get('nome')}» antes de fechar a OF")
+    qualidade = validar_qualidade(await config_qualidade(), dados.get("qualidade") or {})
     pv = {i["item_id"]: i for i in previsao_fecho(of)["itens"]}
     por_item = {d.get("item_id"): d for d in dados.get("itens") or []}
     abater = dados.get("abater_stock", True)
@@ -101,7 +129,8 @@ async def fechar_of(ofid: str, dados: dict, user: dict) -> dict:
     estimado = round2(sum(l["custo_estimado"] for l in linhas))
     fecho = {"fechada": True, "at": now_iso(), "por": (user or {}).get("name") or (user or {}).get("nome") or "",
              "notas": (dados.get("notas") or "").strip(), "linhas": linhas, "custo_total": total, "custo_estimado": estimado,
-             "desvio": round2(total - estimado), "refugo_total": round2(sum(l["qtd_refugo"] for l in linhas)), "movimentos": movs}
+             "desvio": round2(total - estimado), "refugo_total": round2(sum(l["qtd_refugo"] for l in linhas)), "movimentos": movs,
+             "qualidade": qualidade}
     await ordens_repo.update(ofid, {"itens": of["itens"], "fecho": fecho, "status": "concluido"})
     await audit.registar("ordem_fabrico", ofid, "concluido", user,
                          f"OF {of.get('numero')} fechada · custo real {total:.2f}€ (estimado {estimado:.2f}€)"
@@ -189,3 +218,128 @@ async def carga(semanas: int = 6, hoje: Optional[date] = None) -> dict:
         out.append(l)
     out.sort(key=lambda x: (-x["total"], x["nome"]))
     return {"semanas": [c.isoformat() for c in cols], "maquinas": out}
+
+
+# ---------------------------------------------------------------------------
+# Prazo de entrega sugerido (carga real das máquinas + compras + margem)
+# ---------------------------------------------------------------------------
+def _somar_dias_uteis(d: date, n: int) -> date:
+    while n > 0:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            n -= 1
+    return d
+
+
+async def prazo_sugerido(linhas: List[dict], margem_dias: int = 2, dias_compra: int = 5) -> dict:
+    """Data de entrega possível para estas linhas ({artigo_id, quantidade, roteiro?}).
+    Para cada máquina: horas em fila (operações por fazer nas OF abertas) + horas destas linhas,
+    a dividir pela capacidade diária (horas por semana ÷ 5). O prazo é o da máquina mais carregada,
+    mais o tempo de compra se faltar stock de artigos comprados, mais a margem."""
+    import math
+    from app.services.costing import op_minutos_maquina
+    maqs = {m["id"]: m for m in await maquinas_repo.find({}, limit=500)}
+    novas: Dict[str, float] = {}
+    compra = []
+    for l in linhas or []:
+        q = float(l.get("quantidade") or 0)
+        if q <= 0:
+            continue
+        a = await artigos_repo.get(l.get("artigo_id") or "") if l.get("artigo_id") else None
+        roteiro = l.get("roteiro") or (a or {}).get("roteiro") or []
+        for op in roteiro:
+            mid = op.get("maquina_id")
+            if mid:
+                novas[mid] = novas.get(mid, 0.0) + op_minutos_maquina(op) * q / 60.0
+        if a and not roteiro and stock_svc.gere_stock(a):
+            disp = float(a.get("qtd_stock") or 0)
+            if disp < q:
+                compra.append({"artigo": a.get("nome"), "falta": round2(q - disp), "fornecedor": a.get("fornecedor_nome") or ""})
+    fila: Dict[str, float] = {}
+    for of in await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, limit=5000):
+        for it in of.get("itens") or []:
+            for op in it.get("operacoes") or []:
+                mid = op.get("maquina_id")
+                if not mid or op.get("concluida") or mid not in novas:
+                    continue
+                feito = float(op["tempo_maquina_real"]) if op.get("tempo_maquina_real") is not None else 0.0
+                fila[mid] = fila.get(mid, 0.0) + max(0.0, float(op.get("tempo_maquina") or 0) - feito) / 60.0
+    detalhe = []
+    dias_prod = 0
+    for mid, h in novas.items():
+        m = maqs.get(mid) or {}
+        cap_dia = max(0.5, float(m.get("horas_semana") or 40) / 5.0)
+        dias = math.ceil((fila.get(mid, 0.0) + h) / cap_dia) if h > 0 else 0
+        dias_prod = max(dias_prod, dias)
+        detalhe.append({"maquina": m.get("nome") or "Máquina", "horas_fila": round2(fila.get(mid, 0.0)), "horas_novas": round2(h),
+                        "capacidade_dia": round2(cap_dia), "dias": dias})
+    detalhe.sort(key=lambda x: -x["dias"])
+    dias_comp = dias_compra if compra else 0
+    total = dias_comp + dias_prod + max(0, int(margem_dias))
+    hoje = datetime.now().date()
+    data = _somar_dias_uteis(hoje, max(total, 1))
+    return {"data": data.isoformat(), "dias_uteis": max(total, 1), "dias_producao": dias_prod, "dias_compra": dias_comp,
+            "margem_dias": int(margem_dias), "maquinas": detalhe, "compras": compra,
+            "sem_roteiro": not novas}
+
+
+
+# ---------------------------------------------------------------------------
+# Picking (separar o material das OF no armazém, pela app móvel)
+# ---------------------------------------------------------------------------
+async def picking_lista() -> List[dict]:
+    """OF por fechar com materiais de stock ainda por separar, com onde estão no armazém."""
+    from app.repositories import localizacoes_repo
+    padrao = await stock_svc.local_padrao()
+    locs = {l["id"]: l.get("nome") or l.get("codigo") or "" for l in await localizacoes_repo.find({}, limit=2000)}
+    ofs = await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, sort=("prazo_entrega", 1), limit=500)
+    ids = {m.get("material_id") for of in ofs for it in of.get("itens") or [] for m in it.get("materiais") or [] if m.get("material_id")}
+    arts = {a["id"]: a for a in await artigos_repo.find({"id": {"$in": list(ids)}}, limit=5000)} if ids else {}
+    out = []
+    for of in ofs:
+        if (of.get("fecho") or {}).get("fechada"):
+            continue
+        linhas = []
+        for it in of.get("itens") or []:
+            for m in it.get("materiais") or []:
+                a = arts.get(m.get("material_id"))
+                if not a or not stock_svc.gere_stock(a) or m.get("consumido"):
+                    continue
+                prev = round(float(m.get("quantidade") or 0), 4)
+                sep = round(float(m.get("qtd_separada") or 0), 4)
+                por_local = sorted(stock_svc.stock_por_local(a, padrao["id"]).items(), key=lambda x: -x[1])
+                linhas.append({"item_id": it.get("id"), "id": m.get("id"), "artigo_id": a["id"], "codigo": a.get("codigo") or "",
+                               "codigo_produto": a.get("codigo_produto") or "", "nome": m.get("nome") or a.get("nome") or "",
+                               "unidade": m.get("unidade") or a.get("unidade") or "un", "quantidade": prev, "separada": sep,
+                               "falta": round(max(prev - sep, 0), 4), "para": it.get("artigo_nome") or "",
+                               "locais": [{"id": k, "nome": locs.get(k, "?"), "quantidade": round(v, 2)} for k, v in por_local if v > 0][:4]})
+        if linhas and any(l["falta"] > 0 for l in linhas):
+            out.append({"id": of["id"], "numero": of.get("numero"), "cliente": of.get("cliente"), "prazo": of.get("prazo_entrega"),
+                        "prioritaria": bool(of.get("prioritaria")), "linhas": linhas,
+                        "por_separar": sum(1 for l in linhas if l["falta"] > 0)})
+    return out
+
+
+async def picking_registar(ofid: str, separados: List[dict], user: dict) -> dict:
+    """Marca as quantidades separadas (não mexe no stock: o consumo é abatido no fecho da OF)."""
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    por = {(str(x.get("item_id")), str(x.get("id"))): float(x.get("quantidade") or 0) for x in separados or []}
+    n = 0
+    for it in of.get("itens") or []:
+        for m in it.get("materiais") or []:
+            q = por.get((str(it.get("id")), str(m.get("id"))))
+            if q is None:
+                continue
+            if q < 0:
+                raise HTTPException(400, "Quantidade inválida")
+            m["qtd_separada"] = round(float(m.get("qtd_separada") or 0) + q, 4)
+            m["separado_at"] = now_iso()
+            m["separado_por"] = (user or {}).get("name") or ""
+            n += 1
+    if not n:
+        raise HTTPException(400, "Nada para registar")
+    await ordens_repo.update(ofid, {"itens": of["itens"]})
+    await audit.registar("ordem_fabrico", ofid, "editado", user, f"Material separado para a OF {of.get('numero')} ({n} linha(s), app móvel)", of.get("numero"))
+    return {"ok": True, "linhas": n}

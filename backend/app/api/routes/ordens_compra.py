@@ -210,6 +210,19 @@ async def delete_ordem_compra(oid: str, user: dict = Depends(require_perm("orden
 # ---------------------------------------------------------------------------
 # Receções (parciais) e fatura do fornecedor
 # ---------------------------------------------------------------------------
+@router.post("/ordens-compra/{oid}/fatura-fornecedor/ler-pdf")
+async def ler_fatura_pdf(oid: str, file: UploadFile = File(...), _u: dict = Depends(require_perm("ordens_compra", "edit"))):
+    """Lê o PDF da fatura do fornecedor e compara com a OC (quantidades recebidas e preços encomendados)."""
+    from app.services import oc_pdf
+    oc = await ordens_compra_repo.get(oid)
+    if not oc:
+        raise HTTPException(404, "Ordem de compra não encontrada")
+    dados = await file.read()
+    if len(dados) > 15 * 1024 * 1024:
+        raise HTTPException(400, "PDF demasiado grande (máx. 15 MB)")
+    return await oc_pdf.conferir_fatura(oc, file.filename or "", dados)
+
+
 @router.post("/ordens-compra/rececoes-lote")
 async def receber_varias_oc(dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
     """Receção conjunta de várias OC do mesmo fornecedor (ex.: uma entrega com várias encomendas)."""
@@ -227,3 +240,24 @@ async def receber_ordem_compra(oid: str, dados: dict, user: dict = Depends(requi
 async def fatura_fornecedor_oc(oid: str, dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
     from app.services import stock as stock_svc
     return await stock_svc.fatura_fornecedor(oid, dados, user)
+
+
+
+@router.get("/ordens-compra/{oid}/nota-encomenda.pdf")
+async def oc_pdf(oid: str, _u: dict = Depends(require_perm("ordens_compra", "view"))):
+    from fastapi.responses import Response
+    from app.repositories import empresa_repo
+    from app.services.pdf import build_oc_pdf
+    oc = await ordens_compra_repo.get(oid)
+    if not oc:
+        raise HTTPException(404, "Ordem de compra não encontrada")
+    f = await fornecedores_repo.get(oc.get("fornecedor_id") or "") or {}
+    pdf = build_oc_pdf(oc, await empresa_repo.find_one({"id": "empresa"}) or {}, f)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{oc.get("codigo") or "OC"}.pdf"'})
+
+
+@router.post("/ordens-compra/{oid}/aprovar-enviar")
+async def oc_aprovar_enviar(oid: str, dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
+    """Aprova a OC (automática ou não) e, se `enviar`, manda a nota de encomenda ao fornecedor por email."""
+    from app.services import stock as stock_svc
+    return await stock_svc.aprovar_e_enviar_oc(oid, user, enviar=bool(dados.get("enviar", True)), mensagem=dados.get("mensagem") or "")

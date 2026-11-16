@@ -379,7 +379,7 @@ async def enviar_orcamento_email(
 
     novo_status = o.get("status")
     if _status(o) not in ("ganho", "perdido"):
-        await orcamentos_repo.update(oid, {"status": "enviado"})
+        await orcamentos_repo.update(oid, {"status": "enviado", "enviado_at": now_iso()})
         novo_status = "enviado"
         if _status(o) != "enviado":
             await audit.registar(
@@ -465,6 +465,8 @@ async def update_orcamento(oid: str, data: OrcamentoInput, user: dict = Depends(
     update["updated_at"] = now_iso()
     alteracoes = audit.diff_campos(existing, update, _ORC_CAMPOS)
     estado_mudou = existing.get("status") != update.get("status")
+    if estado_mudou and _status(update.get("status")) == "enviado":
+        update["enviado_at"] = now_iso()
     await orcamentos_repo.update(oid, update)
     existing.update(update)
     numero = existing.get("numero")

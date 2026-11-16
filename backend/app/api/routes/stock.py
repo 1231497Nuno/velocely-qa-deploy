@@ -86,6 +86,24 @@ async def criar_oc(dados: dict, user: dict = Depends(require_perm("ordens_compra
     return {"criadas": criadas}
 
 
+@router.get("/stock/compras-automaticas")
+async def get_compras_auto(_u: dict = Depends(require_perm("ordens_compra", "view"))):
+    return await stock_svc.get_config_compras()
+
+
+@router.put("/stock/compras-automaticas")
+async def set_compras_auto(dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
+    from app.repositories import empresa_repo
+    cfg = {**await stock_svc.get_config_compras(), "ativo": bool(dados.get("ativo"))}
+    await empresa_repo.update_where({"id": "empresa"}, {"compras_auto": cfg}, upsert=True)
+    return cfg
+
+
+@router.post("/stock/compras-automaticas/correr")
+async def correr_compras_auto(user: dict = Depends(require_perm("ordens_compra", "create"))):
+    return {"criadas": await stock_svc.compras_automaticas(forcar=True)}
+
+
 @router.get("/inventarios")
 async def listar_inventarios(_u: dict = Depends(require_perm("artigos", "view"))):
     out = await inventarios_repo.find({}, sort=("data", -1), limit=200)
@@ -212,6 +230,21 @@ async def transferir(dados: dict, user: dict = Depends(require_perm("artigos", "
 
 
 # ---------------- App móvel ----------------
+@router.get("/movel/picking")
+async def movel_picking(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    """Material das OF por separar (picking), com as localizações onde há stock."""
+    from app.core.security import exigir_movel
+    from app.services import producao
+    await exigir_movel(_u, "picking")
+    return await producao.picking_lista()
+
+
+@router.post("/movel/picking/{ofid}")
+async def movel_picking_registar(ofid: str, dados: dict, user: dict = Depends(require_perm("artigos", "edit"))):
+    from app.core.security import exigir_movel
+    from app.services import producao
+    await exigir_movel(user, "picking")
+    return await producao.picking_registar(ofid, dados.get("separados") or [], user)
 @router.get("/movel/ocs-abertas")
 async def ocs_abertas(_u: dict = Depends(require_perm("ordens_compra", "view"))):
     """Ordens de compra por receber (para a app móvel)."""
@@ -342,6 +375,46 @@ async def movel_movimento(dados: dict, user: dict = Depends(require_perm("artigo
     m = await stock_svc.movimentar(a["id"], q if tipo == "entrada" else -q, tipo, user=user, nota=motivo, localizacao_id=loc,
                                    origem={"tipo": "movel", "numero": motivo[:40]})
     return m or {"ok": True}
+
+
+@router.get("/stock/artigos/etiquetas.pdf")
+async def etiquetas_artigos(ids: str = Query(""), copias: int = Query(1, ge=1, le=200),
+                            _u: dict = Depends(require_perm("artigos", "view"))):
+    """Etiquetas A4 (3 × 8) com código de barras (Code 128) do código do artigo — lidas pela app móvel."""
+    from io import BytesIO
+    from reportlab.graphics.barcode import code128
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    sel = [x for x in ids.split(",") if x][:500]
+    if not sel:
+        raise HTTPException(400, "Escolha pelo menos um artigo")
+    arts = {a["id"]: a for a in await artigos_repo.find({"id": {"$in": sel}}, limit=500)}
+    lista = [arts[i] for i in sel if i in arts for _ in range(copias)]
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+    cols, rows = 3, 8
+    lw, lh = (w - 10 * mm) / cols, (h - 14 * mm) / rows
+    for i, a in enumerate(lista):
+        if i and i % (cols * rows) == 0:
+            c.showPage()
+        k = i % (cols * rows)
+        x0 = 5 * mm + (k % cols) * lw
+        y0 = h - 7 * mm - (k // cols + 1) * lh
+        c.setStrokeColorRGB(0.88, 0.88, 0.88)
+        c.rect(x0 + 1 * mm, y0 + 1 * mm, lw - 2 * mm, lh - 2 * mm)
+        codigo = str(a.get("codigo") or a.get("codigo_produto") or a["id"][:12])
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(x0 + 4 * mm, y0 + lh - 7 * mm, (a.get("nome") or "")[:38])
+        bc = code128.Code128(codigo, barHeight=lh * 0.42, barWidth=0.9 if len(codigo) <= 10 else 0.7, humanReadable=False)
+        bx = x0 + (lw - bc.width) / 2
+        bc.drawOn(c, max(bx, x0 + 2 * mm), y0 + 8 * mm)
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(x0 + lw / 2, y0 + 4 * mm, codigo)
+    c.save()
+    return Response(buf.getvalue(), media_type="application/pdf", headers={"Content-Disposition": 'inline; filename="etiquetas-artigos.pdf"'})
 
 
 @router.get("/stock/localizacoes/etiquetas.pdf")

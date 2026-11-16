@@ -14,6 +14,8 @@ import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
 import PartilharLinkButton from "@/features/portal/PartilharLinkButton";
 import { CalculadoraDialog } from "@/features/calculadora/CalculadoraPreco";
+import PrazoSugerido from "@/components/PrazoSugerido";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { LinhaCodigoSelect, LinhaDescricaoInput } from "@/components/LinhaArtigoFields";
@@ -208,6 +210,8 @@ export default function OrcamentoDetail() {
       </div>
     );
   }
+  // Motivo da perda (para perceber onde se perde negócio — relatório «Orçamentos perdidos»)
+  const [perda, setPerda] = useState(null); // { motivo, outro, resolve }
   if (!orc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
   const upd = (patch) => {
@@ -858,6 +862,7 @@ export default function OrcamentoDetail() {
     data: o.data,
     validade: o.validade,
     status: o.status,
+    motivo_perda: o.motivo_perda || "",
     notas: o.notas || "",
     imagens: o.imagens || [],
     desconto_total: Number(o.desconto_total) || 0,
@@ -982,25 +987,26 @@ export default function OrcamentoDetail() {
     ? empresa.orcamento_notas_templates.filter((t) => (t?.nome || t?.texto))
     : NOTAS_TEMPLATES_DEFAULT;
 
+  const pedirMotivoPerda = () => new Promise((resolve) => setPerda({ motivo: "", outro: "", resolve }));
+
   const setStatus = async (status) => {
     if (status === "ganho" && !await confirmAction({
       title: "Marcar como ganho",
       description: "Só depois podes criar a encomenda com estes valores.",
       confirmLabel: "Marcar ganho",
     })) return;
-    if (status === "perdido" && !await confirmAction({
-      title: "Marcar como perdido",
-      description: "Deixa de poder ser convertido em encomenda.",
-      confirmLabel: "Marcar perdido",
-      tone: "danger",
-    })) return;
+    let motivo = orc.motivo_perda || "";
+    if (status === "perdido") {
+      motivo = await pedirMotivoPerda();
+      if (motivo === null) return;
+    }
     if (status === "enviado" && !await confirmAction({
       title: "Marcar como enviado",
       description: "O orçamento fica registado como enviado ao cliente.",
       confirmLabel: "Marcar enviado",
     })) return;
     try {
-      await api.put(`/orcamentos/${id}`, payloadFrom({ ...orc, status }));
+      await api.put(`/orcamentos/${id}`, payloadFrom({ ...orc, status, motivo_perda: status === "perdido" ? motivo : orc.motivo_perda }));
       toast.success(status === "ganho" ? "Orçamento ganho" : status === "perdido" ? "Orçamento perdido" : status === "enviado" ? "Marcado como enviado" : "Estado actualizado");
       await load();
     } catch (e) {
@@ -1184,6 +1190,28 @@ export default function OrcamentoDetail() {
         }
       />
       <AprovacaoBanner entidade="orcamento" entidadeId={orc.id} recarregarEm={orc.updated_at} />
+      {perda && (
+        <Dialog open onOpenChange={(o) => { if (!o) { perda.resolve(null); setPerda(null); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-display">Porque se perdeu este orçamento?</DialogTitle>
+              <DialogDescription>Deixa de poder ser convertido em encomenda. O motivo aparece no relatório «Orçamentos perdidos».</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-2" data-testid="orc-motivo-perda">
+              {["Preço", "Prazo de entrega", "Sem resposta do cliente", "Escolheu outro fornecedor", "Cliente desistiu", "Outro"].map((m) => (
+                <button key={m} type="button" onClick={() => setPerda({ ...perda, motivo: m })}
+                  className={`text-left text-sm rounded-sm border px-3 py-2 ${perda.motivo === m ? "border-black ring-1 ring-black" : "border-gray-300 hover:bg-gray-50"}`}>{m}</button>
+              ))}
+            </div>
+            {perda.motivo === "Outro" && <input autoFocus value={perda.outro} onChange={(e) => setPerda({ ...perda, outro: e.target.value })} placeholder="Qual?" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm" />}
+            <DialogFooter>
+              <button type="button" className="btn btn-secundario" onClick={() => { perda.resolve(null); setPerda(null); }}>Cancelar</button>
+              <button type="button" className="btn btn-perigo" disabled={!perda.motivo || (perda.motivo === "Outro" && !perda.outro.trim())}
+                onClick={() => { perda.resolve(perda.motivo === "Outro" ? perda.outro.trim() : perda.motivo); setPerda(null); }} data-testid="orc-motivo-perda-ok">Marcar perdido</button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {orc.resposta_cliente && (
         <div className={`mb-3 rounded-sm border px-4 py-3 text-sm flex flex-wrap items-center gap-3 ${orc.resposta_cliente.aceite ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-gray-200 bg-gray-50 text-gray-700"}`} data-testid="orc-resposta-cliente">
           <div className="flex-1 min-w-[14rem]">
@@ -1515,6 +1543,7 @@ export default function OrcamentoDetail() {
                         </div>
                         <LinhaArteButton
                           linha={l}
+                          clienteId={orc.cliente_id}
                           canEdit={editavel}
                           testid={`line-arte-${i}`}
                           onChange={(patch) => updLinha(i, patch)}
@@ -2022,6 +2051,10 @@ export default function OrcamentoDetail() {
       <CalculadoraDialog open={calcOpen} onClose={() => setCalcOpen(false)} linhas={orc.linhas || []} onAplicar={aplicarCalculadora} />
       {editavel && (orc.linhas || []).length > 0 && (
         <div className="flex justify-end gap-2 mb-2">
+          {(orc.linhas || []).some((l) => l.artigo_id) && (
+            <PrazoSugerido linhas={orc.linhas} usarLabel="Escrever o prazo nas notas"
+              onUsar={(d) => upd({ notas: `${(orc.notas || "").replace(/\n?Prazo de entrega previsto:.*$/m, "").trim()}\nPrazo de entrega previsto: ${d.split("-").reverse().join("/")}`.trim() })} />
+          )}
           <button type="button" onClick={() => setCalcOpen(true)} className="btn btn-secundario btn-sm" data-testid="orc-calculadora"><Calculator size={14} /> Calculadora de preço</button>
           {(orc.linhas || []).some((l) => l.artigo_id) && <button type="button" onClick={aplicarTabelas} className="btn btn-secundario btn-sm" data-testid="orc-aplicar-tabelas" title="Aplica preços especiais e descontos por quantidade definidos em Catálogo → Tabelas de preços">
             <Tags size={14} /> Aplicar tabelas de preços

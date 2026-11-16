@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PrazoSugerido from "@/components/PrazoSugerido";
 import { Link, useNavigate } from "react-router-dom";
 import { eur, fmtDate } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
@@ -281,7 +282,7 @@ export const ClientePanel = ({ enc, cliente, moradaCompleta, onPrazoChange, onPr
 export const EncClienteCampos = ({
   enc, cliente, moradaCompleta, canEdit, podeEntregar,
   onContactoChange,
-  onPrazoChange, onPrazoBlur,
+  onPrazoChange, onPrazoBlur, onPrazoSet,
   onEntregaToggle, onDataEntregaChange, onDataEntregaBlur,
   onDescricaoChange, onDescricaoBlur,
   onReferenciaChange, onReferenciaBlur,
@@ -335,14 +336,17 @@ export const EncClienteCampos = ({
       </FieldRow>
       <FieldRow label="Prazo de entrega" testid="enc-campo-prazo">
         {canEdit ? (
-          <input
-            data-testid="enc-prazo-input"
-            type="date"
-            value={enc.prazo_entrega || ""}
-            onChange={onPrazoChange}
-            onBlur={onPrazoBlur}
-            className="border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
-          />
+          <span className="inline-flex items-center gap-2 flex-wrap justify-end">
+            <input
+              data-testid="enc-prazo-input"
+              type="date"
+              value={enc.prazo_entrega || ""}
+              onChange={onPrazoChange}
+              onBlur={onPrazoBlur}
+              className="border border-gray-300 rounded-sm px-2 py-1 text-sm tabular-nums bg-white focus:outline-none focus:ring-1 focus:ring-black/20"
+            />
+            {onPrazoSet && enc.id && <PrazoSugerido encomendaId={enc.id} onUsar={onPrazoSet} usarLabel="Usar como prazo de entrega" />}
+          </span>
         ) : (
           <span className="tabular-nums">{fmtDate(enc.prazo_entrega) || "—"}</span>
         )}

@@ -59,10 +59,13 @@ import TabelasPrecos from "@/features/precos/TabelasPrecos";
 import Stock from "@/features/stock/Stock";
 import CargaMaquinas from "@/features/producao/CargaMaquinas";
 import Oficina from "@/features/producao/Oficina";
+import MovelPicking from "@/features/movel/MovelPicking";
+import OficinaTV from "@/features/producao/OficinaTV";
 import Planeamento from "@/features/producao/Planeamento";
 import Manutencao from "@/features/producao/Manutencao";
 import Tesouraria from "@/features/tesouraria/Tesouraria";
 import Objetivos from "@/features/relatorios/Objetivos";
+import FechoMes from "@/features/relatorios/FechoMes";
 import PortalCliente from "@/features/portal/PortalCliente";
 import CalculadoraPreco from "@/features/calculadora/CalculadoraPreco";
 import PrecosFornecedor from "@/features/precos/PrecosFornecedor";
@@ -124,6 +127,9 @@ const router = createBrowserRouter([
       { path: "/m/transferir", element: <MovelProtected modulo="artigos" op="transferir"><MovelTransferir /></MovelProtected> },
       { path: "/m/consultar", element: <MovelProtected modulo="artigos" op="consultar"><MovelConsultar /></MovelProtected> },
       { path: "/m/acertar", element: <MovelProtected modulo="artigos" op="acertar"><MovelAcertar /></MovelProtected> },
+      { path: "/m/picking", element: <MovelProtected modulo="ordens_fabrico" op="picking"><MovelPicking /></MovelProtected> },
+      { path: "/m/picking/:id", element: <MovelProtected modulo="ordens_fabrico" op="picking"><MovelPicking /></MovelProtected> },
+      { path: "/tv/oficina", element: <MovelProtected modulo="ordens_fabrico"><OficinaTV /></MovelProtected> },
       { path: "/m/*", element: <Navigate to="/m" replace /> },
       { path: "/", element: <Protected><Dashboard /></Protected> },
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
@@ -168,6 +174,7 @@ const router = createBrowserRouter([
       { path: "/precos-fornecedor", element: <Protected modulo="artigos"><PrecosFornecedor /></Protected> },
       { path: "/calculadora", element: <Protected modulo="orcamentos"><CalculadoraPreco /></Protected> },
       { path: "/objetivos", element: <Protected modulo="relatorios"><Objetivos /></Protected> },
+      { path: "/fecho-mes", element: <Protected modulo="relatorios"><FechoMes /></Protected> },
       { path: "/tesouraria", element: <Protected modulo="contas"><Tesouraria /></Protected> },
       { path: "/oficina", element: <Protected modulo="ordens_fabrico"><Oficina /></Protected> },
       { path: "/planeamento", element: <Protected modulo="ordens_fabrico"><Planeamento /></Protected> },

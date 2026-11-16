@@ -15,6 +15,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import CustoRealTab from "./CustoRealTab";
+import RepetirEncomenda from "./RepetirEncomenda";
 import PdfExportButton from "@/components/PdfExportButton";
 import PartilharLinkButton from "@/features/portal/PartilharLinkButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
@@ -542,6 +543,7 @@ export default function EncomendaDetail() {
           : `Encomenda${enc.orcamento_numero ? ` · origem ${enc.orcamento_numero}` : ""}`}
         actions={
           <>
+            {can("encomendas", "create") && <RepetirEncomenda enc={enc} />}
             <PdfExportButton modulo="encomenda" recordId={id} />
             <PartilharLinkButton tipo="encomenda" doc={enc} telefone={cliente?.contacto || enc.contacto_telefone || ""} email={cliente?.email || enc.contacto_email || ""} />
             {can("encomendas", "edit") && (
@@ -650,6 +652,7 @@ export default function EncomendaDetail() {
                       }}
                       onPrazoChange={(e) => upd({ prazo_entrega: e.target.value })}
                       onPrazoBlur={() => persist({}, "Prazo atualizado")}
+                      onPrazoSet={(d) => persist({ prazo_entrega: d }, "Prazo atualizado")}
                       onEntregaToggle={() => {
                         const next = !enc.entregue;
                         persist(

@@ -457,7 +457,23 @@ async def previsao_fecho_of(ofid: str, _u: dict = Depends(require_perm("ordens_f
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
-    return producao.previsao_fecho(of)
+    return {**producao.previsao_fecho(of), "qualidade": await producao.config_qualidade()}
+
+
+@router.get("/producao/qualidade")
+async def get_qualidade(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    from app.services import producao
+    return await producao.config_qualidade()
+
+
+@router.put("/producao/qualidade")
+async def put_qualidade(dados: dict, _u: dict = Depends(require_perm("definicoes", "edit"))):
+    from app.repositories import empresa_repo
+    from app.services import producao
+    itens = [str(x).strip() for x in dados.get("itens") or [] if str(x).strip()][:30]
+    await empresa_repo.update_where({"id": "empresa"}, {"qualidade_of": {"itens": itens, "obrigatorio": bool(dados.get("obrigatorio")),
+                                                                         "foto_obrigatoria": bool(dados.get("foto_obrigatoria"))}}, upsert=True)
+    return await producao.config_qualidade()
 
 
 @router.post("/ordens-fabrico/{ofid}/fechar")
@@ -548,6 +564,17 @@ async def oficina_of(ref: str, _u: dict = Depends(require_perm("ordens_fabrico",
 def _ficheiro(path: str, nome: str = "", content_type: str = "") -> dict:
     from app.services import ficheiros as fic
     return {"path": path, "nome": nome or path.rsplit("/", 1)[-1], "kind": "imagem" if fic.is_image(path, content_type, nome) else "ficheiro"}
+
+
+@router.post("/producao/prazo-sugerido", summary="Data de entrega possível pela carga real das máquinas")
+async def prazo_sugerido(dados: dict, _u: dict = Depends(require_perm("orcamentos", "view"))):
+    from app.services import producao
+    linhas = dados.get("linhas") or []
+    if dados.get("encomenda_id"):
+        e = await encomendas_repo.get(dados["encomenda_id"]) or {}
+        linhas = [{"artigo_id": a.get("artigo_id"), "quantidade": a.get("quantidade"), "roteiro": a.get("roteiro_orcamento")}
+                  for a in e.get("artigos") or []]
+    return await producao.prazo_sugerido(linhas, int(dados.get("margem_dias", 2) or 0), int(dados.get("dias_compra", 5) or 0))
 
 
 @router.get("/oficina/of/{ofid}/documentos")

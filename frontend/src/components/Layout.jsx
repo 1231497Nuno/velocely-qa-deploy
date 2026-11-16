@@ -56,6 +56,7 @@ import {
   Wrench,
   Landmark,
   Target,
+  CalendarCheck,
 } from "lucide-react";
 
 // Menu organizado pelo fluxo do negócio: vender → comprar → stock → produzir → faturar → analisar; dados base e sistema no fim.
@@ -121,6 +122,7 @@ export const NAV_GROUPS = [
       { to: "/analise-producao", label: "Análise da produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
       { to: "/rentabilidade-clientes", label: "Rentabilidade por cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade", custos: true },
       { to: "/objetivos", label: "Objetivos", icon: Target, tid: "nav-objetivos", modulo: "relatorios" },
+      { to: "/fecho-mes", label: "Fecho do mês", icon: CalendarCheck, tid: "nav-fecho-mes", modulo: "relatorios" },
     ],
   },
   {

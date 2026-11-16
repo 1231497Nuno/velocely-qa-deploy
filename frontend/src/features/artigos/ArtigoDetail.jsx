@@ -3,7 +3,9 @@ import BotaoAdicionar from "@/components/BotaoAdicionar";
 import EntitySelect from "@/components/EntitySelect";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { api, eur, fmtDate } from "@/lib/api";
+import { API, api, eur, fmtDate } from "@/lib/api";
+import { openAuthenticated } from "@/lib/openAuthenticated";
+import { Barcode } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import StatusBadge from "@/components/StatusBadge";
@@ -506,6 +508,12 @@ export default function ArtigoDetail() {
           <div className="flex items-center gap-2 sm:gap-3 text-sm flex-wrap justify-end">
             {!editing && (
               <>
+                {a.id && (
+                  <button type="button" className="btn btn-secundario" data-testid="artigo-etiqueta-btn" title="Etiqueta com código de barras (app móvel)"
+                    onClick={() => openAuthenticated(`${API}/stock/artigos/etiquetas.pdf?ids=${a.id}`).catch((e) => toast.error(e.message))}>
+                    <Barcode size={15} /> Etiqueta
+                  </button>
+                )}
                 <span className="text-gray-500">
                   Venda{" "}
                   <span className="tabular-nums font-bold text-emerald-700" data-testid="artigo-header-venda">
