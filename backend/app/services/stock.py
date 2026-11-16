@@ -52,7 +52,7 @@ async def movimentar(artigo_id: str, delta: float, tipo: str, *, origem: Optiona
         return None  # artigo sem gestão de stock: não mexe na quantidade
     antes = float(a.get("qtd_stock") or 0)
     depois = round2(antes + delta)
-    patch: Dict[str, Any] = {"qtd_stock": depois}
+    patch: Dict[str, Any] = {"qtd_stock": depois, "woo_pendente": True}
     if delta > 0 and custo_unit is not None and custo_unit >= 0:
         cm = float(a.get("custo_medio") or a.get("custo_artigo") or 0)
         base = max(antes, 0.0)

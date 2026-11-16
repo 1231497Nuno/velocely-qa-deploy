@@ -12,6 +12,7 @@ import ContactoSelector from "@/components/ContactoSelector";
 import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
 import PartilharLinkButton from "@/features/portal/PartilharLinkButton";
+import { CalculadoraDialog } from "@/features/calculadora/CalculadoraPreco";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { LinhaCodigoSelect, LinhaDescricaoInput } from "@/components/LinhaArtigoFields";
@@ -44,7 +45,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import AprovacaoBanner from "@/components/AprovacaoBanner";
-import { Trash2, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw, Tags } from "lucide-react";
+import { Trash2, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw, Tags, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import {
   orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta,
@@ -68,6 +69,7 @@ export default function OrcamentoDetail() {
   const nav = useNavigate();
   const [tab, setTab] = useDetailTab(["orcamento", "ficheiros", "historico"], "orcamento");
   const [orc, setOrc] = useState(null);
+  const [calcOpen, setCalcOpen] = useState(false);
   const [artigos, setArtigos] = useState([]);
   const [tipos, setTipos] = useState([]);
   const [maquinas, setMaquinas] = useState([]);
@@ -948,6 +950,11 @@ export default function OrcamentoDetail() {
   const st = orcStatus(orc);
   const editavelEstado = orcEditavel(orc);
   const editavel = modo.ativo;
+  const aplicarCalculadora = (i, res) => {
+    updLinha(i, { preco_unit: res.unit, preco_unit_manual: true, preco_origem: "manual", quantidade: res.quantidade });
+    setCalcOpen(false);
+    toast.success(`Preço ${res.unit.toFixed(2)} € aplicado (${res.tecnica})`);
+  };
   const aplicarTabelas = async () => {
     const linhas = orc.linhas || [];
     const idx = linhas.map((l, i) => (l.artigo_id ? i : -1)).filter((i) => i >= 0);
@@ -2008,11 +2015,13 @@ export default function OrcamentoDetail() {
         onChange={(vals) => upd({ campos_extra: vals })}
       />
 
-      {editavel && (orc.linhas || []).some((l) => l.artigo_id) && (
-        <div className="flex justify-end mb-2">
-          <button type="button" onClick={aplicarTabelas} className="btn btn-secundario btn-sm" data-testid="orc-aplicar-tabelas" title="Aplica preços especiais e descontos por quantidade definidos em Catálogo → Tabelas de preços">
+      <CalculadoraDialog open={calcOpen} onClose={() => setCalcOpen(false)} linhas={orc.linhas || []} onAplicar={aplicarCalculadora} />
+      {editavel && (orc.linhas || []).length > 0 && (
+        <div className="flex justify-end gap-2 mb-2">
+          <button type="button" onClick={() => setCalcOpen(true)} className="btn btn-secundario btn-sm" data-testid="orc-calculadora"><Calculator size={14} /> Calculadora de preço</button>
+          {(orc.linhas || []).some((l) => l.artigo_id) && <button type="button" onClick={aplicarTabelas} className="btn btn-secundario btn-sm" data-testid="orc-aplicar-tabelas" title="Aplica preços especiais e descontos por quantidade definidos em Catálogo → Tabelas de preços">
             <Tags size={14} /> Aplicar tabelas de preços
-          </button>
+          </button>}
         </div>
       )}
       <OrcamentoTotais

@@ -245,3 +245,14 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   (método multibanco/mbway, recibo, `apos_pagamento`). Precisa de `BACKEND_PUBLIC_URL` para o URL do callback.
 - Lembretes de orçamentos (alerta «orcamento_follow_up», dias configuráveis): enviados sem resposta há X dias ou a
   expirar em X dias. Verificado no ciclo de 5 minutos, com prazos.
+
+## Calculadora, custos de fornecedor e loja online
+
+- Calculadora de preços (`/calculadora`, botão no orçamento que aplica a uma linha): técnicas em
+  `services/tecnicas_preco.py` (DTF ao metro linear com encaixe na largura útil, área, tempo de máquina, fornecedor
+  custo+IVA+margem); cálculo em `lib/calculadoraPreco.js`. Administradores editam os parâmetros na página.
+- Custos de fornecedor (`/precos-fornecedor`): Excel/CSV → escolher colunas (deteta «Ref» e «-500») → compara com
+  `artigo.cod_fornecedor` do fornecedor → aplica `custo_artigo` (e `preco_compra`). O preço de venda segue a margem.
+- WooCommerce do ERP para a loja: `enviar_stock`, `enviar_preco` (produto pelo SKU = código do artigo; guarda
+  `woo_id`), `concluir_no_site` (encomenda entregue → pedido «completed»). Artigos alterados ficam `woo_pendente` e são
+  enviados no ciclo de 5 minutos; «Enviar tudo agora» em Integrações. Chaves com permissão de escrita.

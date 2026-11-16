@@ -45,6 +45,8 @@ import {
   Tags,
   Warehouse,
   Gauge,
+  Calculator,
+  RefreshCcw,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -53,6 +55,7 @@ const NAV_GROUPS = [
     label: "Operações",
     items: [
       { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos", modulo: "orcamentos" },
+      { to: "/calculadora", label: "Calculadora de preços", icon: Calculator, tid: "nav-calculadora", modulo: "orcamentos" },
       { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
       { to: "/pedidos-cotacao", label: "Pedidos de Cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
       { to: "/ordens-compra", label: "Ordens de Compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
@@ -72,6 +75,7 @@ const NAV_GROUPS = [
       { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
       { to: "/categorias", label: "Categorias", icon: Layers, tid: "nav-categorias", modulo: "artigos" },
       { to: "/tabelas-precos", label: "Tabelas de preços", icon: Tags, tid: "nav-tabelas-precos", modulo: "artigos" },
+      { to: "/precos-fornecedor", label: "Custos de fornecedor", icon: RefreshCcw, tid: "nav-precos-fornecedor", modulo: "artigos" },
       { to: "/maquinas", label: "Máquinas", icon: Cog, tid: "nav-maquinas", modulo: "maquinas" },
       { to: "/mao-obra", label: "Mão de Obra", icon: Users, tid: "nav-mao-obra", modulo: "mao_obra" },
       { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao", modulo: "personalizacao" },

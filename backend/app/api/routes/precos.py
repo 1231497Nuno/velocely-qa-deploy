@@ -1,10 +1,10 @@
 """Tabelas de preços (Catálogo → Tabelas de preços)."""
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.core.security import get_current_user, require_perm
+from app.core.security import get_current_user, require_admin, require_perm
 from app.repositories import tabelas_precos_repo
 from app.services import audit
 from app.services import precos as svc
@@ -110,3 +110,38 @@ async def pdf_guia(gid: str, _u: dict = Depends(require_perm("encomendas", "view
     emp = await empresa_repo.find_one({"id": "empresa"}) or {}
     return StreamingResponse(BytesIO(guias_svc.pdf(g, emp)), media_type="application/pdf",
                              headers={"Content-Disposition": f'inline; filename="{(g.get("numero") or "guia").replace("/", "-")}.pdf"'})
+
+
+# ---------------- Calculadora por técnica ----------------
+@router.get("/tecnicas-preco")
+async def tecnicas_listar(_u: dict = Depends(require_perm("orcamentos", "view"))):
+    from app.services import tecnicas_preco
+    return await tecnicas_preco.listar()
+
+
+@router.put("/tecnicas-preco")
+async def tecnicas_guardar(dados: dict, _a: dict = Depends(require_admin)):
+    from app.services import tecnicas_preco
+    return await tecnicas_preco.guardar(dados.get("tecnicas") or [])
+
+
+# ---------------- Tabelas de preços dos fornecedores ----------------
+@router.post("/precos-fornecedor/ler")
+async def pf_ler(ficheiro: UploadFile = File(...), _u: dict = Depends(require_perm("artigos", "edit"))):
+    from app.services import precos_fornecedor
+    dados = await ficheiro.read()
+    if len(dados) > 25 * 1024 * 1024:
+        raise HTTPException(400, "Ficheiro demasiado grande (máx. 25 MB)")
+    return await precos_fornecedor.ler(ficheiro.filename or "tabela.csv", dados)
+
+
+@router.post("/precos-fornecedor/previsao")
+async def pf_previsao(dados: dict, _u: dict = Depends(require_perm("artigos", "edit"))):
+    from app.services import precos_fornecedor
+    return await precos_fornecedor.previsao(dados)
+
+
+@router.post("/precos-fornecedor/aplicar")
+async def pf_aplicar(dados: dict, user: dict = Depends(require_perm("artigos", "edit"))):
+    from app.services import precos_fornecedor
+    return await precos_fornecedor.aplicar(dados, user)

@@ -64,6 +64,13 @@ class SiteBody(BaseModel):
     novo_token: bool = False
 
 
+@router.post("/integracoes/woocommerce/enviar")
+async def enviar_loja(_a: dict = Depends(require_admin)):
+    """Envia já o stock e/ou preços de todos os artigos para a loja."""
+    from app.services.integracoes import enviar_para_loja
+    return await enviar_para_loja()
+
+
 @router.put("/integracoes/site")
 async def put_site(body: SiteBody, _a: dict = Depends(require_admin)):
     return await svc.guardar_site(body.model_dump(exclude_unset=True))

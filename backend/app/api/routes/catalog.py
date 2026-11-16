@@ -441,6 +441,7 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     update.pop("pai_id", None)  # vínculo de variante só via endpoint dedicado
     nome_user = (user.get("nome") or user.get("email") or "").strip()
     update["updated_at"] = now_iso()
+    update["woo_pendente"] = True  # preço/stock a reenviar à loja (se ligado)
     update["updated_by"] = user.get("id")
     update["updated_by_nome"] = nome_user
     delta_stock = round(float(update.get("qtd_stock") or 0) - float(existing.get("qtd_stock") or 0), 4)

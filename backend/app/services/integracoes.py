@@ -46,6 +46,11 @@ WOO_DEFAULT = {
     "ultima_sincronizacao": None,
     "ultimo_pedido": None,
     "ultimo_erro": "",
+    # Envio para a loja (precisa de chaves com permissão de escrita)
+    "enviar_stock": False,
+    "enviar_preco": False,
+    "concluir_no_site": False,
+    "ultimo_envio": None,
 }
 SITE_DEFAULT = {"id": SITE_ID, "ativo": False, "token": "", "origem": "Site", "ultimo_pedido": None}
 
@@ -95,6 +100,9 @@ async def guardar_woo(dados: dict) -> dict:
         novo["ativo"] = bool(dados.get("ativo"))
     if "criar_clientes" in dados:
         novo["criar_clientes"] = bool(dados.get("criar_clientes"))
+    for k in ("enviar_stock", "enviar_preco", "concluir_no_site"):
+        if k in dados:
+            novo[k] = bool(dados.get(k))
     if dados.get("estados_importar") is not None:
         validos = {"pending", "processing", "on-hold", "completed"}
         est = [e for e in dados["estados_importar"] if e in validos]
@@ -611,3 +619,89 @@ async def receber_pedido_site(dados: Any, origem_pagina: str = "") -> dict:
     cfg["ultimo_pedido"] = {"at": ts, "nome": nome or empresa or email}
     await integracoes_repo.update_where({"id": SITE_ID}, cfg, upsert=True)
     return {"ok": True, "lead_id": lead["id"], "novo": True}
+
+
+
+# ---------------------------------------------------------------------------
+# ERP → loja: stock, preços e estado do pedido
+# ---------------------------------------------------------------------------
+def _woo_req(cfg: dict, metodo: str, caminho: str, json: Optional[dict] = None, params: Optional[dict] = None):
+    import requests
+    try:
+        r = requests.request(metodo, f"{cfg['url']}/wp-json/wc/v3/{caminho.lstrip('/')}", json=json, params=params or {},
+                             auth=(cfg["consumer_key"], cfg["consumer_secret"]), timeout=25,
+                             headers={"User-Agent": "Velocely-ERP/1.0"})
+    except requests.RequestException as ex:
+        raise HTTPException(502, f"Não foi possível ligar ao site: {ex.__class__.__name__}")
+    if r.status_code in (401, 403):
+        raise HTTPException(400, "O site recusou a alteração — a chave da API precisa de permissão de leitura e escrita")
+    if r.status_code >= 400:
+        raise HTTPException(502, f"O site respondeu com erro {r.status_code}")
+    return r.json() if r.content else {}
+
+
+async def _produto_woo(cfg: dict, a: dict) -> Optional[dict]:
+    """Produto (ou variação) da loja com o SKU do artigo; guarda o id no artigo."""
+    import asyncio
+    if a.get("woo_id"):
+        return {"id": a["woo_id"], "parent_id": a.get("woo_parent_id")}
+    for sku in [a.get(c) for c in ("codigo", "codigo_produto") if a.get(c)]:
+        res = await asyncio.to_thread(_woo_req, cfg, "GET", "products", None, {"sku": sku})
+        if res:
+            p = res[0]
+            await artigos_repo.update(a["id"], {"woo_id": p["id"], "woo_parent_id": p.get("parent_id") or None})
+            return {"id": p["id"], "parent_id": p.get("parent_id") or None}
+    return None
+
+
+async def enviar_para_loja(artigo_ids: Optional[List[str]] = None, *, so_pendentes: bool = False) -> dict:
+    import asyncio
+    from app.services.costing import artigo_breakdown
+    cfg = await get_woo(raw=True)
+    if not cfg.get("ativo") or not (cfg.get("enviar_stock") or cfg.get("enviar_preco")):
+        return {"enviados": 0, "sem_produto": 0, "erros": []}
+    q: Dict[str, Any] = {"id": {"$in": artigo_ids}} if artigo_ids else {}
+    if so_pendentes:
+        q["woo_pendente"] = True
+    resumo = {"enviados": 0, "sem_produto": 0, "erros": []}
+    for a in await artigos_repo.find(q, limit=5000):
+        try:
+            p = await _produto_woo(cfg, a)
+            if not p:
+                resumo["sem_produto"] += 1
+                await artigos_repo.update(a["id"], {"woo_pendente": False})
+                continue
+            corpo: Dict[str, Any] = {}
+            if cfg.get("enviar_stock") and a.get("gere_stock"):
+                corpo.update({"manage_stock": True, "stock_quantity": int(max(0, float(a.get("qtd_stock") or 0)))})
+            if cfg.get("enviar_preco"):
+                bd = await artigo_breakdown(a)
+                if bd.get("preco_venda"):
+                    corpo["regular_price"] = f"{float(bd['preco_venda']):.2f}"
+            if corpo:
+                caminho = f"products/{p['parent_id']}/variations/{p['id']}" if p.get("parent_id") else f"products/{p['id']}"
+                await asyncio.to_thread(_woo_req, cfg, "PUT", caminho, corpo)
+                resumo["enviados"] += 1
+            await artigos_repo.update(a["id"], {"woo_pendente": False, "woo_enviado_at": now_iso()})
+        except HTTPException as ex:
+            resumo["erros"].append(f"{a.get('codigo') or a.get('nome')}: {ex.detail}")
+    await integracoes_repo.update_where({"id": WOO_ID}, {"ultimo_envio": {"at": now_iso(), **{k: v for k, v in resumo.items() if k != "erros"},
+                                                                          "erros": resumo["erros"][:5]}})
+    return resumo
+
+
+async def concluir_pedido_loja(enc: dict) -> None:
+    """Encomenda da loja entregue → marca o pedido como concluído no WooCommerce."""
+    import asyncio
+    oe = enc.get("origem_externa") or {}
+    if oe.get("canal") != "woocommerce" or not oe.get("id"):
+        return
+    cfg = await get_woo(raw=True)
+    if not cfg.get("ativo") or not cfg.get("concluir_no_site"):
+        return
+    try:
+        await asyncio.to_thread(_woo_req, cfg, "PUT", f"orders/{oe['id']}", {"status": "completed"})
+        await encomendas_repo.update(enc["id"], {"origem_externa.estado": "completed"})
+    except HTTPException as ex:
+        import logging
+        logging.getLogger(__name__).warning("Não foi possível concluir o pedido %s na loja: %s", oe.get("numero"), ex.detail)
