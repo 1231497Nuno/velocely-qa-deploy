@@ -16,6 +16,8 @@ import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import EntitySelect from "@/components/EntitySelect";
+import ImportarPdfOC from "./ImportarPdfOC";
+import { FileUp } from "lucide-react";
 
 const TIPO_DESPESA_LABEL = {
   compra: "Compra",
@@ -28,6 +30,7 @@ export default function OrdensCompra() {
   const { can } = useAuth();
   const nav = useNavigate();
   const [tipoFilter, setTipoFilter] = useState("");
+  const [importarPdf, setImportarPdf] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState("");
   const [fornecedorFilter, setFornecedorFilter] = useState("");
   const [fornecedores, setFornecedores] = useState([]);
@@ -73,6 +76,8 @@ export default function OrdensCompra() {
   };
 
   return (
+    <>
+    <ImportarPdfOC open={importarPdf} onOpenChange={setImportarPdf} />
     <ListPage
       header={
         <PageHeader
@@ -81,6 +86,11 @@ export default function OrdensCompra() {
           actions={
             <>
               <ExportExcelButton entity="ordens_compra" ids={items.map((x) => x.id)} />
+              {can("ordens_compra", "create") && (
+                <button type="button" data-testid="oc-importar-pdf-btn" onClick={() => setImportarPdf(true)} className="btn btn-secundario">
+                  <FileUp size={16} /> Criar a partir de PDF
+                </button>
+              )}
               {can("ordens_compra", "create") && (
                 <button
                   data-testid="new-ordem-compra-btn"
@@ -230,5 +240,6 @@ export default function OrdensCompra() {
         )}
       </MobileCards>
     </ListPage>
+    </>
   );
 }
