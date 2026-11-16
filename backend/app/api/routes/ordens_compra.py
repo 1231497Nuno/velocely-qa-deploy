@@ -210,6 +210,13 @@ async def delete_ordem_compra(oid: str, user: dict = Depends(require_perm("orden
 # ---------------------------------------------------------------------------
 # Receções (parciais) e fatura do fornecedor
 # ---------------------------------------------------------------------------
+@router.post("/ordens-compra/rececoes-lote")
+async def receber_varias_oc(dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
+    """Receção conjunta de várias OC do mesmo fornecedor (ex.: uma entrega com várias encomendas)."""
+    from app.services import stock as stock_svc
+    return await stock_svc.receber_lote(dados, user)
+
+
 @router.post("/ordens-compra/{oid}/rececoes")
 async def receber_ordem_compra(oid: str, dados: dict, user: dict = Depends(require_perm("ordens_compra", "edit"))):
     from app.services import stock as stock_svc

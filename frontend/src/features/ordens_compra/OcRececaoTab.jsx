@@ -4,6 +4,7 @@ import { PackageCheck, Receipt, CheckCircle2, AlertTriangle } from "lucide-react
 import { api, eur, fmtDate } from "@/lib/api";
 import EntitySelect from "@/components/EntitySelect";
 import { useLocalizacoes } from "@/features/stock/StockLocais";
+import RececaoVariasOC from "./RececaoVariasOC";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -20,6 +21,7 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
   const [rec, setRec] = useState(null);
   const [ff, setFf] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [varias, setVarias] = useState(false);
   const [locs] = useLocalizacoes();
   const linhas = oc.linhas || [];
   const falta = (l) => Math.max(0, (Number(l.quantidade) || 0) - (Number(l.qtd_recebida) || 0));
@@ -57,6 +59,7 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
 
   return (
     <div className="space-y-4" data-testid="oc-rececao">
+      <RececaoVariasOC open={varias} onOpenChange={setVarias} ocInicial={oc.id} onFeito={onChanged} />
       <div className="bg-white border border-gray-200 rounded-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
           <div className="font-semibold text-sm">Linhas — encomendado vs recebido</div>
@@ -64,6 +67,9 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
             <div className="flex gap-2">
               <button type="button" className="btn btn-primario" disabled={tudoRecebido} onClick={abrirRececao} data-testid="oc-btn-rececao">
                 <PackageCheck size={15} /> Registar receção
+              </button>
+              <button type="button" className="btn btn-secundario" disabled={tudoRecebido} onClick={() => setVarias(true)} data-testid="oc-btn-rececao-varias" title="Receber esta e outras encomendas do mesmo fornecedor na mesma entrega">
+                <PackageCheck size={15} /> Com outras do fornecedor
               </button>
               <button type="button" className="btn btn-secundario" onClick={() => setFf({ numero: fat?.numero || "", data: fat?.data || hoje(), total: fat?.total ?? "", portes: fat?.portes ?? 0, notas: fat?.notas || "" })} data-testid="oc-btn-fatura">
                 <Receipt size={15} /> Fatura do fornecedor

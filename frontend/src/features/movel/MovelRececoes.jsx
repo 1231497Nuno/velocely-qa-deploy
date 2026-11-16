@@ -122,19 +122,15 @@ export function MovelRececao() {
     const excesso = todas.filter((l) => Number(qtd[l.k]) > l.falta + 1e-9);
     if (excesso.length && !(await confirm({ title: "Chegou mais do que o encomendado?", description: excesso.map((l) => `${l.nome}: ${num(qtd[l.k])} (faltavam ${num(l.falta)})`).join("\n"), confirmLabel: "Sim, receber a mais" }))) return;
     setBusy(true);
-    const feitas = [];
     try {
-      for (const [ocId, ls] of porOc) {
-        const r = await api.post(`/ordens-compra/${ocId}/rececoes`, {
-          linhas: ls.map((l) => ({ linha_id: l.id, quantidade: Number(qtd[l.k]) })), localizacao_id: loc || null, guia_fornecedor: guia, aceitar_excesso: excesso.length > 0,
-        });
-        feitas.push(`${r.codigo}${r.estado === "recebida" ? " (completa)" : ""}`);
-      }
-      toast.success(`Receção registada: ${feitas.join(", ")}`);
+      const r = await api.post("/ordens-compra/rececoes-lote", {
+        localizacao_id: loc || null, guia_fornecedor: guia, aceitar_excesso: excesso.length > 0,
+        ocs: [...porOc].map(([ocId, ls]) => ({ oc_id: ocId, linhas: ls.map((l) => ({ linha_id: l.id, quantidade: Number(qtd[l.k]) })) })),
+      });
+      toast.success(`Receção registada: ${r.rececoes.map((x) => `${x.codigo}${x.estado === "recebida" ? " (completa)" : ""}`).join(", ")}`);
       nav("/m/rececoes", { replace: true });
     } catch (e) {
       erro(e, "Não foi possível registar a receção");
-      if (feitas.length) toast.message(`Já registadas: ${feitas.join(", ")}`);
     } finally { setBusy(false); }
   };
 
