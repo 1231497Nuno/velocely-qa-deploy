@@ -310,3 +310,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   `<option>`). `InlineSelect` com mais de 6 opções também.
 - Fornecedor do artigo escolhido da base de dados (`fornecedor_id`, `FornecedorSelect`, `lib/useFornecedores`).
 - Responsável (clientes, fornecedores, artigos): `components/UtilizadorSelect.jsx` (lista de utilizadores; guarda o nome).
+
+## Localizações de stock
+
+- `localizacoes` (Stock → Localizações): nome, código, descrição, por defeito (★), inativa. `stock.local_padrao()` cria
+  «Armazém» na primeira utilização.
+- Stock por localização em `artigo.stock_local {loc_id: qtd}`; `qtd_stock` continua a ser o total. `stock_por_local()`
+  põe diferenças antigas na localização do artigo (`artigo.localizacao_id`, por defeito a da empresa).
+- `movimentar(..., localizacao_id)`; movimentos guardam `localizacao_id` e `saldo_local`. Transferência:
+  `POST /stock/transferir` (dois movimentos «transferencia»). Acerto por localização (`/stock/ajuste` com
+  `localizacao_id`). Receção da OC: «Arrumar em». Inventário: uma linha por artigo × localização (`chave`); o CSV da AT soma.
+- Ficha do artigo (bloco Stock): «Stock por localização» com reservado/disponível, transferir, acertar, localização das
+  entradas e últimos movimentos (`GET /stock/artigos/{id}`).

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ClipboardCheck, FileDown, Lock, Plus, Settings2, ShoppingCart, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowRightLeft, ClipboardCheck, FileDown, Lock, MapPin, Pencil, Plus, Settings2, ShoppingCart, SlidersHorizontal, Star, Trash2 } from "lucide-react";
 import { API, api, eur, fmtDate } from "@/lib/api";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +9,8 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { PageHeader } from "@/components/Layout";
 import DetailTabs from "@/components/DetailTabs";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
+import EntitySelect from "@/components/EntitySelect";
+import { AjusteLocalDialog, TransferirDialog, useLocalizacoes, limparCacheLocalizacoes } from "./StockLocais";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -19,7 +21,7 @@ const erro = (e, msg) => {
   const d = e?.response?.data?.detail;
   toast.error(typeof d === "string" ? d : msg);
 };
-const TIPO_MOV = { entrada: "Entrada (receção)", ajuste: "Acerto", inventario: "Inventário", nao_conformidade: "Não conformidade", consumo: "Consumo (produção)", producao: "Produção" };
+const TIPO_MOV = { transferencia: "Transferência", entrada: "Entrada (receção)", ajuste: "Acerto", inventario: "Inventário", nao_conformidade: "Não conformidade", consumo: "Consumo (produção)", producao: "Produção" };
 const ESTADO = {
   ok: { label: "OK", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   abaixo: { label: "Abaixo do nível", cls: "bg-amber-50 text-amber-800 border-amber-200" },
@@ -27,7 +29,8 @@ const ESTADO = {
 };
 
 function ConfigDialog({ artigo, onClose, onSaved }) {
-  const [f, setF] = useState({ unidade_compra: artigo.unidade_compra || "", fator_compra: artigo.fator_compra || 1, nivel_reabastecimento: artigo.nivel_reabastecimento || 0, localizacao: artigo.localizacao || "" });
+  const [f, setF] = useState({ unidade_compra: artigo.unidade_compra || "", fator_compra: artigo.fator_compra || 1, nivel_reabastecimento: artigo.nivel_reabastecimento || 0, localizacao_id: artigo.localizacao_id || "" });
+  const [locs] = useLocalizacoes();
   const [busy, setBusy] = useState(false);
   const guardar = async (gere = true) => {
     setBusy(true);
@@ -47,7 +50,7 @@ function ConfigDialog({ artigo, onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-3">
           <div><label className="text-xs font-medium text-gray-600">Unidade de compra</label><input className={inputCls} placeholder={artigo.unidade || "un"} value={f.unidade_compra} onChange={(e) => setF({ ...f, unidade_compra: e.target.value })} data-testid="cfg-unidade-compra" /></div>
           <div><label className="text-xs font-medium text-gray-600">1 {f.unidade_compra || "un. compra"} = … {artigo.unidade || "un"}</label><input type="number" min="0" step="any" className={inputCls} value={f.fator_compra} onChange={(e) => setF({ ...f, fator_compra: e.target.value })} data-testid="cfg-fator" /></div>
-          <div className="col-span-2"><label className="text-xs font-medium text-gray-600">Localização no armazém</label><input className={inputCls} placeholder="Ex.: Estante A, prateleira 3" value={f.localizacao} onChange={(e) => setF({ ...f, localizacao: e.target.value })} data-testid="cfg-localizacao" /></div>
+          <div className="col-span-2"><label className="text-xs font-medium text-gray-600">Localização por defeito (para onde vão as entradas)</label><EntitySelect items={locs} value={f.localizacao_id} onChange={(id) => setF({ ...f, localizacao_id: id })} placeholder="Armazém (por defeito)" testid="cfg-localizacao" /></div>
           <div className="col-span-2"><label className="text-xs font-medium text-gray-600">Nível de reabastecimento ({artigo.unidade || "un"})</label><input type="number" min="0" step="any" className={inputCls} value={f.nivel_reabastecimento} onChange={(e) => setF({ ...f, nivel_reabastecimento: e.target.value })} data-testid="cfg-nivel" />
             <p className="text-xs text-gray-500 mt-1">Abaixo deste valor (contando o que está em compra e o que as encomendas abertas vão gastar) o artigo aparece nas sugestões de compra.</p></div>
         </div>
@@ -61,38 +64,6 @@ function ConfigDialog({ artigo, onClose, onSaved }) {
   );
 }
 
-function AjusteDialog({ artigo, onClose, onSaved }) {
-  const [qtd, setQtd] = useState(artigo.qtd_stock);
-  const [motivo, setMotivo] = useState("");
-  const [busy, setBusy] = useState(false);
-  const guardar = async () => {
-    if (!motivo.trim()) { toast.error("Indique o motivo do acerto"); return; }
-    setBusy(true);
-    try {
-      await api.post("/stock/ajuste", { artigo_id: artigo.id, nova_quantidade: Number(qtd) || 0, motivo });
-      toast.success("Stock acertado");
-      onSaved();
-    } catch (e) { erro(e, "Não foi possível acertar"); } finally { setBusy(false); }
-  };
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Acertar stock</DialogTitle>
-          <DialogDescription>{artigo.nome} — atual {num(artigo.qtd_stock)} {artigo.unidade}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div><label className="text-xs font-medium text-gray-600">Quantidade real ({artigo.unidade})</label><input type="number" step="any" className={inputCls} value={qtd} onChange={(e) => setQtd(e.target.value)} data-testid="ajuste-qtd" /></div>
-          <div><label className="text-xs font-medium text-gray-600">Motivo</label><input className={inputCls} placeholder="Ex.: quebra, contagem, oferta" value={motivo} onChange={(e) => setMotivo(e.target.value)} data-testid="ajuste-motivo" /></div>
-        </div>
-        <DialogFooter>
-          <button type="button" className="btn btn-secundario" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn btn-primario" disabled={busy} onClick={guardar} data-testid="ajuste-guardar">Acertar</button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function TabStock({ podeEditar, verCustos }) {
   const [dados, setDados] = useState({ items: [], valor_total: 0 });
@@ -100,8 +71,11 @@ function TabStock({ podeEditar, verCustos }) {
   const [filtro, setFiltro] = useState("todos");
   const [cfg, setCfg] = useState(null);
   const [aj, setAj] = useState(null);
+  const [tr, setTr] = useState(null);
+  const [loc, setLoc] = useState("");
+  const [locs] = useLocalizacoes();
   const [artigos, setArtigos] = useState([]);
-  const carregar = useCallback(() => api.get(`/stock?filtro=${filtro}&q=${encodeURIComponent(q)}`).then(setDados).catch(() => toast.error("Não foi possível carregar o stock")), [filtro, q]);
+  const carregar = useCallback(() => api.get(`/stock?filtro=${filtro}&q=${encodeURIComponent(q)}&localizacao=${loc}`).then(setDados).catch(() => toast.error("Não foi possível carregar o stock")), [filtro, q, loc]);
   useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t); }, [carregar]);
   useEffect(() => { if (podeEditar) api.get("/artigos?lite=1").then((r) => setArtigos((Array.isArray(r) ? r : r.items || []).filter((a) => a.tipo_artigo !== "servico"))).catch(() => {}); }, [podeEditar]);
   return (
@@ -111,6 +85,7 @@ function TabStock({ podeEditar, verCustos }) {
         <select className={`${inputCls} w-auto`} value={filtro} onChange={(e) => setFiltro(e.target.value)} data-testid="stock-filtro">
           <option value="todos">Todos</option><option value="abaixo">Abaixo do nível</option><option value="negativo">Negativos</option>
         </select>
+        <div className="w-56"><EntitySelect items={locs} value={loc} onChange={(id) => setLoc(id || "")} clearLabel="Todas as localizações" placeholder="Todas as localizações" testid="stock-filtro-local" /></div>
         {podeEditar && (
           <div className="w-72"><ArtigoCombobox artigos={artigos} value="" permitirCriar={false} placeholder="Ativar stock noutro artigo…" testid="stock-add-artigo"
             onChange={(a) => a && setCfg({ ...a, qtd_stock: a.qtd_stock || 0, gere_stock: false })} /></div>
@@ -126,9 +101,10 @@ function TabStock({ podeEditar, verCustos }) {
           <tbody>
             {dados.items.map((a) => (
               <tr key={a.id} className="border-t border-gray-100" data-testid={`stock-row-${a.id}`}>
-                <td className="px-3 py-2"><div className="font-medium">{a.nome}</div><div className="text-xs text-gray-400">{a.codigo}{a.localizacao ? ` · ${a.localizacao}` : ""}</div></td>
+                <td className="px-3 py-2"><div className="font-medium">{a.nome}</div><div className="text-xs text-gray-400">{a.codigo}</div>
+                  {a.por_local?.length > 0 && <div className="text-xs text-gray-500 flex flex-wrap gap-x-2"><MapPin size={11} className="mt-0.5" />{a.por_local.map((p) => <span key={p.id}>{p.nome}: <b className="tabular-nums">{num(p.quantidade)}</b></span>)}</div>}</td>
                 <td className="px-3 text-gray-600">{a.fornecedor_nome || "—"}</td>
-                <td className="px-3 text-right tabular-nums font-medium">{num(a.qtd_stock)} <span className="text-xs text-gray-400">{a.unidade}</span></td>
+                <td className="px-3 text-right tabular-nums font-medium">{loc ? <>{num(a.qtd_local)} <span className="text-xs text-gray-400">de {num(a.qtd_stock)}</span></> : num(a.qtd_stock)} <span className="text-xs text-gray-400">{a.unidade}</span></td>
                 <td className="px-3 text-right tabular-nums text-gray-600">{a.reservado ? num(a.reservado) : "—"}</td>
                 <td className={`px-3 text-right tabular-nums ${a.disponivel < 0 ? "text-red-700 font-medium" : ""}`}>{num(a.disponivel)}</td>
                 <td className="px-3 text-right tabular-nums text-gray-600">{a.nivel_reabastecimento ? num(a.nivel_reabastecimento) : "—"}</td>
@@ -138,6 +114,7 @@ function TabStock({ podeEditar, verCustos }) {
                 <td className="px-3"><span className={`inline-block text-xs border rounded-sm px-1.5 py-0.5 ${ESTADO[a.estado].cls}`}>{ESTADO[a.estado].label}</span></td>
                 <td className="px-3 text-right whitespace-nowrap">
                   {podeEditar && <>
+                    <button type="button" className="p-1.5 text-gray-500 hover:text-gray-900" title="Transferir entre localizações" onClick={() => setTr(a)} disabled={!a.por_local?.length} data-testid={`stock-transf-${a.id}`}><ArrowRightLeft size={15} /></button>
                     <button type="button" className="p-1.5 text-gray-500 hover:text-gray-900" title="Acertar stock" onClick={() => setAj(a)} data-testid={`stock-ajuste-${a.id}`}><SlidersHorizontal size={15} /></button>
                     <button type="button" className="p-1.5 text-gray-500 hover:text-gray-900" title="Unidade de compra e nível" onClick={() => setCfg(a)} data-testid={`stock-cfg-${a.id}`}><Settings2 size={15} /></button>
                   </>}
@@ -149,7 +126,8 @@ function TabStock({ podeEditar, verCustos }) {
         </table>
       </div>
       {cfg && <ConfigDialog artigo={cfg} onClose={() => setCfg(null)} onSaved={() => { setCfg(null); carregar(); }} />}
-      {aj && <AjusteDialog artigo={aj} onClose={() => setAj(null)} onSaved={() => { setAj(null); carregar(); }} />}
+      {aj && <AjusteLocalDialog artigo={aj} porLocal={aj.por_local || []} localInicial={loc || aj.localizacao_id} onClose={() => setAj(null)} onSaved={() => { setAj(null); carregar(); }} />}
+      {tr && <TransferirDialog artigo={tr} porLocal={tr.por_local || []} onClose={() => setTr(null)} onSaved={() => { setTr(null); carregar(); }} />}
     </div>
   );
 }
@@ -158,11 +136,12 @@ function TabMovimentos() {
   const [movs, setMovs] = useState([]);
   useEffect(() => { api.get("/stock/movimentos?limit=500").then(setMovs).catch(() => toast.error("Não foi possível carregar os movimentos")); }, []);
   const nav = useNavigate();
+  const [locs] = useLocalizacoes();
   return (
     <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="text-xs text-gray-500 bg-gray-50">
-          <tr><th className="text-left px-3 py-2">Data</th><th className="text-left px-3">Artigo</th><th className="text-left px-3">Tipo</th><th className="text-right px-3">Quantidade</th><th className="text-right px-3">Saldo</th><th className="text-left px-3">Origem</th><th className="text-left px-3">Por</th></tr>
+          <tr><th className="text-left px-3 py-2">Data</th><th className="text-left px-3">Artigo</th><th className="text-left px-3">Tipo</th><th className="text-right px-3">Quantidade</th><th className="text-right px-3">Saldo</th><th className="text-left px-3">Localização</th><th className="text-left px-3">Origem</th><th className="text-left px-3">Por</th></tr>
         </thead>
         <tbody>
           {movs.map((m) => (
@@ -172,6 +151,7 @@ function TabMovimentos() {
               <td className="px-3 text-gray-600">{TIPO_MOV[m.tipo] || m.tipo}</td>
               <td className={`px-3 text-right tabular-nums font-medium ${m.quantidade < 0 ? "text-red-700" : "text-emerald-700"}`}>{m.quantidade > 0 ? "+" : ""}{num(m.quantidade)}</td>
               <td className="px-3 text-right tabular-nums">{num(m.saldo)}</td>
+              <td className="px-3 text-gray-600">{locs.find((l) => l.id === m.localizacao_id)?.nome || "—"}</td>
               <td className="px-3">
                 {m.origem?.tipo === "oc" ? <button type="button" className="text-brand hover:underline" onClick={() => nav(`/ordens-compra/${m.origem.id}`)}>{m.origem.numero}</button>
                   : m.origem?.numero || m.nota || "—"}
@@ -179,7 +159,7 @@ function TabMovimentos() {
               <td className="px-3 text-gray-500">{m.por?.nome || "—"}</td>
             </tr>
           ))}
-          {!movs.length && <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Sem movimentos</td></tr>}
+          {!movs.length && <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Sem movimentos</td></tr>}
         </tbody>
       </table>
     </div>
@@ -250,7 +230,7 @@ function InventarioDetalhe({ id, podeEditar, verCustos, onVoltar }) {
   const confirm = useConfirm();
   const carregar = useCallback(() => api.get(`/inventarios/${id}`).then((r) => {
     setInv(r);
-    setCont(Object.fromEntries(r.linhas.map((l) => [l.artigo_id, l.qtd_contada ?? ""])));
+    setCont(Object.fromEntries(r.linhas.map((l) => [l.chave || l.artigo_id, l.qtd_contada ?? ""])));
   }), [id]);
   useEffect(() => { carregar().catch(() => toast.error("Não foi possível abrir o inventário")); }, [carregar]);
   if (!inv) return null;
@@ -258,7 +238,7 @@ function InventarioDetalhe({ id, podeEditar, verCustos, onVoltar }) {
   const guardar = async () => {
     setBusy(true);
     try {
-      await api.put(`/inventarios/${id}/contagens`, { contagens: inv.linhas.map((l) => ({ artigo_id: l.artigo_id, qtd_contada: cont[l.artigo_id] === "" ? null : Number(cont[l.artigo_id]) })) });
+      await api.put(`/inventarios/${id}/contagens`, { contagens: inv.linhas.map((l) => { const k = l.chave || l.artigo_id; return { chave: k, artigo_id: l.artigo_id, qtd_contada: cont[k] === "" || cont[k] == null ? null : Number(cont[k]) }; }) });
       toast.success("Contagens guardadas");
       await carregar();
     } catch (e) { erro(e, "Não foi possível guardar"); } finally { setBusy(false); }
@@ -275,8 +255,8 @@ function InventarioDetalhe({ id, podeEditar, verCustos, onVoltar }) {
     } catch (e) { erro(e, "Não foi possível fechar"); } finally { setBusy(false); }
   };
   const ql = q.trim().toLowerCase();
-  const linhas = inv.linhas.filter((l) => !ql || `${l.codigo} ${l.nome}`.toLowerCase().includes(ql));
-  const contados = inv.linhas.filter((l) => cont[l.artigo_id] !== "" && cont[l.artigo_id] !== null && cont[l.artigo_id] !== undefined).length;
+  const linhas = inv.linhas.filter((l) => !ql || `${l.codigo} ${l.nome} ${l.localizacao || ""}`.toLowerCase().includes(ql));
+  const contados = inv.linhas.filter((l) => { const v = cont[l.chave || l.artigo_id]; return v !== "" && v !== null && v !== undefined; }).length;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -295,17 +275,19 @@ function InventarioDetalhe({ id, podeEditar, verCustos, onVoltar }) {
       <input className={`${inputCls} max-w-xs`} placeholder="Procurar…" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-xs text-gray-500 bg-gray-50"><tr><th className="text-left px-3 py-2">Artigo</th><th className="text-right px-3">Teórico</th><th className="text-right px-3">Contado</th><th className="text-right px-3">Diferença</th>{verCustos && <th className="text-right px-3 dado-custo">Custo</th>}{verCustos && !aberto && <th className="text-right px-3 dado-custo">Valor</th>}</tr></thead>
+          <thead className="text-xs text-gray-500 bg-gray-50"><tr><th className="text-left px-3 py-2">Artigo</th><th className="text-left px-3">Localização</th><th className="text-right px-3">Teórico</th><th className="text-right px-3">Contado</th><th className="text-right px-3">Diferença</th>{verCustos && <th className="text-right px-3 dado-custo">Custo</th>}{verCustos && !aberto && <th className="text-right px-3 dado-custo">Valor</th>}</tr></thead>
           <tbody>
             {linhas.map((l) => {
-              const c = cont[l.artigo_id];
+              const k = l.chave || l.artigo_id;
+              const c = cont[k];
               const dif = c === "" || c === null || c === undefined ? null : Number(c) - l.qtd_teorica;
               return (
-                <tr key={l.artigo_id} className="border-t border-gray-100">
+                <tr key={k} className="border-t border-gray-100">
                   <td className="px-3 py-1.5"><div className="font-medium">{l.nome}</div><div className="text-xs text-gray-400">{l.codigo} · {l.unidade}</div></td>
+                  <td className="px-3 text-gray-600">{l.localizacao || "—"}</td>
                   <td className="px-3 text-right tabular-nums">{num(l.qtd_teorica)}</td>
                   <td className="px-3 text-right">
-                    {aberto && podeEditar ? <input type="number" step="any" className={`${inputCls} w-24 text-right inline-block`} value={c ?? ""} onChange={(e) => setCont({ ...cont, [l.artigo_id]: e.target.value })} data-testid={`inv-cont-${l.artigo_id}`} />
+                    {aberto && podeEditar ? <input type="number" step="any" className={`${inputCls} w-24 text-right inline-block`} value={c ?? ""} onChange={(e) => setCont({ ...cont, [k]: e.target.value })} data-testid={`inv-cont-${k}`} />
                       : <span className="tabular-nums">{c === "" || c === null ? "—" : num(c)}</span>}
                   </td>
                   <td className={`px-3 text-right tabular-nums ${dif ? (dif < 0 ? "text-red-700" : "text-emerald-700") : "text-gray-400"}`}>{dif === null ? "—" : `${dif > 0 ? "+" : ""}${num(dif)}`}</td>
@@ -364,6 +346,63 @@ function TabInventarios({ podeEditar, verCustos }) {
   );
 }
 
+function TabLocalizacoes({ podeEditar, verCustos }) {
+  const [lista, setLista] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const confirm = useConfirm();
+  const carregar = () => api.get("/stock/localizacoes").then(setLista).catch(() => toast.error("Não foi possível carregar"));
+  useEffect(() => { carregar(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const guardar = async () => {
+    try {
+      if (edit.id) await api.put(`/stock/localizacoes/${edit.id}`, edit); else await api.post("/stock/localizacoes", edit);
+      limparCacheLocalizacoes(); setEdit(null); carregar(); toast.success("Localização guardada");
+    } catch (e) { erro(e, "Não foi possível guardar"); }
+  };
+  const apagar = async (l) => {
+    if (!(await confirm({ title: "Apagar localização?", description: l.nome, confirmLabel: "Apagar", tone: "danger" }))) return;
+    try { await api.del(`/stock/localizacoes/${l.id}`); limparCacheLocalizacoes(); carregar(); } catch (e) { erro(e, "Não foi possível apagar"); }
+  };
+  if (!lista) return null;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-gray-600 flex-1">Armazéns, estantes, prateleiras ou zonas onde guarda o material. Cada artigo tem stock por localização; as entradas vão para a localização por defeito do artigo (ou a da empresa, marcada com estrela).</p>
+        {podeEditar && <button type="button" className="btn btn-primario" onClick={() => setEdit({ nome: "", codigo: "", descricao: "" })} data-testid="loc-nova"><Plus size={15} /> Localização</button>}
+      </div>
+      <div className="bg-white border border-gray-200 rounded-sm divide-y divide-gray-100">
+        {lista.map((l) => (
+          <div key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
+            <MapPin size={16} className="text-gray-400" />
+            <div className="flex-1 min-w-[12rem]">
+              <div className="font-medium flex items-center gap-1.5">{l.nome}{l.codigo ? <span className="text-xs text-gray-400">{l.codigo}</span> : null}{l.padrao && <Star size={13} className="fill-amber-400 text-amber-500" title="Por defeito" />}{l.ativo === false && <span className="text-xs text-gray-400">(inativa)</span>}</div>
+              {l.descricao && <div className="text-xs text-gray-500">{l.descricao}</div>}
+            </div>
+            <span className="text-gray-600">{l.n_artigos} artigo(s)</span>
+            {verCustos && <span className="text-gray-600 tabular-nums dado-custo w-24 text-right">{eur(l.valor)}</span>}
+            {podeEditar && <>
+              <button type="button" className="p-1.5 text-gray-500" onClick={() => setEdit({ ...l })}><Pencil size={15} /></button>
+              {!l.padrao && <button type="button" className="p-1.5 text-gray-400 hover:text-red-600" onClick={() => apagar(l)}><Trash2 size={15} /></button>}
+            </>}
+          </div>
+        ))}
+      </div>
+      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{edit?.id ? "Editar localização" : "Nova localização"}</DialogTitle><DialogDescription>Ex.: «Armazém», «Estante A», «Loja», «Carrinha».</DialogDescription></DialogHeader>
+          {edit && <div className="space-y-2">
+            <label className="text-xs text-gray-600 block">Nome<input className={inputCls} value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} data-testid="loc-nome" /></label>
+            <label className="text-xs text-gray-600 block">Código (opcional)<input className={inputCls} value={edit.codigo || ""} onChange={(e) => setEdit({ ...edit, codigo: e.target.value })} placeholder="Ex.: A3" /></label>
+            <label className="text-xs text-gray-600 block">Descrição<input className={inputCls} value={edit.descricao || ""} onChange={(e) => setEdit({ ...edit, descricao: e.target.value })} /></label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!edit.padrao} onChange={(e) => setEdit({ ...edit, padrao: e.target.checked })} /> Localização por defeito da empresa</label>
+            {edit.id && !edit.padrao && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.ativo === false} onChange={(e) => setEdit({ ...edit, ativo: !e.target.checked })} /> Inativa</label>}
+          </div>}
+          <DialogFooter><button type="button" className="btn btn-secundario" onClick={() => setEdit(null)}>Cancelar</button><button type="button" className="btn btn-primario" onClick={guardar} data-testid="loc-guardar">Guardar</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function Stock() {
   const { can, user } = useAuth();
   const [tab, setTab] = useState("stock");
@@ -374,11 +413,13 @@ export default function Stock() {
       <PageHeader title="Stock" subtitle="Só os artigos marcados «Gere stock». Os outros (compra à medida, serviços) não contam stock." />
       <DetailTabs testid="stock-tabs" value={tab} onChange={setTab} tabs={[
         { id: "stock", label: "Stock", testid: "stock-tab-stock" },
+        { id: "localizacoes", label: "Localizações", testid: "stock-tab-localizacoes" },
         { id: "movimentos", label: "Movimentos", testid: "stock-tab-movimentos" },
         ...(can("ordens_compra", "view") ? [{ id: "sugestoes", label: "Sugestões de compra", testid: "stock-tab-sugestoes" }] : []),
         { id: "inventarios", label: "Inventários", testid: "stock-tab-inventarios" },
       ]} />
       {tab === "stock" && <TabStock podeEditar={podeEditar} verCustos={verCustos} />}
+      {tab === "localizacoes" && <TabLocalizacoes podeEditar={podeEditar} verCustos={verCustos} />}
       {tab === "movimentos" && <TabMovimentos />}
       {tab === "sugestoes" && <TabSugestoes podeCriar={can("ordens_compra", "create")} />}
       {tab === "inventarios" && <TabInventarios podeEditar={podeEditar} verCustos={verCustos} />}

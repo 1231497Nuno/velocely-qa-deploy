@@ -2,6 +2,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PackageCheck, Receipt, CheckCircle2, AlertTriangle } from "lucide-react";
 import { api, eur, fmtDate } from "@/lib/api";
+import EntitySelect from "@/components/EntitySelect";
+import { useLocalizacoes } from "@/features/stock/StockLocais";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -18,13 +20,14 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
   const [rec, setRec] = useState(null);
   const [ff, setFf] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [locs] = useLocalizacoes();
   const linhas = oc.linhas || [];
   const falta = (l) => Math.max(0, (Number(l.quantidade) || 0) - (Number(l.qtd_recebida) || 0));
   const tudoRecebido = linhas.length > 0 && linhas.every((l) => falta(l) <= 1e-9);
   const fat = oc.fatura_fornecedor;
 
   const abrirRececao = () => setRec({
-    data: hoje(), guia_fornecedor: "", notas: "", aceitar_excesso: false,
+    data: hoje(), guia_fornecedor: "", notas: "", aceitar_excesso: false, localizacao_id: "",
     qtd: Object.fromEntries(linhas.map((l) => [l.id, falta(l)])),
   });
   const gravarRececao = async () => {
@@ -32,6 +35,7 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
     try {
       await api.post(`/ordens-compra/${oc.id}/rececoes`, {
         data: rec.data, guia_fornecedor: rec.guia_fornecedor, notas: rec.notas, aceitar_excesso: rec.aceitar_excesso,
+        localizacao_id: rec.localizacao_id || null,
         linhas: linhas.map((l) => ({ linha_id: l.id, quantidade: Number(rec.qtd[l.id]) || 0 })),
       });
       toast.success("Receção registada — stock atualizado");
@@ -122,6 +126,8 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
                 <div><label className="text-xs font-medium text-gray-600">Data</label><input type="date" className={inputCls} value={rec.data} onChange={(e) => setRec({ ...rec, data: e.target.value })} /></div>
                 <div><label className="text-xs font-medium text-gray-600">Guia do fornecedor</label><input className={inputCls} value={rec.guia_fornecedor} onChange={(e) => setRec({ ...rec, guia_fornecedor: e.target.value })} /></div>
               </div>
+              <div><label className="text-xs font-medium text-gray-600">Arrumar em</label>
+                <EntitySelect items={locs} value={rec.localizacao_id} onChange={(id) => setRec({ ...rec, localizacao_id: id })} clearLabel="Localização por defeito de cada artigo" placeholder="Localização por defeito de cada artigo" testid="rec-local" /></div>
               <div className="border border-gray-200 rounded-sm divide-y divide-gray-100">
                 {linhas.map((l) => (
                   <div key={l.id} className="flex items-center gap-3 px-3 py-2 text-sm">
