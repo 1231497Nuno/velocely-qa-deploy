@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
+import ArtigoCombobox from "@/components/ArtigoCombobox";
 import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -429,6 +430,35 @@ export default function OrcamentoDetail() {
 
   const addLinha = () => {
     upd({ linhas: [...orc.linhas, emptyLinha()] });
+  };
+
+  /** Escolha múltipla: uma linha por artigo, com a quantidade escolhida. */
+  const addVariosArtigos = async (picked) => {
+    if (!picked?.length) return;
+    // descarta linhas vazias no fim (a linha em branco por defeito)
+    const existentes = orc.linhas.filter((l, idx) => l.artigo_id || (l.artigo_nome || "").trim() || idx < orc.linhas.length - 1);
+    let mats = [...(orc.materiais || [])];
+    const novas = [];
+    const cacheArts = [];
+    try {
+      for (const p of picked) {
+        const built = await buildLinhaFromArtigo({ ...emptyLinha() }, p, { quantidade: p.quantidade });
+        let tmp = [built.linha];
+        tmp = adaptarLinhaPorReceita(tmp, built.matsReceita, built.linha.id, { forcarCalculado: built.regras.forcarCalculado });
+        novas.push(tmp[0]);
+        mats = [...mats, ...built.matsReceita];
+        cacheArts.push({ ...built.artigo, lite: false, preco_venda: built.precoVenda });
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível adicionar os artigos");
+      return;
+    }
+    setArtigos((prev) => {
+      const ids = new Set(cacheArts.map((x) => x.id));
+      return [...prev.filter((x) => !ids.has(x.id)), ...cacheArts];
+    });
+    upd({ linhas: [...existentes, ...novas], materiais: mats });
+    toast.success(novas.length === 1 ? "Artigo adicionado" : `${novas.length} artigos adicionados`);
   };
 
   const updLinha = (i, patch) => {
@@ -1840,14 +1870,25 @@ export default function OrcamentoDetail() {
             ))}
             <tr className="border-t border-dashed border-gray-200 bg-gray-50/40">
               <td className="px-4 py-2.5" colSpan={10}>
-                <button
-                  type="button"
-                  data-testid="add-line-item"
-                  onClick={addLinha}
-                  className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
-                >
-                  <Plus size={14} /> Adicionar linha
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  {editavel && (
+                    <ArtigoCombobox
+                      modo="adicionar"
+                      artigos={artigos}
+                      onChange={(art) => addVariosArtigos([{ ...art, quantidade: 1 }])}
+                      onChangeMulti={addVariosArtigos}
+                      testid="add-line-artigos"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    data-testid="add-line-item"
+                    onClick={addLinha}
+                    className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
+                  >
+                    <Plus size={14} /> Adicionar linha
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>

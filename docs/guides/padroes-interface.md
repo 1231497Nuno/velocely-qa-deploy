@@ -31,8 +31,8 @@ Estrutura: `ListPage` → `PageHeader` (título + Excel + botão Novo) → toolb
 
 ## Fichas (detalhe)
 
-- Sempre editáveis para quem tem permissão — não há botão «Editar».
-  Com alterações por guardar aparecem «Descartar alterações» e «Guardar» (ou gravação ao sair do campo).
+- Edição com botão **«Editar»** (Artigos, Ordens de Compra, Pedidos de Cotação, Fornecedores):
+  a ficha abre em consulta; «Editar» abre os campos; «Guardar» / «Cancelar» (ou «Concluir edição» quando grava ao sair do campo).
 - Cabeçalho fixo: `StickyDetailHeader`; separadores: `DetailTabs`.
 - Campos personalizados: `<CamposPersonalizados modulo value onChange [onCommit] />` e enviar `campos_extra` no PUT.
 - Confirmações: `useConfirm()` — nunca `window.confirm`.
@@ -40,7 +40,8 @@ Estrutura: `ListPage` → `PageHeader` (título + Excel + botão Novo) → toolb
 ## Artigos nos documentos
 
 Um único seletor: `components/ArtigoCombobox.jsx` (pesquisa sem acentos por código ou nome, grupo «Diversos»,
-variantes e criação de artigo). Nas compras e pedidos de cotação as linhas têm de ser artigos do catálogo
+variantes e criação de artigo). Com `modo="adicionar"` + `onChangeMulti` permite escolher **vários artigos de uma vez**,
+cada um com a sua quantidade (Orçamentos, Encomendas, Ordens de Fabrico, Compras, Pedidos de Cotação). Nas compras e pedidos de cotação as linhas têm de ser artigos do catálogo
 (`_exigir_artigos_nas_linhas` no backend). Cada linha pode ter uma cor (`CorLinhaPicker`).
 
 ## Campos obrigatórios e personalizados (backend)

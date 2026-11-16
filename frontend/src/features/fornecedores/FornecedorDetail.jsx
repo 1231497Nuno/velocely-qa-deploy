@@ -11,7 +11,7 @@ import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailH
 import { toast } from "sonner";
 import {
   ShoppingCart, Coins, Wallet, Package, Wrench, Layers,
-  MapPin, ChevronRight, Plus, FileQuestion,
+  MapPin, ChevronRight, Plus, FileQuestion, Pencil, Check,
 } from "lucide-react";
 
 const TIPO_DESPESA_LABEL = {
@@ -59,6 +59,7 @@ export default function FornecedorDetail() {
   const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editando, setEditando] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,6 +137,17 @@ export default function FornecedorDetail() {
         subtitle={`${(f.tipo === "empresa" || (!f.tipo && f.nif)) ? "Empresa" : "Particular"}${f.categoria ? ` · ${f.categoria}` : ""}`}
         actions={
           <>
+            {podeEditar && (
+              editando ? (
+                <button type="button" data-testid="fornecedor-concluir-btn" onClick={() => setEditando(false)} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                  <Check size={15} /> Concluir edição
+                </button>
+              ) : (
+                <button type="button" data-testid="fornecedor-edit-btn" onClick={() => setEditando(true)} className="border border-gray-300 text-gray-800 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+                  <Pencil size={15} /> Editar
+                </button>
+              )
+            )}
             {can("pedidos_cotacao", "create") && (
               <button data-testid="fornecedor-nova-pc-btn" onClick={novoPedidoCotacao} className="border border-gray-300 text-gray-800 hover:bg-gray-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <FileQuestion size={15} /> Novo pedido de cotação
@@ -171,8 +183,8 @@ export default function FornecedorDetail() {
                 <button
                   key={t}
                   type="button"
-                  disabled={!podeEditar}
-                  onClick={() => !ativo && guardar({ tipo: t }, "Tipo atualizado")}
+                  disabled={!editando}
+                  onClick={() => editando && !ativo && guardar({ tipo: t }, "Tipo atualizado")}
                   className={`px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] rounded-sm border ${ativo ? "bg-brand text-brand-fg border-brand" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                   data-testid={`fornecedor-tipo-${t}`}
                 >
@@ -182,21 +194,21 @@ export default function FornecedorDetail() {
             })}
             {f.codigo && <span className="ml-auto text-xs text-gray-500 mono">{f.codigo}</span>}
           </div>
-          <CampoFicha label="Nome" value={f.nome} disabled={!podeEditar} onSave={(v) => guardar({ nome: v })} testid="forn-nome" />
+          <CampoFicha label="Nome" value={f.nome} disabled={!editando} onSave={(v) => guardar({ nome: v })} testid="forn-nome" />
           <div className="grid grid-cols-2 gap-3">
-            <CampoFicha label="NIF" value={f.nif} disabled={!podeEditar} onSave={(v) => guardar({ nif: v })} testid="forn-nif" />
-            <CampoFicha label="Categoria" value={f.categoria} disabled={!podeEditar} onSave={(v) => guardar({ categoria: v })} testid="forn-categoria" />
-            <CampoFicha label="Telefone" value={f.contacto} disabled={!podeEditar} onSave={(v) => guardar({ contacto: v })} testid="forn-contacto" />
-            <CampoFicha label="Email" value={f.email} disabled={!podeEditar} onSave={(v) => guardar({ email: v })} testid="forn-email" />
+            <CampoFicha label="NIF" value={f.nif} disabled={!editando} onSave={(v) => guardar({ nif: v })} testid="forn-nif" />
+            <CampoFicha label="Categoria" value={f.categoria} disabled={!editando} onSave={(v) => guardar({ categoria: v })} testid="forn-categoria" />
+            <CampoFicha label="Telefone" value={f.contacto} disabled={!editando} onSave={(v) => guardar({ contacto: v })} testid="forn-contacto" />
+            <CampoFicha label="Email" value={f.email} disabled={!editando} onSave={(v) => guardar({ email: v })} testid="forn-email" />
           </div>
-          <CampoFicha label="Website" value={f.website} disabled={!podeEditar} onSave={(v) => guardar({ website: v })} testid="forn-website" />
-          <CampoFicha label="Pessoa responsável" value={f.responsavel} disabled={!podeEditar} onSave={(v) => guardar({ responsavel: v })} testid="forn-responsavel" />
-          <CampoFicha label="Morada" value={f.morada} disabled={!podeEditar} onSave={(v) => guardar({ morada: v })} testid="forn-morada" />
+          <CampoFicha label="Website" value={f.website} disabled={!editando} onSave={(v) => guardar({ website: v })} testid="forn-website" />
+          <CampoFicha label="Pessoa responsável" value={f.responsavel} disabled={!editando} onSave={(v) => guardar({ responsavel: v })} testid="forn-responsavel" />
+          <CampoFicha label="Morada" value={f.morada} disabled={!editando} onSave={(v) => guardar({ morada: v })} testid="forn-morada" />
           <div className="grid grid-cols-2 gap-3">
-            <CampoFicha label="Código postal" value={f.codigo_postal} disabled={!podeEditar} onSave={(v) => guardar({ codigo_postal: v })} testid="forn-cp" />
-            <CampoFicha label="Cidade" value={f.cidade} disabled={!podeEditar} onSave={(v) => guardar({ cidade: v })} testid="forn-cidade" />
+            <CampoFicha label="Código postal" value={f.codigo_postal} disabled={!editando} onSave={(v) => guardar({ codigo_postal: v })} testid="forn-cp" />
+            <CampoFicha label="Cidade" value={f.cidade} disabled={!editando} onSave={(v) => guardar({ cidade: v })} testid="forn-cidade" />
           </div>
-          <CampoFicha label="Notas" value={f.notas} disabled={!podeEditar} multiline onSave={(v) => guardar({ notas: v })} testid="forn-notas" />
+          <CampoFicha label="Notas" value={f.notas} disabled={!editando} multiline onSave={(v) => guardar({ notas: v })} testid="forn-notas" />
           {morada && (
             <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(morada)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-destaque hover:underline">
               <MapPin size={12} /> Ver no mapa
@@ -218,7 +230,7 @@ export default function FornecedorDetail() {
         modulo="fornecedores"
         className="mb-4"
         value={f.campos_extra}
-        disabled={!podeEditar}
+        disabled={!editando}
         onChange={(vals) => setData((d) => ({ ...d, fornecedor: { ...d.fornecedor, campos_extra: vals } }))}
         onCommit={(vals) => guardar({ campos_extra: vals })}
       />

@@ -70,15 +70,14 @@ export default function OrdemCompraDetail() {
   const { can } = useAuth();
   const [oc, setOc] = useState(null);
   const [form, setForm] = useState(null);
-  // Ficha sempre editável (padrão do ERP): o modo «Editar» deixou de existir.
-  const setEditing = () => {};
+  const [editing, setEditing] = useState(!!location.state?.edit);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
   const saveForLeaveRef = useRef(null);
 
   useUnsavedChanges({
-    dirty,
+    dirty: editing && dirty,
     onSave: async () => {
       if (saveForLeaveRef.current) return saveForLeaveRef.current();
       return true;
@@ -130,10 +129,7 @@ export default function OrdemCompraDetail() {
     });
   };
 
-  const addLinha = () => {
-    setDirty(true);
-    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
-  };
+
   /** Linhas só com artigos do catálogo (seletor único do ERP). */
   const linhaDoArtigo = (a, quantidade) => ({
     artigo_id: a.id,
@@ -161,6 +157,12 @@ export default function OrdemCompraDetail() {
       linhas.splice(idx + 1, 0, ...novas);
       return { ...f, linhas };
     });
+  };
+  const adicionarLinhasDoCatalogo = (lista) => {
+    const novas = (lista || []).map((art) => ({ ...emptyLinha(), ...linhaDoArtigo(art, Number(art.quantidade) > 0 ? Number(art.quantidade) : 1) }));
+    if (!novas.length) return;
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), ...novas] }));
   };
   const removeLinha = (idx) => {
     setDirty(true);
@@ -256,7 +258,6 @@ export default function OrdemCompraDetail() {
   );
 
   const podeEditar = can("ordens_compra", "edit");
-  const editing = podeEditar;
 
   return (
     <div>
@@ -267,16 +268,20 @@ export default function OrdemCompraDetail() {
         subtitle={form.codigo_origem ? `Origem CRM: ${form.codigo_origem}` : (form.assunto || null)}
         actions={
           podeEditar ? (
-            <>
-              {dirty && (
+            editing ? (
+              <>
                 <button type="button" data-testid="oc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
-                  <X size={15} /> Descartar alterações
+                  <X size={15} /> Cancelar
                 </button>
-              )}
-              <button data-testid="oc-save-btn" onClick={save} disabled={saving || !dirty} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
-                <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
+                <button data-testid="oc-save-btn" onClick={save} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                  <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
+                </button>
+              </>
+            ) : (
+              <button type="button" data-testid="oc-edit-btn" onClick={startEdit} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                <Pencil size={15} /> Editar
               </button>
-            </>
+            )
           ) : null
         }
       />
@@ -440,9 +445,15 @@ export default function OrdemCompraDetail() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-700">Linhas</h2>
           {editing && (
-            <button type="button" onClick={addLinha} className="text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1" data-testid="oc-add-linha">
-              <Plus size={14} /> Adicionar linha
-            </button>
+            <ArtigoCombobox
+              modo="adicionar"
+              artigos={artigos}
+              onChange={(art) => adicionarLinhasDoCatalogo([{ ...art, quantidade: 1 }])}
+              onChangeMulti={adicionarLinhasDoCatalogo}
+              onArtigosRefresh={carregarArtigos}
+              preco={(a) => Number(a.preco_compra) || Number(a.custo_artigo) || 0}
+              testid="oc-add-linha"
+            />
           )}
         </div>
         <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">

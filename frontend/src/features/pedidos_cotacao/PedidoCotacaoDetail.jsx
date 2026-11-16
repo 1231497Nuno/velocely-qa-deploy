@@ -72,15 +72,14 @@ export default function PedidoCotacaoDetail() {
   const { can } = useAuth();
   const [pc, setPc] = useState(null);
   const [form, setForm] = useState(null);
-  // Ficha sempre editável (padrão do ERP): o modo «Editar» deixou de existir.
-  const setEditing = () => {};
+  const [editing, setEditing] = useState(!!location.state?.edit);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
   const saveForLeaveRef = useRef(null);
 
   useUnsavedChanges({
-    dirty,
+    dirty: editing && dirty,
     onSave: async () => {
       if (saveForLeaveRef.current) return saveForLeaveRef.current();
       return true;
@@ -121,7 +120,6 @@ export default function PedidoCotacaoDetail() {
 
   const locked = form.estado === "adjudicado" || form.estado === "cancelado";
   const podeEditar = can("pedidos_cotacao", "edit") && !locked;
-  const editing = podeEditar;
 
   const set = (key, val) => {
     setDirty(true);
@@ -135,10 +133,7 @@ export default function PedidoCotacaoDetail() {
       return { ...f, linhas };
     });
   };
-  const addLinha = () => {
-    setDirty(true);
-    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), emptyLinha()] }));
-  };
+
   /** Linhas só com artigos do catálogo (seletor único do ERP). */
   const linhaDoArtigo = (a, quantidade) => ({
     artigo_id: a.id,
@@ -166,6 +161,12 @@ export default function PedidoCotacaoDetail() {
       linhas.splice(idx + 1, 0, ...novas);
       return { ...f, linhas };
     });
+  };
+  const adicionarLinhasDoCatalogo = (lista) => {
+    const novas = (lista || []).map((art) => ({ ...emptyLinha(), ...linhaDoArtigo(art, Number(art.quantidade) > 0 ? Number(art.quantidade) : 1) }));
+    if (!novas.length) return;
+    setDirty(true);
+    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), ...novas] }));
   };
   const removeLinha = (idx) => {
     setDirty(true);
@@ -313,22 +314,22 @@ export default function PedidoCotacaoDetail() {
         ) : (form.assunto || null)}
         actions={
           <>
-            {podeEditar && !dirty && form.estado === "rascunho" && (
+            {podeEditar && !editing && form.estado === "rascunho" && (
               <button type="button" data-testid="pc-enviar-btn" disabled={saving} onClick={() => setEstado("enviado", "Marcado como enviado")} className="border border-indigo-300 text-indigo-800 hover:bg-indigo-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Send size={15} /> Marcar enviado
               </button>
             )}
-            {podeEditar && !dirty && (form.estado === "enviado" || form.estado === "rascunho") && (
-              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => toast.message("Preencha os preços cotados nas linhas e carregue em «Guardar como respondido»")} className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
+            {podeEditar && !editing && (form.estado === "enviado" || form.estado === "rascunho") && (
+              <button type="button" data-testid="pc-responder-btn" disabled={saving} onClick={() => { startEdit(); toast.message("Preenche os preços cotados e guarda como Respondido"); }} className="border border-amber-300 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <CheckCircle2 size={15} /> Registar resposta
               </button>
             )}
-            {podeEditar && !dirty && form.estado === "respondido" && temPrecos && (
+            {podeEditar && !editing && form.estado === "respondido" && temPrecos && (
               <button type="button" data-testid="pc-adjudicar-btn" disabled={saving} onClick={adjudicar} className="bg-emerald-700 text-white hover:bg-emerald-800 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <ShoppingCart size={15} /> Adjudicar → OC
               </button>
             )}
-            {podeEditar && !dirty && form.estado !== "cancelado" && (
+            {podeEditar && !editing && form.estado !== "cancelado" && (
               <button type="button" data-testid="pc-cancelar-estado-btn" disabled={saving} onClick={async () => { if (await confirmAction({ title: "Cancelar pedido", description: "Este pedido deixa de poder ser adjudicado.", confirmLabel: "Cancelar pedido", tone: "danger" })) setEstado("cancelado", "Pedido cancelado"); }} className="border border-red-200 text-red-700 hover:bg-red-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5">
                 <Ban size={15} /> Cancelar
               </button>
@@ -336,17 +337,15 @@ export default function PedidoCotacaoDetail() {
             {podeEditar && (
               editing ? (
                 <>
-                  {dirty && (
-                    <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
-                      <X size={15} /> Descartar alterações
-                    </button>
-                  )}
+                  <button type="button" data-testid="pc-cancel-btn" onClick={cancelEdit} disabled={saving} className="border border-gray-300 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50">
+                    <X size={15} /> Cancelar
+                  </button>
                   {(form.estado === "enviado" || form.estado === "rascunho") && (
                     <button type="button" data-testid="pc-save-respondido-btn" disabled={saving || !temPrecos} onClick={() => save({ estado: "respondido" }, { msg: "Resposta registada" })} className="border border-amber-400 text-amber-900 hover:bg-amber-50 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
                       <CheckCircle2 size={15} /> Guardar como respondido
                     </button>
                   )}
-                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving || !dirty} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                  <button data-testid="pc-save-btn" onClick={() => save()} disabled={saving} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50">
                     <Save size={15} /> {saving ? "A guardar…" : "Guardar"}
                   </button>
                 </>
@@ -466,9 +465,15 @@ export default function PedidoCotacaoDetail() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-700">Linhas</h2>
           {editing && (
-            <button type="button" onClick={addLinha} className="text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1" data-testid="pc-add-linha">
-              <Plus size={14} /> Adicionar linha
-            </button>
+            <ArtigoCombobox
+              modo="adicionar"
+              artigos={artigos}
+              onChange={(art) => adicionarLinhasDoCatalogo([{ ...art, quantidade: 1 }])}
+              onChangeMulti={adicionarLinhasDoCatalogo}
+              onArtigosRefresh={carregarArtigos}
+              preco={(a) => Number(a.preco_compra) || Number(a.custo_artigo) || 0}
+              testid="pc-add-linha"
+            />
           )}
         </div>
         <div className="overflow-auto max-h-[min(55vh,28rem)] lg:max-h-[min(65vh,32rem)]">

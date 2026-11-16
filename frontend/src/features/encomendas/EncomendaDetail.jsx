@@ -293,7 +293,7 @@ export default function EncomendaDetail() {
     }
     persist(
       { artigos: [...(enc.artigos || []), ...novas] },
-      picked.length === 1 ? "Variante adicionada" : `${picked.length} variantes adicionadas`,
+      picked.length === 1 ? "Artigo adicionado" : `${picked.length} artigos adicionados`,
     );
     setVariantesPick(null);
   };

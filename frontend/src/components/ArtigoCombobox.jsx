@@ -26,7 +26,8 @@ export function filtroArtigo(itemValue, search) {
  * Ordens de Compra e Pedidos de Cotação (os Orçamentos usam a mesma pesquisa).
  *
  * modo="selecionar": mostra o artigo escolhido (linha existente).
- * modo="adicionar": botão «+ Adicionar artigo» (acrescenta linhas).
+ * modo="adicionar": botão «+ Adicionar artigos» — escolha múltipla com quantidades
+ *   (com onChangeMulti); os artigos com variantes abrem a escolha de variantes.
  * onChange(artigo) · onChangeMulti([{ id, nome, quantidade, … }]) para variantes.
  * preco: (artigo) => número a mostrar ao lado (por defeito o preço de venda).
  */
@@ -49,6 +50,30 @@ export default function ArtigoCombobox({
   const [createOpen, setCreateOpen] = useState(false);
   const [createNome, setCreateNome] = useState("");
   const [creating, setCreating] = useState(false);
+  // Escolha múltipla (modo «adicionar»): id → { artigo, quantidade }
+  const [selecao, setSelecao] = useState({});
+  const multiplo = modo === "adicionar" && !!onChangeMulti;
+  const nSel = Object.keys(selecao).length;
+
+  function alternar(a) {
+    setSelecao((sel) => {
+      const n = { ...sel };
+      if (n[a.id]) delete n[a.id];
+      else n[a.id] = { artigo: a, quantidade: 1 };
+      return n;
+    });
+  }
+
+  function confirmarSelecao() {
+    const lista = Object.values(selecao).map(({ artigo, quantidade }) => ({
+      ...artigo,
+      quantidade: Number(quantidade) > 0 ? Number(quantidade) : 1,
+    }));
+    if (!lista.length) return;
+    setSelecao({});
+    setOpen(false);
+    onChangeMulti(lista);
+  }
 
   const list = useMemo(() => artigosParaSelector(artigos || []), [artigos]);
   const diversos = useMemo(() => list.filter(isDiversosArtigo), [list]);
@@ -57,11 +82,16 @@ export default function ArtigoCombobox({
   const podeCriar = permitirCriar && can("artigos", "create");
 
   function escolher(a) {
-    setOpen(false);
     if (artigoTemVariantes(a)) {
+      setOpen(false);
       setVariantesPick(a);
       return;
     }
+    if (multiplo) {
+      alternar(a);
+      return;
+    }
+    setOpen(false);
     onChange(a);
   }
 
@@ -78,7 +108,12 @@ export default function ArtigoCombobox({
       });
       if (onArtigosRefresh) await onArtigosRefresh();
       setCreateOpen(false);
-      onChange(a);
+      if (multiplo) {
+        setSelecao((sel) => ({ ...sel, [a.id]: { artigo: a, quantidade: 1 } }));
+        setOpen(true);
+      } else {
+        onChange(a);
+      }
       toast.success("Artigo criado no catálogo");
     } catch (e) {
       const d = e?.response?.data?.detail;
@@ -96,7 +131,13 @@ export default function ArtigoCombobox({
       onSelect={() => escolher(a)}
       className="flex items-center gap-2"
     >
-      <Check size={14} className={value === a.id ? "opacity-100 shrink-0" : "opacity-0 shrink-0"} />
+      {multiplo ? (
+        <span className={`w-4 h-4 shrink-0 rounded-sm border flex items-center justify-center ${selecao[a.id] ? "bg-brand border-brand text-brand-fg" : "border-gray-300 bg-white"}`}>
+          {selecao[a.id] && <Check size={11} />}
+        </span>
+      ) : (
+        <Check size={14} className={value === a.id ? "opacity-100 shrink-0" : "opacity-0 shrink-0"} />
+      )}
       <span className="tabular-nums text-xs text-gray-500 w-16 shrink-0">{a.codigo}</span>
       <span className="truncate flex-1">
         {a.nome}
@@ -117,7 +158,7 @@ export default function ArtigoCombobox({
               data-testid={testid}
               className="inline-flex items-center gap-1.5 border border-dashed border-gray-400 hover:border-gray-700 rounded-sm px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 bg-white disabled:opacity-50"
             >
-              <Plus size={14} /> {placeholder === "Escolher artigo..." ? "Adicionar artigo" : placeholder}
+              <Plus size={14} /> {placeholder === "Escolher artigo..." ? (multiplo ? "Adicionar artigos" : "Adicionar artigo") : placeholder}
             </button>
           ) : (
             <button
@@ -168,6 +209,38 @@ export default function ArtigoCombobox({
               )}
             </CommandList>
           </Command>
+          {multiplo && nSel > 0 && (
+            <div className="border-t border-gray-200 p-2 space-y-1.5 bg-gray-50" data-testid={`${testid}-selecao`}>
+              <div className="max-h-36 overflow-y-auto space-y-1">
+                {Object.values(selecao).map(({ artigo, quantidade }) => (
+                  <div key={artigo.id} className="flex items-center gap-2 text-sm">
+                    <span className="truncate flex-1">{artigo.nome}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      value={quantidade}
+                      onChange={(e) => setSelecao((sel) => ({ ...sel, [artigo.id]: { artigo, quantidade: e.target.value } }))}
+                      className="w-16 border border-gray-300 rounded-sm px-1.5 py-0.5 text-right tabular-nums text-sm bg-white"
+                      title="Quantidade"
+                    />
+                    <button type="button" onClick={() => alternar(artigo)} className="text-gray-400 hover:text-red-600 text-xs" title="Tirar">✕</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button type="button" onClick={() => setSelecao({})} className="text-xs text-gray-600 hover:text-gray-900">Limpar</button>
+                <button
+                  type="button"
+                  onClick={confirmarSelecao}
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium"
+                  data-testid={`${testid}-confirmar`}
+                >
+                  Adicionar {nSel} {nSel === 1 ? "artigo" : "artigos"}
+                </button>
+              </div>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
 
@@ -178,6 +251,16 @@ export default function ArtigoCombobox({
         paiNome={variantesPick?.nome || ""}
         onConfirm={(picked) => {
           setVariantesPick(null);
+          if (multiplo) {
+            // as variantes entram na seleção (com a quantidade escolhida) e o seletor volta a abrir
+            setSelecao((sel) => {
+              const n = { ...sel };
+              picked.forEach((p) => { n[p.id] = { artigo: p, quantidade: p.quantidade || 1 }; });
+              return n;
+            });
+            setOpen(true);
+            return;
+          }
           if (onChangeMulti) {
             onChangeMulti(picked);
             return;

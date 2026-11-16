@@ -95,10 +95,20 @@ export default function OrdemFabricoDetail() {
     setOf({ ...of, ...patch });
   };
 
-  const addItem = () => {
-    upd({ itens: [...of.itens, { artigo_id: "", artigo_nome: "", quantidade: 1, personalizacoes: [], operacoes: [] }] });
-    setItemAberto(of.itens.length);
+  /** Escolha múltipla: acrescenta uma linha por artigo (o roteiro carrega-se ao guardar). */
+  const addItensDoCatalogo = (lista) => {
+    const novos = (lista || []).map((art) => ({
+      artigo_id: art.id,
+      artigo_nome: art.nome || "",
+      quantidade: Number(art.quantidade) > 0 ? Number(art.quantidade) : 1,
+      personalizacoes: [],
+      operacoes: [],
+    }));
+    if (!novos.length) return;
+    upd({ itens: [...of.itens, ...novos] });
+    toast.success(novos.length === 1 ? "Artigo adicionado — guarde para carregar o roteiro" : `${novos.length} artigos adicionados — guarde para carregar os roteiros`);
   };
+
 
   const updItem = (i, patch) => {
     const it = [...of.itens];
@@ -392,9 +402,15 @@ export default function OrdemFabricoDetail() {
                   <FileText size={16} /> Artigos
                   <span className="text-xs font-normal tabular-nums text-gray-400">{of.itens.length}</span>
                 </h2>
-                <button data-testid="add-of-item" onClick={addItem} className="text-sm text-gray-900 font-medium flex items-center gap-1 hover:underline">
-                  <Plus size={14} /> Artigo
-                </button>
+                {can("ordens_fabrico", "edit") ? (
+                  <ArtigoCombobox
+                    modo="adicionar"
+                    artigos={artigos}
+                    onChange={(art) => addItensDoCatalogo([{ ...art, quantidade: 1 }])}
+                    onChangeMulti={addItensDoCatalogo}
+                    testid="add-of-item"
+                  />
+                ) : null}
               </div>
               <div
                 className="min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain divide-y divide-gray-100"
