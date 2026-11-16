@@ -59,7 +59,7 @@ import {
 } from "lucide-react";
 
 // Menu organizado pelo fluxo do negócio: vender → comprar → stock → produzir → faturar → analisar; dados base e sistema no fim.
-const NAV_GROUPS = [
+export const NAV_GROUPS = [
   {
     id: "vendas",
     label: "Vendas",
@@ -250,7 +250,8 @@ export default function Layout({ children }) {
       }),
     })).filter((g) => g.items.length > 0);
   }, [isAdmin, can]); // eslint-disable-line react-hooks/exhaustive-deps
-  const groups = useMemo(() => aplicarMenu(gruposBase, menuPref), [gruposBase, menuPref]);
+  // Menu do utilizador; se não personalizou, o predefinido do perfil
+  const groups = useMemo(() => aplicarMenu(gruposBase, menuPref || user?.perfil?.menu || null), [gruposBase, menuPref, user?.perfil?.menu]);
 
   // Fechar menu/pesquisa ao navegar; garantir grupo da página aberto
   useEffect(() => {
@@ -429,7 +430,7 @@ export default function Layout({ children }) {
             <SlidersHorizontal size={14} /> Personalizar menu
           </button>
         </div>
-        <MenuEditor open={editarMenu} onOpenChange={setEditarMenu} base={gruposBase} menu={menuPref} onGuardado={setMenuPref} />
+        <MenuEditor open={editarMenu} onOpenChange={setEditarMenu} base={gruposBase} menu={menuPref || user?.perfil?.menu || null} onGuardado={setMenuPref} />
         <div className="border-t border-sidebar-border p-3 safe-bottom">
           {user && (
             <div className="px-2 py-1.5 mb-1" data-testid="current-user">

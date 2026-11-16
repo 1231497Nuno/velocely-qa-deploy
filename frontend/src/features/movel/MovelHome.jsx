@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import { MovelHeader, Pagina, ArtigoPicker } from "./comum";
+import { podeMovel } from "@/lib/movelOps";
 
 /** Início da app móvel: procurar/ler um artigo logo no topo, atalhos com contadores e as restantes operações. */
 export default function MovelHome() {
@@ -20,16 +21,16 @@ export default function MovelHome() {
 
   const inv = res?.inventario;
   const ops = [
-    { to: "/m/rececoes", label: "Receções", desc: res ? (res.ocs_por_receber ? `${res.fornecedores_por_receber} fornecedor(es) · ${res.ocs_por_receber} encomenda(s)` : "Nada por receber") : "Dar entrada do que chegou", icon: PackageCheck, ok: can("ordens_compra", "edit"), cor: "bg-emerald-600", badge: res?.ocs_por_receber },
-    { to: "/m/inventario", label: "Inventário", desc: inv ? `Aberto · ${Math.round((inv.n_contados / Math.max(inv.n_linhas, 1)) * 100)}% contado` : "Contar artigos", icon: ClipboardList, ok: can("artigos", "edit"), cor: "bg-sky-600" },
-    { to: "/m/localizacoes", label: "Localizações", desc: "O que está em cada sítio", icon: MapPin, ok: can("artigos", "view"), cor: "bg-amber-600" },
-    { to: "/m/transferir", label: "Transferir", desc: "Mudar de localização", icon: ArrowLeftRight, ok: can("artigos", "edit"), cor: "bg-orange-600" },
-    { to: "/m/movimento", label: "Entrada / saída", desc: "Consumo, amostra, quebra…", icon: ArrowUpFromLine, ok: can("artigos", "edit"), cor: "bg-red-600" },
-    { to: "/m/acertar", label: "Acertar stock", desc: "Corrigir uma quantidade", icon: SlidersHorizontal, ok: can("artigos", "edit"), cor: "bg-violet-600" },
-    { to: "/m/stock-baixo", label: "Stock baixo", desc: res ? `${res.stock_baixo} artigo(s) a repor` : "Abaixo do nível", icon: AlertTriangle, ok: can("artigos", "view"), cor: "bg-yellow-600", badge: res?.stock_baixo },
-    { to: "/m/movimentos", label: "Movimentos", desc: "Últimos registos", icon: History, ok: can("artigos", "view"), cor: "bg-gray-700" },
-    { to: "/m/consultar", label: "Consultar stock", desc: "Onde está e quanto há", icon: Search, ok: can("artigos", "view"), cor: "bg-gray-800" },
-    { to: "/oficina", label: "Oficina", desc: "Operações das OF", icon: QrCode, ok: can("ordens_fabrico", "view"), cor: "bg-rose-700" },
+    { to: "/m/rececoes", label: "Receções", desc: res ? (res.ocs_por_receber ? `${res.fornecedores_por_receber} fornecedor(es) · ${res.ocs_por_receber} encomenda(s)` : "Nada por receber") : "Dar entrada do que chegou", icon: PackageCheck, ok: podeMovel(user, can, "rececoes"), cor: "bg-emerald-600", badge: res?.ocs_por_receber },
+    { to: "/m/inventario", label: "Inventário", desc: inv ? `Aberto · ${Math.round((inv.n_contados / Math.max(inv.n_linhas, 1)) * 100)}% contado` : "Contar artigos", icon: ClipboardList, ok: podeMovel(user, can, "inventario"), cor: "bg-sky-600" },
+    { to: "/m/localizacoes", label: "Localizações", desc: "O que está em cada sítio", icon: MapPin, ok: podeMovel(user, can, "localizacoes"), cor: "bg-amber-600" },
+    { to: "/m/transferir", label: "Transferir", desc: "Mudar de localização", icon: ArrowLeftRight, ok: podeMovel(user, can, "transferir"), cor: "bg-orange-600" },
+    { to: "/m/movimento", label: "Entrada / saída", desc: "Consumo, amostra, quebra…", icon: ArrowUpFromLine, ok: podeMovel(user, can, "movimento"), cor: "bg-red-600" },
+    { to: "/m/acertar", label: "Acertar stock", desc: "Corrigir uma quantidade", icon: SlidersHorizontal, ok: podeMovel(user, can, "acertar"), cor: "bg-violet-600" },
+    { to: "/m/stock-baixo", label: "Stock baixo", desc: res ? `${res.stock_baixo} artigo(s) a repor` : "Abaixo do nível", icon: AlertTriangle, ok: podeMovel(user, can, "stock_baixo"), cor: "bg-yellow-600", badge: res?.stock_baixo },
+    { to: "/m/movimentos", label: "Movimentos", desc: "Últimos registos", icon: History, ok: podeMovel(user, can, "movimentos"), cor: "bg-gray-700" },
+    { to: "/m/consultar", label: "Consultar stock", desc: "Onde está e quanto há", icon: Search, ok: podeMovel(user, can, "consultar"), cor: "bg-gray-800" },
+    { to: "/oficina", label: "Oficina", desc: "Operações das OF", icon: QrCode, ok: podeMovel(user, can, "oficina"), cor: "bg-rose-700" },
   ].filter((o) => o.ok);
   const sair = async () => {
     if (await confirm({ title: "Terminar sessão?", confirmLabel: "Sair" })) { logout(); nav("/login?next=/m", { replace: true }); }
@@ -43,7 +44,7 @@ export default function MovelHome() {
         </>} />
       <div className="p-4 space-y-4">
         <p className="text-sm text-gray-600">Olá, <b>{user?.name?.split(" ")[0] || ""}</b>. Leia um código ou escolha o que vai registar.</p>
-        {can("artigos", "view") && <ArtigoPicker autoFocus={false} placeholder="Procurar ou ler um artigo…" onEscolher={(a) => nav("/m/consultar", { state: { artigo: a } })} />}
+        {podeMovel(user, can, "consultar") && <ArtigoPicker autoFocus={false} placeholder="Procurar ou ler um artigo…" onEscolher={(a) => nav("/m/consultar", { state: { artigo: a } })} />}
         <div className="grid grid-cols-2 gap-3">
           {ops.map((o) => (
             <Link key={o.to} to={o.to} className="relative bg-white rounded-2xl border p-4 flex flex-col gap-3 active:bg-gray-100 shadow-sm" data-testid={`movel-op-${o.to.split("/").pop()}`}>

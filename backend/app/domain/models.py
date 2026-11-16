@@ -97,6 +97,27 @@ class PerfilInput(BaseModel):
     ver_custos: bool = True              # custos, margens e lucros (fichas e relatórios)
     so_proprios: List[str] = Field(default_factory=list)  # módulos onde só vê o que criou / é responsável
     pagina_inicial: str = ""             # ex.: /ordens-fabrico para a produção
+    # App móvel: operações permitidas (None = segue as permissões dos módulos)
+    app_movel: Optional[List[str]] = None
+    # Menu lateral e painel predefinidos do perfil (o utilizador pode personalizar por cima)
+    menu: Optional[dict] = None
+    painel_ocultos: Optional[List[str]] = None
+    painel_ordem: Optional[List[str]] = None
+
+
+# Operações da app móvel (Definições → Utilizadores → Perfis → App móvel)
+APP_MOVEL_OPS = {
+    "rececoes": "Receções",
+    "inventario": "Inventário",
+    "localizacoes": "Localizações",
+    "transferir": "Transferir",
+    "movimento": "Entrada / saída",
+    "acertar": "Acertar stock",
+    "stock_baixo": "Stock baixo",
+    "movimentos": "Movimentos",
+    "consultar": "Consultar stock",
+    "oficina": "Oficina",
+}
 
 
 # ----------------------- Domain models -----------------------

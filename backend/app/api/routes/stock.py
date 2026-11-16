@@ -243,6 +243,8 @@ async def inventario_aberto(_u: dict = Depends(require_perm("artigos", "view")))
 
 @router.post("/movel/inventario/{iid}/contar")
 async def contar_movel(iid: str, dados: dict, _u: dict = Depends(require_perm("artigos", "edit"))):
+    from app.core.security import exigir_movel
+    await exigir_movel(_u, "inventario")
     """Regista a contagem de um artigo numa localização. Se a combinação não existir no inventário
     (artigo encontrado num sítio inesperado), acrescenta a linha com stock teórico 0.
     `somar=true` soma à contagem anterior (contar por partes)."""
@@ -312,6 +314,8 @@ async def movel_resumo(user: dict = Depends(require_perm("artigos", "view"))):
 @router.post("/movel/movimento")
 async def movel_movimento(dados: dict, user: dict = Depends(require_perm("artigos", "edit"))):
     """Entrada ou saída avulsa (sem documento): consumo interno, amostra, quebra, devolução, oferta…"""
+    from app.core.security import exigir_movel
+    await exigir_movel(user, "movimento")
     a = await artigos_repo.get(dados.get("artigo_id") or "")
     if not a:
         raise HTTPException(404, "Artigo não encontrado")

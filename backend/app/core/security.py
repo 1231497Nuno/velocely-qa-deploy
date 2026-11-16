@@ -185,6 +185,10 @@ async def user_public(u: dict) -> dict:
             "ver_custos": bool(perfil.get("admin")) or perfil.get("ver_custos", True) is not False,
             "so_proprios": [] if perfil.get("admin") else list(perfil.get("so_proprios") or []),
             "pagina_inicial": perfil.get("pagina_inicial") or "",
+            "app_movel": None if perfil.get("admin") else perfil.get("app_movel"),
+            "menu": perfil.get("menu"),
+            "painel_ocultos": perfil.get("painel_ocultos"),
+            "painel_ordem": perfil.get("painel_ordem"),
         },
         "modulos_ativos": await get_modulos_ativos(),
         "must_set_password": bool(u.get("must_set_password")),
@@ -637,3 +641,19 @@ def require_custos() -> Callable:
             raise HTTPException(status_code=403, detail="O seu perfil não tem acesso a custos e margens")
         return user
     return _dep
+
+
+
+async def pode_movel(user: dict, op: str) -> bool:
+    """Operação da app móvel permitida pelo perfil (sem lista definida = permitido, valem as permissões dos módulos)."""
+    perfil = await resolve_perfil(user)
+    if perfil.get("admin"):
+        return True
+    ops = perfil.get("app_movel")
+    return ops is None or op in ops
+
+
+async def exigir_movel(user: dict, op: str) -> None:
+    from fastapi import HTTPException
+    if not await pode_movel(user, op):
+        raise HTTPException(403, "O seu perfil não tem acesso a esta operação da app móvel")

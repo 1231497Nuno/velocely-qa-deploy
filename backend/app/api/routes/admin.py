@@ -239,10 +239,16 @@ def _restricoes(data: PerfilInput) -> dict:
     pagina = (data.pagina_inicial or "").strip()
     if pagina and not pagina.startswith("/"):
         pagina = "/" + pagina
+    from app.domain.models import APP_MOVEL_OPS
+    from app.services.utilidades import _limpar_menu
     return {
         "ver_custos": True if data.admin else bool(data.ver_custos),
         "so_proprios": [] if data.admin else [m for m in data.so_proprios if m in MODULOS_SO_PROPRIOS],
         "pagina_inicial": pagina[:120],
+        "app_movel": None if (data.admin or data.app_movel is None) else [o for o in data.app_movel if o in APP_MOVEL_OPS],
+        "menu": _limpar_menu(data.menu) if data.menu else None,
+        "painel_ocultos": [str(x)[:40] for x in data.painel_ocultos][:30] if data.painel_ocultos is not None else None,
+        "painel_ordem": [str(x)[:40] for x in data.painel_ordem][:30] if data.painel_ordem is not None else None,
     }
 
 
@@ -276,6 +282,20 @@ MODELOS_PERFIL = {
 }
 
 
+@router.get("/perfis/app-movel-ops")
+async def app_movel_ops(admin: dict = Depends(require_admin)):
+    from app.domain.models import APP_MOVEL_OPS
+    return APP_MOVEL_OPS
+
+
+MODELOS_PERFIL["armazem"] = {"nome": "Armazém", "ver_custos": False, "pagina_inicial": "/m", "so_proprios": [],
+                             "app_movel": ["rececoes", "inventario", "localizacoes", "transferir", "movimento", "stock_baixo", "movimentos", "consultar"],
+                             "perms": (["dashboard", "fornecedores", "encomendas", "calendario"], ["artigos", "ordens_compra"])}
+MODELOS_PERFIL["oficina"] = {"nome": "Oficina", "ver_custos": False, "pagina_inicial": "/oficina", "so_proprios": [],
+                             "app_movel": ["oficina", "consultar", "localizacoes", "movimento"],
+                             "perms": (["artigos", "encomendas", "calendario"], ["ordens_fabrico", "nao_conformidades"])}
+
+
 @router.get("/perfis/modelos")
 async def modelos_perfil(admin: dict = Depends(require_admin)):
     return [{"id": k, "nome": v["nome"], "pagina_inicial": v["pagina_inicial"], "ver_custos": v["ver_custos"],
@@ -294,7 +314,7 @@ async def criar_de_modelo(mid: str, admin: dict = Depends(require_admin)):
         i += 1
     doc = {"id": new_id(), "nome": nome, "sistema": False, "admin": False,
            "permissoes": _perms_de(*m["perms"]), "ver_custos": m["ver_custos"], "so_proprios": list(m["so_proprios"]),
-           "pagina_inicial": m["pagina_inicial"], "created_at": now_iso()}
+           "pagina_inicial": m["pagina_inicial"], "app_movel": m.get("app_movel"), "created_at": now_iso()}
     await perfis_repo.insert(doc)
     return {k: v for k, v in doc.items() if k != "_id"}
 

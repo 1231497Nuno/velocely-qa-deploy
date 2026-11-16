@@ -39,7 +39,7 @@ const mover = (arr, i, d) => {
 };
 
 /** Editor do menu lateral: renomear e ordenar grupos, ordenar/mover/ocultar opções (arrastar ou setas). */
-export default function MenuEditor({ open, onOpenChange, base, menu, onGuardado }) {
+export default function MenuEditor({ open, onOpenChange, base, menu, onGuardado, titulo = "Personalizar o menu", guardarEm = null }) {
   const [grupos, setGrupos] = useState([]);
   const [ocultos, setOcultos] = useState([]);
   const [arrasto, setArrasto] = useState(null); // { g, i }
@@ -75,7 +75,8 @@ export default function MenuEditor({ open, onOpenChange, base, menu, onGuardado 
   const guardar = async (valor) => {
     setBusy(true);
     try {
-      const r = await api.put("/me/preferencias", { menu: valor });
+      // guardarEm: alternativa ao guardar nas preferências do utilizador (ex.: menu predefinido de um perfil)
+      const r = guardarEm ? { menu: await guardarEm(valor) } : await api.put("/me/preferencias", { menu: valor });
       onGuardado(r.menu || null);
       toast.success(valor ? "Menu guardado" : "Menu reposto");
       onOpenChange(false);
@@ -87,7 +88,7 @@ export default function MenuEditor({ open, onOpenChange, base, menu, onGuardado 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="font-display">Personalizar o menu</DialogTitle>
+          <DialogTitle className="font-display">{titulo}</DialogTitle>
           <DialogDescription>Arraste as opções (ou use as setas) para as ordenar ou mudar de grupo. Pode renomear grupos, criar novos e ocultar o que não usa.</DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-1" data-testid="menu-editor">
