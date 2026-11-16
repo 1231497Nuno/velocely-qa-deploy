@@ -288,3 +288,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   custo; `PUT /categorias/{id}/centro-custo`) e `ordem_compra.centro_custo`. Relatório «Resultado por centro de custo».
 - Objetivos (`/objetivos`, `services/objetivos.py`): vendas e despesas previstas por mês vs real (encomendas sem IVA e
   ordens de compra), acumulado e % atingida; «Partir do ano anterior» com crescimento.
+
+## Utilidades: pesquisa, atalhos, painel, cópias e RGPD
+
+- Pesquisa global (barra do topo, Ctrl+K): `GET /search` agora respeita as permissões do perfil e inclui fornecedores,
+  ordens de compra e leads (com «só os próprios» no CRM).
+- Atalhos (estrela no topo): guardam a página atual com os filtros do endereço (`users.preferencias.atalhos`,
+  `GET/PUT /me/preferencias`).
+- Painel: «Personalizar» esconde/mostra blocos por utilizador (`preferencias.painel_ocultos`); bloco «Objetivo do mês».
+- Cópias de segurança (Definições → Dados, admin): uma por dia no armazenamento de ficheiros (últimas 14, ciclo de 5 min),
+  descarregar (JSON gz de todas as coleções) e restaurar (escrever RESTAURAR; faz cópia antes).
+- RGPD (separador no cliente): consentimento de marketing com histórico (`cliente.rgpd`), exportar dados (JSON) e
+  anonimizar (admin; mantém encomendas e documentos fiscais, sem dados pessoais nas encomendas/orçamentos/leads).

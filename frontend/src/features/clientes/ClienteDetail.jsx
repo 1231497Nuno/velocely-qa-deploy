@@ -11,6 +11,7 @@ import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ContaCorrente from "@/features/tesouraria/ContaCorrente";
+import ClienteRgpd from "@/features/clientes/ClienteRgpd";
 import BlocosShell, { FieldGrid, FieldRow } from "@/components/BlocosShell";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
@@ -123,7 +124,7 @@ export default function ClienteDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const { can } = useAuth();
-  const [tab, setTab] = useDetailTab(["cliente", "conta", "historico"], "cliente");
+  const [tab, setTab] = useDetailTab(["cliente", "conta", "rgpd", "historico"], "cliente");
   const [data, setData] = useState(null);
   const [precos, setPrecos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -283,6 +284,7 @@ export default function ClienteDetail() {
         tabs={[
           { id: "cliente", label: "Cliente", testid: "cliente-tab-cliente" },
           { id: "conta", label: "Conta corrente", testid: "cliente-tab-conta" },
+          { id: "rgpd", label: "RGPD", testid: "cliente-tab-rgpd" },
           { id: "historico", label: "Histórico", testid: "cliente-tab-historico" },
         ]}
       />
@@ -672,6 +674,7 @@ export default function ClienteDetail() {
       )}
 
       {tab === "conta" && id && id !== "novo" && <ContaCorrente tipo="cliente" id={id} />}
+      {tab === "rgpd" && c && <ClienteRgpd cliente={c} onChanged={load} />}
       {tab === "historico" && (
         <HistoricoTimeline tipo="cliente" id={id} hideTitle />
       )}
