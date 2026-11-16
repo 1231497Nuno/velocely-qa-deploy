@@ -550,6 +550,17 @@ def _ficheiro(path: str, nome: str = "", content_type: str = "") -> dict:
     return {"path": path, "nome": nome or path.rsplit("/", 1)[-1], "kind": "imagem" if fic.is_image(path, content_type, nome) else "ficheiro"}
 
 
+@router.post("/producao/prazo-sugerido", summary="Data de entrega possível pela carga real das máquinas")
+async def prazo_sugerido(dados: dict, _u: dict = Depends(require_perm("orcamentos", "view"))):
+    from app.services import producao
+    linhas = dados.get("linhas") or []
+    if dados.get("encomenda_id"):
+        e = await encomendas_repo.get(dados["encomenda_id"]) or {}
+        linhas = [{"artigo_id": a.get("artigo_id"), "quantidade": a.get("quantidade"), "roteiro": a.get("roteiro_orcamento")}
+                  for a in e.get("artigos") or []]
+    return await producao.prazo_sugerido(linhas, int(dados.get("margem_dias", 2) or 0), int(dados.get("dias_compra", 5) or 0))
+
+
 @router.get("/oficina/of/{ofid}/documentos")
 async def oficina_documentos(ofid: str, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
     """Tudo o que o operador precisa de ver: ficheiros da OF, artes/maquetas das linhas, anexos da encomenda

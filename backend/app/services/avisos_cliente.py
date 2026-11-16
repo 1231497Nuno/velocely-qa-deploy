@@ -26,7 +26,8 @@ EVENTOS = {
     "pronta": "Pronta para levantar / enviar",
     "entregue": "Entregue",
 }
-PADRAO = {"ativo": False, "eventos": ["recebida", "em_producao", "prazo", "pronta", "entregue"], "anexar_pdf": False}
+PADRAO = {"ativo": False, "eventos": ["recebida", "em_producao", "prazo", "pronta", "entregue"], "anexar_pdf": False,
+          "lembrete_orcamento_dias": 0}
 SISTEMA = {"id": "avisos", "name": "Avisos automáticos"}
 
 
@@ -54,7 +55,8 @@ async def guardar_config(dados: dict) -> dict:
     antes = await get_config()
     cfg = {"ativo": bool(dados.get("ativo")),
            "eventos": [x for x in dados.get("eventos") or [] if x in EVENTOS],
-           "anexar_pdf": bool(dados.get("anexar_pdf"))}
+           "anexar_pdf": bool(dados.get("anexar_pdf")),
+           "lembrete_orcamento_dias": max(0, min(60, int(dados.get("lembrete_orcamento_dias") or 0)))}
     await empresa_repo.update_where({"id": "empresa"}, {"avisos_cliente": cfg}, upsert=True)
     if cfg["ativo"] and not antes.get("ativo"):
         # Ao ligar: o que já aconteceu fica como avisado (não se enviam emails de encomendas antigas)
@@ -145,11 +147,63 @@ async def avisar(e: dict, evento: str, cfg: dict) -> Optional[str]:
     return email_svc.mask_email(to)
 
 
+async def lembrar_orcamentos(cfg: dict) -> int:
+    """Orçamento enviado sem resposta há N dias → um lembrete ao cliente com o link para aceitar online (uma vez)."""
+    from app.repositories import orcamentos_repo
+    from app.services import audit, contactos as contactos_svc, email as email_svc, portal
+    from app.services.email_templates import text_to_html_fragments
+    from app.services.pdf import fetch_cliente, fmt_data
+    dias = int(cfg.get("lembrete_orcamento_dias") or 0)
+    if dias <= 0:
+        return 0
+    hoje = datetime.now(timezone.utc).date()
+    limite = (hoje - timedelta(days=dias)).isoformat()
+    emp = (await empresa_repo.find_one({"id": "empresa"}) or {}).get("nome") or "Fam'Art"
+    n = 0
+    for o in await orcamentos_repo.find({"status": "enviado", "encomenda_id": None}, limit=3000):
+        if o.get("lembrete_cliente_at") or o.get("resposta_cliente"):
+            continue
+        enviado = (o.get("enviado_at") or o.get("data") or o.get("created_at") or "")[:10]
+        if not enviado or enviado > limite or (o.get("validade") or "9999")[:10] < hoje.isoformat():
+            continue
+        cliente = await fetch_cliente(o.get("cliente_id"))
+        to = contactos_svc.resolve_email_destinatario(o, cliente, prefer_papel="decisor")
+        marca = {"lembrete_cliente_at": now_iso()}
+        if to and "@" in to:
+            link = ""
+            try:
+                link = portal.url_publico((await portal.criar_link("orcamento", o["id"], SISTEMA))["token"])
+            except Exception:  # noqa: BLE001
+                link = ""
+            nome = (o.get("contacto_nome") or (cliente or {}).get("nome") or o.get("cliente") or "").strip() or "Cliente"
+            val = f" O orçamento é válido até {fmt_data(o.get('validade'))}." if o.get("validade") else ""
+            corpo = (f"Olá {nome},\n\nEnviámos-lhe há alguns dias o orçamento {o.get('numero')}.{val}\n\n"
+                     + (f"Pode vê-lo, aceitar e assinar online aqui: {link}\n\n" if link.startswith("http") else "")
+                     + f"Se tiver alguma dúvida ou quiser ajustar alguma coisa, basta responder a este email.\n\n— {emp}\n")
+            ok, _m = await asyncio.to_thread(email_svc.send_email, to, f"{emp} — Orçamento {o.get('numero')}", corpo,
+                                             html=email_svc._branded_html(text_to_html_fragments(corpo)))
+            if ok:
+                n += 1
+                marca["lembrete_cliente_para"] = email_svc.mask_email(to)
+                await audit.registar("orcamento", o["id"], "email_enviado", SISTEMA,
+                                     f"Lembrete automático ao cliente enviado para {email_svc.mask_email(to)}", o.get("numero"))
+            else:
+                continue  # tenta no próximo ciclo
+        await orcamentos_repo.col.update_one({"id": o["id"]}, {"$set": marca})
+    return n
+
+
 async def verificar() -> int:
     """Chamado no ciclo: envia os avisos em falta. Devolve quantos emails foram enviados."""
     from app.services import email as email_svc
     cfg = await get_config()
-    if not cfg.get("ativo") or not cfg.get("eventos") or not email_svc.smtp_configured():
+    if not email_svc.smtp_configured():
+        return 0
+    try:
+        await lembrar_orcamentos(cfg)
+    except Exception:  # noqa: BLE001
+        logger.exception("Lembretes de orçamentos falharam")
+    if not cfg.get("ativo") or not cfg.get("eventos"):
         return 0
     limite = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
     enviados = 0

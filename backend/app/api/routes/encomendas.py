@@ -255,6 +255,40 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_pe
     return out
 
 
+@router.post("/encomendas/{eid}/repetir", summary="Nova encomenda igual a esta (mesmo cliente, artigos, personalização e arte)")
+async def repetir_encomenda(eid: str, dados: dict = None, user: dict = Depends(require_perm("encomendas", "create"))):
+    """Copia a encomenda para uma nova (sem pagamentos, entregas nem OF). `quantidades` {linha_id: qtd} opcional;
+    linhas com quantidade 0 ficam de fora."""
+    e = await encomendas_repo.get(eid)
+    if not e:
+        raise HTTPException(404, "Encomenda não encontrada")
+    qtds = (dados or {}).get("quantidades") or {}
+    artigos = []
+    for l in e.get("artigos") or []:
+        q = qtds.get(l.get("id"), l.get("quantidade"))
+        try:
+            q = float(q)
+        except (TypeError, ValueError):
+            q = float(l.get("quantidade") or 1)
+        if q <= 0:
+            continue
+        novo = {k: v for k, v in l.items() if k not in ("id", "orcamento_linha_id", "quantidade_orcamento")}
+        novo["quantidade"] = q
+        artigos.append(novo)
+    if not artigos:
+        raise HTTPException(400, "Não há linhas para repetir")
+    base = {k: e.get(k) for k in ("cliente", "cliente_id", "contacto_id", "contacto_nome", "contacto_email", "contacto_telefone",
+                                   "contacto_cargo", "contacto_departamento", "contacto_papeis", "campos_extra", "envio")
+            if e.get(k) is not None}
+    desc = (e.get("descricao") or "").strip()
+    data = EncomendaInput(**base, descricao=f"{desc} (repetição da {e.get('numero')})".strip() if desc else f"Repetição da {e.get('numero')}",
+                          artigos=artigos)
+    nova = await create_encomenda(data, user)
+    await encomendas_repo.update(nova["id"], {"repete_encomenda_id": eid, "repete_encomenda_numero": e.get("numero")})
+    await audit.registar("encomenda", nova["id"], "criado", user, f"Encomenda {nova.get('numero')} criada a repetir a {e.get('numero')}", nova.get("numero"))
+    return nova
+
+
 async def _assert_qtd_nao_abaixo_ofs(eid: str, artigos: list) -> None:
     """Impede reduzir quantidades da encomenda abaixo do já lançado em OFs."""
     ofs = await ordens_repo.find({"encomenda_id": eid}, limit=500)

@@ -191,3 +191,33 @@ async def delete_cliente(cid: str, user: dict = Depends(require_perm("clientes",
     await audit.registar("cliente", cid, "eliminado", user,
                          f"Cliente «{existing.get('nome')}» eliminado", existing.get("nome"))
     return {"ok": True}
+
+
+
+@router.get("/clientes/{cid}/artes", summary="Artes e maquetas do cliente (de todos os orçamentos e encomendas)")
+async def artes_cliente(cid: str, _u: dict = Depends(require_perm("clientes", "view"))):
+    """Logótipos, artes e maquetas usadas com este cliente, mais recentes primeiro, sem repetidos.
+    Indica se o cliente aprovou a maqueta e em que documento foi usada (para reutilizar num orçamento novo)."""
+    from app.repositories import encomendas_repo, orcamentos_repo
+    vistos, out = {}, []
+    docs = [("orcamento", "orcamentos", o, o.get("linhas") or []) for o in await orcamentos_repo.find({"cliente_id": cid}, sort=("created_at", -1), limit=500)]
+    docs += [("encomenda", "encomendas", e, e.get("artigos") or []) for e in await encomendas_repo.find({"cliente_id": cid}, sort=("created_at", -1), limit=500)]
+    for tipo, rota, d, linhas in docs:
+        for l in linhas:
+            p = l.get("arte_path")
+            if not p:
+                continue
+            ap = l.get("arte_aprovacao") or {}
+            if p in vistos:
+                x = vistos[p]
+                x["usos"] += 1
+                x["aprovada"] = x["aprovada"] or bool(ap.get("aprovada"))
+                continue
+            x = {"path": p, "nome": l.get("arte_nome") or p.rsplit("/", 1)[-1], "content_type": l.get("arte_content_type") or "",
+                 "artigo_nome": l.get("artigo_nome") or "", "documento": d.get("numero") or "", "tipo": tipo,
+                 "link": f"/{rota}/{d['id']}", "data": (d.get("data") or d.get("created_at") or "")[:10],
+                 "aprovada": bool(ap.get("aprovada")), "usos": 1}
+            vistos[p] = x
+            out.append(x)
+    out.sort(key=lambda x: x["data"], reverse=True)
+    return out

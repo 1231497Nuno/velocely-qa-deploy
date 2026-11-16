@@ -470,3 +470,17 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   Modelos de perfil novos: «Armazém» (página inicial `/m`) e «Oficina» (`/oficina`).
 - `menu`, `painel_ocultos`, `painel_ordem` do perfil: predefinidos para quem não personalizou (o do utilizador ganha).
   Editados no perfil com o mesmo `MenuEditor` (`guardarEm`).
+
+## Vendas: seguimento, repetir, artes do cliente, prazo possível
+
+- Lembrete ao cliente (Definições → Emails → «Lembrete de orçamento»: N dias): orçamento enviado (`enviado_at`, posto ao
+  enviar/marcar enviado) sem resposta → um email com o link para aceitar online (`lembrete_cliente_at`). O alerta interno
+  `orcamento_follow_up` continua a criar a tarefa para a equipa.
+- Perdido pede o motivo (`motivo_perda`); relatório «Orçamentos perdidos por motivo». Conversão conta «ganho/perdido».
+- `POST /encomendas/{id}/repetir` (quantidades por linha; 0 = fora): nova encomenda com artigos, personalização, arte e
+  preços; botão «Repetir» na encomenda.
+- `GET /clientes/{id}/artes`: artes/maquetas de todos os orçamentos e encomendas do cliente (sem repetidos, aprovação,
+  documento). Separador «Artes» no cliente; na linha do orçamento, botão «Arte do cliente».
+- `POST /producao/prazo-sugerido` (`producao.prazo_sugerido`): por máquina, horas em fila nas OF abertas + horas deste
+  trabalho (roteiro × qtd) ÷ (horas/semana ÷ 5) → dias; + compras em falta (5 dias) + margem (2) em dias úteis.
+  `components/PrazoSugerido.jsx` no orçamento (escreve nas notas) e na encomenda (prazo de entrega).

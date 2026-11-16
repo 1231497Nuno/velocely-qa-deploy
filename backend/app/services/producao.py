@@ -189,3 +189,66 @@ async def carga(semanas: int = 6, hoje: Optional[date] = None) -> dict:
         out.append(l)
     out.sort(key=lambda x: (-x["total"], x["nome"]))
     return {"semanas": [c.isoformat() for c in cols], "maquinas": out}
+
+
+# ---------------------------------------------------------------------------
+# Prazo de entrega sugerido (carga real das máquinas + compras + margem)
+# ---------------------------------------------------------------------------
+def _somar_dias_uteis(d: date, n: int) -> date:
+    while n > 0:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            n -= 1
+    return d
+
+
+async def prazo_sugerido(linhas: List[dict], margem_dias: int = 2, dias_compra: int = 5) -> dict:
+    """Data de entrega possível para estas linhas ({artigo_id, quantidade, roteiro?}).
+    Para cada máquina: horas em fila (operações por fazer nas OF abertas) + horas destas linhas,
+    a dividir pela capacidade diária (horas por semana ÷ 5). O prazo é o da máquina mais carregada,
+    mais o tempo de compra se faltar stock de artigos comprados, mais a margem."""
+    import math
+    from app.services.costing import op_minutos_maquina
+    maqs = {m["id"]: m for m in await maquinas_repo.find({}, limit=500)}
+    novas: Dict[str, float] = {}
+    compra = []
+    for l in linhas or []:
+        q = float(l.get("quantidade") or 0)
+        if q <= 0:
+            continue
+        a = await artigos_repo.get(l.get("artigo_id") or "") if l.get("artigo_id") else None
+        roteiro = l.get("roteiro") or (a or {}).get("roteiro") or []
+        for op in roteiro:
+            mid = op.get("maquina_id")
+            if mid:
+                novas[mid] = novas.get(mid, 0.0) + op_minutos_maquina(op) * q / 60.0
+        if a and not roteiro and stock_svc.gere_stock(a):
+            disp = float(a.get("qtd_stock") or 0)
+            if disp < q:
+                compra.append({"artigo": a.get("nome"), "falta": round2(q - disp), "fornecedor": a.get("fornecedor_nome") or ""})
+    fila: Dict[str, float] = {}
+    for of in await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, limit=5000):
+        for it in of.get("itens") or []:
+            for op in it.get("operacoes") or []:
+                mid = op.get("maquina_id")
+                if not mid or op.get("concluida") or mid not in novas:
+                    continue
+                feito = float(op["tempo_maquina_real"]) if op.get("tempo_maquina_real") is not None else 0.0
+                fila[mid] = fila.get(mid, 0.0) + max(0.0, float(op.get("tempo_maquina") or 0) - feito) / 60.0
+    detalhe = []
+    dias_prod = 0
+    for mid, h in novas.items():
+        m = maqs.get(mid) or {}
+        cap_dia = max(0.5, float(m.get("horas_semana") or 40) / 5.0)
+        dias = math.ceil((fila.get(mid, 0.0) + h) / cap_dia) if h > 0 else 0
+        dias_prod = max(dias_prod, dias)
+        detalhe.append({"maquina": m.get("nome") or "Máquina", "horas_fila": round2(fila.get(mid, 0.0)), "horas_novas": round2(h),
+                        "capacidade_dia": round2(cap_dia), "dias": dias})
+    detalhe.sort(key=lambda x: -x["dias"])
+    dias_comp = dias_compra if compra else 0
+    total = dias_comp + dias_prod + max(0, int(margem_dias))
+    hoje = datetime.now().date()
+    data = _somar_dias_uteis(hoje, max(total, 1))
+    return {"data": data.isoformat(), "dias_uteis": max(total, 1), "dias_producao": dias_prod, "dias_compra": dias_comp,
+            "margem_dias": int(margem_dias), "maquinas": detalhe, "compras": compra,
+            "sem_roteiro": not novas}

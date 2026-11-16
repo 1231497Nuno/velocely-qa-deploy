@@ -901,6 +901,7 @@ class OrcamentoInput(BaseModel):
     data: Optional[str] = None
     validade: Optional[str] = None
     status: str = "rascunho"
+    motivo_perda: str = ""  # porque se perdeu (preço, prazo, sem resposta, outro fornecedor…)
     margem: float = 0.0
     notas: str = ""
     desconto_total: float = 0.0
