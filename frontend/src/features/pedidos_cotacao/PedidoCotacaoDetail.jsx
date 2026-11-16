@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
+import FornecedorSelect from "@/components/FornecedorSelect";
+import Combobox from "@/components/Combobox";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
@@ -76,6 +78,7 @@ export default function PedidoCotacaoDetail() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
+  const [utilizadores, setUtilizadores] = useState([]);
   const saveForLeaveRef = useRef(null);
 
   useUnsavedChanges({
@@ -112,6 +115,7 @@ export default function PedidoCotacaoDetail() {
     api.get("/fornecedores").then((r) => {
       setFornecedores(Array.isArray(r) ? r : (r.items || []));
     }).catch(() => {});
+    api.get("/utilizadores-lista").then((r) => setUtilizadores(Array.isArray(r) ? r : [])).catch(() => {});
   }, []);
 
   if (!form) {
@@ -382,36 +386,14 @@ export default function PedidoCotacaoDetail() {
             )}
           </Field>
           <Field label="Fornecedor">
-            {editing ? (
-              <>
-                <select
-                  className={inputCls}
-                  value={form.fornecedor_id || ""}
-                  onChange={(e) => onFornecedor(e.target.value)}
-                  data-testid="pc-fornecedor"
-                >
-                  <option value="">— Sem fornecedor —</option>
-                  {fornecedores.map((f) => (
-                    <option key={f.id} value={f.id}>{f.nome}</option>
-                  ))}
-                </select>
-                {form.fornecedor_id && (
-                  <Link to={`/fornecedores/${form.fornecedor_id}`} className="text-xs text-gray-500 hover:text-gray-900 mt-1 inline-block">
-                    Ver ficha do fornecedor →
-                  </Link>
-                )}
-              </>
-            ) : (
-              <ViewValue>
-                {form.fornecedor_id ? (
-                  <Link to={`/fornecedores/${form.fornecedor_id}`} className="hover:underline text-gray-900">
-                    {form.fornecedor_nome || "Fornecedor"}
-                  </Link>
-                ) : (
-                  form.fornecedor_nome || null
-                )}
-              </ViewValue>
-            )}
+            <FornecedorSelect
+              fornecedores={fornecedores}
+              value={form.fornecedor_id || ""}
+              nomeAtual={form.fornecedor_nome || ""}
+              onChange={(fid) => onFornecedor(fid || "")}
+              editavel={editing}
+              testid="pc-fornecedor"
+            />
           </Field>
           <Field label="Estado">
             {editing && !locked ? (
@@ -440,7 +422,16 @@ export default function PedidoCotacaoDetail() {
           </Field>
           <Field label="Responsável">
             {editing ? (
-              <input className={inputCls} value={form.responsavel || ""} onChange={(e) => set("responsavel", e.target.value)} />
+              <Combobox
+                options={[
+                  ...(form.responsavel && !utilizadores.some((u) => u.nome === form.responsavel) ? [{ value: form.responsavel, label: form.responsavel }] : []),
+                  ...utilizadores.map((u) => ({ value: u.nome, label: u.nome, hint: u.login })),
+                ]}
+                value={form.responsavel || ""}
+                onChange={(v) => set("responsavel", v)}
+                placeholder="Escolher responsável..."
+                testid="pc-responsavel"
+              />
             ) : (
               <ViewValue>{form.responsavel}</ViewValue>
             )}

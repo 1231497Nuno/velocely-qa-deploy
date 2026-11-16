@@ -307,6 +307,9 @@ def artigo_lite(artigo: dict) -> dict:
         "variante_label": artigo.get("variante_label") or "",
         "tem_variantes": bool(artigo.get("tem_variantes")),
         "imagem": artigo.get("imagem") or "",
+        "fornecedor_id": artigo.get("fornecedor_id"),
+        "fornecedor_nome": artigo.get("fornecedor_nome") or "",
+        "cod_fornecedor": artigo.get("cod_fornecedor") or "",
         "lite": True,
     }
 

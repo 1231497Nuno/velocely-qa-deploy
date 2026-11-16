@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSort, SortTh } from "@/components/table";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import { ExtrasResumo } from "@/components/CamposPersonalizados";
@@ -28,13 +28,19 @@ export default function OrdensCompra() {
   const nav = useNavigate();
   const [tipoFilter, setTipoFilter] = useState("");
   const [estadoFilter, setEstadoFilter] = useState("");
+  const [fornecedorFilter, setFornecedorFilter] = useState("");
+  const [fornecedores, setFornecedores] = useState([]);
+  useEffect(() => {
+    api.get("/fornecedores").then((r) => setFornecedores(Array.isArray(r) ? r : (r.items || []))).catch(() => {});
+  }, []);
 
   const extraParams = useMemo(() => {
     const p = {};
     if (tipoFilter) p.tipo_despesa = tipoFilter;
     if (estadoFilter) p.estado = estadoFilter;
+    if (fornecedorFilter) p.fornecedor_id = fornecedorFilter;
     return p;
-  }, [tipoFilter, estadoFilter]);
+  }, [tipoFilter, estadoFilter, fornecedorFilter]);
 
   const {
     items, total, pages, page, setPage, pageSize, setPageSize,
@@ -92,10 +98,10 @@ export default function OrdensCompra() {
           <SearchBar value={q} onChange={setQ} placeholder="Pesquisar pelo início do código, assunto ou fornecedor..." testid="ordens-compra-search" />
           <MobileFiltersButton
             testid="ordens-compra-filtros"
-            activeCount={(tipoFilter ? 1 : 0) + (estadoFilter ? 1 : 0)}
-            onClear={() => { setTipoFilter(""); setEstadoFilter(""); }}
+            activeCount={(tipoFilter ? 1 : 0) + (estadoFilter ? 1 : 0) + (fornecedorFilter ? 1 : 0)}
+            onClear={() => { setTipoFilter(""); setEstadoFilter(""); setFornecedorFilter(""); }}
             title="Filtrar ordens de compra"
-            description="Tipo de despesa e estado."
+            description="Estado, fornecedor e tipo de despesa."
           >
             {({ mobile }) => (
               <div className={mobile ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2 w-full"}>
@@ -106,7 +112,11 @@ export default function OrdensCompra() {
                     </FiltroChip>
                   ))}
                 </FiltroGrupo>
-                <FiltroSelect mobile={mobile} value={tipoFilter} onChange={setTipoFilter} testid="oc-filtro-tipo" className={mobile ? "" : "ml-auto"}>
+                <FiltroSelect mobile={mobile} value={fornecedorFilter} onChange={setFornecedorFilter} testid="oc-filtro-fornecedor" className={mobile ? "" : "ml-auto max-w-[14rem]"}>
+                  <option value="">Todos os fornecedores</option>
+                  {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </FiltroSelect>
+                <FiltroSelect mobile={mobile} value={tipoFilter} onChange={setTipoFilter} testid="oc-filtro-tipo">
                   <option value="">Todos os tipos</option>
                   <option value="compra">Compra</option>
                   <option value="despesa_normal">Despesa</option>
