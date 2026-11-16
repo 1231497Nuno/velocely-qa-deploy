@@ -7,6 +7,10 @@ import { CamposProvider } from "@/context/CamposContext";
 import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
 import { ConfirmProvider } from "@/hooks/useConfirm";
 import Layout from "@/components/Layout";
+import MovelHome from "@/features/movel/MovelHome";
+import MovelInventario from "@/features/movel/MovelInventario";
+import { MovelRececoes, MovelRececao } from "@/features/movel/MovelRececoes";
+import { MovelTransferir, MovelConsultar, MovelAcertar } from "@/features/movel/MovelStock";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/features/auth/Login";
 import DefinirPassword from "@/features/auth/DefinirPassword";
@@ -72,6 +76,16 @@ function Protected({ children, adminOnly, modulo }) {
   return <Layout><ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary></Layout>;
 }
 
+/** App móvel (/m): sem o menu lateral; sem sessão vai ao login e volta. */
+function MovelProtected({ children, modulo }) {
+  const { user, ready, can } = useAuth();
+  const location = useLocation();
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">A carregar...</div>;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  if (modulo && !can(modulo, "view")) return <Navigate to="/m" replace />;
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+}
+
 /** Layout raiz: provider de alterações por guardar (precisa de data router). */
 function RootLayout() {
   return (
@@ -90,6 +104,14 @@ const router = createBrowserRouter([
       { path: "/login", element: <Login /> },
       { path: "/definir-password", element: <DefinirPassword /> },
       { path: "/p/:token", element: <PortalCliente /> },
+      { path: "/m", element: <MovelProtected><MovelHome /></MovelProtected> },
+      { path: "/m/inventario", element: <MovelProtected modulo="artigos"><MovelInventario /></MovelProtected> },
+      { path: "/m/rececoes", element: <MovelProtected modulo="ordens_compra"><MovelRececoes /></MovelProtected> },
+      { path: "/m/rececoes/:id", element: <MovelProtected modulo="ordens_compra"><MovelRececao /></MovelProtected> },
+      { path: "/m/transferir", element: <MovelProtected modulo="artigos"><MovelTransferir /></MovelProtected> },
+      { path: "/m/consultar", element: <MovelProtected modulo="artigos"><MovelConsultar /></MovelProtected> },
+      { path: "/m/acertar", element: <MovelProtected modulo="artigos"><MovelAcertar /></MovelProtected> },
+      { path: "/m/*", element: <Navigate to="/m" replace /> },
       { path: "/", element: <Protected><Dashboard /></Protected> },
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
       { path: "/crm", element: <Protected modulo="crm"><Crm /></Protected> },

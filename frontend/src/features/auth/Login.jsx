@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { LogIn } from "lucide-react";
@@ -7,6 +7,10 @@ import { LogIn } from "lucide-react";
 export default function Login() {
   const { login, user, ready } = useAuth();
   const nav = useNavigate();
+  const [sp] = useSearchParams();
+  // destino depois de entrar (ex.: a app móvel /m); só caminhos internos
+  const nextRaw = sp.get("next") || "";
+  const destino = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/";
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,8 +35,8 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (ready && user) nav("/", { replace: true });
-  }, [ready, user, nav]);
+    if (ready && user) nav(destino, { replace: true });
+  }, [ready, user, nav, destino]);
 
   useEffect(() => {
     if (resendIn <= 0) return undefined;
@@ -49,7 +53,7 @@ export default function Login() {
       if (result.must_set_password) {
         nav("/definir-password");
       } else {
-        nav("/");
+        nav(destino);
       }
     } catch (err) {
       const d = err?.response?.data?.detail;

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.core.security import require_perm
-from app.repositories import artigos_repo, inventarios_repo, movimentos_stock_repo
+from app.repositories import artigos_repo, inventarios_repo, localizacoes_repo, movimentos_stock_repo
 from app.services import stock as stock_svc
 
 router = APIRouter()
@@ -23,7 +23,7 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), localiz
     for a in await artigos_repo.find({}, sort=("nome", 1), limit=20000):
         if not stock_svc.gere_stock(a):
             continue
-        if ql and ql not in f"{a.get('codigo', '')} {a.get('nome', '')} {a.get('fornecedor_nome', '')}".lower():
+        if ql and ql not in f"{a.get('codigo', '')} {a.get('nome', '')} {a.get('fornecedor_nome', '')} {a.get('codigo_produto', '')} {a.get('cod_fornecedor', '')}".lower():
             continue
         sl = stock_svc.stock_por_local(a, padrao["id"])
         if localizacao and abs(sl.get(localizacao, 0)) < 1e-9:
@@ -35,6 +35,7 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), localiz
             continue
         custo = float(a.get("custo_medio") or a.get("custo_artigo") or 0)
         out.append({"id": a["id"], "codigo": a.get("codigo") or "", "nome": a.get("nome") or "", "unidade": a.get("unidade") or "un",
+                    "codigo_produto": a.get("codigo_produto") or "", "imagem": a.get("imagem") or "",
                     "tipo_artigo": a.get("tipo_artigo"), "fornecedor_nome": a.get("fornecedor_nome") or "",
                     "unidade_compra": a.get("unidade_compra") or "", "fator_compra": float(a.get("fator_compra") or 1),
                     "qtd_stock": round(stock, 2), "nivel_reabastecimento": nivel, "custo_medio": round(custo, 4),
@@ -207,3 +208,77 @@ async def stock_do_artigo(aid: str, _u: dict = Depends(require_perm("artigos", "
 async def transferir(dados: dict, user: dict = Depends(require_perm("artigos", "edit"))):
     return await stock_svc.transferir(dados.get("artigo_id") or "", dados.get("de") or "", dados.get("para") or "",
                                       dados.get("quantidade"), user, (dados.get("nota") or "").strip())
+
+
+
+# ---------------- App móvel ----------------
+@router.get("/movel/ocs-abertas")
+async def ocs_abertas(_u: dict = Depends(require_perm("ordens_compra", "view"))):
+    """Ordens de compra por receber (para a app móvel)."""
+    from app.repositories import ordens_compra_repo
+    out = []
+    for o in await ordens_compra_repo.find({"estado": "criada"}, sort=("data", -1), limit=300):
+        linhas = [{"id": l.get("id"), "nome": l.get("artigo_nome") or l.get("nome") or "", "artigo_id": l.get("artigo_id"),
+                   "quantidade": float(l.get("quantidade") or 0), "recebida": float(l.get("qtd_recebida") or 0),
+                   "falta": max(0.0, float(l.get("quantidade") or 0) - float(l.get("qtd_recebida") or 0))}
+                  for l in o.get("linhas") or []]
+        if not any(l["falta"] > 0 for l in linhas):
+            continue
+        out.append({"id": o["id"], "codigo": o.get("codigo"), "fornecedor": o.get("fornecedor_nome") or "", "data": o.get("data"),
+                    "assunto": o.get("assunto") or "", "linhas": linhas})
+    return out
+
+
+@router.get("/movel/inventario-aberto")
+async def inventario_aberto(_u: dict = Depends(require_perm("artigos", "view"))):
+    """Inventário aberto (resumido) para a app móvel, ou null."""
+    inv = await inventarios_repo.find_one({"estado": "aberto"})
+    if not inv:
+        return None
+    ls = inv.get("linhas") or []
+    return {"id": inv["id"], "data": inv.get("data"), "n_linhas": len(ls),
+            "n_contados": sum(1 for l in ls if l.get("qtd_contada") is not None)}
+
+
+@router.post("/movel/inventario/{iid}/contar")
+async def contar_movel(iid: str, dados: dict, _u: dict = Depends(require_perm("artigos", "edit"))):
+    """Regista a contagem de um artigo numa localização. Se a combinação não existir no inventário
+    (artigo encontrado num sítio inesperado), acrescenta a linha com stock teórico 0.
+    `somar=true` soma à contagem anterior (contar por partes)."""
+    inv = await inventarios_repo.get(iid)
+    if not inv:
+        raise HTTPException(404, "Inventário não encontrado")
+    if inv.get("estado") != "aberto":
+        raise HTTPException(409, "Inventário fechado")
+    aid = dados.get("artigo_id") or ""
+    a = await artigos_repo.get(aid)
+    if not a:
+        raise HTTPException(404, "Artigo não encontrado")
+    if not stock_svc.gere_stock(a):
+        raise HTTPException(400, "Este artigo não tem gestão de stock")
+    try:
+        qtd = float(dados.get("qtd_contada"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Quantidade inválida")
+    if qtd < 0:
+        raise HTTPException(400, "Quantidade inválida")
+    loc = dados.get("localizacao_id") or (await stock_svc.local_padrao())["id"]
+    chave = f"{aid}|{loc}"
+    linhas = list(inv.get("linhas") or [])
+    idx = next((i for i, l in enumerate(linhas) if (l.get("chave") or f"{l['artigo_id']}|") == chave), None)
+    if idx is None:
+        lo = await localizacoes_repo.get(loc) or {}
+        linhas.append({"chave": chave, "artigo_id": aid, "localizacao_id": loc, "localizacao": lo.get("nome") or "",
+                       "codigo": a.get("codigo") or "", "nome": a.get("nome") or "", "unidade": a.get("unidade") or "un",
+                       "categoria_at": stock_svc.categoria_at(a), "codigo_barras": a.get("codigo_produto") or "",
+                       "qtd_teorica": 0.0, "qtd_contada": None,
+                       "custo": round(float(a.get("custo_medio") or a.get("custo_artigo") or 0), 4), "adicionada": True})
+        idx = len(linhas) - 1
+    l = dict(linhas[idx])
+    anterior = l.get("qtd_contada")
+    novo = qtd + (float(anterior or 0) if dados.get("somar") else 0)
+    l["qtd_contada"] = round(novo, 2)
+    linhas[idx] = l
+    await inventarios_repo.update(iid, {"linhas": linhas})
+    return {"linha": l, "anterior": anterior, "n_contados": sum(1 for x in linhas if x.get("qtd_contada") is not None),
+            "n_linhas": len(linhas)}

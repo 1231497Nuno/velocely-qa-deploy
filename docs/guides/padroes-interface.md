@@ -322,3 +322,23 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   `localizacao_id`). Receção da OC: «Arrumar em». Inventário: uma linha por artigo × localização (`chave`); o CSV da AT soma.
 - Ficha do artigo (bloco Stock): «Stock por localização» com reservado/disponível, transferir, acertar, localização das
   entradas e últimos movimentos (`GET /stock/artigos/{id}`).
+
+## App móvel de armazém (`/m`)
+
+- PWA dentro do mesmo frontend (`features/movel/`), sem o menu lateral: rotas `/m`, `/m/rececoes(/:id)`, `/m/inventario`,
+  `/m/transferir`, `/m/consultar`, `/m/acertar` com `MovelProtected` (sem sessão → `/login?next=/m…`; o Login aceita
+  `next` só com caminhos internos). `public/manifest.webmanifest` (start_url `/m`, ícones `icon-192/512.png`) permite
+  «Adicionar ao ecrã principal». Atalho no menu: Operações → «App móvel (armazém)».
+- Componentes em `features/movel/comum.jsx`: `MovelHeader`, `BotaoGrande` (≥ 52 px de altura), `Quantidade` (− / +),
+  `Scanner` (BarcodeDetector: QR, EAN-13/8, Code 128/39, UPC…; Chrome/Android), `ArtigoPicker` (pesquisa em `/stock?q=`,
+  incluindo `codigo_produto`; Enter = leitor de código de barras USB/Bluetooth; código exato escolhe logo o artigo),
+  `LocalPicker` (chips; lê o QR/código da localização), `useLocalLembrado` (última localização por ecrã, em localStorage).
+- Receções: `GET /movel/ocs-abertas` (OC «criada» com linhas por receber) → quantidades por linha, «Chegou tudo»,
+  «Ler volumes» (cada leitura soma 1 à linha do artigo), «Arrumar em», guia → `POST /ordens-compra/{id}/rececoes`
+  (excesso pede confirmação e envia `aceitar_excesso`).
+- Inventário: `GET /movel/inventario-aberto`; contagem cega (não mostra o stock teórico) por localização →
+  `POST /movel/inventario/{id}/contar` (`somar` para contar por partes; artigo num sítio não previsto acrescenta a linha
+  com teórico 0 e `adicionada: true`). «Por contar aqui» lista as linhas da localização sem contagem. O fecho continua no
+  computador (Stock → Inventários).
+- Transferir (`/stock/transferir`), Consultar (`/stock/artigos/{id}`) e Acertar (`/stock/ajuste` com `nova_quantidade`,
+  localização e motivo obrigatório).
