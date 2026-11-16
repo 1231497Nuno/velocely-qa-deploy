@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Settings2, Target } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Boxes, FileText, Factory, TrendingUp, Wallet, Coins, ShieldAlert, CalendarClock, AlertTriangle } from "lucide-react";
@@ -10,6 +11,36 @@ import {
   Greeting, QuickActions, AttentionCenter, PorProduzirCard, RecentActivity, QuickAnalysis,
   FluxoMensalChart,
 } from "@/features/dashboard/widgets";
+
+const BLOCOS = [
+  ["acoes", "Ações rápidas"], ["atencao", "Precisa de atenção"], ["prazos", "Prazos"], ["por_produzir", "Por produzir"],
+  ["objetivo", "Objetivo do mês"], ["kpis", "Indicadores do ano"], ["contadores", "Contadores"], ["atividade", "Atividade recente"],
+  ["analise", "Análise do ano"],
+];
+
+function ObjetivoMes() {
+  const [o, setO] = useState(null);
+  useEffect(() => { api.get(`/objetivos/${new Date().getFullYear()}`).then(setO).catch(() => {}); }, []);
+  if (!o) return null;
+  const m = o.linhas[new Date().getMonth()];
+  if (!m.obj_vendas) return null;
+  const pct = Math.round((m.vendas / m.obj_vendas) * 100);
+  const diasMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const esperado = Math.round((new Date().getDate() / diasMes) * 100);
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm p-4 mb-4" data-testid="dash-objetivo">
+      <div className="flex items-center gap-2 text-sm font-semibold"><Target size={16} /> Objetivo de {m.mes}</div>
+      <div className="flex flex-wrap items-baseline gap-x-4 mt-1">
+        <div className="text-2xl font-bold tabular-nums">{eur(m.vendas)}</div>
+        <div className="text-sm text-gray-500">de {eur(m.obj_vendas)} · {pct}% (ritmo esperado hoje: {esperado}%)</div>
+      </div>
+      <div className="relative h-2 bg-gray-100 rounded-full mt-2 overflow-hidden">
+        <div className={`h-full ${pct >= esperado ? "bg-emerald-500" : "bg-amber-400"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className="absolute top-0 h-full w-0.5 bg-gray-500" style={{ left: `${esperado}%` }} />
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user, isAdmin, can } = useAuth();
@@ -23,6 +54,14 @@ export default function Dashboard() {
   }, [user, navInicio]);
   const [d, setD] = useState(null);
   const [alertas, setAlertas] = useState({});
+  const [ocultos, setOcultos] = useState([]);
+  useEffect(() => { api.get("/me/preferencias").then((p) => setOcultos(p.painel_ocultos || [])).catch(() => {}); }, []);
+  const ver = (k) => !ocultos.includes(k);
+  const alternar = (k) => {
+    const n = ocultos.includes(k) ? ocultos.filter((x) => x !== k) : [...ocultos, k];
+    setOcultos(n);
+    api.put("/me/preferencias", { painel_ocultos: n }).catch(() => {});
+  };
 
   const load = useCallback(async () => {
     const [dash, al] = await Promise.all([
@@ -91,21 +130,36 @@ export default function Dashboard() {
     <div>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <Greeting nome={user?.name} />
-        {d.total_artigos === 0 && (
-          <button data-testid="seed-btn" onClick={seed} className="btn btn-primario">Criar dados demo</button>
-        )}
+        <div className="flex items-center gap-2">
+          {d.total_artigos === 0 && (
+            <button data-testid="seed-btn" onClick={seed} className="btn btn-primario">Criar dados demo</button>
+          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" className="btn btn-secundario" data-testid="dash-personalizar"><Settings2 size={15} /> Personalizar</button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-60 p-2">
+              <div className="text-xs text-gray-500 px-1 pb-1">Blocos do seu painel</div>
+              {BLOCOS.map(([k, l]) => (
+                <label key={k} className="flex items-center gap-2 px-1 py-1 text-sm"><input type="checkbox" checked={ver(k)} onChange={() => alternar(k)} /> {l}</label>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
-      <QuickActions />
+      {ver("acoes") && <QuickActions />}
 
-      <AttentionCenter items={attentionItems} />
+      {ver("atencao") && <AttentionCenter items={attentionItems} />}
 
-      {canCal && <PrazosBanner atrasadas={d.prazos_atrasadas || 0} proximos7={d.prazos_proximos_7 || 0} />}
+      {ver("prazos") && canCal && <PrazosBanner atrasadas={d.prazos_atrasadas || 0} proximos7={d.prazos_proximos_7 || 0} />}
 
-      {canEnc && <PorProduzirCard />}
+      {ver("por_produzir") && canEnc && <PorProduzirCard />}
+
+      {ver("objetivo") && can("relatorios", "view") && <ObjetivoMes />}
 
       {/* KPIs principais (desde Janeiro) */}
-      {canEnc && (
+      {ver("kpis") && canEnc && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <Stat
             icon={Wallet}
@@ -140,20 +194,20 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
+      {ver("contadores") && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
         {canOF && <Stat icon={Factory} label="Ordens de Fabrico" value={d.total_ofs} sub={`${d.ofs_em_producao} em produção · ${d.ofs_concluidas} concluídas`} tid="stat-ofs" />}
         {canEnc && <Stat icon={ShieldAlert} label="Por Autorizar" value={d.encomendas_por_autorizar} sub="Encomendas sem produção autorizada" accent={d.encomendas_por_autorizar > 0 ? "text-amber-600" : "text-gray-900"} tid="stat-autorizar" />}
         {canOrc && <Stat icon={FileText} label="Orçamentos" value={d.total_orcamentos} sub={`${d.orcamentos_aceites} ganhos · ${eur(d.valor_aceites)}`} tid="stat-orcamentos" />}
         {canArt && <Stat icon={Boxes} label="Artigos" value={d.total_artigos} sub={`Custo médio ${eur(d.custo_medio)}`} tid="stat-artigos" />}
-      </div>
+      </div>}
 
-      {canHist && (
+      {ver("atividade") && canHist && (
         <div className="mb-4">
           <RecentActivity />
         </div>
       )}
 
-      <button
+      {ver("analise") && <button
         type="button"
         data-testid="dash-toggle-analise"
         onClick={() => setShowAnalise((v) => !v)}
@@ -161,9 +215,9 @@ export default function Dashboard() {
       >
         <ChevronDown size={16} className={`transition-transform ${showAnalise ? "rotate-180" : ""}`} />
         {showAnalise ? "Ocultar análise do ano" : "Ver análise do ano"}
-      </button>
+      </button>}
 
-      {showAnalise && (
+      {ver("analise") && showAnalise && (
         <div data-testid="dash-analise">
           {canFluxo && <FluxoMensalChart fluxo={derived.fluxo} />}
 

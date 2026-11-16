@@ -207,6 +207,8 @@ async def ciclo(intervalo_seg: int = 300) -> None:
             await manutencao.verificar()
             from app.services import tesouraria
             await tesouraria.verificar_cobrancas()
+            from app.services import utilidades
+            await utilidades.backup_automatico()
             from app.services.integracoes import enviar_para_loja
             await enviar_para_loja(so_pendentes=True)
         except Exception:

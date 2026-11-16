@@ -8,6 +8,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import NotificationsBell from "@/components/NotificationsBell";
 import MiniCalendarButton from "@/components/MiniCalendarButton";
 import TarefasButton from "@/components/TarefasButton";
+import AtalhosButton from "@/components/AtalhosButton";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
 import {
   LayoutDashboard,
@@ -429,6 +430,7 @@ export default function Layout({ children }) {
         <div className="hidden lg:flex sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200 h-14 items-center gap-4 px-8" data-testid="top-bar">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-0.5" data-testid="desktop-header-actions">
+            <AtalhosButton />
             <TarefasButton />
             <MiniCalendarButton />
             <NotificationsBell badgeHint={notifBadge.hint} badgeCritical={notifBadge.critical} />

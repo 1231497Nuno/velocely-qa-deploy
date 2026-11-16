@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Search, X, FileText, ClipboardList, Factory, Contact, Boxes, AlertTriangle, Scale } from "lucide-react";
+import { Search, X, FileText, ClipboardList, Factory, Contact, Boxes, AlertTriangle, Scale, Truck, ShoppingCart, Kanban } from "lucide-react";
 
 const ICON = {
   "Cliente": Contact, "Orçamento": FileText, "Encomenda": ClipboardList,
   "Ordem de Fabrico": Factory, "Artigo": Boxes, "Não conformidade": AlertTriangle,
-  "A receber": Scale, "A pagar": Scale,
+  "A receber": Scale, "A pagar": Scale, "Fornecedor": Truck, "Ordem de compra": ShoppingCart, "Lead": Kanban,
 };
 
 export default function GlobalSearch({ onNavigate, autoFocus = false }) {
@@ -19,6 +19,19 @@ export default function GlobalSearch({ onNavigate, autoFocus = false }) {
   const [panelStyle, setPanelStyle] = useState(null);
   const boxRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Ctrl+K / Cmd+K: ir para a pesquisa (só a caixa visível responde)
+  useEffect(() => {
+    const k = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && inputRef.current && inputRef.current.offsetParent !== null) {
+        e.preventDefault();
+        inputRef.current.focus();
+        inputRef.current.select?.();
+      }
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -125,7 +138,7 @@ export default function GlobalSearch({ onNavigate, autoFocus = false }) {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => res.length && setOpen(true)}
-        placeholder="Pesquisar pelo início do nome, nº ou código..."
+        placeholder="Pesquisar clientes, encomendas, artigos, fornecedores… (Ctrl+K)"
         className="w-full pl-9 pr-8 py-2 text-sm bg-gray-100 border border-transparent rounded-sm focus:bg-white focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-900"
       />
       {q && (

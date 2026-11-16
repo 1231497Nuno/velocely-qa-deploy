@@ -12,7 +12,7 @@ from app.domain.models import STATUS_PT, PAY_PT, ENC_ESTADO_PT
 from app.repositories import (
     ordens_repo, orcamentos_repo, artigos_repo, encomendas_repo,
     maquinas_repo, tipos_repo, consumiveis_repo, clientes_repo,
-    documentos_financeiros_repo, ordens_compra_repo, nao_conformidades_repo, contas_repo,
+    documentos_financeiros_repo, ordens_compra_repo, nao_conformidades_repo, contas_repo, fornecedores_repo,
 )
 from app.services.costing import (
     recompute_of_status, op_custo_real, compute_orcamento_totais,
@@ -401,34 +401,40 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
     if not ql:
         return {"resultados": []}
     from app.core.pagination import text_search, text_search_cliente
+    from app.core.security import resolve_perfil
+    perfil = await resolve_perfil(_u)
+    perms = perfil.get("permissoes") or {}
+
+    def pode(mod: str) -> bool:
+        return bool(perfil.get("admin") or (perms.get(mod) or {}).get("view"))
     # Mesma lógica que clientes/fornecedores: sempre prefixo (início do texto).
     resultados = []
     cli_q = text_search_cliente(ql) or {}
-    for c in await clientes_repo.find(cli_q, limit=6):
+    for c in (await clientes_repo.find(cli_q, limit=6) if pode("clientes") else []):
         resultados.append({"tipo": "Cliente", "id": c["id"], "titulo": c.get("nome") or "—",
                            "subtitulo": c.get("codigo") or c.get("cidade") or c.get("nif") or "", "url": f"/clientes/{c['id']}"})
     orc_q = text_search(["numero", "cliente"], ql)
-    if orc_q:
+    if orc_q and pode("orcamentos"):
         for o in await orcamentos_repo.find(orc_q, limit=6):
             resultados.append({"tipo": "Orçamento", "id": o["id"], "titulo": o.get("numero") or "Rascunho",
                                "subtitulo": o.get("cliente") or "", "url": f"/orcamentos/{o['id']}"})
     enc_q = text_search(["numero", "cliente"], ql)
-    if enc_q:
+    if enc_q and pode("encomendas"):
         for e in await encomendas_repo.find(enc_q, limit=6):
             resultados.append({"tipo": "Encomenda", "id": e["id"], "titulo": e.get("numero") or "—",
                                "subtitulo": e.get("cliente") or "", "url": f"/encomendas/{e['id']}"})
     of_q = text_search(["numero", "cliente"], ql)
-    if of_q:
+    if of_q and pode("ordens_fabrico"):
         for o in await ordens_repo.find(of_q, limit=6):
             resultados.append({"tipo": "Ordem de Fabrico", "id": o["id"], "titulo": o.get("numero") or "—",
                                "subtitulo": o.get("cliente") or "", "url": f"/ordens-fabrico/{o['id']}"})
     art_q = text_search(["nome", "codigo"], ql)
-    if art_q:
+    if art_q and pode("artigos"):
         for a in await artigos_repo.find(art_q, limit=6):
             resultados.append({"tipo": "Artigo", "id": a["id"], "titulo": a.get("nome") or "—",
                                "subtitulo": a.get("codigo") or "", "url": f"/artigos/{a['id']}"})
     nc_q = text_search(["numero", "encomenda_numero", "artigo_codigo", "artigo_nome", "cliente"], ql)
-    if nc_q:
+    if nc_q and pode("nao_conformidades"):
         for n in await nao_conformidades_repo.find(nc_q, limit=6):
             resultados.append({
                 "tipo": "Não conformidade",
@@ -438,7 +444,7 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
                 "url": f"/nao-conformidades/{n['id']}",
             })
     doc_q = text_search(["numero", "cliente", "encomenda_numero"], ql)
-    if doc_q:
+    if doc_q and pode("financeiro"):
         for d in await documentos_financeiros_repo.find(doc_q, limit=6):
             from app.domain.models import DOC_TIPO_PT
             resultados.append({
@@ -449,7 +455,7 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
                 "url": f"/financeiro/{d['id']}",
             })
     conta_q = text_search(["numero", "entidade", "descricao", "referencia"], ql)
-    if conta_q:
+    if conta_q and pode("contas"):
         from app.domain.models import CONTA_TIPO_PT
         for c in await contas_repo.find(conta_q, limit=6):
             resultados.append({
@@ -459,6 +465,24 @@ async def search(q: str = "", _u: dict = Depends(get_current_user)):
                 "subtitulo": c.get("entidade") or c.get("descricao") or "",
                 "url": f"/contas/{c['id']}",
             })
+    forn_q = text_search(["nome", "codigo", "nif"], ql)
+    if forn_q and pode("fornecedores"):
+        for f in await fornecedores_repo.find(forn_q, limit=6):
+            resultados.append({"tipo": "Fornecedor", "id": f["id"], "titulo": f.get("nome") or "—",
+                               "subtitulo": f.get("codigo") or f.get("cidade") or "", "url": f"/fornecedores/{f['id']}"})
+    oc_q = text_search(["codigo", "fornecedor_nome", "assunto"], ql)
+    if oc_q and pode("ordens_compra"):
+        for o in await ordens_compra_repo.find(oc_q, limit=6):
+            resultados.append({"tipo": "Ordem de compra", "id": o["id"], "titulo": o.get("codigo") or "—",
+                               "subtitulo": o.get("fornecedor_nome") or "", "url": f"/ordens-compra/{o['id']}"})
+    lead_q = text_search(["nome", "empresa", "email", "telefone"], ql)
+    if lead_q and pode("crm"):
+        from app.repositories import leads_repo
+        from app.core.security import filtro_proprios
+        fp = await filtro_proprios(_u, "crm")
+        for l in await leads_repo.find({"$and": [lead_q, fp]} if fp else lead_q, limit=6):
+            resultados.append({"tipo": "Lead", "id": l["id"], "titulo": l.get("empresa") or l.get("nome") or "—",
+                               "subtitulo": l.get("nome") if l.get("empresa") else (l.get("email") or ""), "url": f"/crm?lead={l['id']}"})
     return {"resultados": resultados}
 
 
