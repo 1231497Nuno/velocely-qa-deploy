@@ -1,11 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ExtrasResumo } from "@/components/CamposPersonalizados";
 import { useCampos, estiloCor } from "@/context/CamposContext";
-import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
@@ -13,45 +11,6 @@ import ListPagination, { useServerPagedList } from "@/components/ListPagination"
 import { ListPage, ScrollableTable, MobileCards, MobileCard, TABLE_HEAD_STICKY } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
-import UtilizadorSelect from "@/components/UtilizadorSelect";
-
-const empty = {
-  nome: "", tipo: "empresa", morada: "", codigo_postal: "", cidade: "", pais: "Portugal",
-  contacto: "", email: "", nif: "", website: "", categoria: "", notas: "", responsavel: "",
-  campos_extra: {},
-};
-
-function apiDetail(e) {
-  const d = e?.response?.data?.detail;
-  if (Array.isArray(d)) return d.map((x) => x.msg || JSON.stringify(x)).join("; ");
-  return typeof d === "string" ? d : null;
-}
-
-function validarFormFornecedor(form) {
-  if (!form.nome.trim()) return "Nome obrigatório";
-  if (form.tipo !== "empresa") return null;
-  const faltam = [];
-  if (!form.nif.trim()) faltam.push("NIF");
-  if (!form.morada.trim()) faltam.push("morada");
-  if (!form.codigo_postal.trim()) faltam.push("código postal");
-  if (!form.cidade.trim()) faltam.push("cidade");
-  if (!form.contacto.trim()) faltam.push("contacto");
-  if (!form.email.trim()) faltam.push("email");
-  if (faltam.length) return "Para empresas são obrigatórios: " + faltam.join(", ");
-  return null;
-}
-
-function FieldLabel({ children, required }) {
-  return (
-    <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-      {children}
-      {required ? <span className="text-red-600"> *</span> : null}
-    </label>
-  );
-}
 
 function SortTh({ label, field, sortBy, sortDir, onSort, testid }) {
   const active = sortBy === field;
@@ -84,14 +43,6 @@ export default function Fornecedores() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel, loading,
   } = useServerPagedList("/fornecedores", { extraParams });
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
-  const saveRef = useRef(null);
-  useUnsavedChanges({
-    dirty: open,
-    onSave: async () => (saveRef.current ? saveRef.current() : true),
-  });
 
   const onSort = (field) => {
     if (sortBy === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -101,47 +52,10 @@ export default function Fornecedores() {
     }
   };
 
-  const openNew = () => { setForm(empty); setEditId(null); setOpen(true); };
-  const openEdit = (e, f) => {
-    e.stopPropagation();
-    setForm({
-      nome: f.nome,
-      tipo: f.tipo || (f.nif ? "empresa" : "particular"),
-      morada: f.morada || "",
-      codigo_postal: f.codigo_postal || "",
-      cidade: f.cidade || "",
-      pais: f.pais || "Portugal",
-      contacto: f.contacto || "",
-      email: f.email || "",
-      nif: f.nif || "",
-      website: f.website || "",
-      categoria: f.categoria || "",
-      notas: f.notas || "",
-      responsavel: f.responsavel || "",
-      campos_extra: f.campos_extra || {},
-    });
-    setEditId(f.id);
-    setOpen(true);
-  };
-  const save = async () => {
-    const err = validarFormFornecedor(form);
-    if (err) {
-      toast.error(err);
-      return false;
-    }
-    try {
-      if (editId) await api.put(`/fornecedores/${editId}`, form);
-      else await api.post("/fornecedores", form);
-      toast.success("Fornecedor guardado");
-      setOpen(false);
-      reload();
-      return true;
-    } catch (e) {
-      toast.error(apiDetail(e) || "Erro ao guardar fornecedor");
-      return false;
-    }
-  };
-  saveRef.current = save;
+  // Criar e editar seguem o mesmo padrão de artigos/clientes: página «Novo fornecedor» e ficha do fornecedor
+  const openNew = () => nav("/fornecedores/novo");
+  const openEdit = (e, f) => { e.stopPropagation(); nav(`/fornecedores/${f.id}`, { state: { edit: true } }); };
+
   const remove = async (e, id) => {
     e.stopPropagation();
     await api.del(`/fornecedores/${id}`);
@@ -271,107 +185,6 @@ export default function Fornecedores() {
       </MobileCards>
     </ListPage>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-display">{editId ? "Editar Fornecedor" : "Novo Fornecedor"}</DialogTitle>
-            <DialogDescription>Dados do fornecedor.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2 max-h-[70vh] overflow-y-auto">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Tipo</label>
-              <div className="grid grid-cols-2 gap-2" data-testid="fornecedor-tipo-group">
-                {[
-                  { value: "empresa", label: "Empresa" },
-                  { value: "particular", label: "Particular" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    data-testid={`fornecedor-tipo-${opt.value}`}
-                    onClick={() => setForm({ ...form, tipo: opt.value })}
-                    className={`rounded-sm px-3 py-2 text-sm font-medium border transition-colors ${
-                      form.tipo === opt.value
-                        ? "bg-brand text-brand-fg border-brand"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-1.5">
-                {form.tipo === "empresa"
-                  ? "Empresa: nome, NIF, morada, código postal, cidade, contacto e email obrigatórios."
-                  : "Particular: nome obrigatório; restantes campos opcionais (NIF pode ficar vazio)."}
-              </p>
-            </div>
-            <div>
-              <FieldLabel required>Nome</FieldLabel>
-              <input data-testid="fornecedor-nome-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <FieldLabel required={form.tipo === "empresa"}>Contacto</FieldLabel>
-                <input data-testid="fornecedor-contacto-input" value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <FieldLabel required={form.tipo === "empresa"}>Email</FieldLabel>
-                <input data-testid="fornecedor-email-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <FieldLabel required={form.tipo === "empresa"}>Morada</FieldLabel>
-                <input data-testid="fornecedor-morada-input" value={form.morada} onChange={(e) => setForm({ ...form, morada: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <FieldLabel required={form.tipo === "empresa"}>
-                  NIF {form.tipo === "particular" ? <span className="text-gray-400 font-normal">(opcional)</span> : null}
-                </FieldLabel>
-                <input data-testid="fornecedor-nif-input" value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} placeholder={form.tipo === "particular" ? "Deixar vazio = sem NIF" : ""} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <FieldLabel required={form.tipo === "empresa"}>Código Postal</FieldLabel>
-                <input data-testid="fornecedor-cp-input" value={form.codigo_postal} onChange={(e) => setForm({ ...form, codigo_postal: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <FieldLabel required={form.tipo === "empresa"}>Cidade</FieldLabel>
-                <input data-testid="fornecedor-cidade-input" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <FieldLabel>País</FieldLabel>
-                <input data-testid="fornecedor-pais-input" value={form.pais} onChange={(e) => setForm({ ...form, pais: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>Website</FieldLabel>
-                <input data-testid="fornecedor-website-input" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-              <div>
-                <FieldLabel>Categoria</FieldLabel>
-                <input data-testid="fornecedor-categoria-input" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-              </div>
-            </div>
-            <div>
-              <FieldLabel>Responsável</FieldLabel>
-              <UtilizadorSelect testid="fornecedor-responsavel-input" value={form.responsavel} onChange={(v) => setForm({ ...form, responsavel: v })} />
-            </div>
-            <div>
-              <FieldLabel>Notas</FieldLabel>
-              <textarea data-testid="fornecedor-notas-input" value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} rows={2} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
-            </div>
-          </div>
-          <CamposPersonalizados modulo="fornecedores" className="mt-3" value={form.campos_extra} onChange={(vals) => setForm({ ...form, campos_extra: vals })} />
-          <DialogFooter>
-            <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-            <button data-testid="save-fornecedor-btn" onClick={save} className="btn btn-primario">Guardar</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

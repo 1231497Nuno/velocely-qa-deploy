@@ -362,6 +362,18 @@ export default function OrdemFabricoDetail() {
                     <div className="text-gray-700 truncate text-xs" data-testid="of-descricao-input" title={of.descricao}>{of.descricao}</div>
                   </div>
                 )}
+                {(of.notas_oficina || []).length > 0 && (
+                  <div className="min-w-0 col-span-2 sm:col-span-3 lg:col-span-5" data-testid="of-notas-oficina">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">Notas da oficina ({of.notas_oficina.length})</div>
+                    <ul className="mt-0.5 space-y-0.5 max-h-24 overflow-auto">
+                      {[...of.notas_oficina].reverse().map((n) => (
+                        <li key={n.id} className="text-xs text-gray-800">
+                          <span className="text-gray-500">{n.por} · {fmtDate(n.data)}{n.referencia ? ` · ${n.referencia}` : ""}:</span> {n.texto}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {of.orcamento_id && (
                   <div className="min-w-0">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">Origem</div>

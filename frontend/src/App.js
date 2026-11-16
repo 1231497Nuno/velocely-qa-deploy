@@ -7,11 +7,14 @@ import { CamposProvider } from "@/context/CamposContext";
 import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
 import { ConfirmProvider } from "@/hooks/useConfirm";
 import Layout from "@/components/Layout";
+import ClienteNovo from "@/features/clientes/ClienteNovo";
+import FornecedorNovo from "@/features/fornecedores/FornecedorNovo";
 import MovelHome from "@/features/movel/MovelHome";
 import MovelInventario from "@/features/movel/MovelInventario";
 import { MovelRececoes, MovelRececao } from "@/features/movel/MovelRececoes";
 import { MovelTransferir, MovelConsultar, MovelAcertar } from "@/features/movel/MovelStock";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import VisualizadorFicheiro from "@/components/VisualizadorFicheiro";
 import Login from "@/features/auth/Login";
 import DefinirPassword from "@/features/auth/DefinirPassword";
 import Dashboard from "@/features/dashboard/Dashboard";
@@ -116,8 +119,10 @@ const router = createBrowserRouter([
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
       { path: "/crm", element: <Protected modulo="crm"><Crm /></Protected> },
       { path: "/clientes", element: <Protected modulo="clientes"><Clientes /></Protected> },
+      { path: "/clientes/novo", element: <Protected modulo="clientes"><ClienteNovo /></Protected> },
       { path: "/clientes/:id", element: <Protected modulo="clientes"><ClienteDetail /></Protected> },
       { path: "/fornecedores", element: <Protected modulo="fornecedores"><Fornecedores /></Protected> },
+      { path: "/fornecedores/novo", element: <Protected modulo="fornecedores"><FornecedorNovo /></Protected> },
       { path: "/fornecedores/:id", element: <Protected modulo="fornecedores"><FornecedorDetail /></Protected> },
       { path: "/ordens-compra", element: <Protected modulo="ordens_compra"><OrdensCompra /></Protected> },
       { path: "/ordens-compra/:id", element: <Protected modulo="ordens_compra"><OrdemCompraDetail /></Protected> },
@@ -173,6 +178,7 @@ function App() {
   return (
     <>
       <Toaster position="top-right" richColors />
+      <VisualizadorFicheiro />
       <ErrorBoundary>
         <TemaProvider>
           <AuthProvider>

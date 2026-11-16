@@ -537,7 +537,106 @@ async def oficina_of(ref: str, _u: dict = Depends(require_perm("ordens_fabrico",
         await ordens_repo.find_one({"numero": {"$regex": f"{re.escape(ref)}$", "$options": "i"}})
     if not of:
         raise HTTPException(404, "OF não encontrada")
-    return recompute_of_status(of)
+    of = recompute_of_status(of)
+    if of.get("encomenda_id"):
+        e = await encomendas_repo.get(of["encomenda_id"]) or {}
+        of["prazo_entrega"] = e.get("prazo_entrega")
+        of["encomenda_numero"] = e.get("numero") or of.get("encomenda_numero")
+    return of
+
+
+def _ficheiro(path: str, nome: str = "", content_type: str = "") -> dict:
+    from app.services import ficheiros as fic
+    return {"path": path, "nome": nome or path.rsplit("/", 1)[-1], "kind": "imagem" if fic.is_image(path, content_type, nome) else "ficheiro"}
+
+
+@router.get("/oficina/of/{ofid}/documentos")
+async def oficina_documentos(ofid: str, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    """Tudo o que o operador precisa de ver: ficheiros da OF, artes/maquetas das linhas, anexos da encomenda
+    e fotos/ficheiros técnicos dos artigos."""
+    from app.services import ficheiros as fic
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    grupos, vistos = [], set()
+
+    def juntar(titulo: str, itens: list):
+        out = []
+        for i in itens:
+            if i.get("path") and i["path"] not in vistos:
+                vistos.add(i["path"])
+                out.append(i)
+        if out:
+            grupos.append({"titulo": titulo, "itens": out})
+
+    artes = [_ficheiro(it["arte_path"], it.get("arte_nome") or f"Arte — {it.get('artigo_nome') or ''}", it.get("arte_content_type") or "")
+             for it in of.get("itens") or [] if it.get("arte_path")]
+    juntar("Artes / maquetas", artes)
+    juntar("Desta OF", [_ficheiro(i["path"], i.get("nome") or "", i.get("content_type") or "")
+                        for i in fic.itens_do_registo(of, can_delete=False, include_capa=False)])
+    if of.get("encomenda_id"):
+        e = await encomendas_repo.get(of["encomenda_id"])
+        if e:
+            itens = [_ficheiro(l["arte_path"], l.get("arte_nome") or f"Arte — {l.get('artigo_nome') or ''}", l.get("arte_content_type") or "")
+                     for l in e.get("artigos") or [] if l.get("arte_path")]
+            itens += [_ficheiro(i["path"], i.get("nome") or "", i.get("content_type") or "")
+                      for i in fic.itens_do_registo(e, can_delete=False, include_capa=False)]
+            juntar(f"Da encomenda {e.get('numero') or ''}".strip(), itens)
+    for it in of.get("itens") or []:
+        a = await artigos_repo.get(it.get("artigo_id") or "") if it.get("artigo_id") else None
+        if a:
+            juntar(f"Artigo · {a.get('nome') or it.get('artigo_nome') or ''}",
+                   [_ficheiro(i["path"], i.get("nome") or "", i.get("content_type") or "")
+                    for i in fic.itens_do_registo(a, can_delete=False, include_capa=True)])
+    return {"grupos": grupos}
+
+
+class NotaOficinaBody(BaseModel):
+    texto: str
+    item_id: Optional[str] = None
+    operacao_id: Optional[str] = None
+
+
+@router.post("/oficina/of/{ofid}/notas")
+async def oficina_nota(ofid: str, body: NotaOficinaBody, user: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    """Nota do operador na OF (opcionalmente ligada a um artigo/operação). Fica no histórico da OF."""
+    from app.core.database import new_id
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    texto = (body.texto or "").strip()
+    if not texto:
+        raise HTTPException(400, "Escreva a nota")
+    ref = ""
+    for it in of.get("itens") or []:
+        if it.get("id") == body.item_id:
+            ref = it.get("artigo_nome") or ""
+            for op in it.get("operacoes") or []:
+                if op.get("id") == body.operacao_id:
+                    ref = f"{ref} · {op.get('nome') or ''}".strip(" ·")
+    nota = {"id": new_id(), "texto": texto[:2000], "item_id": body.item_id, "operacao_id": body.operacao_id, "referencia": ref,
+            "por_id": user.get("id"), "por": user.get("name") or user.get("email") or "", "data": now_iso()}
+    notas = list(of.get("notas_oficina") or []) + [nota]
+    await ordens_repo.update(ofid, {"notas_oficina": notas})
+    await audit.registar("ordem_fabrico", ofid, "editado", user, f"Nota da oficina na OF {of.get('numero')}: {texto[:120]}", of.get("numero"))
+    return notas
+
+
+@router.delete("/oficina/of/{ofid}/notas/{nid}")
+async def oficina_nota_apagar(ofid: str, nid: str, user: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    notas = list(of.get("notas_oficina") or [])
+    n = next((x for x in notas if x.get("id") == nid), None)
+    if not n:
+        raise HTTPException(404, "Nota não encontrada")
+    admin = bool((user.get("perfil") or {}).get("admin")) or user.get("role") == "admin"
+    if n.get("por_id") != user.get("id") and not admin:
+        raise HTTPException(403, "Só quem escreveu a nota a pode apagar")
+    notas = [x for x in notas if x.get("id") != nid]
+    await ordens_repo.update(ofid, {"notas_oficina": notas})
+    return notas
 
 
 # ---------------------------------------------------------------------------

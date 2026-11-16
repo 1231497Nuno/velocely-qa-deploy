@@ -1,3 +1,4 @@
+import { openAuthenticated } from "@/lib/openAuthenticated";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -63,6 +64,7 @@ function fmtCurto(v, tipo) {
 }
 
 async function descarregar(path, nome) {
+  if (/\.pdf$/i.test(nome)) { await openAuthenticated(`${API}${path}`, { filename: nome }); return; }
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) {
     let msg = `Erro ${res.status}`;

@@ -56,87 +56,95 @@ import {
   Target,
 } from "lucide-react";
 
+// Menu organizado pelo fluxo do negócio: vender → comprar → stock → produzir → faturar → analisar; dados base e sistema no fim.
 const NAV_GROUPS = [
   {
-    id: "operacoes",
-    label: "Operações",
-    items: [
-      { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos", modulo: "orcamentos" },
-      { to: "/calculadora", label: "Calculadora de preços", icon: Calculator, tid: "nav-calculadora", modulo: "orcamentos" },
-      { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
-      { to: "/pedidos-cotacao", label: "Pedidos de Cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
-      { to: "/ordens-compra", label: "Ordens de Compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
-      { to: "/stock", label: "Stock e inventário", icon: Warehouse, tid: "nav-stock", modulo: "artigos" },
-      { to: "/m", label: "App móvel (armazém)", icon: Smartphone, tid: "nav-movel", modulo: "artigos" },
-      { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
-      { to: "/ordens-fabrico/acerto-tempos", label: "Acerto de tempos", icon: Timer, tid: "nav-acerto-tempos", modulo: "ordens_fabrico" },
-      { to: "/oficina", label: "Oficina (tablet)", icon: QrCode, tid: "nav-oficina", modulo: "ordens_fabrico" },
-      { to: "/planeamento", label: "Planeamento", icon: CalendarRange, tid: "nav-planeamento", modulo: "ordens_fabrico" },
-      { to: "/carga-maquinas", label: "Carga das máquinas", icon: Gauge, tid: "nav-carga-maquinas", modulo: "ordens_fabrico" },
-      { to: "/manutencao", label: "Manutenção", icon: Wrench, tid: "nav-manutencao", modulo: "maquinas" },
-      { to: "/nao-conformidades", label: "Não conformidades", icon: AlertTriangle, tid: "nav-nc", modulo: "nao_conformidades" },
-      { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" },
-      { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
-    ],
-  },
-  {
-    id: "catalogo",
-    label: "Catálogo",
-    items: [
-      { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
-      { to: "/categorias", label: "Categorias", icon: Layers, tid: "nav-categorias", modulo: "artigos" },
-      { to: "/tabelas-precos", label: "Tabelas de preços", icon: Tags, tid: "nav-tabelas-precos", modulo: "artigos" },
-      { to: "/precos-fornecedor", label: "Custos de fornecedor", icon: RefreshCcw, tid: "nav-precos-fornecedor", modulo: "artigos" },
-      { to: "/maquinas", label: "Máquinas", icon: Cog, tid: "nav-maquinas", modulo: "maquinas" },
-      { to: "/mao-obra", label: "Mão de Obra", icon: Users, tid: "nav-mao-obra", modulo: "mao_obra" },
-      { to: "/personalizacao", label: "Tipos de Personalização", icon: Palette, tid: "nav-personalizacao", modulo: "personalizacao" },
-    ],
-  },
-  {
-    id: "comercial",
-    label: "Comercial",
+    id: "vendas",
+    label: "Vendas",
     items: [
       { to: "/crm", label: "CRM / Leads", icon: Kanban, tid: "nav-crm", modulo: "crm" },
       { to: "/clientes", label: "Clientes", icon: Contact, tid: "nav-clientes", modulo: "clientes" },
-      { to: "/fornecedores", label: "Fornecedores", icon: Truck, tid: "nav-fornecedores", modulo: "fornecedores" },
+      { to: "/orcamentos", label: "Orçamentos", icon: FileText, tid: "nav-orcamentos", modulo: "orcamentos" },
+      { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
+      { to: "/calculadora", label: "Calculadora de preços", icon: Calculator, tid: "nav-calculadora", modulo: "orcamentos" },
     ],
   },
   {
-    id: "relatorios",
-    label: "Relatórios",
+    id: "compras",
+    label: "Compras",
     items: [
-      { to: "/relatorios", label: "Relatórios", icon: BarChart3, tid: "nav-relatorios", modulo: "relatorios" },
-      { to: "/objetivos", label: "Objetivos", icon: Target, tid: "nav-objetivos", modulo: "relatorios" },
-      { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade", custos: true },
+      { to: "/fornecedores", label: "Fornecedores", icon: Truck, tid: "nav-fornecedores", modulo: "fornecedores" },
+      { to: "/pedidos-cotacao", label: "Pedidos de cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
+      { to: "/ordens-compra", label: "Ordens de compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
+      { to: "/precos-fornecedor", label: "Custos de fornecedor", icon: RefreshCcw, tid: "nav-precos-fornecedor", modulo: "artigos" },
+    ],
+  },
+  {
+    id: "stock",
+    label: "Stock",
+    items: [
+      { to: "/stock", label: "Stock e inventário", icon: Warehouse, tid: "nav-stock", modulo: "artigos" },
+      { to: "/m", label: "App móvel (armazém)", icon: Smartphone, tid: "nav-movel", modulo: "artigos" },
+    ],
+  },
+  {
+    id: "producao",
+    label: "Produção",
+    items: [
+      { to: "/ordens-fabrico", label: "Ordens de fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
+      { to: "/planeamento", label: "Planeamento", icon: CalendarRange, tid: "nav-planeamento", modulo: "ordens_fabrico" },
+      { to: "/carga-maquinas", label: "Carga das máquinas", icon: Gauge, tid: "nav-carga-maquinas", modulo: "ordens_fabrico" },
+      { to: "/oficina", label: "Oficina (tablet)", icon: QrCode, tid: "nav-oficina", modulo: "ordens_fabrico" },
+      { to: "/ordens-fabrico/acerto-tempos", label: "Acerto de tempos", icon: Timer, tid: "nav-acerto-tempos", modulo: "ordens_fabrico" },
+      { to: "/nao-conformidades", label: "Não conformidades", icon: AlertTriangle, tid: "nav-nc", modulo: "nao_conformidades" },
+      { to: "/manutencao", label: "Manutenção", icon: Wrench, tid: "nav-manutencao", modulo: "maquinas" },
     ],
   },
   {
     id: "financeiro",
-    label: "Pagamentos e faturas",
+    label: "Financeiro",
     items: [
       { to: "/pagamentos", label: "Pagamentos", icon: Banknote, tid: "nav-pagamentos", modulo: "encomendas" },
       { to: "/financeiro", label: "Faturas / Recibos", icon: Wallet, tid: "nav-financeiro", modulo: "financeiro" },
+      { to: "/contas?tipo=receber", label: "Contas a receber", icon: ArrowDownLeft, tid: "nav-contas-receber", modulo: "contas", matchTipo: "receber" },
+      { to: "/contas?tipo=pagar", label: "Contas a pagar", icon: ArrowUpRight, tid: "nav-contas-pagar", modulo: "contas", matchTipo: "pagar" },
+      { to: "/tesouraria", label: "Tesouraria", icon: Landmark, tid: "nav-tesouraria", modulo: "contas" },
     ],
   },
   {
-    id: "contas",
-    label: "Contas a pagar e a receber",
+    id: "analise",
+    label: "Análise",
     items: [
-      { to: "/contas?tipo=receber", label: "A receber", icon: ArrowDownLeft, tid: "nav-contas-receber", modulo: "contas", matchTipo: "receber" },
-      { to: "/contas?tipo=pagar", label: "A pagar", icon: ArrowUpRight, tid: "nav-contas-pagar", modulo: "contas", matchTipo: "pagar" },
-      { to: "/tesouraria", label: "Tesouraria", icon: Landmark, tid: "nav-tesouraria", modulo: "contas" },
+      { to: "/relatorios", label: "Relatórios", icon: BarChart3, tid: "nav-relatorios", modulo: "relatorios" },
+      { to: "/analise-producao", label: "Análise da produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },
+      { to: "/rentabilidade-clientes", label: "Rentabilidade por cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade", custos: true },
+      { to: "/objetivos", label: "Objetivos", icon: Target, tid: "nav-objetivos", modulo: "relatorios" },
+    ],
+  },
+  {
+    id: "dados_base",
+    label: "Dados base",
+    items: [
+      { to: "/artigos", label: "Artigos", icon: Boxes, tid: "nav-artigos", modulo: "artigos" },
+      { to: "/categorias", label: "Categorias", icon: Layers, tid: "nav-categorias", modulo: "artigos" },
+      { to: "/tabelas-precos", label: "Tabelas de preços", icon: Tags, tid: "nav-tabelas-precos", modulo: "artigos" },
+      { to: "/personalizacao", label: "Tipos de personalização", icon: Palette, tid: "nav-personalizacao", modulo: "personalizacao" },
+      { to: "/maquinas", label: "Máquinas", icon: Cog, tid: "nav-maquinas", modulo: "maquinas" },
+      { to: "/mao-obra", label: "Mão de obra", icon: Users, tid: "nav-mao-obra", modulo: "mao_obra" },
     ],
   },
   {
     id: "sistema",
     label: "Sistema",
     items: [
-      { to: "/historico", label: "Histórico", icon: History, tid: "nav-historico", modulo: "historico" },
       { to: "/definicoes", label: "Definições", icon: Settings, tid: "nav-definicoes", modulo: "definicoes" },
-      { to: "/utilizadores", label: "Gestão de Utilizadores", icon: Shield, tid: "nav-utilizadores", adminOnly: true },
+      { to: "/utilizadores", label: "Utilizadores e perfis", icon: Shield, tid: "nav-utilizadores", adminOnly: true },
+      { to: "/historico", label: "Histórico", icon: History, tid: "nav-historico", modulo: "historico" },
     ],
   },
 ];
+
+const CALENDARIO_ITEM = { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" };
 
 const DASHBOARD_ITEM = {
   to: "/",
@@ -174,7 +182,9 @@ export default function Layout({ children }) {
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [alertas, setAlertas] = useState({});
-  const [expanded, setExpanded] = useState({});
+  // Grupos do menu abertos/fechados: lembrados neste browser
+  const [expanded, setExpanded] = useState(() => { try { return JSON.parse(localStorage.getItem("velocely_menu_grupos") || "{}"); } catch { return {}; } });
+  useEffect(() => { try { localStorage.setItem("velocely_menu_grupos", JSON.stringify(expanded)); } catch { /* sem storage */ } }, [expanded]);
   const { user, isAdmin, can, logout } = useAuth();
   // Perfis sem acesso a custos: esconde custos, margens e lucros (elementos com a classe dado-custo)
   useEffect(() => {
@@ -377,6 +387,7 @@ export default function Layout({ children }) {
         <nav className="flex-1 p-3 overflow-y-auto overscroll-contain space-y-3" data-testid="sidebar-nav">
           <div className="space-y-0.5 mb-1">
             {renderLink(DASHBOARD_ITEM)}
+            {can("calendario", "view") && renderLink(CALENDARIO_ITEM)}
           </div>
           {groups.map((g) => {
             const openGroup = expanded[g.id] !== false;
