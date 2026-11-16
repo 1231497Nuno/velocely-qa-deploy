@@ -16,8 +16,9 @@ from app.repositories import (
     artigos_repo, categorias_repo, clientes_repo, consumiveis_repo,
     encomendas_repo, fornecedores_repo, mao_obra_repo, maquinas_repo, orcamentos_repo,
     ordens_repo, subcategorias_repo, ordens_compra_repo, pedidos_cotacao_repo, contas_repo,
-    nao_conformidades_repo, documentos_financeiros_repo,
+    nao_conformidades_repo, documentos_financeiros_repo, leads_repo, crm_estados_repo,
 )
+from app.services import campos as campos_svc
 from app.services.numeracao import next_codigo
 
 MAX_ROWS = 5000
@@ -36,7 +37,8 @@ _PLACEHOLDER_NIFS = {
 _TEXT_COLUMNS = {
     "codigo", "numero", "encomenda_numero", "artigo_codigo", "orcamento_numero",
     "nif", "contacto", "codigo_postal", "email", "cod_fabricante", "cod_fornecedor",
-    "codigo_produto", "plano_contas", "categoria_codigo",
+    "codigo_produto", "plano_contas", "categoria_codigo", "cliente_codigo", "telefone",
+    "conta_proveitos",
 }
 
 # entity_key → módulo RBAC
@@ -58,6 +60,8 @@ ENTITY_PERM = {
     "contas": "contas",
     "nao_conformidades": "nao_conformidades",
     "documentos_financeiros": "financeiro",
+    "cliente_contactos": "clientes",
+    "leads": "crm",
 }
 
 # Exportação simples (só leitura): uma coluna por campo do documento
@@ -65,10 +69,36 @@ GENERIC_EXPORT = {"ordens_compra", "pedidos_cotacao", "contas", "nao_conformidad
 
 IMPORTABLE = {
     "clientes", "fornecedores", "artigos", "materiais", "maquinas", "mao_obra",
-    "categorias", "subcategorias", "encomendas",
+    "categorias", "subcategorias", "encomendas", "leads",
 }
 
-EXPORTABLE = set(k for k in ENTITY_PERM.keys() if k not in ("encomenda_linhas", "subcategorias"))
+EXPORTABLE = set(k for k in ENTITY_PERM.keys() if k not in ("encomenda_linhas", "subcategorias", "cliente_contactos"))
+
+# Folhas filhas: podem faltar no ficheiro de importação
+SHEETS_OPCIONAIS = {"encomenda_linhas", "cliente_contactos"}
+
+# Campos personalizados (Definições → Campos e cores): colunas extra "campo_<chave>"
+CAMPOS_MODULO = {
+    "clientes": "clientes",
+    "fornecedores": "fornecedores",
+    "artigos": "artigos",
+    "orcamentos": "orcamentos",
+    "encomendas": "encomendas",
+    "ordens_fabrico": "ordens_fabrico",
+    "ordens_compra": "ordens_compra",
+    "pedidos_cotacao": "pedidos_cotacao",
+    "contas": "contas",
+    "nao_conformidades": "nao_conformidades",
+    "leads": "crm",
+}
+EXTRA_PREFIX = "campo_"
+
+# Cores das linhas (iguais às do ecrã)
+CORES_LINHA = {
+    "vermelho": "#dc2626", "laranja": "#ea580c", "amarelo": "#d97706", "verde": "#16a34a",
+    "ciano": "#0891b2", "azul": "#2563eb", "violeta": "#7c3aed", "cinza": "#64748b",
+}
+_COR_NOME = {v: k.capitalize() for k, v in CORES_LINHA.items()}
 
 # Folhas e colunas canónicas (ordem = cabeçalho Excel)
 SHEETS: Dict[str, Dict[str, Any]] = {
@@ -76,14 +106,22 @@ SHEETS: Dict[str, Dict[str, Any]] = {
         "title": "Clientes",
         "columns": [
             "codigo", "nome", "tipo", "morada", "codigo_postal", "cidade", "pais",
-            "contacto", "email", "nif", "notas",
+            "contacto", "email", "nif", "responsavel", "condicoes_pagamento",
+            "desconto_comercial_pct", "limite_credito", "notas",
+        ],
+    },
+    "cliente_contactos": {
+        "title": "Cliente_contactos",
+        "columns": [
+            "cliente_codigo", "cliente", "nome", "cargo", "departamento", "email", "telefone",
+            "papeis", "notas",
         ],
     },
     "fornecedores": {
         "title": "Fornecedores",
         "columns": [
             "codigo", "nome", "tipo", "morada", "codigo_postal", "cidade", "pais",
-            "contacto", "email", "nif", "website", "categoria", "notas",
+            "contacto", "email", "nif", "website", "categoria", "responsavel", "notas",
         ],
     },
     "artigos": {
@@ -91,9 +129,9 @@ SHEETS: Dict[str, Dict[str, Any]] = {
         "columns": [
             "codigo", "nome", "descricao", "unidade", "tipo_artigo", "produzido",
             "categoria", "subcategoria",
-            "custo_artigo", "margem", "comissao_pct",
+            "custo_artigo", "preco_compra", "margem", "comissao_pct", "iva_taxa",
             "fabricante", "cod_fabricante", "fornecedor", "cod_fornecedor",
-            "website", "ficha_produto", "plano_contas", "codigo_produto",
+            "website", "ficha_produto", "plano_contas", "conta_proveitos", "codigo_produto",
             "comprimento_mm", "largura_mm", "espessura_mm", "peso_kg",
             "comprimento_unidade", "largura_unidade", "espessura_unidade", "peso_unidade",
             "responsavel", "qtd_uni", "qtd_stock", "nivel_reabastecimento", "qtd_ultima_compra",
@@ -139,7 +177,7 @@ SHEETS: Dict[str, Dict[str, Any]] = {
         "title": "Encomenda_linhas",
         "columns": [
             "encomenda_numero", "artigo_codigo", "artigo_nome", "quantidade",
-            "preco_unit", "desconto", "desconto_tipo", "personalizacoes",
+            "preco_unit", "desconto", "desconto_tipo", "personalizacoes", "cor",
         ],
     },
     "ordens_fabrico": {
@@ -183,13 +221,137 @@ SHEETS: Dict[str, Dict[str, Any]] = {
             "numero", "tipo", "data", "cliente", "encomenda_numero", "total", "estado", "notas",
         ],
     },
+    "leads": {
+        "title": "Leads_CRM",
+        "columns": [
+            "nome", "empresa", "telefone", "email", "origem", "descricao", "valor_estimado",
+            "estado", "proxima_acao_at", "proxima_acao_nota", "cliente", "responsavel", "criado_em",
+        ],
+    },
+}
+
+# Linha de exemplo nos modelos (ignorada na importação: começa por EXEMPLO)
+EXEMPLOS: Dict[str, Dict[str, Any]] = {
+    "clientes": {
+        "codigo": "EXEMPLO", "nome": "Empresa Exemplo, Lda", "tipo": "empresa", "morada": "Rua X, 10",
+        "codigo_postal": "4760-000", "cidade": "Vila Nova de Famalicão", "pais": "Portugal",
+        "contacto": "912345678", "email": "geral@exemplo.pt", "nif": "500000000",
+        "condicoes_pagamento": "30 dias", "desconto_comercial_pct": 5, "limite_credito": 1000,
+    },
+    "cliente_contactos": {
+        "cliente_codigo": "EXEMPLO", "cliente": "Empresa Exemplo, Lda", "nome": "Ana Silva",
+        "cargo": "Compras", "email": "ana@exemplo.pt", "telefone": "912345678", "papeis": "decisor, financeiro",
+    },
+    "fornecedores": {
+        "codigo": "EXEMPLO", "nome": "Fornecedor Exemplo", "tipo": "empresa", "morada": "Rua Y, 5",
+        "codigo_postal": "4000-000", "cidade": "Porto", "pais": "Portugal", "contacto": "220000000",
+        "email": "vendas@fornecedor.pt", "nif": "500000001", "categoria": "Brindes",
+    },
+    "artigos": {
+        "codigo": "EXEMPLO", "nome": "Caneca personalizada", "unidade": "un", "tipo_artigo": "ativo",
+        "produzido": "sim", "custo_artigo": 2.5, "preco_compra": 2.5, "margem": 100, "iva_taxa": 23, "ativo": "sim",
+    },
+    "materiais": {"codigo": "EXEMPLO", "nome": "Acrílico 3mm", "unidade": "m²", "custo_unitario": 40},
+    "maquinas": {"codigo": "EXEMPLO", "nome": "Laser CO2", "custo_amortizacao_hora": 5, "custo_energia_hora": 1},
+    "mao_obra": {"codigo": "EXEMPLO", "nome": "Operador", "custo_hora": 12, "responsavel_personalizacoes": "nao"},
+    "categorias": {"codigo": "EXEMPLO", "nome": "Brindes"},
+    "subcategorias": {"codigo": "EXEMPLO", "nome": "Canecas", "categoria": "Brindes"},
+    "encomendas": {
+        "numero": "EXEMPLO", "cliente": "Empresa Exemplo, Lda", "descricao": "Canecas para evento",
+        "data": "2026-01-15", "prazo_entrega": "2026-01-30", "estado": "aberta",
+    },
+    "encomenda_linhas": {
+        "encomenda_numero": "EXEMPLO", "artigo_codigo": "ART-0001", "artigo_nome": "Caneca personalizada",
+        "quantidade": 50, "preco_unit": 6.5, "desconto": 0, "desconto_tipo": "pct", "cor": "Azul",
+    },
+    "leads": {
+        "nome": "EXEMPLO Ana Silva", "empresa": "Empresa Exemplo, Lda", "telefone": "912345678",
+        "email": "ana@exemplo.pt", "origem": "Instagram", "descricao": "Fardas para 20 pessoas",
+        "valor_estimado": 600, "estado": "Novo",
+    },
 }
 
 # Ao pedir "categorias" / "encomendas" no hub, exporta folhas filhas
 EXPORT_EXPAND = {
     "categorias": ["categorias", "subcategorias"],
     "encomendas": ["encomendas", "encomenda_linhas"],
+    "clientes": ["clientes", "cliente_contactos"],
 }
+
+
+async def _extras_ativos(entity: str) -> List[dict]:
+    """Campos personalizados ativos do módulo da folha (Definições → Campos e cores)."""
+    modulo = CAMPOS_MODULO.get(entity)
+    if not modulo:
+        return []
+    try:
+        cfg = await campos_svc.get_config(modulo)
+    except Exception:
+        return []
+    return [c for c in (cfg.get("extras") or []) if c.get("ativo", True) and c.get("key")]
+
+
+def _colunas(entity: str, extras: List[dict]) -> List[str]:
+    return list(SHEETS[entity]["columns"]) + [EXTRA_PREFIX + c["key"] for c in extras]
+
+
+def _extra_para_celula(campo: dict, valor: Any) -> Any:
+    if campo.get("tipo") == "sim_nao":
+        return "sim" if valor else "nao"
+    if valor in (None, ""):
+        return None
+    return valor
+
+
+def _extras_da_linha(row: Dict[str, Any], extras: List[dict]) -> Dict[str, Any]:
+    """Lê as colunas campo_<chave> da linha. Células vazias não alteram o valor atual."""
+    out: Dict[str, Any] = {}
+    for c in extras:
+        col = EXTRA_PREFIX + c["key"]
+        if col not in row:
+            continue
+        v = row.get(col)
+        if v is None or _norm_str(v) == "":
+            continue
+        tipo = c.get("tipo")
+        label = c.get("label") or c["key"]
+        if tipo == "sim_nao":
+            out[c["key"]] = _parse_bool(v)
+        elif tipo == "numero":
+            try:
+                out[c["key"]] = float(str(v).replace(",", "."))
+            except ValueError:
+                raise ValueError(f"«{label}» tem de ser um número")
+        elif tipo == "data":
+            out[c["key"]] = _parse_date(v)
+        elif tipo == "lista":
+            txt = _norm_str(v)
+            opcoes = [o.get("valor") for o in c.get("opcoes") or []]
+            match = next((o for o in opcoes if (o or "").lower() == txt.lower()), None)
+            if match is None:
+                raise ValueError(f"«{label}»: opção inválida ({txt}). Opções: {', '.join(opcoes)}")
+            out[c["key"]] = match
+        else:
+            out[c["key"]] = _norm_str(v)
+    return out
+
+
+def _juntar_extras(patch: dict, row: Dict[str, Any], existing: Optional[dict]) -> None:
+    novos = row.get("_campos_extra") or {}
+    if not novos:
+        return
+    base = dict((existing or {}).get("campos_extra") or {})
+    base.update(novos)
+    patch["campos_extra"] = base
+
+
+def _cor_da_celula(v: Any) -> str:
+    txt = _norm_str(v).lower()
+    if not txt:
+        return ""
+    if re.fullmatch(r"#[0-9a-f]{6}", txt):
+        return txt
+    return CORES_LINHA.get(txt, "")
 
 
 def _cell(v: Any) -> Any:
@@ -333,7 +495,7 @@ def _row_wants_update(row: Dict[str, Any], mode: str) -> bool:
 
 
 def _is_example_row(row: Dict[str, Any]) -> bool:
-    for key in ("codigo", "numero", "encomenda_numero", "nome", "cliente"):
+    for key in ("codigo", "numero", "encomenda_numero", "cliente_codigo", "nome", "cliente"):
         v = _norm_str(row.get(key) or "")
         if v.startswith("#") or v.upper().startswith("EXEMPLO"):
             return True
@@ -377,6 +539,7 @@ async def _load_docs(entity: str, ids: Optional[List[str]] = None) -> List[dict]
         "contas": contas_repo,
         "nao_conformidades": nao_conformidades_repo,
         "documentos_financeiros": documentos_financeiros_repo,
+        "leads": leads_repo,
     }
     repo = repo_map[entity]
     query: dict = {}
@@ -403,6 +566,10 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "contacto": doc.get("contacto"),
             "email": doc.get("email"),
             "nif": doc.get("nif"),
+            "responsavel": doc.get("responsavel"),
+            "condicoes_pagamento": doc.get("condicoes_pagamento"),
+            "desconto_comercial_pct": doc.get("desconto_comercial_pct"),
+            "limite_credito": doc.get("limite_credito"),
             "notas": doc.get("notas"),
         }
     elif entity == "fornecedores":
@@ -419,6 +586,7 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "nif": doc.get("nif"),
             "website": doc.get("website"),
             "categoria": doc.get("categoria"),
+            "responsavel": doc.get("responsavel"),
             "notas": doc.get("notas"),
         }
     elif entity == "artigos":
@@ -432,8 +600,10 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "categoria": doc.get("categoria_nome"),
             "subcategoria": doc.get("subcategoria_nome"),
             "custo_artigo": doc.get("custo_artigo"),
+            "preco_compra": doc.get("preco_compra"),
             "margem": doc.get("margem"),
             "comissao_pct": doc.get("comissao_pct"),
+            "iva_taxa": doc.get("iva_taxa"),
             "fabricante": doc.get("fabricante"),
             "cod_fabricante": doc.get("cod_fabricante"),
             "fornecedor": doc.get("fornecedor_nome"),
@@ -441,6 +611,7 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "website": doc.get("website"),
             "ficha_produto": doc.get("ficha_produto"),
             "plano_contas": doc.get("plano_contas"),
+            "conta_proveitos": doc.get("conta_proveitos"),
             "codigo_produto": doc.get("codigo_produto"),
             "comprimento_mm": doc.get("comprimento_mm"),
             "largura_mm": doc.get("largura_mm"),
@@ -530,9 +701,49 @@ def _doc_to_row(entity: str, doc: dict) -> List[Any]:
             "orcamento_numero": doc.get("orcamento_numero"),
             "notas": doc.get("notas"),
         }
+    elif entity == "leads":
+        m = {
+            "nome": doc.get("nome"),
+            "empresa": doc.get("empresa"),
+            "telefone": doc.get("telefone"),
+            "email": doc.get("email"),
+            "origem": doc.get("origem"),
+            "descricao": doc.get("descricao"),
+            "valor_estimado": doc.get("valor_estimado"),
+            "estado": doc.get("_estado_nome") or "",
+            "proxima_acao_at": doc.get("proxima_acao_at"),
+            "proxima_acao_nota": doc.get("proxima_acao_nota"),
+            "cliente": doc.get("cliente_nome"),
+            "responsavel": doc.get("responsavel_nome"),
+            "criado_em": (doc.get("created_at") or "")[:10],
+        }
     else:
         m = {}
     return [_cell(m.get(c)) for c in cols]
+
+
+def _linha_com_extras(entity: str, row: List[Any], doc: dict, extras: List[dict]) -> List[Any]:
+    vals = doc.get("campos_extra") or {}
+    return row + [_cell(_extra_para_celula(c, vals.get(c["key"]))) for c in extras]
+
+
+def _doc_to_rows_contactos(cliente: dict) -> List[List[Any]]:
+    cols = SHEETS["cliente_contactos"]["columns"]
+    out = []
+    for ct in cliente.get("contactos") or []:
+        m = {
+            "cliente_codigo": cliente.get("codigo"),
+            "cliente": cliente.get("nome"),
+            "nome": ct.get("nome"),
+            "cargo": ct.get("cargo"),
+            "departamento": ct.get("departamento"),
+            "email": ct.get("email"),
+            "telefone": ct.get("telefone"),
+            "papeis": ", ".join(ct.get("papeis") or []),
+            "notas": ct.get("notas"),
+        }
+        out.append([_cell(m.get(c)) for c in cols])
+    return out
 
 
 def _pers_to_cell(pers: Any) -> str:
@@ -580,6 +791,7 @@ def _doc_to_row_enc_linha(enc: dict, linha: dict) -> List[Any]:
         "desconto": linha.get("desconto"),
         "desconto_tipo": linha.get("desconto_tipo") or "pct",
         "personalizacoes": _pers_to_cell(linha.get("personalizacoes")),
+        "cor": _COR_NOME.get((linha.get("cor") or "").lower(), linha.get("cor") or ""),
     }
     return [_cell(m.get(c)) for c in cols]
 
@@ -631,23 +843,44 @@ def _format_text_columns(ws, columns: List[str], *, prefill_rows: int = 80) -> N
         ws.column_dimensions[letter].width = max(14, min(28, len(name) + 6))
 
 
-def _add_sheet_validations(ws, entity: str, columns: List[str]) -> None:
+def _lista_excel(valores: List[str]) -> Optional[str]:
+    """Fórmula de lista para validação (o Excel limita a 255 caracteres e não aceita vírgulas nos valores)."""
+    vals = [str(v).replace(",", " ").replace('"', "'").strip() for v in valores if str(v or "").strip()]
+    txt = ",".join(vals)
+    if not vals or len(txt) > 250:
+        return None
+    return f'"{txt}"'
+
+
+def _add_sheet_validations(
+    ws, entity: str, columns: List[str], extras: Optional[List[dict]] = None,
+    listas_extra: Optional[Dict[str, List[str]]] = None,
+) -> None:
     """Dropdowns para reduzir erros de preenchimento."""
     col_index = {c: i + 1 for i, c in enumerate(columns)}
     specs = {
         "clientes": {"tipo": '"empresa,particular"'},
         "fornecedores": {"tipo": '"empresa,particular"'},
         "encomendas": {"estado": '"aberta,em_producao,concluida,cancelada"', "desconto_total_tipo": '"pct,eur"'},
-        "encomenda_linhas": {"desconto_tipo": '"pct,eur"'},
+        "encomenda_linhas": {"desconto_tipo": '"pct,eur"', "cor": _lista_excel([n.capitalize() for n in CORES_LINHA])},
         "artigos": {
             "tipo_artigo": '"ativo,materia_prima,consumivel,servico,nao_utilizado,inativo"',
             "produzido": '"sim,nao"',
             "ativo": '"sim,nao"',
         },
     }.get(entity, {})
+    specs = dict(specs)
+    for field, valores in (listas_extra or {}).items():
+        specs[field] = _lista_excel(valores)
+    for c in extras or []:
+        col = EXTRA_PREFIX + c["key"]
+        if c.get("tipo") == "sim_nao":
+            specs[col] = '"sim,nao"'
+        elif c.get("tipo") == "lista":
+            specs[col] = _lista_excel([o.get("valor") for o in c.get("opcoes") or []])
     for field, formula in specs.items():
         idx = col_index.get(field)
-        if not idx:
+        if not idx or not formula:
             continue
         letter = get_column_letter(idx)
         dv = DataValidation(type="list", formula1=formula, allow_blank=True)
@@ -659,17 +892,26 @@ def _add_sheet_validations(ws, entity: str, columns: List[str]) -> None:
         dv.add(f"{letter}2:{letter}5001")
 
 
-def _add_sheet(wb: Workbook, entity: str, rows: List[List[Any]], *, first: bool) -> None:
+def _add_sheet(
+    wb: Workbook, entity: str, rows: List[List[Any]], *, first: bool,
+    extras: Optional[List[dict]] = None, listas_extra: Optional[Dict[str, List[str]]] = None,
+) -> None:
     meta = SHEETS[entity]
+    extras = extras or []
     title = meta["title"][:31]
     if first and wb.active.title == "Sheet":
         ws = wb.active
         ws.title = title
     else:
         ws = wb.create_sheet(title)
-    cols = meta["columns"]
+    cols = _colunas(entity, extras)
     ws.append(cols)
     _style_header(ws, len(cols))
+    # Colunas de campos personalizados com cabeçalho noutra cor + nota com o nome
+    for i, c in enumerate(extras, start=len(meta["columns"]) + 1):
+        cell = ws.cell(1, i)
+        cell.fill = PatternFill("solid", fgColor="1F4E79")
+        ws.column_dimensions[get_column_letter(i)].width = max(18, min(30, len(c.get("label") or "") + 6))
     for row in rows:
         # Garantir códigos/NIF como texto mesmo quando vêm numéricos
         safe = []
@@ -686,10 +928,11 @@ def _add_sheet(wb: Workbook, entity: str, rows: List[List[Any]], *, first: bool)
                 ws.cell(r, i).number_format = "@"
                 # Prefixo ' implícito via number_format; valor já é str
     _format_text_columns(ws, cols, prefill_rows=max(80, min(len(rows) + 20, 120)))
-    _add_sheet_validations(ws, entity, cols)
+    _add_sheet_validations(ws, entity, cols, extras, listas_extra)
 
 
-def _instructions_sheet(wb: Workbook, entities: List[str]) -> None:
+def _instructions_sheet(wb: Workbook, entities: List[str],
+                        extras_por_folha: Optional[Dict[str, List[dict]]] = None) -> None:
     ws = wb.create_sheet("Instrucoes", 0)
     lines = [
         ["Velocely — Importação / Exportação Excel"],
@@ -705,12 +948,20 @@ def _instructions_sheet(wb: Workbook, entities: List[str]) -> None:
         ["9. Se a folha Encomendas tiver o mesmo numero repetido (1× por artigo), o sistema usa só a 1.ª ocorrência."],
         ["10. Linhas ligam-se por encomenda_numero = numero da encomenda. Artigos por artigo_codigo."],
         ["11. Datas: AAAA-MM-DD ou DD/MM/AAAA. Máximo 5000 linhas por folha."],
-        ["12. Linhas de exemplo começadas por # ou EXEMPLO são ignoradas."],
+        ["12. Linhas de exemplo começadas por # ou EXEMPLO são ignoradas (pode apagá-las)."],
+        ["13. Colunas campo_… (cabeçalho azul) são os campos personalizados de Definições → Campos e cores. Célula vazia = não altera."],
+        ["14. Clientes: contactos das empresas na folha Cliente_contactos, ligados por cliente_codigo. Papéis: financeiro, decisor, tecnico."],
+        ["15. Cor das linhas: Vermelho, Laranja, Amarelo, Verde, Ciano, Azul, Violeta ou Cinza."],
+        ["16. Leads (CRM): o estado é o nome da coluna do funil (ex.: Novo). Duplicados detetados pelo email ou telefone."],
         [""],
         ["Folhas neste ficheiro:"],
     ]
     for e in entities:
         lines.append([SHEETS[e]["title"], ", ".join(SHEETS[e]["columns"])])
+    for e, extras in (extras_por_folha or {}).items():
+        if extras:
+            lines.append([f"{SHEETS[e]['title']} — campos personalizados",
+                          ", ".join(f"{EXTRA_PREFIX}{c['key']} ({c.get('label')})" for c in extras)])
     for row in lines:
         ws.append(row)
     ws.column_dimensions["A"].width = 100
@@ -718,11 +969,24 @@ def _instructions_sheet(wb: Workbook, entities: List[str]) -> None:
     ws["A1"].font = Font(bold=True, size=14)
 
 
+async def _listas_dinamicas(entity: str) -> Dict[str, List[str]]:
+    """Valores de listas que dependem dos dados (ex.: estados do funil do CRM)."""
+    if entity == "leads":
+        estados = await crm_estados_repo.find({}, sort=("ordem", 1), limit=100)
+        return {"estado": [e.get("nome") for e in estados if e.get("nome")]}
+    return {}
+
+
+async def _enrich_leads(docs: List[dict]) -> List[dict]:
+    estados = {e["id"]: e.get("nome") for e in await crm_estados_repo.find({}, limit=200)}
+    return [{**d, "_estado_nome": estados.get(d.get("estado_id") or "", "")} for d in docs]
+
+
 async def build_export_xlsx(
     entities: List[str],
     ids_by_entity: Optional[Dict[str, List[str]]] = None,
 ) -> bytes:
-    """Gera .xlsx com uma folha por entidade (expandindo categorias / encomendas)."""
+    """Gera .xlsx com uma folha por entidade (expandindo categorias / encomendas / clientes)."""
     expanded: List[str] = []
     for e in entities:
         e = (e or "").strip()
@@ -743,6 +1007,8 @@ async def build_export_xlsx(
         if ids_by_entity is not None:
             if entity == "encomenda_linhas":
                 id_list = ids_by_entity.get("encomendas") or ids_by_entity.get("encomenda_linhas")
+            elif entity == "cliente_contactos":
+                id_list = ids_by_entity.get("clientes")
             elif entity in ids_by_entity:
                 id_list = ids_by_entity[entity]
 
@@ -760,13 +1026,25 @@ async def build_export_xlsx(
             first = False
             continue
 
+        if entity == "cliente_contactos":
+            rows = []
+            for cli in await _load_docs("clientes", id_list):
+                rows.extend(_doc_to_rows_contactos(cli))
+            _add_sheet(wb, entity, rows, first=first)
+            first = False
+            continue
+
+        extras = await _extras_ativos(entity)
         docs = await _load_docs(entity, id_list)
         if entity == "subcategorias":
             docs = await _enrich_subcategorias(docs)
             rows = [_doc_to_row_sub(d) for d in docs]
         else:
-            rows = [_doc_to_row(entity, d) for d in docs]
-        _add_sheet(wb, entity, rows, first=first)
+            if entity == "leads":
+                docs = await _enrich_leads(docs)
+            rows = [_linha_com_extras(entity, _doc_to_row(entity, d), d, extras) for d in docs]
+        _add_sheet(wb, entity, rows, first=first, extras=extras,
+                   listas_extra=await _listas_dinamicas(entity))
         first = False
 
     buf = BytesIO()
@@ -774,16 +1052,22 @@ async def build_export_xlsx(
     return buf.getvalue()
 
 
-def build_template_xlsx(entity: str) -> bytes:
+async def build_template_xlsx(entity: str) -> bytes:
+    """Modelo de importação: colunas atuais (incl. campos personalizados), listas e uma linha de exemplo."""
     if entity not in IMPORTABLE:
         raise ValueError("Entidade não suportada para importação")
     keys = EXPORT_EXPAND.get(entity, [entity])
     wb = Workbook()
     first = True
+    extras_por_folha: Dict[str, List[dict]] = {}
     for e in keys:
-        _add_sheet(wb, e, [], first=first)
+        extras = await _extras_ativos(e) if e not in SHEETS_OPCIONAIS else []
+        extras_por_folha[e] = extras
+        exemplo = EXEMPLOS.get(e)
+        rows = [[_cell(exemplo.get(c)) for c in _colunas(e, extras)]] if exemplo else []
+        _add_sheet(wb, e, rows, first=first, extras=extras, listas_extra=await _listas_dinamicas(e))
         first = False
-    _instructions_sheet(wb, keys)
+    _instructions_sheet(wb, keys, extras_por_folha)
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -851,7 +1135,7 @@ async def import_rows(
                     ws = wb[name]
                     break
         if ws is None:
-            if target == "encomenda_linhas":
+            if target in SHEETS_OPCIONAIS:
                 continue
             errors.append({"linha": 0, "folha": sheet_title, "erro": f"Folha '{sheet_title}' não encontrada"})
             continue
@@ -865,12 +1149,15 @@ async def import_rows(
 
         headers = [str(h).strip().lower() if h is not None else "" for h in header_row]
         expected = SHEETS[target]["columns"]
+        extras_target = await _extras_ativos(target)
         required = {
             "artigos": ["nome"],
             "encomendas": ["cliente"],
             "encomenda_linhas": ["encomenda_numero"],
+            "cliente_contactos": ["cliente_codigo", "nome"],
             "clientes": ["nome"],
             "fornecedores": ["nome"],
+            "leads": ["nome"],
         }.get(target, expected)
         missing = [c for c in required if c not in headers]
         if missing:
@@ -924,6 +1211,39 @@ async def import_rows(
                 n = _norm_str(d.get("nome")).lower()
                 if n:
                     clientes_by_nome[n] = d
+
+        if target == "cliente_contactos":
+            por_cliente: Dict[str, List[Tuple[int, dict]]] = defaultdict(list)
+            line_no = 1
+            for values in rows_iter:
+                line_no += 1
+                if not values or all(v is None or str(v).strip() == "" for v in values):
+                    continue
+                row = _row_dict(headers, values)
+                if _is_example_row(row):
+                    continue
+                cod = _norm_code(row.get("cliente_codigo"))
+                if not cod:
+                    errors.append({"linha": line_no, "folha": sheet_title, "erro": "cliente_codigo obrigatório"})
+                    continue
+                if not _norm_str(row.get("nome")):
+                    errors.append({"linha": line_no, "folha": sheet_title, "erro": "Nome do contacto obrigatório"})
+                    continue
+                por_cliente[cod].append((line_no, row))
+            for cod, linhas in por_cliente.items():
+                action, summary = await _apply_contactos(cod, linhas, dry_run=dry_run, mode=mode,
+                                                         known_new=cod in seen_codes["clientes"])
+                if action == "error":
+                    errors.append({"linha": linhas[0][0], "folha": sheet_title, "erro": summary})
+                    continue
+                if action == "create":
+                    created += 1
+                elif action == "update":
+                    updated += 1
+                elif action == "skip":
+                    skipped += 1
+                preview.append({"linha": linhas[0][0], "folha": sheet_title, "acao": action, **summary})
+            continue
 
         if target == "encomenda_linhas":
             lines_by_num: Dict[str, List[dict]] = defaultdict(list)
@@ -989,6 +1309,11 @@ async def import_rows(
             row = _row_dict(headers, values)
             if _is_example_row(row):
                 continue
+            try:
+                row["_campos_extra"] = _extras_da_linha(row, extras_target)
+            except ValueError as ex:
+                errors.append({"linha": line_no, "folha": sheet_title, "erro": str(ex)})
+                continue
 
             # Dedup dentro do ficheiro (encomendas repetidas 1× por linha de artigo)
             id_key = _norm_code(row.get("numero") if target == "encomendas" else row.get("codigo"))
@@ -1020,7 +1345,7 @@ async def import_rows(
                     pending_docs=pending_docs if flush_repo is not None else None,
                 )
             except Exception as ex:
-                errors.append({"linha": line_no, "folha": sheet_title, "erro": str(ex)})
+                errors.append({"linha": line_no, "folha": sheet_title, "erro": str(getattr(ex, "detail", None) or ex)})
                 continue
 
             if action == "error":
@@ -1094,6 +1419,12 @@ async def _upsert_row(
             "nif": _norm_nif(row.get("nif")),
             "notas": _norm_str(row.get("notas")),
         }
+        for k in ("responsavel", "condicoes_pagamento"):
+            if k in row and _norm_str(row.get(k)):
+                patch[k] = _norm_str(row.get(k))
+        for k in ("desconto_comercial_pct", "limite_credito"):
+            if k in row and _norm_str(row.get(k)) != "":
+                patch[k] = _parse_float(row.get(k))
         tipo_raw = _norm_str(row.get("tipo")).lower().replace(" ", "_")
         if tipo_raw in ("cliente_final", "cliente final"):
             tipo_raw = "particular"
@@ -1126,6 +1457,7 @@ async def _upsert_row(
                     f"({by_nif.get('nome')}). Não é feito merge automático."
                 )
 
+        _juntar_extras(patch, row, existing)
         if existing and not existing.get("_pending"):
             if not allow_update:
                 return "skip", {
@@ -1168,6 +1500,8 @@ async def _upsert_row(
             "categoria": _norm_str(row.get("categoria")),
             "notas": _norm_str(row.get("notas")),
         }
+        if "responsavel" in row and _norm_str(row.get("responsavel")):
+            patch["responsavel"] = _norm_str(row.get("responsavel"))
         tipo_raw = _norm_str(row.get("tipo")).lower().replace(" ", "_")
         if tipo_raw in ("empresa", "particular"):
             patch["tipo"] = tipo_raw
@@ -1192,6 +1526,7 @@ async def _upsert_row(
                     f"NIF {patch['nif']} já usado por {_norm_code(by_nif.get('codigo')) or 'outro fornecedor'} "
                     f"({by_nif.get('nome')})."
                 )
+        _juntar_extras(patch, row, existing)
         if existing:
             if not allow_update:
                 return "skip", {
@@ -1286,6 +1621,7 @@ async def _upsert_row(
         existing = cache.get(numero) if numero else None
         if existing is None and numero:
             existing = await encomendas_repo.find_one({"numero": numero})
+        _juntar_extras(patch, row, existing)
         if existing and not existing.get("_pending"):
             if not allow_update:
                 return "skip", {
@@ -1530,6 +1866,8 @@ async def _upsert_row(
         }
         if row.get("iva_taxa") not in (None, ""):
             patch["iva_taxa"] = _parse_float(row.get("iva_taxa"))
+        if row.get("preco_compra") not in (None, ""):
+            patch["preco_compra"] = _parse_float(row.get("preco_compra"))
         # Upsert: Nº produto OU Cód. fornecedor — nunca só pelo nome
         existing = None
         if codigo:
@@ -1538,6 +1876,7 @@ async def _upsert_row(
             cod_forn = _norm_code(row.get("cod_fornecedor"))
             if cod_forn:
                 existing = await artigos_repo.find_one({"cod_fornecedor": cod_forn})
+        _juntar_extras(patch, row, existing)
         if existing:
             if not allow_update:
                 return "skip", {"codigo": existing.get("codigo") or codigo, "nome": existing.get("nome") or nome, "motivo": "já existe"}
@@ -1562,7 +1901,144 @@ async def _upsert_row(
             return "create", {"codigo": doc["codigo"], "nome": nome}
         return "create", {"codigo": codigo or "(novo)", "nome": nome}
 
+    if entity == "leads":
+        return await _upsert_lead(row, dry_run=dry_run, allow_update=allow_update)
+
     return "error", f"Entidade desconhecida: {entity}"
+
+
+async def _upsert_lead(row: Dict[str, Any], *, dry_run: bool, allow_update: bool) -> Tuple[str, Any]:
+    nome = _norm_str(row.get("nome"))
+    empresa = _norm_str(row.get("empresa"))
+    if not nome and not empresa:
+        return "error", "Indique o nome do contacto ou da empresa"
+    titulo = " · ".join(x for x in (nome, empresa) if x)
+    email = _norm_str(row.get("email")).lower()
+    telefone = _norm_code(row.get("telefone"))
+    estado_txt = _norm_str(row.get("estado"))
+    estados = await crm_estados_repo.find({}, sort=("ordem", 1), limit=200)
+    estado = None
+    if estado_txt:
+        estado = next((e for e in estados if (e.get("nome") or "").lower() == estado_txt.lower()), None)
+        if not estado:
+            return "error", f"Estado do CRM não encontrado: {estado_txt}"
+    valor = row.get("valor_estimado")
+    patch = {
+        "nome": nome,
+        "empresa": empresa,
+        "telefone": telefone,
+        "email": email,
+        "origem": _norm_str(row.get("origem")),
+        "descricao": _norm_str(row.get("descricao")),
+        "valor_estimado": _parse_float(valor) if _norm_str(valor) != "" else None,
+        "proxima_acao_at": _parse_date(row.get("proxima_acao_at")),
+        "proxima_acao_nota": _norm_str(row.get("proxima_acao_nota")),
+    }
+    existing = None
+    if email:
+        existing = await leads_repo.find_one({"email": email})
+    if not existing and telefone:
+        existing = await leads_repo.find_one({"telefone": telefone})
+    _juntar_extras(patch, row, existing)
+    if existing:
+        if not allow_update:
+            return "skip", {"codigo": email or telefone, "nome": titulo,
+                            "motivo": "já existe um lead com este email/telefone"}
+        if estado:
+            patch["estado_id"] = estado["id"]
+        if not dry_run:
+            patch["updated_at"] = now_iso()
+            await leads_repo.update(existing["id"], patch)
+        return "update", {"codigo": email or telefone, "nome": titulo}
+    if not dry_run:
+        if not estado:
+            estado = next((e for e in estados if e.get("tipo") == "aberto"), estados[0] if estados else None)
+        if not estado:
+            return "error", "Configure primeiro os estados do CRM (abra o módulo CRM uma vez)"
+        ultimo = await leads_repo.find({"estado_id": estado["id"]}, sort=("ordem", -1), limit=1)
+        ts = now_iso()
+        tipo = estado.get("tipo") or "aberto"
+        doc = {
+            **patch,
+            "campos_extra": patch.get("campos_extra") or {},
+            "id": new_id(),
+            "estado_id": estado["id"],
+            "ordem": ((ultimo[0].get("ordem") or 0) + 1) if ultimo else 0,
+            "responsavel_id": None,
+            "responsavel_nome": "",
+            "motivo_perda": "",
+            "cliente_id": None,
+            "cliente_nome": "",
+            "orcamento_ids": [],
+            "interacoes": [{"id": new_id(), "tipo": "sistema", "texto": "Lead importado do Excel",
+                            "at": ts, "created_at": ts, "autor_id": None, "autor_nome": "Importação"}],
+            "created_at": ts,
+            "updated_at": ts,
+            "estado_desde": ts,
+            "fechado_at": ts if tipo != "aberto" else None,
+        }
+        await leads_repo.insert(doc)
+    return "create", {"codigo": email or telefone or "(novo)", "nome": titulo}
+
+
+async def _apply_contactos(
+    cliente_codigo: str,
+    linhas: List[Tuple[int, dict]],
+    *,
+    dry_run: bool,
+    mode: str = "create",
+    known_new: bool = False,
+) -> Tuple[str, Any]:
+    """Junta contactos à ficha do cliente. Mesmo email (ou nome) = mesmo contacto."""
+    cli = await clientes_repo.find_one({"codigo": cliente_codigo})
+    if not cli:
+        if dry_run and known_new:
+            return "create", {"codigo": cliente_codigo, "nome": f"{len(linhas)} contacto(s)"}
+        return "error", f"Cliente não encontrado: {cliente_codigo}"
+    from app.domain.models import PAPEIS_CONTACTO
+    contactos = [dict(c) for c in (cli.get("contactos") or [])]
+    novos = atualizados = ignorados = 0
+    for _ln, row in linhas:
+        nome = _norm_str(row.get("nome"))
+        email = _norm_str(row.get("email")).lower()
+        papeis = []
+        for p in re.split(r"[,;/]", _norm_str(row.get("papeis")).lower()):
+            p = p.strip().replace("técnico", "tecnico")
+            if p in PAPEIS_CONTACTO and p not in papeis:
+                papeis.append(p)
+        dados = {
+            "nome": nome,
+            "cargo": _norm_str(row.get("cargo")),
+            "departamento": _norm_str(row.get("departamento")),
+            "email": email,
+            "telefone": _norm_code(row.get("telefone")),
+            "papeis": papeis,
+            "notas": _norm_str(row.get("notas")),
+        }
+        atual = next((c for c in contactos if (email and (c.get("email") or "").lower() == email)
+                      or (not email and (c.get("nome") or "").strip().lower() == nome.lower())), None)
+        if atual:
+            if mode != "update":
+                ignorados += 1
+                continue
+            atual.update(dados)
+            atualizados += 1
+        else:
+            contactos.append({"id": new_id(), "ativo": True, "user_id": None, "portal_ativo": False, **dados})
+            novos += 1
+    if not novos and not atualizados:
+        return "skip", {"codigo": cliente_codigo, "nome": cli.get("nome") or "",
+                        "motivo": f"{ignorados} contacto(s) já existentes — use modo Actualizar"}
+    if not dry_run:
+        await clientes_repo.update(cli["id"], {"contactos": contactos})
+    partes = []
+    if novos:
+        partes.append(f"{novos} novo(s)")
+    if atualizados:
+        partes.append(f"{atualizados} atualizado(s)")
+    return ("create" if novos and not atualizados else "update"), {
+        "codigo": cliente_codigo, "nome": f"{cli.get('nome') or ''} — contactos: {', '.join(partes)}",
+    }
 
 
 async def _parse_encomenda_linha(row: Dict[str, Any]):
@@ -1596,6 +2072,7 @@ async def _parse_encomenda_linha(row: Dict[str, Any]):
         "desconto": _parse_float(row.get("desconto")),
         "desconto_tipo": desc_tipo,
         "personalizacoes": _pers_from_cell(row.get("personalizacoes")),
+        "cor": _cor_da_celula(row.get("cor")),
     }
 
 

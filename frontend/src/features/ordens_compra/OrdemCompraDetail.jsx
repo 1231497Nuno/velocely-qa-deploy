@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -11,7 +11,9 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
-import { Trash2, Save, Pencil, X } from "lucide-react";
+import { Trash2, Save, Pencil, X, Lock } from "lucide-react";
+import FornecedorSelect, { opcoesFornecedores } from "@/components/FornecedorSelect";
+import Combobox from "@/components/Combobox";
 
 const TIPO_DESPESA_OPTS = [
   { value: "compra", label: "Compra — stock / matéria-prima para vender" },
@@ -74,6 +76,7 @@ export default function OrdemCompraDetail() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
+  const [utilizadores, setUtilizadores] = useState([]);
   const saveForLeaveRef = useRef(null);
 
   useUnsavedChanges({
@@ -110,6 +113,7 @@ export default function OrdemCompraDetail() {
     api.get("/fornecedores").then((r) => {
       setFornecedores(Array.isArray(r) ? r : (r.items || []));
     }).catch(() => {});
+    api.get("/utilizadores-lista").then((r) => setUtilizadores(Array.isArray(r) ? r : [])).catch(() => {});
   }, []);
 
   if (!form) {
@@ -138,12 +142,20 @@ export default function OrdemCompraDetail() {
     preco_unit: Number(a.preco_compra) || Number(a.custo_artigo) || 0,
     ...(quantidade ? { quantidade } : {}),
   });
+  /** Sem fornecedor na OC: assume o fornecedor habitual do 1.º artigo escolhido. */
+  const fornecedorDoArtigo = (f, a) => {
+    if (f.fornecedor_id || !a?.fornecedor_id) return {};
+    const forn = fornecedores.find((x) => x.id === a.fornecedor_id);
+    if (!forn) return {};
+    toast.message(`Fornecedor definido: ${forn.nome}`, { description: "É o fornecedor habitual deste artigo." });
+    return { fornecedor_id: forn.id, fornecedor_nome: forn.nome };
+  };
   const escolherArtigo = (idx, a) => {
     setDirty(true);
     setForm((f) => {
       const linhas = [...(f.linhas || [])];
       linhas[idx] = { ...linhas[idx], ...linhaDoArtigo(a) };
-      return { ...f, linhas };
+      return { ...f, ...fornecedorDoArtigo(f, a), linhas };
     });
   };
   const escolherVariantes = (idx, picked) => {
@@ -162,7 +174,7 @@ export default function OrdemCompraDetail() {
     const novas = (lista || []).map((art) => ({ ...emptyLinha(), ...linhaDoArtigo(art, Number(art.quantidade) > 0 ? Number(art.quantidade) : 1) }));
     if (!novas.length) return;
     setDirty(true);
-    setForm((f) => ({ ...f, linhas: [...(f.linhas || []), ...novas] }));
+    setForm((f) => ({ ...f, ...fornecedorDoArtigo(f, lista[0]), linhas: [...(f.linhas || []), ...novas] }));
   };
   const removeLinha = (idx) => {
     setDirty(true);
@@ -171,6 +183,13 @@ export default function OrdemCompraDetail() {
 
   const onFornecedor = (fid) => {
     const f = fornecedores.find((x) => x.id === fid);
+    if (f && (form.linhas || []).some((l) => l.artigo_id)) {
+      const outros = (form.linhas || []).filter((l) => {
+        const a = artigos.find((x) => x.id === l.artigo_id);
+        return a?.fornecedor_id && a.fornecedor_id !== f.id;
+      });
+      if (outros.length) toast.message(`${outros.length} linha(s) com artigos de outro fornecedor`);
+    }
     setDirty(true);
     setForm((prev) => ({
       ...prev,
@@ -232,7 +251,8 @@ export default function OrdemCompraDetail() {
         (s, l) => s + (l.quantidade * l.preco_unit) - (l.desconto || 0),
         0,
       );
-      if (!payload.total && linhasTotal) {
+      // Com linhas, o total é sempre a soma das linhas (sem linhas mantém-se o valor manual/importado)
+      if (payload.linhas.length) {
         payload.subtotal = Math.round(linhasTotal * 100) / 100;
         payload.total = payload.subtotal;
       }
@@ -257,7 +277,23 @@ export default function OrdemCompraDetail() {
     0,
   );
 
+  const cancelada = (oc?.estado || form.estado) === "cancelada";
   const podeEditar = can("ordens_compra", "edit");
+  const temLinhas = (form.linhas || []).length > 0;
+  // Artigos do fornecedor da OC aparecem primeiro no seletor
+  const artigosOrdenados = form.fornecedor_id
+    ? [...artigos].sort((a, b) => Number(b.fornecedor_id === form.fornecedor_id) - Number(a.fornecedor_id === form.fornecedor_id))
+    : artigos;
+  const opcoesResponsavel = (() => {
+    const ops = utilizadores.map((u) => ({ value: u.nome, label: u.nome, hint: u.login }));
+    if (form.responsavel && !ops.some((o) => o.value === form.responsavel)) ops.unshift({ value: form.responsavel, label: form.responsavel });
+    return ops;
+  })();
+  const opcoesTransportadora = (() => {
+    const ops = opcoesFornecedores(fornecedores).map((o) => ({ ...o, value: o.label }));
+    if (form.transportadora && !ops.some((o) => o.value === form.transportadora)) ops.unshift({ value: form.transportadora, label: form.transportadora });
+    return ops;
+  })();
 
   return (
     <div>
@@ -267,7 +303,11 @@ export default function OrdemCompraDetail() {
         badges={<StatusBadge status={form.estado} />}
         subtitle={form.codigo_origem ? `Origem CRM: ${form.codigo_origem}` : (form.assunto || null)}
         actions={
-          podeEditar ? (
+          podeEditar && cancelada ? (
+            <span data-testid="oc-bloqueado" className="inline-flex items-center gap-1.5 rounded-sm border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-600">
+              <Lock size={13} /> OC cancelada
+            </span>
+          ) : podeEditar ? (
             editing ? (
               <>
                 <button type="button" data-testid="oc-cancel-btn" onClick={cancelEdit} disabled={saving} className="btn btn-secundario">
@@ -309,39 +349,14 @@ export default function OrdemCompraDetail() {
             )}
           </Field>
           <Field label="Fornecedor">
-            {editing ? (
-              <>
-                <select
-                  className={inputCls}
-                  value={form.fornecedor_id || ""}
-                  onChange={(e) => onFornecedor(e.target.value)}
-                  data-testid="oc-fornecedor"
-                >
-                  <option value="">— Sem fornecedor —</option>
-                  {fornecedores.map((f) => (
-                    <option key={f.id} value={f.id}>{f.nome}</option>
-                  ))}
-                </select>
-                {form.fornecedor_id && (
-                  <Link to={`/fornecedores/${form.fornecedor_id}`} className="text-xs text-gray-500 hover:text-gray-900 mt-1 inline-block">
-                    Ver ficha do fornecedor →
-                  </Link>
-                )}
-                {!form.fornecedor_id && form.fornecedor_nome && (
-                  <p className="text-xs text-gray-500 mt-1">Nome CSV: {form.fornecedor_nome}</p>
-                )}
-              </>
-            ) : (
-              <ViewValue>
-                {form.fornecedor_id ? (
-                  <Link to={`/fornecedores/${form.fornecedor_id}`} className="hover:underline text-gray-900">
-                    {form.fornecedor_nome || "Fornecedor"}
-                  </Link>
-                ) : (
-                  form.fornecedor_nome || null
-                )}
-              </ViewValue>
-            )}
+            <FornecedorSelect
+              fornecedores={fornecedores}
+              value={form.fornecedor_id || ""}
+              nomeAtual={form.fornecedor_nome || ""}
+              onChange={(fid) => onFornecedor(fid || "")}
+              editavel={editing}
+              testid="oc-fornecedor"
+            />
           </Field>
           <Field label="Tipo de despesa">
             {editing ? (
@@ -395,7 +410,13 @@ export default function OrdemCompraDetail() {
           </Field>
           <Field label="Responsável">
             {editing ? (
-              <input className={inputCls} value={form.responsavel || ""} onChange={(e) => set("responsavel", e.target.value)} />
+              <Combobox
+                options={opcoesResponsavel}
+                value={form.responsavel || ""}
+                onChange={(v) => set("responsavel", v)}
+                placeholder="Escolher responsável..."
+                testid="oc-responsavel"
+              />
             ) : (
               <ViewValue>{form.responsavel}</ViewValue>
             )}
@@ -409,16 +430,35 @@ export default function OrdemCompraDetail() {
           </Field>
           <Field label="Transportadora">
             {editing ? (
-              <input className={inputCls} value={form.transportadora || ""} onChange={(e) => set("transportadora", e.target.value)} />
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 min-w-0">
+                  <Combobox
+                    options={opcoesTransportadora}
+                    value={form.transportadora || ""}
+                    onChange={(v) => set("transportadora", v)}
+                    placeholder="Escolher dos fornecedores..."
+                    matchPrefix={false}
+                    testid="oc-transportadora"
+                  />
+                </div>
+                {form.transportadora && (
+                  <button type="button" onClick={() => set("transportadora", "")} title="Limpar" aria-label="Limpar transportadora" className="p-2 rounded-sm text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             ) : (
               <ViewValue>{form.transportadora}</ViewValue>
             )}
           </Field>
           <Field label="Total (€)">
-            {editing ? (
+            {editing && !temLinhas ? (
               <input type="number" step="0.01" className={inputCls} value={form.total ?? 0} onChange={(e) => set("total", e.target.value)} data-testid="oc-total" />
             ) : (
-              <ViewValue>{eur(form.total)}</ViewValue>
+              <ViewValue>
+                <span data-testid="oc-total-valor">{eur(temLinhas ? linhasTotal : form.total)}</span>
+                {temLinhas && <span className="ml-2 text-xs text-gray-400">soma das linhas</span>}
+              </ViewValue>
             )}
           </Field>
           <Field label="Valor pago (€)">
@@ -447,7 +487,7 @@ export default function OrdemCompraDetail() {
           {editing && (
             <ArtigoCombobox
               modo="adicionar"
-              artigos={artigos}
+              artigos={artigosOrdenados}
               onChange={(art) => adicionarLinhasDoCatalogo([{ ...art, quantidade: 1 }])}
               onChangeMulti={adicionarLinhasDoCatalogo}
               onArtigosRefresh={carregarArtigos}
@@ -477,7 +517,7 @@ export default function OrdemCompraDetail() {
                       {editing ? (
                         <>
                           <ArtigoCombobox
-                            artigos={artigos}
+                            artigos={artigosOrdenados}
                             value={l.artigo_id || ""}
                             onChange={(art) => escolherArtigo(idx, art)}
                             onChangeMulti={(picked) => escolherVariantes(idx, picked)}

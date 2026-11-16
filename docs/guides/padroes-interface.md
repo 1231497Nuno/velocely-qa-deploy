@@ -94,3 +94,15 @@ Estados finais bloqueiam a edição (aparece "Bloqueado" com o motivo):
 | Não conformidade | Fechada | Botão **Reabrir** |
 
 O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos já tinham a grelha bloqueada fora de rascunho/negociação.
+
+## Fornecedores e responsáveis
+
+- Fornecedor escolhe-se sempre da lista com `components/FornecedorSelect.jsx` (pesquisa por nome, código ou NIF; mostra telefone/email e o atalho para a ficha). Texto livre só aparece como aviso em registos importados sem ligação.
+- Responsável escolhe-se da lista de utilizadores (`/utilizadores-lista`) com `Combobox`.
+
+## Importação / exportação Excel
+
+- Os modelos (Definições → Dados) incluem uma linha EXEMPLO (ignorada) e listas de escolha.
+- Campos personalizados entram como colunas `campo_<chave>` (cabeçalho azul); célula vazia não altera o valor.
+- Clientes trazem a folha `Cliente_contactos` (ligada por `cliente_codigo`); encomendas trazem `Encomenda_linhas` com a coluna `cor`.
+- Leads do CRM: folha `Leads_CRM`, estado pelo nome da coluna do funil; duplicados pelo email/telefone.

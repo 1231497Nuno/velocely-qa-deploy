@@ -31,8 +31,8 @@ async def list_io_entities(user: dict = Depends(get_current_user)):
     """Lista entidades disponíveis para export/import."""
     items = []
     for key, meta in excel_io.SHEETS.items():
-        if key in ("subcategorias", "encomenda_linhas"):
-            continue  # agrupado em categorias / encomendas no hub
+        if key in ("subcategorias", "encomenda_linhas", "cliente_contactos"):
+            continue  # agrupado em categorias / encomendas / clientes no hub
         items.append({
             "key": key,
             "label": meta["title"].replace("_", " "),
@@ -49,6 +49,10 @@ async def list_io_entities(user: dict = Depends(get_current_user)):
         if it["key"] == "encomendas":
             it["label"] = "Encomendas / Linhas"
             it["importable"] = True
+        if it["key"] == "clientes":
+            it["label"] = "Clientes / Contactos"
+        if it["key"] == "leads":
+            it["label"] = "Leads (CRM)"
     return {"entities": items, "max_rows": excel_io.MAX_ROWS}
 
 
@@ -87,7 +91,7 @@ async def import_template(entity: str, user: dict = Depends(get_current_user)):
     modulo = excel_io.ENTITY_PERM.get(entity, "artigos")
     await _ensure_perm(user, modulo, "view")
     try:
-        data = excel_io.build_template_xlsx(entity)
+        data = await excel_io.build_template_xlsx(entity)
     except ValueError as ex:
         raise HTTPException(400, str(ex))
     fname = f"velocely-template-{entity}.xlsx"
