@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { fileApiUrl } from "@/lib/authFileUrl";
@@ -81,6 +82,7 @@ export default function ContaDetail() {
     try {
       const updated = await api.put(`/contas/${id}`, {
         tipo: conta.tipo,
+        campos_extra: conta.campos_extra || {},
         entidade: conta.entidade,
         entidade_tipo: conta.entidade_tipo || "",
         entidade_id: conta.entidade_id || null,
@@ -121,6 +123,7 @@ export default function ContaDetail() {
     try {
       const updated = await api.put(`/contas/${id}`, {
         tipo: conta.tipo,
+        campos_extra: conta.campos_extra || {},
         entidade: conta.entidade,
         entidade_tipo: conta.entidade_tipo || "",
         entidade_id: conta.entidade_id || null,
@@ -365,6 +368,16 @@ export default function ContaDetail() {
             )}
           </div>
         </>
+      )}
+
+      {tab === "conta" && (
+        <CamposPersonalizados
+          modulo="contas"
+          className="mt-4"
+          value={conta.campos_extra}
+          disabled={!can("contas", "edit") || anulada}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "historico" && (

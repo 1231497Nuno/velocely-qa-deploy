@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -59,6 +60,7 @@ export default function NaoConformidadeDetail() {
         estado: nc.estado,
         quantidade: Number(nc.quantidade) || 0,
         notas: nc.notas || "",
+        campos_extra: nc.campos_extra || {},
       });
       setNc(updated);
       setDirty(false);
@@ -177,6 +179,16 @@ export default function NaoConformidadeDetail() {
         </div>
       </div>
         </>
+      )}
+
+      {tab === "nc" && (
+        <CamposPersonalizados
+          modulo="nao_conformidades"
+          className="mt-4"
+          value={nc.campos_extra}
+          disabled={!can("nao_conformidades", "edit")}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "ficheiros" && (

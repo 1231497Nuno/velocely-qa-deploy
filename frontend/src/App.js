@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-rou
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { TemaProvider } from "@/context/TemaContext";
+import { CamposProvider } from "@/context/CamposContext";
 import { UnsavedChangesProvider } from "@/hooks/useUnsavedChanges";
 import { ConfirmProvider } from "@/hooks/useConfirm";
 import Layout from "@/components/Layout";
@@ -120,7 +121,9 @@ function App() {
       <ErrorBoundary>
         <TemaProvider>
           <AuthProvider>
-            <RouterProvider router={router} />
+            <CamposProvider>
+              <RouterProvider router={router} />
+            </CamposProvider>
           </AuthProvider>
         </TemaProvider>
       </ErrorBoundary>

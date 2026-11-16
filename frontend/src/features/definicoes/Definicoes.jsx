@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
+import AparenciaTab from "./AparenciaTab";
+import CamposTab from "./CamposTab";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import { toast } from "sonner";
@@ -704,13 +706,15 @@ export default function Definicoes() {
   };
   return (
     <div>
-      <PageHeader title="Definições" subtitle="Empresa, módulos, referências, dados Excel, modelos PDF e emails" />
+      <PageHeader title="Definições" subtitle="Empresa, aparência, campos, módulos, referências, dados Excel, modelos PDF e emails" />
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5 overflow-x-auto">
-        {[["empresa", "Empresa"], ["modulos", "Módulos"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"]].map(([k, l]) => (
+        {[["empresa", "Empresa"], ["aparencia", "Aparência"], ["campos", "Campos e cores"], ["modulos", "Módulos"], ["referencias", "Referências"], ["dados", "Dados"], ["modelos", "Modelos PDF"], ["emails", "Emails"]].map(([k, l]) => (
           <button key={k} type="button" data-testid={`tab-${k}`} onClick={() => goTab(k)} className={`px-4 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors whitespace-nowrap ${tab === k ? "border-brand text-gray-900" : "border-transparent text-gray-500 hover:text-gray-900"}`}>{l}</button>
         ))}
       </div>
       {tab === "empresa" && <EmpresaTab />}
+      {tab === "aparencia" && <AparenciaTab />}
+      {tab === "campos" && <CamposTab />}
       {tab === "modulos" && <ModulosTab />}
       {tab === "referencias" && <ReferenciasTab />}
       {tab === "dados" && <DadosTab />}

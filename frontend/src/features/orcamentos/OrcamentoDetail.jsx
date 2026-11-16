@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, eur, API, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -793,6 +794,7 @@ export default function OrcamentoDetail() {
   const bodyFrom = (o) => ({
     cliente: o.cliente,
     cliente_id: o.cliente_id || null,
+    campos_extra: o.campos_extra || {},
     contacto_id: o.contacto_id || null,
     contacto_nome: o.contacto_nome || "",
     contacto_email: o.contacto_email || "",
@@ -1916,6 +1918,14 @@ export default function OrcamentoDetail() {
           className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black disabled:bg-gray-50 resize-y min-h-[4.5rem]"
         />
       </div>
+
+      <CamposPersonalizados
+        modulo="orcamentos"
+        className="mb-4"
+        value={orc.campos_extra}
+        disabled={!editavel}
+        onChange={(vals) => upd({ campos_extra: vals })}
+      />
 
       <OrcamentoTotais
         subtotalVenda={subtotalVenda}

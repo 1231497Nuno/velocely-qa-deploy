@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip, FiltroSelect, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +21,7 @@ const TIPO_DESPESA_LABEL = {
 };
 
 export default function OrdensCompra() {
+  const { corLinha } = useCampos();
   const { can } = useAuth();
   const nav = useNavigate();
   const [tipoFilter, setTipoFilter] = useState("");
@@ -57,22 +61,6 @@ export default function OrdensCompra() {
     reload();
   };
 
-  const Chip = ({ id, label }) => {
-    const active = tipoFilter === id;
-    return (
-      <button
-        type="button"
-        data-testid={`oc-filtro-tipo-${id || "todas"}`}
-        onClick={() => setTipoFilter(id)}
-        className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${
-          active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
-        }`}
-      >
-        {label}
-      </button>
-    );
-  };
-
   return (
     <ListPage
       header={
@@ -104,23 +92,19 @@ export default function OrdensCompra() {
           >
             {({ mobile }) => (
               <div className={mobile ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2 w-full"}>
-                <div className={mobile ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2"}>
-                  <Chip id="" label="Todas" />
-                  <Chip id="compra" label="Compra" />
-                  <Chip id="despesa_normal" label="Despesa" />
-                  <Chip id="despesa_diversa" label="Despesa diversa" />
-                </div>
-                <select
-                  data-testid="oc-filtro-estado"
-                  value={estadoFilter}
-                  onChange={(e) => setEstadoFilter(e.target.value)}
-                  className={`${mobile ? "w-full" : "ml-auto"} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white min-h-11`}
-                >
-                  <option value="">Todos os estados</option>
-                  <option value="criada">Criada</option>
-                  <option value="recebida">Recebida</option>
-                  <option value="cancelada">Cancelada</option>
-                </select>
+                <FiltroGrupo mobile={mobile}>
+                  {[["", "Todas"], ["criada", "Criadas"], ["recebida", "Recebidas"], ["cancelada", "Canceladas"]].map(([id, label]) => (
+                    <FiltroChip key={id || "todas"} active={estadoFilter === id} onClick={() => setEstadoFilter(id)} count={total} testid={`oc-filtro-estado-${id || "todas"}`}>
+                      {label}
+                    </FiltroChip>
+                  ))}
+                </FiltroGrupo>
+                <FiltroSelect mobile={mobile} value={tipoFilter} onChange={setTipoFilter} testid="oc-filtro-tipo" className={mobile ? "" : "ml-auto"}>
+                  <option value="">Todos os tipos</option>
+                  <option value="compra">Compra</option>
+                  <option value="despesa_normal">Despesa</option>
+                  <option value="despesa_diversa">Despesa diversa</option>
+                </FiltroSelect>
               </div>
             )}
           </MobileFiltersButton>
@@ -155,7 +139,7 @@ export default function OrdensCompra() {
           </thead>
           <tbody data-testid="ordens-compra-table">
             {items.map((o) => (
-              <tr
+              <tr style={estiloCor(corLinha("ordens_compra", o))}
                 key={o.id}
                 data-testid={`ordem-compra-row-${o.id}`}
                 onClick={() => nav(`/ordens-compra/${o.id}`)}
@@ -164,7 +148,7 @@ export default function OrdensCompra() {
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">
                   {o.codigo}
                   {o.codigo_origem && <div className="text-[11px] text-gray-400">{o.codigo_origem}</div>}
-                </td>
+                <ExtrasResumo modulo="ordens_compra" registo={o} /></td>
                 <td className="px-4 py-3 text-gray-600">{fmtDate(o.data)}</td>
                 <td className="px-4 py-3 text-gray-800">{o.fornecedor_nome || "—"}</td>
                 <td className="px-4 py-3 text-gray-700 max-w-[220px] truncate">{o.assunto || "—"}</td>
@@ -203,7 +187,7 @@ export default function OrdensCompra() {
 
       <MobileCards testid="ordens-compra-cards">
         {items.map((o) => (
-          <MobileCard key={o.id} testid={`ordem-compra-card-${o.id}`} onClick={() => nav(`/ordens-compra/${o.id}`)}>
+          <MobileCard style={estiloCor(corLinha("ordens_compra", o))} key={o.id} testid={`ordem-compra-card-${o.id}`} onClick={() => nav(`/ordens-compra/${o.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="mono font-semibold text-gray-900">{o.codigo}</div>

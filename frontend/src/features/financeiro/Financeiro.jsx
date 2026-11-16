@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiltroChip, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
 import { openAuthenticated, pdfDocumentoUrl } from "@/lib/openAuthenticated";
@@ -124,23 +125,14 @@ export default function Financeiro() {
             description="Tipo de documento fiscal."
           >
             {({ mobile }) => (
-              <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"} data-testid="financeiro-tabs">
-                {FILTROS.map((t) => {
-                  const active = filtro === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      data-testid={`fin-tab-${t.id}`}
-                      onClick={() => setFiltro(t.id)}
-                      className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-                    >
+              <div data-testid="financeiro-tabs">
+                <FiltroGrupo mobile={mobile}>
+                  {FILTROS.map((t) => (
+                    <FiltroChip key={t.id} active={filtro === t.id} onClick={() => setFiltro(t.id)} count={total} testid={`fin-tab-${t.id}`}>
                       {t.label}
-                      {active && (
-                        <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-                      )}
-                    </button>
-                  );
-                })}
+                    </FiltroChip>
+                  ))}
+                </FiltroGrupo>
               </div>
             )}
           </MobileFiltersButton>

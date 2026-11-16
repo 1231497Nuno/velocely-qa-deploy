@@ -56,10 +56,11 @@ export function MobileCards({ children, className = "", testid }) {
   );
 }
 
-export function MobileCard({ children, onClick, testid, className = "" }) {
+export function MobileCard({ children, onClick, testid, className = "", style }) {
   return (
     <div
       data-testid={testid}
+      style={style}
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}

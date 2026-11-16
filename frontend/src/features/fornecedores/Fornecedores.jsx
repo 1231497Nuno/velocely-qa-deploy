@@ -1,4 +1,7 @@
 import { useMemo, useRef, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -17,6 +20,7 @@ import {
 const empty = {
   nome: "", tipo: "empresa", morada: "", codigo_postal: "", cidade: "", pais: "Portugal",
   contacto: "", email: "", nif: "", website: "", categoria: "", notas: "", responsavel: "",
+  campos_extra: {},
 };
 
 function apiDetail(e) {
@@ -69,6 +73,7 @@ function SortTh({ label, field, sortBy, sortDir, onSort, testid }) {
 }
 
 export default function Fornecedores() {
+  const { corLinha } = useCampos();
   const { can } = useAuth();
   const nav = useNavigate();
   const [sortBy, setSortBy] = useState("nome");
@@ -112,6 +117,7 @@ export default function Fornecedores() {
       categoria: f.categoria || "",
       notas: f.notas || "",
       responsavel: f.responsavel || "",
+      campos_extra: f.campos_extra || {},
     });
     setEditId(f.id);
     setOpen(true);
@@ -195,13 +201,13 @@ export default function Fornecedores() {
           </thead>
           <tbody data-testid="fornecedores-table">
             {items.map((f) => (
-              <tr
+              <tr style={estiloCor(corLinha("fornecedores", f))}
                 key={f.id}
                 data-testid={`fornecedor-row-${f.id}`}
                 onClick={() => nav(`/fornecedores/${f.id}`)}
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
               >
-                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{f.codigo || "—"}</td>
+                <td className="px-4 py-3 mono tabular-nums text-gray-600 text-xs">{f.codigo || "—"}<ExtrasResumo modulo="fornecedores" registo={f} /></td>
                 <td className="px-4 py-3 font-medium text-gray-900">{f.nome}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {(f.tipo || (f.nif ? "empresa" : "particular")) === "empresa" ? "Empresa" : "Particular"}
@@ -235,7 +241,7 @@ export default function Fornecedores() {
 
       <MobileCards testid="fornecedores-cards">
         {items.map((f) => (
-          <MobileCard key={f.id} testid={`fornecedor-card-${f.id}`} onClick={() => nav(`/fornecedores/${f.id}`)}>
+          <MobileCard style={estiloCor(corLinha("fornecedores", f))} key={f.id} testid={`fornecedor-card-${f.id}`} onClick={() => nav(`/fornecedores/${f.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 truncate">{f.nome}</div>
@@ -358,6 +364,7 @@ export default function Fornecedores() {
               <textarea data-testid="fornecedor-notas-input" value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} rows={2} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
             </div>
           </div>
+          <CamposPersonalizados modulo="fornecedores" className="mt-3" value={form.campos_extra} onChange={(vals) => setForm({ ...form, campos_extra: vals })} />
           <DialogFooter>
             <button onClick={() => setOpen(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
             <button data-testid="save-fornecedor-btn" onClick={save} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium">Guardar</button>

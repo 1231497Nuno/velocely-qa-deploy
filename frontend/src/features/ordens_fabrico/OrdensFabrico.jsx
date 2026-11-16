@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip } from "@/components/Filtros";
 import { useNavigate } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -65,6 +68,7 @@ const KANBAN_COLS = [
 ];
 
 export default function OrdensFabrico() {
+  const { corLinha } = useCampos();
   const { can, user } = useAuth();
   const [tab, setTab] = useState("ativas");
   const [view, setView] = useState("lista");
@@ -118,21 +122,11 @@ export default function OrdensFabrico() {
   const rows = items;
   const hoje = new Date().toISOString().slice(0, 10);
 
-  const Tab = ({ id, label }) => {
-    const active = tab === id;
-    return (
-      <button
-        data-testid={`of-tab-${id}`}
-        onClick={() => setTab(id)}
-        className={`px-3 py-1.5 text-sm font-medium rounded-sm flex items-center gap-1.5 transition-colors ${active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-      >
-        {label}
-        {active && (
-          <span className="text-[11px] tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-        )}
-      </button>
-    );
-  };
+  const Tab = ({ id, label }) => (
+    <FiltroChip active={tab === id} onClick={() => setTab(id)} count={total} testid={`of-tab-${id}`}>
+      {label}
+    </FiltroChip>
+  );
 
   return (
     <ListPage
@@ -173,13 +167,9 @@ export default function OrdensFabrico() {
             {({ mobile }) => (
               <div className={mobile ? "flex flex-col gap-3" : "flex items-center justify-between gap-2 flex-wrap w-full"}>
                 <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-1.5 flex-wrap"}>
-                  <button
-                    data-testid="of-filter-minhas"
-                    onClick={() => setMine((m) => !m)}
-                    className={`px-3 py-2 text-sm font-medium rounded-sm flex items-center gap-1.5 border transition-colors min-h-11 ${mine ? "bg-brand text-brand-fg border-brand" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-                  >
-                    <UserCheck size={14} /> As minhas
-                  </button>
+                  <FiltroChip testid="of-filter-minhas" active={mine} onClick={() => setMine((m) => !m)} icon={UserCheck}>
+                    As minhas
+                  </FiltroChip>
                   {view === "lista" && (
                     <>
                       <Tab id="ativas" label="Ativas" />
@@ -287,7 +277,7 @@ export default function OrdensFabrico() {
               </thead>
               <tbody data-testid="ofs-table">
                 {rows.map((o) => (
-                  <tr
+                  <tr style={estiloCor(corLinha("ordens_fabrico", o))}
                     key={o.id}
                     data-testid={`of-row-${o.id}`}
                     onClick={() => nav(`/ordens-fabrico/${o.id}`)}
@@ -297,7 +287,7 @@ export default function OrdensFabrico() {
                       <button data-testid={`of-prioridade-${o.id}`} onClick={(e) => togglePrioridade(e, o)} title={o.prioritaria ? "Prioritária" : "Marcar como prioritária"} className="p-1 rounded-sm hover:bg-amber-100">
                         <Star size={15} className={o.prioritaria ? "text-amber-500 fill-amber-400" : "text-gray-300"} />
                       </button>
-                    </td>
+                    <ExtrasResumo modulo="ordens_fabrico" registo={o} /></td>
                     {tab === "ativas" && (
                       <td className="px-3 py-2">
                         <TimerDot estado={o.timer_estado} liveSec={o.timer_estado === "em_curso" ? elapsedSec(o, now) : null} />

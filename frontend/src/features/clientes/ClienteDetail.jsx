@@ -8,6 +8,7 @@ import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import BlocosShell, { FieldGrid, FieldRow } from "@/components/BlocosShell";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
 import {
@@ -92,6 +93,7 @@ function clientePayload(c) {
     email: c.email || "",
     nif: c.nif || "",
     notas: c.notas || "",
+    campos_extra: c.campos_extra || {},
     responsavel: c.responsavel || "",
     condicoes_pagamento: c.condicoes_pagamento || "",
     desconto_comercial_pct: c.desconto_comercial_pct == null || c.desconto_comercial_pct === "" ? null : Number(c.desconto_comercial_pct),
@@ -651,6 +653,14 @@ export default function ClienteDetail() {
 
               return null;
             }}
+          />
+          <CamposPersonalizados
+            modulo="clientes"
+            className="mt-3"
+            value={c.campos_extra}
+            disabled={!canEdit}
+            onChange={(vals) => setData((d) => ({ ...d, cliente: { ...d.cliente, campos_extra: vals } }))}
+            onCommit={(vals) => persistField({ campos_extra: vals })}
           />
         </>
       )}

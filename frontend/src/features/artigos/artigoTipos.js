@@ -300,6 +300,7 @@ export function buildArtigoBody(form) {
         tempo_mao_obra: Number(op.tempo_mao_obra) || 0,
       }))
       : [],
+    campos_extra: form.campos_extra || {},
   };
   return body;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -131,6 +132,7 @@ export default function FornecedorDetail() {
 
       {tab === "fornecedor" && (
         <>
+      <CamposPersonalizados modulo="fornecedores" className="mb-4" value={f.campos_extra} onChange={() => {}} disabled />
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-sm p-5 lg:w-80 shrink-0">
           <div className="text-xs uppercase tracking-[0.1em] text-gray-500" data-testid="fornecedor-tipo">

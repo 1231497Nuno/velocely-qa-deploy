@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -64,6 +65,7 @@ function artigoToDraft(a) {
   return {
     nome: a.nome || "",
     descricao: a.descricao || "",
+    campos_extra: a.campos_extra || {},
     unidade: a.unidade || "un",
     imagem: a.imagem || "",
     tipo_artigo: tipo,
@@ -889,6 +891,13 @@ export default function ArtigoDetail() {
 
               return null;
             }}
+          />
+          <CamposPersonalizados
+            modulo="artigos"
+            className="mt-3"
+            value={editing ? draft?.campos_extra : data.artigo?.campos_extra}
+            disabled={!editing}
+            onChange={(vals) => setDraft((d) => ({ ...d, campos_extra: vals }))}
           />
 
           {parcial && !editing && (

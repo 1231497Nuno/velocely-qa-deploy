@@ -124,7 +124,9 @@ async def aplicar(modulo: str, doc: dict, momento: str, existente: Optional[dict
     cfg = await get_config(modulo)
     extras_def = [c for c in cfg["extras"] if c.get("ativo", True)]
     recebidos = doc.get("campos_extra")
-    if recebidos is None and existente is not None:
+    # {} vazio = o formulário não trouxe os campos (ex.: diálogo rápido) → manter os atuais.
+    # Limpar um campo envia a chave com valor vazio, nunca um objeto vazio.
+    if not recebidos and existente is not None:
         recebidos = existente.get("campos_extra") or {}
     recebidos = recebidos or {}
     limpos = {}

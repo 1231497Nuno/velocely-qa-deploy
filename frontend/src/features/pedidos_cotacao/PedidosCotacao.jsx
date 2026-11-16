@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +25,7 @@ const ESTADOS = [
 ];
 
 export default function PedidosCotacao() {
+  const { corLinha } = useCampos();
   const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
@@ -94,16 +98,13 @@ export default function PedidosCotacao() {
             description="Estado do pedido de cotação."
           >
             {({ mobile }) => (
-              <select
-                data-testid="pc-filtro-estado"
-                value={estadoFilter}
-                onChange={(e) => setEstadoFilter(e.target.value)}
-                className={`${mobile ? "w-full" : ""} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white shrink-0 min-h-11`}
-              >
+              <FiltroGrupo mobile={mobile}>
                 {ESTADOS.map((e) => (
-                  <option key={e.id || "all"} value={e.id}>{e.label}</option>
+                  <FiltroChip key={e.id || "all"} active={estadoFilter === e.id} onClick={() => setEstadoFilter(e.id)} count={total} testid={`pc-filtro-estado-${e.id || "todos"}`}>
+                    {e.id ? e.label : "Todos"}
+                  </FiltroChip>
                 ))}
-              </select>
+              </FiltroGrupo>
             )}
           </MobileFiltersButton>
         </div>
@@ -137,13 +138,13 @@ export default function PedidosCotacao() {
           </thead>
           <tbody data-testid="pedidos-cotacao-table">
             {items.map((o) => (
-              <tr
+              <tr style={estiloCor(corLinha("pedidos_cotacao", o))}
                 key={o.id}
                 data-testid={`pedido-cotacao-row-${o.id}`}
                 onClick={() => nav(`/pedidos-cotacao/${o.id}`)}
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
               >
-                <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.codigo}</td>
+                <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">{o.codigo}<ExtrasResumo modulo="pedidos_cotacao" registo={o} /></td>
                 <td className="px-4 py-3 text-gray-600">{fmtDate(o.data)}</td>
                 <td className="px-4 py-3 text-gray-800">{o.fornecedor_nome || "—"}</td>
                 <td className="px-4 py-3 text-gray-700 max-w-[220px] truncate">{o.assunto || "—"}</td>
@@ -181,7 +182,7 @@ export default function PedidosCotacao() {
 
       <MobileCards testid="pedidos-cotacao-cards">
         {items.map((o) => (
-          <MobileCard key={o.id} testid={`pedido-cotacao-card-${o.id}`} onClick={() => nav(`/pedidos-cotacao/${o.id}`)}>
+          <MobileCard style={estiloCor(corLinha("pedidos_cotacao", o))} key={o.id} testid={`pedido-cotacao-card-${o.id}`} onClick={() => nav(`/pedidos-cotacao/${o.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="mono font-semibold text-gray-900">{o.codigo}</div>

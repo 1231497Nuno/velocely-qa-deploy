@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip, FiltroSelect, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { ymdHoje } from "@/lib/orcamento";
@@ -48,6 +51,7 @@ const emptyForm = () => ({
 });
 
 export default function Contas() {
+  const { corLinha } = useCampos();
   const confirmAction = useConfirm();
   const { can } = useAuth();
   const nav = useNavigate();
@@ -174,34 +178,18 @@ export default function Contas() {
           >
             {({ mobile }) => (
               <div className={mobile ? "flex flex-col gap-3" : "flex flex-col gap-3 sm:flex-row sm:items-center w-full"} data-testid="contas-tabs">
-                <div className={mobile ? "flex flex-col gap-2" : "flex items-center gap-2 flex-wrap"}>
-                  {FILTROS.map((t) => {
-                    const active = filtro === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        data-testid={`contas-tab-${t.id}`}
-                        onClick={() => setFiltro(t.id)}
-                        className={`px-4 py-2.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors min-h-11 ${active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-                      >
-                        {t.label}
-                        {active && (
-                          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <select
-                  data-testid="contas-filtro-estado"
-                  value={estadoFilter}
-                  onChange={(e) => setEstadoFilter(e.target.value)}
-                  className={`${mobile ? "w-full" : "sm:ml-auto shrink-0"} text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white min-h-11`}
-                >
+                <FiltroGrupo mobile={mobile}>
+                  {FILTROS.map((t) => (
+                    <FiltroChip key={t.id} active={filtro === t.id} onClick={() => setFiltro(t.id)} count={total} testid={`contas-tab-${t.id}`}>
+                      {t.label}
+                    </FiltroChip>
+                  ))}
+                </FiltroGrupo>
+                <FiltroSelect mobile={mobile} value={estadoFilter} onChange={setEstadoFilter} testid="contas-filtro-estado" className={mobile ? "" : "sm:ml-auto shrink-0"}>
                   {ESTADOS.map((e) => (
                     <option key={e.id || "all"} value={e.id}>{e.label}</option>
                   ))}
-                </select>
+                </FiltroSelect>
               </div>
             )}
           </MobileFiltersButton>
@@ -243,13 +231,13 @@ export default function Contas() {
                 </td>
               </tr>
             ) : items.map((c) => (
-              <tr
+              <tr style={estiloCor(corLinha("contas", c))}
                 key={c.id}
                 data-testid={`conta-row-${c.id}`}
                 onClick={() => nav(`/contas/${c.id}`)}
                 className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
               >
-                <td className="px-4 py-2.5 font-medium mono text-gray-900">{c.numero}</td>
+                <td className="px-4 py-2.5 font-medium mono text-gray-900">{c.numero}<ExtrasResumo modulo="contas" registo={c} /></td>
                 <td className="px-4 py-2.5 text-gray-600">{CONTA_TIPO_PT[c.tipo] || c.tipo}</td>
                 <td className="px-4 py-2.5 font-medium text-gray-900 truncate max-w-[200px]">{c.entidade || "—"}</td>
                 <td className="px-4 py-2.5 text-gray-600 truncate max-w-[220px]">{c.descricao || "—"}</td>
@@ -273,7 +261,7 @@ export default function Contas() {
 
       <MobileCards testid="contas-cards">
         {items.map((c) => (
-          <MobileCard key={c.id} testid={`conta-card-${c.id}`} onClick={() => nav(`/contas/${c.id}`)}>
+          <MobileCard style={estiloCor(corLinha("contas", c))} key={c.id} testid={`conta-card-${c.id}`} onClick={() => nav(`/contas/${c.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="mono font-semibold text-gray-900">{c.numero}</div>

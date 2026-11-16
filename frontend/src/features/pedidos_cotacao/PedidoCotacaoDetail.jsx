@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -165,6 +166,7 @@ export default function PedidoCotacaoDetail() {
     moeda: form.moeda || "EUR",
     responsavel: form.responsavel || "",
     notas: form.notas || "",
+    campos_extra: form.campos_extra || {},
     linhas: (form.linhas || []).map((l) => ({
       id: l.id,
       nome: l.nome || "",
@@ -526,6 +528,16 @@ export default function PedidoCotacaoDetail() {
         Criado em {fmtDate(pc?.created_at)}
       </div>
         </>
+      )}
+
+      {tab === "pc" && (
+        <CamposPersonalizados
+          modulo="pedidos_cotacao"
+          className="mt-4"
+          value={form.campos_extra}
+          disabled={!editing}
+          onChange={(vals) => set("campos_extra", vals)}
+        />
       )}
 
       {tab === "ficheiros" && (

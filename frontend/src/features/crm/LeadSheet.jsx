@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import ConverterDialog from "./ConverterDialog";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import {
   TIPOS_INTERACAO, apiError, btnPrimary, btnSecondary, fmtDateTime, fromLocalInput, inputCls, labelCls,
   linkWhatsApp, tipoInteracao, tituloLead, toLocalInput,
@@ -17,6 +18,7 @@ import {
 const VAZIO = {
   nome: "", empresa: "", telefone: "", email: "", origem: "", descricao: "", valor_estimado: "",
   estado_id: "", responsavel_id: "", proxima_acao_at: "", proxima_acao_nota: "", motivo_perda: "",
+  campos_extra: {},
 };
 
 function formDoLead(lead) {
@@ -34,6 +36,7 @@ function formDoLead(lead) {
     proxima_acao_at: toLocalInput(lead.proxima_acao_at),
     proxima_acao_nota: lead.proxima_acao_nota || "",
     motivo_perda: lead.motivo_perda || "",
+    campos_extra: lead.campos_extra || {},
   };
 }
 
@@ -283,6 +286,15 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
                   <input className={inputCls} value={form.proxima_acao_nota} onChange={set("proxima_acao_nota")} disabled={!canEdit} placeholder="Ligar a confirmar quantidades" />
                 </div>
               </section>
+
+              <CamposPersonalizados
+                modulo="crm"
+                titulo="Outros dados"
+                className="!p-0 !border-0"
+                value={form.campos_extra}
+                disabled={!canEdit}
+                onChange={(vals) => setForm((f) => ({ ...f, campos_extra: vals }))}
+              />
 
               {canEdit && (
                 <div className="flex justify-end">

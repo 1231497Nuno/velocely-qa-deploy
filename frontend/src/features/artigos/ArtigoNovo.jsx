@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -364,6 +365,12 @@ export default function ArtigoNovo() {
 
           return null;
         }}
+      />
+      <CamposPersonalizados
+        modulo="artigos"
+        className="mt-3"
+        value={form.campos_extra}
+        onChange={(vals) => setForm((f) => ({ ...f, campos_extra: vals }))}
       />
 
       {form.tem_variantes && (

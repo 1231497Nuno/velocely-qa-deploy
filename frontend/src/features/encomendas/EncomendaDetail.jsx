@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -190,6 +191,7 @@ export default function EncomendaDetail() {
   const bodyFrom = (e) => ({
     cliente: e.cliente,
     cliente_id: e.cliente_id || null,
+    campos_extra: e.campos_extra || {},
     contacto_id: e.contacto_id || null,
     contacto_nome: e.contacto_nome || "",
     contacto_email: e.contacto_email || "",
@@ -836,6 +838,16 @@ export default function EncomendaDetail() {
             />
           </div>
         </>
+      )}
+
+      {tab === "encomenda" && (
+        <CamposPersonalizados
+          modulo="encomendas"
+          className="mt-4"
+          value={enc.campos_extra}
+          disabled={!can("encomendas", "edit")}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "pagamentos" && (

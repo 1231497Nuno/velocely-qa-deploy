@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -142,6 +143,7 @@ export default function OrdemFabricoDetail() {
   const bodyFrom = (o) => ({
     cliente: o.cliente,
     cliente_id: o.cliente_id || null,
+    campos_extra: o.campos_extra || {},
     encomenda_id: o.encomenda_id || null,
     descricao: o.descricao || "",
     numero_encomenda: o.numero_encomenda || "",
@@ -567,6 +569,16 @@ export default function OrdemFabricoDetail() {
           </div>
         </div>
       </div>
+      )}
+
+      {tab === "of" && (
+        <CamposPersonalizados
+          modulo="ordens_fabrico"
+          className="mt-4"
+          value={of.campos_extra}
+          disabled={!can("ordens_fabrico", "edit")}
+          onChange={(vals) => upd({ campos_extra: vals })}
+        />
       )}
 
       {tab === "ficheiros" && (

@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { ExtrasResumo } from "@/components/CamposPersonalizados";
+import { useCampos, estiloCor } from "@/context/CamposContext";
+import { FiltroChip } from "@/components/Filtros";
 import { useNavigate } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -32,6 +35,7 @@ function normStatus(o) {
 }
 
 export default function Orcamentos() {
+  const { corLinha } = useCampos();
   const { can } = useAuth();
   const [tab, setTab] = useState("todos");
   const [view, setView] = useState("lista");
@@ -79,21 +83,11 @@ export default function Orcamentos() {
 
   const rows = apply(items);
 
-  const Tab = ({ id, label }) => {
-    const active = tab === id;
-    return (
-      <button
-        data-testid={`orc-tab-${id}`}
-        onClick={() => setTab(id)}
-        className={`px-4 py-2 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors ${active ? "bg-brand text-brand-fg" : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"}`}
-      >
-        {label}
-        {active && (
-          <span className="text-xs tabular-nums rounded-full px-1.5 py-0.5 bg-white/20">{total}</span>
-        )}
-      </button>
-    );
-  };
+  const Tab = ({ id, label }) => (
+    <FiltroChip active={tab === id} onClick={() => setTab(id)} count={total} testid={`orc-tab-${id}`}>
+      {label}
+    </FiltroChip>
+  );
 
   const emptyMsg =
     tab === "abertos" ? "Sem orçamentos abertos." :
@@ -244,7 +238,7 @@ export default function Orcamentos() {
               </thead>
               <tbody data-testid="orcamentos-table">
                 {rows.map((o) => (
-                  <tr key={o.id} data-testid={`orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
+                  <tr style={estiloCor(corLinha("orcamentos", o))} key={o.id} data-testid={`orcamento-row-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
                     <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">
                       <div>{orcNumeroLabel(o)}</div>
                       {o.encomenda_numero && (
@@ -257,7 +251,7 @@ export default function Orcamentos() {
                           {o.encomenda_numero}
                         </button>
                       )}
-                    </td>
+                    <ExtrasResumo modulo="orcamentos" registo={o} /></td>
                     <td className="px-4 py-3 text-gray-700">{o.cliente}</td>
                     <td className="px-4 py-3 text-gray-500 mono text-xs">{o.numero_encomenda || "—"}</td>
                     <td className="px-4 py-3 tabular-nums text-gray-600">{fmtDate(o.data)}</td>
@@ -289,7 +283,7 @@ export default function Orcamentos() {
 
           <MobileCards testid="orcamentos-cards">
             {rows.map((o) => (
-              <MobileCard key={o.id} testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)}>
+              <MobileCard style={estiloCor(corLinha("orcamentos", o))} key={o.id} testid={`orcamento-card-${o.id}`} onClick={() => nav(`/orcamentos/${o.id}`)}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="mono tabular-nums font-semibold text-gray-900">{orcNumeroLabel(o)}</div>
