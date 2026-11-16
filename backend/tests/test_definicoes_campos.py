@@ -76,3 +76,20 @@ def test_linhas_de_compra_exigem_artigo(hdr):
         assert r.status_code == 400 and "artigo" in r.text.lower()
     finally:
         requests.delete(f"{API}/ordens-compra/{oc['id']}", headers=hdr, timeout=15)
+
+
+def test_previsao_of_da_encomenda(hdr):
+    """O resumo da OF devolve operações/materiais por artigo e totais (usa a 1.ª encomenda com artigos)."""
+    encs = requests.get(f"{API}/encomendas", headers=hdr, timeout=15).json()
+    encs = encs.get("items") if isinstance(encs, dict) else encs
+    enc = next((e for e in encs or [] if any(a.get("artigo_id") for a in e.get("artigos") or [])), None)
+    if not enc:
+        pytest.skip("sem encomendas com artigos no ambiente")
+    a = next(x for x in enc["artigos"] if x.get("artigo_id"))
+    r = requests.post(f"{API}/encomendas/{enc['id']}/ordens-fabrico/previsao",
+                      json={"itens": [{"enc_artigo_id": a["id"], "artigo_id": a["artigo_id"], "quantidade": 1}]},
+                      headers=hdr, timeout=15)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body["itens"]) == 1 and "operacoes" in body["itens"][0] and "materiais" in body["itens"][0]
+    assert {"tempo_maquina_min", "custo_materiais", "avisos"} <= set(body["resumo"])

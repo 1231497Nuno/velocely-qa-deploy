@@ -660,6 +660,11 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
             "arte_nome": l.get("arte_nome") or "",
             "arte_content_type": l.get("arte_content_type") or "",
             "cor": l.get("cor") or "",
+            # Operações e materiais definidos no orçamento → seguem para a OF
+            "orcamento_linha_id": l.get("id"),
+            "quantidade_orcamento": float(l.get("quantidade") or 1),
+            "roteiro_orcamento": list(l.get("roteiro") or []),
+            "materiais_orcamento": [m for m in mats if m.get("linha_origem_id") == l.get("id")],
         })
     if not enc_artigos:
         raise HTTPException(400, "O orçamento não tem linhas prontas para encomenda")

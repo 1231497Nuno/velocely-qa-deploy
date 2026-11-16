@@ -500,9 +500,9 @@ export const OFsPanel = ({ enc, onCriar, canCreate, embedded = false }) => (
           type="button"
           data-testid="encomenda-criar-of-btn"
           onClick={onCriar}
-          className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors ml-auto"
+          className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors ml-auto"
         >
-          <Plus size={15} /> Criar OF
+          <Plus size={15} /> Ver resumo da OF
         </button>
       )}
     </div>
@@ -641,7 +641,7 @@ export const OfFaseadaDialog = ({ open, onOpenChange, artigos, ofQtys, setOfQtys
         </div>
         <DialogFooter>
           <button onClick={() => onOpenChange(false)} className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-sm px-4 py-2 text-sm font-medium">Cancelar</button>
-          <button data-testid="of-faseada-criar-btn" onClick={() => { onOpenChange(false); onCriar(); }} className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Factory size={15} /> Criar OF</button>
+          <button data-testid="of-faseada-criar-btn" onClick={() => { onOpenChange(false); onCriar(); }} className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"><Factory size={15} /> Seguinte: validar OF</button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

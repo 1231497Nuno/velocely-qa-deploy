@@ -575,6 +575,37 @@ export default function OrdemFabricoDetail() {
                           {it.artigo_id && (
                             <OFItemOperacoes item={it} i={i} maquinas={maquinas} maoObra={maoObra} addOp={addOp} updOp={updOp} delOp={delOp} />
                           )}
+                          {(it.materiais || []).length > 0 && (
+                            <div className="rounded-sm border border-gray-200 bg-white" data-testid={`of-item-materiais-${i}`}>
+                              <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-gray-100">
+                                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Materiais a consumir</span>
+                                <span className="text-[10px] text-gray-400">{it.origem_materiais === "orcamento" ? "do orçamento" : it.origem_materiais === "catalogo" ? "do catálogo" : ""}</span>
+                              </div>
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  {it.materiais.map((m, mi) => (
+                                    <tr key={m.id || mi} className="border-t border-gray-50 first:border-0">
+                                      <td className="px-2.5 py-1 text-gray-800">
+                                        <label className="inline-flex items-center gap-1.5">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!m.consumido}
+                                            disabled={!can("ordens_fabrico", "edit")}
+                                            onChange={(e) => updItem(i, { materiais: it.materiais.map((x, xi) => (xi === mi ? { ...x, consumido: e.target.checked } : x)) })}
+                                            title="Marcar como consumido / separado"
+                                          />
+                                          <span className={m.consumido ? "line-through text-gray-400" : ""}>{m.nome}</span>
+                                        </label>
+                                      </td>
+                                      <td className="px-2.5 py-1 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                                        {new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 3 }).format(Number(m.quantidade) || 0)} {m.unidade}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                           <p className="text-[11px] text-gray-400">A produção (iniciar/parar) faz-se no roteiro à direita.</p>
                         </div>
                       )}

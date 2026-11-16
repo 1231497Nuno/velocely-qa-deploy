@@ -1121,7 +1121,7 @@ export default function OrcamentoDetail() {
               <button
                 data-testid="convert-quote-btn"
                 onClick={converter}
-                className="bg-blue-600 text-white hover:bg-blue-700 rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors"
               >
                 <ClipboardList size={15} /> Criar Encomenda
               </button>

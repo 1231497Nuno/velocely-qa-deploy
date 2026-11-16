@@ -922,6 +922,11 @@ class OFItem(BaseModel):
     tipo_personalizacao_nome: Optional[str] = None
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
     operacoes: List[OFOperacao] = Field(default_factory=list)
+    # Materiais a consumir (do orçamento de origem ou da receita do artigo), já para a qtd da OF
+    materiais: List[dict] = Field(default_factory=list)
+    enc_artigo_id: Optional[str] = None
+    origem_operacoes: str = ""  # orcamento | catalogo | ""
+    origem_materiais: str = ""
     arte_path: str = ""
     arte_nome: str = ""
     arte_content_type: str = ""
@@ -971,6 +976,11 @@ class EncomendaArtigo(BaseModel):
     desconto_tipo: str = "pct"  # pct | eur
     desconto_base: str = "linha"  # linha | unit — € unitário vs total da linha
     personalizacoes: List[PersonalizacaoSel] = Field(default_factory=list)
+    # Ligação à linha do orçamento + snapshot de produção (passa para a OF)
+    orcamento_linha_id: Optional[str] = None
+    quantidade_orcamento: Optional[float] = None
+    roteiro_orcamento: Optional[List[dict]] = None
+    materiais_orcamento: Optional[List[dict]] = None
     # Arte / maqueta herdada do orçamento
     arte_path: str = ""
     arte_nome: str = ""

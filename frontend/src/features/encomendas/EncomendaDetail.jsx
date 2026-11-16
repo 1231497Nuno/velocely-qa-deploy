@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import OfResumoDialog from "./OfResumoDialog";
 import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
@@ -68,6 +69,8 @@ export default function EncomendaDetail() {
   const [docs, setDocs] = useState([]);
   const [ofOpen, setOfOpen] = useState(false);
   const [ofQtys, setOfQtys] = useState({});
+  const [ofPrevisao, setOfPrevisao] = useState(null); // resumo para validar antes de criar a OF
+  const [ofCriando, setOfCriando] = useState(false);
   const [emitOpen, setEmitOpen] = useState(false);
   const [emitDefaultTipo, setEmitDefaultTipo] = useState("fatura");
   const [ncs, setNcs] = useState([]);
@@ -376,41 +379,58 @@ export default function EncomendaDetail() {
     persist({ artigos: list }, "Personalização removida");
   };
 
+  // 1.º passo: monta os itens e pede o resumo (operações e materiais do orçamento / catálogo)
+  const itensParaOF = () => (enc.artigos || [])
+    .filter((a) => a.artigo_id && (Number(ofQtys[a.id]) || 0) > 0)
+    .map((a) => ({
+      enc_artigo_id: a.id,
+      artigo_id: a.artigo_id,
+      artigo_nome: a.artigo_nome,
+      artigo_codigo: a.artigo_codigo || "",
+      imagem: a.imagem || "",
+      quantidade: Number(ofQtys[a.id]) || 0,
+      preco_unit: Number(a.preco_unit) || 0,
+      personalizacoes: a.personalizacoes || [],
+      cor: a.cor || "",
+      arte_path: a.arte_path || "",
+      arte_nome: a.arte_nome || "",
+      arte_content_type: a.arte_content_type || "",
+    }));
+
   const criarOF = async () => {
-    const itens = (enc.artigos || [])
-      .filter((a) => a.artigo_id && (Number(ofQtys[a.id]) || 0) > 0)
-      .map((a) => ({
-        artigo_id: a.artigo_id,
-        artigo_nome: a.artigo_nome,
-        artigo_codigo: a.artigo_codigo || "",
-        imagem: a.imagem || "",
-        quantidade: Number(ofQtys[a.id]) || 0,
-        preco_unit: Number(a.preco_unit) || 0,
-        personalizacoes: a.personalizacoes || [],
-        operacoes: [],
-        arte_path: a.arte_path || "",
-        arte_nome: a.arte_nome || "",
-        arte_content_type: a.arte_content_type || "",
-      }));
+    const itens = itensParaOF();
     if (itens.length === 0) return toast.error("Indica pelo menos uma quantidade a produzir");
-    const resumo = itens.map((i) => `• ${i.artigo_nome || "Artigo"}: ${i.quantidade}`).join("\n");
-    const avisoAuth = enc.autorizada_producao ? "" : "\n\nA produção ainda não está autorizada.";
-    if (!await confirmAction({
-      title: "Criar ordem de fabrico",
-      description: `${resumo}${avisoAuth}\n\nSeguem artigos, quantidades, personalizações, artes e preços da encomenda.`,
-      confirmLabel: "Criar OF",
-    })) return;
-    const of = await api.post(`/encomendas/${id}/ordens-fabrico`, {
-      cliente: enc.cliente,
-      descricao: enc.descricao || "",
-      notas: enc.notas || "",
-      prazo_entrega: enc.prazo_entrega || null,
-      numero_encomenda: enc.referencia_cliente || enc.numero || "",
-      itens,
-      imagens: enc.imagens || [],
-    });
-    toast.success("Ordem de fabrico criada");
-    nav(`/ordens-fabrico/${of.id}`);
+    try {
+      const prev = await api.post(`/encomendas/${id}/ordens-fabrico/previsao`, { itens });
+      setOfPrevisao(prev);
+      setOfOpen(false);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível preparar a ordem de fabrico");
+    }
+  };
+
+  // 2.º passo: depois de validado o resumo, cria a OF com os dados mostrados
+  const confirmarOF = async () => {
+    if (!ofPrevisao) return;
+    setOfCriando(true);
+    try {
+      const of = await api.post(`/encomendas/${id}/ordens-fabrico`, {
+        cliente: enc.cliente,
+        descricao: enc.descricao || "",
+        notas: enc.notas || "",
+        prazo_entrega: enc.prazo_entrega || null,
+        numero_encomenda: enc.referencia_cliente || enc.numero || "",
+        itens: ofPrevisao.itens,
+        imagens: enc.imagens || [],
+      });
+      setOfPrevisao(null);
+      toast.success("Ordem de fabrico criada");
+      nav(`/ordens-fabrico/${of.id}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Não foi possível criar a ordem de fabrico");
+    } finally {
+      setOfCriando(false);
+    }
   };
 
   const remaining = (a) => Math.max(0, (Number(a.quantidade) || 0) - (ofQtyByArtigo[a.artigo_id] || 0));
@@ -972,6 +992,14 @@ export default function EncomendaDetail() {
         remaining={remaining}
         artUnidade={artUnidade}
         onCriar={criarOF}
+      />
+
+      <OfResumoDialog
+        open={!!ofPrevisao}
+        onOpenChange={(o) => { if (!o) { setOfPrevisao(null); setOfOpen(true); } }}
+        previsao={ofPrevisao}
+        criando={ofCriando}
+        onConfirmar={confirmarOF}
       />
 
       {can("nao_conformidades", "create") && (
