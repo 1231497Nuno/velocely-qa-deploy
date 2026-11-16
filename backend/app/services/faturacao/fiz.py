@@ -141,7 +141,24 @@ def _resultado(j: dict, externo_id: str) -> ResultadoEmissao:
     )
 
 
+async def _nota_credito(cfg: dict, doc: dict, ctx: dict) -> ResultadoEmissao:
+    mae = ctx.get("fatura_origem") or {}
+    if not mae.get("externo_id"):
+        raise FaturacaoErro("A fatura original não está na FIZ", 400)
+    j = await _pedido(cfg, "POST", "/invoices/credit-notes",
+                      json={"parentInvoiceId": mae["externo_id"], "reason": (doc.get("motivo") or "Devolução")[:200], "issue": True},
+                      idem=f"{doc['id']}-nc", erro="A FIZ não emitiu a nota de crédito")
+    res = _resultado(j or {}, str((j or {}).get("id") or ""))
+    try:
+        res.pdf_url = await pdf_url(cfg, {"externo_id": res.externo_id})
+    except FaturacaoErro:
+        pass
+    return res
+
+
 async def emitir(cfg: dict, doc: dict, cliente: dict, ctx: dict) -> ResultadoEmissao:
+    if doc.get("tipo") == "nota_credito":
+        return await _nota_credito(cfg, doc, ctx)
     tipo = TIPOS.get(doc.get("tipo"))
     if not tipo:
         raise FaturacaoErro(f"A FIZ não emite este tipo de documento ({doc.get('tipo')})", 400)

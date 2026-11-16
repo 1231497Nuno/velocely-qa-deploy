@@ -174,3 +174,16 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Listas (Definições → Listas, `services/listas.py`): condições de pagamento, origens dos leads, motivos de perda,
   motivos de bloqueio, tipos de compra e transportadoras. Frontend: `useListas()` / `opcoesLista()` em `lib/listas.js`.
 - Numeração anual: em Definições → Referências, «incluir ano» recomeça a contagem em cada ano (ORC-2027-0001).
+
+## Vendas: tabelas de preços, guias e notas de crédito
+
+- Tabelas de preços (`/tabelas-precos`, `services/precos.py`): regras por artigo/categoria/todos, preço fixo ou desconto,
+  escalões de quantidade, validade, clientes e prioridade. `POST /tabelas-precos/aplicar` devolve a regra para cada linha;
+  aplicada ao adicionar artigos na encomenda e pelos botões «Tabelas de preços» (encomenda e orçamento).
+- Revisões de orçamento: já existiam (Negociar → V2, V3… com a versão anterior arquivada).
+- Guias (`services/guias.py`): entregas parciais por linha, locais de carga/descarga, PDF. Com o Moloni ligado, emite
+  guia de transporte/remessa lá (série «Guias»); sem programa ligado é interna (sem código AT). Marca a encomenda como
+  entregue quando tudo está enviado.
+- Notas de crédito (`criar_nota_credito`): por linhas ou valor, motivo obrigatório, devolução opcional do dinheiro
+  (pagamento tipo devolução na encomenda). Reduzem o pendente da fatura e devolvem quantidade faturável. Programa
+  certificado: FIZ e Moloni pela API; TOConline emite-se lá.

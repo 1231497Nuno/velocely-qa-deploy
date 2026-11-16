@@ -26,7 +26,7 @@ FORNECEDORES = {
     "moloni": {"nome": "Moloni", "modulo": moloni},
 }
 # Tipos de documento do ERP que passam a ser emitidos no programa certificado
-TIPOS_CERTIFICADOS = ("fatura", "fatura_recibo")
+TIPOS_CERTIFICADOS = ("fatura", "fatura_recibo", "nota_credito")
 
 SEGREDOS = {
     "fiz": ("api_key",),
@@ -264,6 +264,9 @@ async def emitir_documento(doc: dict, cliente: dict) -> dict:
     ctx = _ctx(cfg, settings, doc.get("id"))
     if cfg.get("fornecedor") != ((doc.get("faturacao") or {}).get("fornecedor") or cfg.get("fornecedor")):
         doc = {**doc, "faturacao": {}}  # rascunho tentado noutro programa: recomeça
+    if doc.get("tipo") == "nota_credito":
+        mae = await documentos_financeiros_repo.get(doc.get("fatura_id") or "") or {}
+        ctx["fatura_origem"] = mae.get("faturacao") or {}
     try:
         res: ResultadoEmissao = await mod.emitir(cfg, doc, cliente or {}, ctx)
     except HTTPException as ex:

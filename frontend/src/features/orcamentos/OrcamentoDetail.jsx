@@ -43,7 +43,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import AprovacaoBanner from "@/components/AprovacaoBanner";
-import { Trash2, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
+import { Trash2, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw, Tags } from "lucide-react";
 import { toast } from "sonner";
 import {
   orcTemNumero, orcNumeroLabel, orcStatus, orcEditavel, orcIsGanho, orcLinhaPronta,
@@ -947,6 +947,25 @@ export default function OrcamentoDetail() {
   const st = orcStatus(orc);
   const editavelEstado = orcEditavel(orc);
   const editavel = modo.ativo;
+  const aplicarTabelas = async () => {
+    const linhas = orc.linhas || [];
+    const idx = linhas.map((l, i) => (l.artigo_id ? i : -1)).filter((i) => i >= 0);
+    try {
+      const r = await api.post("/tabelas-precos/aplicar", {
+        cliente_id: orc.cliente_id || null, data: orc.data || null,
+        linhas: idx.map((i) => ({ artigo_id: linhas[i].artigo_id, quantidade: Number(linhas[i].quantidade) || 1 })),
+      });
+      let n = 0;
+      r.forEach((res, k) => {
+        if (!res) return;
+        n += 1;
+        updLinha(idx[k], res.tipo === "preco" ? { preco_unit: res.valor, preco_unit_manual: true } : { desconto: res.valor, desconto_tipo: "pct" });
+      });
+      toast[n ? "success" : "message"](n ? `Tabelas aplicadas em ${n} linha(s)` : "Nenhuma tabela de preços se aplica a estas linhas");
+    } catch {
+      toast.error("Não foi possível aplicar as tabelas de preços");
+    }
+  };
   const precisaNovaVersao = orcPrecisaNovaVersao(orc);
   const expirado = orcExpirado(orc);
   const versoes = orc.versoes || [];
@@ -1987,6 +2006,13 @@ export default function OrcamentoDetail() {
         onChange={(vals) => upd({ campos_extra: vals })}
       />
 
+      {editavel && (orc.linhas || []).some((l) => l.artigo_id) && (
+        <div className="flex justify-end mb-2">
+          <button type="button" onClick={aplicarTabelas} className="btn btn-secundario btn-sm" data-testid="orc-aplicar-tabelas" title="Aplica preços especiais e descontos por quantidade definidos em Catálogo → Tabelas de preços">
+            <Tags size={14} /> Aplicar tabelas de preços
+          </button>
+        </div>
+      )}
       <OrcamentoTotais
         subtotalVenda={subtotalVenda}
         totalPers={totalPers}

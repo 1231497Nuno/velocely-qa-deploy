@@ -36,6 +36,7 @@ export const DOC_TIPO_PT = {
   proforma: "Fatura Pro Forma",
   recibo: "Recibo",
   fatura_recibo: "Fatura-Recibo",
+  nota_credito: "Nota de crédito",
 };
 
 const FILTROS = [

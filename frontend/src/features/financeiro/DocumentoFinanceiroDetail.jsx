@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Ban, FileDown, Trash2, Receipt, Plus, ExternalLink, FileSignature, Lock, Pencil, Save, X } from "lucide-react";
 import BotaoAdicionar from "@/components/BotaoAdicionar";
+import NotaCreditoDialog from "@/features/financeiro/NotaCreditoDialog";
 import { toast } from "sonner";
 
 async function openPdf(docId) {
@@ -43,6 +44,7 @@ export default function DocumentoFinanceiroDetail() {
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState(null);
   const [cert, setCert] = useState(null);
+  const [ncOpen, setNcOpen] = useState(false);
 
   const load = useCallback(async () => {
     setDoc(await api.get(`/financeiro/documentos/${id}`));
@@ -265,6 +267,11 @@ export default function DocumentoFinanceiroDetail() {
             >
               <FileDown size={15} /> PDF
             </button>
+            {can("financeiro", "create") && isFatura && doc.estado === "emitida" && (
+              <button type="button" onClick={() => setNcOpen(true)} className="btn btn-secundario" data-testid="doc-nota-credito-btn">
+                <Receipt size={15} /> Nota de crédito
+              </button>
+            )}
             {can("financeiro", "create") && isFatura && doc.estado !== "anulada" && pendente > 0 && (
               <button
                 data-testid="doc-emitir-recibo-btn"
@@ -474,6 +481,19 @@ export default function DocumentoFinanceiroDetail() {
         </div>
       )}
 
+      <NotaCreditoDialog open={ncOpen} doc={doc} onClose={() => setNcOpen(false)} />
+      {doc.tipo === "nota_credito" && doc.fatura_id && (
+        <div className="text-sm text-gray-600 mb-3">Nota de crédito da fatura <Link to={`/financeiro/${doc.fatura_id}`} className="mono underline">{doc.fatura_numero}</Link>{doc.motivo ? ` · ${doc.motivo}` : ""}</div>
+      )}
+      {isFatura && (doc.notas_credito || []).length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-sm px-5 py-3 mb-4 text-sm" data-testid="doc-notas-credito">
+          <span className="font-semibold text-gray-700">Notas de crédito:</span>{" "}
+          {doc.notas_credito.map((n, i) => (
+            <span key={n.id}>{i > 0 && " · "}<Link to={`/financeiro/${n.id}`} className="mono underline">{n.numero}</Link> ({eur(n.total)})</span>
+          ))}
+          <span className="text-gray-500"> — total creditado {eur(doc.valor_creditado)}</span>
+        </div>
+      )}
       {isFatura && (
         <div className="bg-white border border-gray-200 rounded-sm p-5 mb-4" data-testid="doc-recibos-panel">
           <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">

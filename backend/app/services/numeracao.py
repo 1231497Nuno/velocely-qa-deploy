@@ -182,6 +182,22 @@ NUMERACAO_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "digitos": 4,
         "exemplo": "FP-2026-0001",
     },
+    "nota_credito": {
+        "label": "Notas de crédito",
+        "grupo": "documentos",
+        "prefix": "NCR",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "NCR-2026-0001",
+    },
+    "guia": {
+        "label": "Guias de remessa",
+        "grupo": "documentos",
+        "prefix": "GR",
+        "incluir_ano": True,
+        "digitos": 4,
+        "exemplo": "GR-2026-0001",
+    },
     "fatura_recibo": {
         "label": "Faturas-Recibo",
         "grupo": "documentos",

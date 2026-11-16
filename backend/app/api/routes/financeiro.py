@@ -53,8 +53,8 @@ async def list_documentos(
 ):
     query = {"tipo": {"$ne": "recibo"}}  # recibos vivem dentro da fatura
     if tipo:
-        if tipo not in DOC_TIPOS_PRINCIPAIS:
-            raise HTTPException(400, f"Tipo inválido. Use: {', '.join(DOC_TIPOS_PRINCIPAIS)}")
+        if tipo not in DOC_TIPOS_PRINCIPAIS + ("nota_credito",):
+            raise HTTPException(400, f"Tipo inválido. Use: {', '.join(DOC_TIPOS_PRINCIPAIS)}, nota_credito")
         query = {"tipo": tipo}
     ts = text_search(["numero", "cliente", "encomenda_numero"], q)
     if ts:
@@ -136,6 +136,28 @@ class EditarRascunhoBody(BaseModel):
     referencia_cliente: Optional[str] = None
     metodo_pagamento: Optional[str] = None
     linhas: Optional[List[LinhaRascunhoBody]] = None
+
+
+class NotaCreditoBody(BaseModel):
+    linhas: Optional[List[dict]] = None   # [{indice, quantidade}]
+    valor: Optional[float] = None
+    motivo: str = ""
+    devolver: bool = False
+    metodo: str = "transferencia"
+    assinar: bool = False
+
+
+@router.post("/financeiro/documentos/{did}/nota-credito")
+async def nota_credito(did: str, body: NotaCreditoBody, user: dict = Depends(require_perm("financeiro", "create"))):
+    from app.services.financeiro import criar_nota_credito
+    doc = await criar_nota_credito(did, user, linhas=body.linhas, valor=body.valor, motivo=body.motivo,
+                                   devolver={"metodo": body.metodo} if body.devolver else None)
+    if body.assinar:
+        try:
+            return await assinar_documento(doc["id"], user)
+        except HTTPException as ex:
+            doc["aviso_faturacao"] = f"{ex.detail if isinstance(ex.detail, str) else 'Erro'} — a nota de crédito ficou em rascunho."
+    return doc
 
 
 @router.put("/financeiro/documentos/{did}")
