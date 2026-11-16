@@ -564,3 +564,12 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   Etiquetas QR por armazém (`/stock/localizacoes/etiquetas.pdf?armazem=`).
 - Ficha do artigo (com «Gere stock»): «Localização por defeito» (`localizacao_id`, para onde vão as entradas). O `PUT
   /artigos` só altera o campo quando vem no pedido.
+
+## Stock: saída na entrega e precisão
+
+- Ao marcar a encomenda como entregue (ou guia emitida com «marcar entregue»), `stock.saida_encomenda` abate ao stock os
+  artigos de stock vendidos que não são produzidos (movimento `venda`, origem encomenda), uma só vez (`stock_saida`).
+  Desmarcar a entrega repõe (`repor_saida_encomenda`). Encomendas entregues antes desta versão não são alteradas.
+- Quantidades de stock arredondadas a 4 casas (`stock.rq`) — metros e m² não perdem precisão; euros continuam a 2.
+- `movimentar` recusa localizações inexistentes; se a localização por defeito do artigo foi apagada usa a da empresa.
+- Ciclo de 5 min: cada tarefa periódica corre isolada (uma falha não trava as outras).

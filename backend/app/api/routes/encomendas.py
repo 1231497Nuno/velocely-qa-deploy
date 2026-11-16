@@ -472,9 +472,13 @@ async def marcar_entrega(eid: str, body: EntregaBody, user: dict = Depends(requi
         return await _attach_ofs(await compute_encomenda(enc))
     data = ((body.data_entrega or enc.get("data_entrega") or now_iso())[:10]) if body.entregue else None
     await encomendas_repo.update(eid, {"entregue": body.entregue, "data_entrega": data})
+    from app.services import stock as stock_svc
     if body.entregue:
+        await stock_svc.saida_encomenda(enc, user)
         from app.services.integracoes import concluir_pedido_loja
         await concluir_pedido_loja(enc)
+    else:
+        await stock_svc.repor_saida_encomenda(enc, user)
     await audit.registar(
         "encomenda", eid, "editado", user,
         f"Material {'entregue' if body.entregue else 'marcado como não entregue'} na encomenda {enc.get('numero')}",
