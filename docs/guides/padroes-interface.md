@@ -426,3 +426,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   quantidades antes de mexer no stock e regista uma receção por OC com a mesma guia.
 - Computador: Ordens de Compra → «Receção» (escolher fornecedor, marcar as OC, quantidades) e, na OC, «Com outras do
   fornecedor» (`RececaoVariasOC.jsx`). A app móvel usa o mesmo endpoint.
+
+## Carregar ficheiros: arrastar e largar
+
+- Todas as zonas de carregamento aceitam ficheiros arrastados: `components/ZonaArrastar.jsx` envolve a área
+  (`onFicheiros(files)`, `accept` igual ao do input, `multiple`, `disabled`, `compacto` para botões pequenos) e mostra
+  «Largue aqui». Reutiliza o handler do input com `comoEvento(files)`. Ficheiros de tipo não aceite são recusados com aviso.
+- `BloquearLargarFora` (na App) impede o browser de abrir um ficheiro largado fora de uma zona.
+- Onde existe: ficheiros dos documentos (separador Ficheiros inteiro), imagem e galeria do artigo, arte da linha,
+  foto de perfil, documentos das contas, extrato bancário, tabela de preços do fornecedor, PDF para OC, fotos da
+  oficina, logótipo/fundo do login, importação Excel e restauro de cópia de segurança.

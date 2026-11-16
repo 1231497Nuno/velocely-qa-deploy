@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ZonaArrastar from "@/components/ZonaArrastar";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Download, FileUp, Loader2, Save } from "lucide-react";
@@ -93,8 +94,14 @@ function Extrato({ podeEditar }) {
   };
   return (
     <div className="space-y-3">
-      {podeEditar && <label className="btn btn-secundario cursor-pointer w-fit">{busy ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />} Importar extrato do banco (CSV/Excel)
-        <input type="file" accept=".csv,.txt,.xlsx" className="hidden" onChange={(e) => importar(e.target.files?.[0])} data-testid="extrato-ficheiro" /></label>}
+      {podeEditar && (
+        <ZonaArrastar onFicheiros={(f) => importar(f[0])} accept=".csv,.txt,.xlsx" disabled={busy} texto="Largue o extrato aqui"
+          className="border-2 border-dashed border-gray-300 rounded-sm p-4 flex flex-wrap items-center gap-3">
+          <label className="btn btn-secundario cursor-pointer w-fit">{busy ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />} Importar extrato do banco (CSV/Excel)
+            <input type="file" accept=".csv,.txt,.xlsx" className="hidden" onChange={(e) => importar(e.target.files?.[0])} data-testid="extrato-ficheiro" /></label>
+          <span className="text-sm text-gray-500">ou arraste o ficheiro para aqui</span>
+        </ZonaArrastar>
+      )}
       <p className="text-xs text-gray-500">Para cada movimento são sugeridas as encomendas (entradas) ou ordens de compra (saídas) com o mesmo valor, número ou nome. Ao conciliar, o pagamento fica registado.</p>
       <div className="bg-white border border-gray-200 rounded-sm divide-y divide-gray-100">
         {(movs || []).map((m) => (

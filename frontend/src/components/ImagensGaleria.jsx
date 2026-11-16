@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { API, getToken } from "@/lib/api";
 import { useAuthFileUrl } from "@/lib/authFileUrl";
 import AuthImg from "@/components/AuthImg";
@@ -42,6 +43,7 @@ export default function ImagensGaleria({ value = [], onChange, editable = true, 
       <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
         <Images size={15} /> {title}
       </h2>
+      <ZonaArrastar onFicheiros={(f) => handleFiles(comoEvento(f))} multiple accept="image/png,image/jpeg,image/gif,image/webp" disabled={!editable || busy} texto="Largue as imagens aqui">
       <div className="bg-white border border-gray-200 rounded-sm p-5">
         {hint && <p className="text-xs text-gray-400 mb-3">{hint}</p>}
         <div className="flex flex-wrap gap-3">
@@ -72,7 +74,9 @@ export default function ImagensGaleria({ value = [], onChange, editable = true, 
           )}
           {!editable && imgs.length === 0 && <p className="text-sm text-gray-400">Sem imagens.</p>}
         </div>
+        {editable && <p className="text-[11px] text-gray-400 mt-2">Também pode arrastar imagens para aqui.</p>}
       </div>
+      </ZonaArrastar>
 
       {preview && previewSrc && (
         <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-6" onClick={() => setPreview(null)} data-testid="galeria-preview">

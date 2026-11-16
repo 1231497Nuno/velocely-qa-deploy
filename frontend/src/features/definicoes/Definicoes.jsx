@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { api, API, getToken } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import AparenciaTab from "./AparenciaTab";
@@ -121,7 +122,8 @@ function EmpresaTab() {
         <button data-testid="save-empresa-btn" onClick={save} className="btn btn-primario"><Save size={16} /> Guardar</button>
       </div>
 
-      <div className="flex items-center gap-4 mb-5">
+      <ZonaArrastar className="mb-5" onFicheiros={(f) => onLogo(comoEvento(f))} accept="image/*" texto="Largue o logótipo aqui">
+      <div className="flex items-center gap-4">
         <div className="w-28 h-20 border border-dashed border-gray-300 rounded-sm flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
           {form.logo_base64 ? <img src={form.logo_base64} alt="logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon size={22} className="text-gray-300" />}
         </div>
@@ -131,9 +133,10 @@ function EmpresaTab() {
             <input data-testid="logo-input" type="file" accept="image/*" onChange={onLogo} className="hidden" />
           </label>
           {form.logo_base64 && <button onClick={() => upd("logo_base64", "")} className="ml-2 text-sm text-red-600 hover:underline">Remover</button>}
-          <p className="text-xs text-gray-400 mt-1">PNG/JPG, máx. 600KB.</p>
+          <p className="text-xs text-gray-400 mt-1">PNG/JPG, máx. 600KB. Também pode arrastar a imagem para aqui.</p>
         </div>
       </div>
+      </ZonaArrastar>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Inp label="Nome da empresa" tid="emp-nome" val={form.nome} onChange={(v) => upd("nome", v)} />
@@ -281,6 +284,7 @@ function EmpresaTab() {
         <h3 className="text-sm font-semibold text-gray-700 mb-1">Ecrã de login</h3>
         <p className="text-xs text-gray-400 mb-4">Imagem de fundo do ecrã de início de sessão (substitui o fundo escuro).</p>
         <div className="flex items-center gap-4">
+          <ZonaArrastar className="flex items-center gap-4" onFicheiros={(f) => onLoginBg(comoEvento(f))} accept="image/*" texto="Largue a imagem aqui">
           <div className="w-40 h-24 border border-dashed border-gray-300 rounded-sm flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
             {form.login_bg_base64 ? <img src={form.login_bg_base64} alt="fundo login" className="w-full h-full object-cover" /> : <ImageIcon size={22} className="text-gray-300" />}
           </div>
@@ -290,8 +294,9 @@ function EmpresaTab() {
               <input data-testid="login-bg-input" type="file" accept="image/*" onChange={onLoginBg} className="hidden" />
             </label>
             {form.login_bg_base64 && <button data-testid="login-bg-remove" onClick={() => upd("login_bg_base64", "")} className="ml-2 text-sm text-red-600 hover:underline">Remover</button>}
-            <p className="text-xs text-gray-400 mt-1">PNG/JPG, máx. 3MB. Recomenda-se uma imagem larga (ex.: 1920×1080).</p>
+            <p className="text-xs text-gray-400 mt-1">PNG/JPG, máx. 3MB. Recomenda-se uma imagem larga (ex.: 1920×1080). Também pode arrastar a imagem para aqui.</p>
           </div>
+          </ZonaArrastar>
         </div>
       </div>
     </div>
@@ -1206,8 +1211,9 @@ function DadosTab() {
               <option value="update">Actualizar existentes</option>
             </select>
           </div>
+          <ZonaArrastar onFicheiros={(f) => { setFile(f[0]); setPreview(null); }} accept=".xlsx,.xlsm" disabled={busy} texto="Largue o Excel aqui">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Ficheiro .xlsx</label>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Ficheiro .xlsx (ou arraste para aqui)</label>
             <input
               data-testid="import-file-input"
               type="file"
@@ -1220,6 +1226,7 @@ function DadosTab() {
               <p className="text-xs text-gray-500 mt-1 truncate">{file.name} ({Math.max(1, Math.round(file.size / 1024))} KB)</p>
             )}
           </div>
+          </ZonaArrastar>
         </div>
         {importMode === "update" && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-sm px-3 py-2">

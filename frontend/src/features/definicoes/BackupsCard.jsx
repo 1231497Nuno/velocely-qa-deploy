@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ZonaArrastar from "@/components/ZonaArrastar";
 import { toast } from "sonner";
 import { DatabaseBackup, Download, Loader2, Upload } from "lucide-react";
 import { API, api, fmtDate, getToken } from "@/lib/api";
@@ -48,8 +49,10 @@ export default function BackupsCard() {
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn btn-secundario" disabled={!!busy} onClick={agora}>{busy === "agora" ? <Loader2 size={15} className="animate-spin" /> : <DatabaseBackup size={15} />} Fazer cópia agora</button>
           <button type="button" className="btn btn-secundario" onClick={() => baixar("agora").catch((e) => toast.error(e.message))}><Download size={15} /> Descarregar cópia atual</button>
+          <ZonaArrastar className="inline-flex" onFicheiros={(f) => restaurar(f[0])} accept=".gz,.json" disabled={!!busy} texto="Largue a cópia aqui">
           <label className="btn btn-secundario cursor-pointer text-red-700">{busy === "restaurar" ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Restaurar…
             <input type="file" accept=".gz,.json" className="hidden" onChange={(e) => restaurar(e.target.files?.[0])} /></label>
+          </ZonaArrastar>
         </div>
       </div>
       {lista.length > 0 && (

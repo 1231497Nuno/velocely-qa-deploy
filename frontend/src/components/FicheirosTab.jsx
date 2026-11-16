@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import ZonaArrastar, { comoEvento } from "@/components/ZonaArrastar";
 import { Link } from "react-router-dom";
 import { api, fmtDate } from "@/lib/api";
 import { fileApiUrl } from "@/lib/authFileUrl";
@@ -115,6 +116,8 @@ export default function FicheirosTab({ tipo, id, canEdit = false, addLabel = "Ad
   const total = grupos.reduce((n, g) => n + (g.itens || []).length, 0);
 
   return (
+    <ZonaArrastar onFicheiros={(f) => onFiles(comoEvento(f))} multiple disabled={!canEdit || busy}
+      accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx,.odt,.ods,.zip" texto="Largue aqui os ficheiros para os anexar">
     <div className="space-y-6" data-testid="ficheiros-tab">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gray-500">
@@ -185,5 +188,6 @@ export default function FicheirosTab({ tipo, id, canEdit = false, addLabel = "Ad
         </section>
       ))}
     </div>
+    </ZonaArrastar>
   );
 }
