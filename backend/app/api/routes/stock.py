@@ -16,6 +16,7 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), _u: dic
     """Artigos que gerem stock, com estado (abaixo do nível, negativo)."""
     out = []
     ql = q.strip().lower()
+    reservado = await stock_svc.reservas()
     for a in await artigos_repo.find({}, sort=("nome", 1), limit=20000):
         if not stock_svc.gere_stock(a):
             continue
@@ -31,7 +32,9 @@ async def listar_stock(q: str = Query(""), filtro: str = Query("todos"), _u: dic
                     "tipo_artigo": a.get("tipo_artigo"), "fornecedor_nome": a.get("fornecedor_nome") or "",
                     "unidade_compra": a.get("unidade_compra") or "", "fator_compra": float(a.get("fator_compra") or 1),
                     "qtd_stock": round(stock, 2), "nivel_reabastecimento": nivel, "custo_medio": round(custo, 4),
-                    "valor": round(max(stock, 0) * custo, 2), "estado": estado, "gere_stock": True})
+                    "valor": round(max(stock, 0) * custo, 2), "estado": estado, "gere_stock": True,
+                    "localizacao": a.get("localizacao") or "", "reservado": reservado.get(a["id"], 0.0),
+                    "disponivel": round(stock - reservado.get(a["id"], 0.0), 2)})
     return {"items": out, "valor_total": round(sum(i["valor"] for i in out), 2)}
 
 
@@ -134,6 +137,7 @@ async def configurar(aid: str, dados: dict, user: dict = Depends(require_perm("a
     if fator <= 0:
         raise HTTPException(400, "O fator de conversão tem de ser maior que zero")
     patch = {"gere_stock": bool(dados.get("gere_stock", True)), "unidade_compra": (dados.get("unidade_compra") or "").strip(),
-             "fator_compra": fator, "nivel_reabastecimento": max(0.0, float(dados.get("nivel_reabastecimento") or 0))}
+             "fator_compra": fator, "nivel_reabastecimento": max(0.0, float(dados.get("nivel_reabastecimento") or 0)),
+             "localizacao": (dados.get("localizacao") or "").strip()[:60]}
     await artigos_repo.update(aid, patch)
     return {**a, **patch}

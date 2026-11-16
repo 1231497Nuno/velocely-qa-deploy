@@ -27,7 +27,7 @@ const ESTADO = {
 };
 
 function ConfigDialog({ artigo, onClose, onSaved }) {
-  const [f, setF] = useState({ unidade_compra: artigo.unidade_compra || "", fator_compra: artigo.fator_compra || 1, nivel_reabastecimento: artigo.nivel_reabastecimento || 0 });
+  const [f, setF] = useState({ unidade_compra: artigo.unidade_compra || "", fator_compra: artigo.fator_compra || 1, nivel_reabastecimento: artigo.nivel_reabastecimento || 0, localizacao: artigo.localizacao || "" });
   const [busy, setBusy] = useState(false);
   const guardar = async (gere = true) => {
     setBusy(true);
@@ -47,6 +47,7 @@ function ConfigDialog({ artigo, onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-3">
           <div><label className="text-xs font-medium text-gray-600">Unidade de compra</label><input className={inputCls} placeholder={artigo.unidade || "un"} value={f.unidade_compra} onChange={(e) => setF({ ...f, unidade_compra: e.target.value })} data-testid="cfg-unidade-compra" /></div>
           <div><label className="text-xs font-medium text-gray-600">1 {f.unidade_compra || "un. compra"} = … {artigo.unidade || "un"}</label><input type="number" min="0" step="any" className={inputCls} value={f.fator_compra} onChange={(e) => setF({ ...f, fator_compra: e.target.value })} data-testid="cfg-fator" /></div>
+          <div className="col-span-2"><label className="text-xs font-medium text-gray-600">Localização no armazém</label><input className={inputCls} placeholder="Ex.: Estante A, prateleira 3" value={f.localizacao} onChange={(e) => setF({ ...f, localizacao: e.target.value })} data-testid="cfg-localizacao" /></div>
           <div className="col-span-2"><label className="text-xs font-medium text-gray-600">Nível de reabastecimento ({artigo.unidade || "un"})</label><input type="number" min="0" step="any" className={inputCls} value={f.nivel_reabastecimento} onChange={(e) => setF({ ...f, nivel_reabastecimento: e.target.value })} data-testid="cfg-nivel" />
             <p className="text-xs text-gray-500 mt-1">Abaixo deste valor (contando o que está em compra e o que as encomendas abertas vão gastar) o artigo aparece nas sugestões de compra.</p></div>
         </div>
@@ -119,15 +120,17 @@ function TabStock({ podeEditar, verCustos }) {
       <div className="bg-white border border-gray-200 rounded-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-xs text-gray-500 bg-gray-50">
-            <tr><th className="text-left px-3 py-2">Artigo</th><th className="text-left px-3">Fornecedor</th><th className="text-right px-3">Stock</th><th className="text-right px-3">Nível</th>
+            <tr><th className="text-left px-3 py-2">Artigo</th><th className="text-left px-3">Fornecedor</th><th className="text-right px-3">Stock</th><th className="text-right px-3" title="Encomendas abertas e materiais das OF por fechar">Reservado</th><th className="text-right px-3">Disponível</th><th className="text-right px-3">Nível</th>
               <th className="text-left px-3">Compra</th>{verCustos && <th className="text-right px-3 dado-custo">Custo médio</th>}{verCustos && <th className="text-right px-3 dado-custo">Valor</th>}<th className="px-3">Estado</th><th /></tr>
           </thead>
           <tbody>
             {dados.items.map((a) => (
               <tr key={a.id} className="border-t border-gray-100" data-testid={`stock-row-${a.id}`}>
-                <td className="px-3 py-2"><div className="font-medium">{a.nome}</div><div className="text-xs text-gray-400">{a.codigo}</div></td>
+                <td className="px-3 py-2"><div className="font-medium">{a.nome}</div><div className="text-xs text-gray-400">{a.codigo}{a.localizacao ? ` · ${a.localizacao}` : ""}</div></td>
                 <td className="px-3 text-gray-600">{a.fornecedor_nome || "—"}</td>
                 <td className="px-3 text-right tabular-nums font-medium">{num(a.qtd_stock)} <span className="text-xs text-gray-400">{a.unidade}</span></td>
+                <td className="px-3 text-right tabular-nums text-gray-600">{a.reservado ? num(a.reservado) : "—"}</td>
+                <td className={`px-3 text-right tabular-nums ${a.disponivel < 0 ? "text-red-700 font-medium" : ""}`}>{num(a.disponivel)}</td>
                 <td className="px-3 text-right tabular-nums text-gray-600">{a.nivel_reabastecimento ? num(a.nivel_reabastecimento) : "—"}</td>
                 <td className="px-3 text-xs text-gray-500">{a.unidade_compra && a.fator_compra !== 1 ? `1 ${a.unidade_compra} = ${num(a.fator_compra)} ${a.unidade}` : "—"}</td>
                 {verCustos && <td className="px-3 text-right tabular-nums dado-custo">{eur(a.custo_medio)}</td>}
@@ -141,7 +144,7 @@ function TabStock({ podeEditar, verCustos }) {
                 </td>
               </tr>
             ))}
-            {!dados.items.length && <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Nenhum artigo com gestão de stock. Ative-a na ficha do artigo («Gere stock») ou escolha um artigo acima.</td></tr>}
+            {!dados.items.length && <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400">Nenhum artigo com gestão de stock. Ative-a na ficha do artigo («Gere stock») ou escolha um artigo acima.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -24,6 +24,8 @@ LISTAS: Dict[str, dict] = {
                                     "Falta de material", "Pedido do cliente"]},
     "tipos_compra": {"label": "Tipos de compra", "onde": "Ordens de compra",
                      "padrao": ["Consumiveis", "Produtos", "Outros", "Manutenção", "Portes"]},
+    "centros_custo": {"label": "Centros de custo", "onde": "Categorias e ordens de compra (rentabilidade por área)",
+                      "padrao": ["Vestuário e fardamentos", "Sinalética e placas", "Brindes", "Decoração e eventos", "Loja online", "Geral"]},
     "transportadoras": {"label": "Transportadoras", "onde": "Ordens de compra e envios",
                         "padrao": ["CTT", "CTT Expresso", "DPD", "GLS", "MRW", "Nacex", "Recolha na loja"]},
 }

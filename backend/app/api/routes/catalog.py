@@ -884,8 +884,8 @@ async def update_categoria(cid: str, data: CategoriaInput, user: dict = Depends(
     existing = await categorias_repo.get(cid)
     if not existing:
         raise HTTPException(404, "Categoria não encontrada")
-    novo = data.model_dump()
-    alteracoes = audit.diff_campos(existing, novo, ["nome"])
+    novo = data.model_dump(exclude_none=True)
+    alteracoes = audit.diff_campos(existing, novo, ["nome", "centro_custo"])
     await categorias_repo.update(cid, novo)
     if novo.get("nome") and novo["nome"] != existing.get("nome"):
         await subcategorias_repo.update_many({"categoria_id": cid}, {"categoria_nome": novo["nome"]})

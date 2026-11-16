@@ -166,6 +166,28 @@ async def fatura_fornecedor(oid: str, dados: dict, user: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Reservas: o que as encomendas abertas e as OF por fechar vão gastar
+# ---------------------------------------------------------------------------
+async def reservas() -> Dict[str, float]:
+    from app.repositories import ordens_repo
+    artigos = {a["id"]: a for a in await artigos_repo.find({"gere_stock": True}, limit=20000)}
+    out: Dict[str, float] = {}
+    for e in await encomendas_repo.find({"estado": {"$nin": ["concluida", "cancelada"]}, "entregue": {"$ne": True}}, limit=5000):
+        for l in e.get("artigos") or []:
+            a = artigos.get(l.get("artigo_id"))
+            if a and not a.get("produzido"):  # artigos produzidos gastam materiais (contados nas OF)
+                out[a["id"]] = out.get(a["id"], 0) + float(l.get("quantidade") or 0)
+    for of in await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, limit=5000):
+        if (of.get("fecho") or {}).get("fechada"):
+            continue
+        for it in of.get("itens") or []:
+            for m in it.get("materiais") or []:
+                if m.get("material_id") in artigos and not m.get("consumido"):
+                    out[m["material_id"]] = out.get(m["material_id"], 0) + float(m.get("quantidade") or 0)
+    return {k: round2(v) for k, v in out.items()}
+
+
+# ---------------------------------------------------------------------------
 # Sugestões de compra
 # ---------------------------------------------------------------------------
 async def sugestoes() -> List[dict]:
@@ -180,11 +202,7 @@ async def sugestoes() -> List[dict]:
                 a_f = next((a for a in artigos if a["id"] == l["artigo_id"]), {})
                 falta = max(0.0, float(l.get("quantidade") or 0) - float(l.get("qtd_recebida") or 0))
                 em_compra[l["artigo_id"]] = em_compra.get(l["artigo_id"], 0) + falta * (float(a_f.get("fator_compra") or 1) or 1)
-    reservado: Dict[str, float] = {}
-    for e in await encomendas_repo.find({"estado": {"$nin": ["concluida", "cancelada"]}, "entregue": {"$ne": True}}, limit=5000):
-        for l in e.get("artigos") or []:
-            if l.get("artigo_id") in ids:
-                reservado[l["artigo_id"]] = reservado.get(l["artigo_id"], 0) + float(l.get("quantidade") or 0)
+    reservado = await reservas()
     out = []
     for a in artigos:
         stock = float(a.get("qtd_stock") or 0)

@@ -384,6 +384,15 @@ export default function OrdemCompraDetail() {
               <ViewValue>{form.tipo_compra}</ViewValue>
             )}
           </Field>
+          <Field label="Centro de custo">
+            {editing ? (
+              <select className={inputCls} value={form.centro_custo || ""} onChange={(e) => set("centro_custo", e.target.value)} data-testid="oc-centro-custo">
+                {opcoesLista(listas, "centros_custo", form.centro_custo).map((t) => <option key={t || "vazio"} value={t}>{t || "—"}</option>)}
+              </select>
+            ) : (
+              <ViewValue>{form.centro_custo}</ViewValue>
+            )}
+          </Field>
           <Field label="Estado">
             {editing ? (
               <select className={inputCls} value={form.estado || "criada"} onChange={(e) => set("estado", e.target.value)} data-testid="oc-estado">

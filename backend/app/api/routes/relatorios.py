@@ -141,3 +141,27 @@ async def enviar_guardado(gid: str, user: dict = Depends(require_perm("relatorio
     if not ok:
         raise HTTPException(400, f"Não foi possível enviar: {erro}")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Objetivos anuais e centros de custo
+# ---------------------------------------------------------------------------
+@router.get("/objetivos/{ano}")
+async def objetivos_get(ano: int, user: dict = Depends(require_perm("relatorios", "view"))):
+    from app.services import objetivos
+    return await objetivos.obter(ano)
+
+
+@router.put("/objetivos/{ano}")
+async def objetivos_put(ano: int, dados: dict, _a: dict = Depends(require_perm("relatorios", "edit"))):
+    from app.services import objetivos
+    return await objetivos.guardar(ano, dados)
+
+
+@router.put("/categorias/{cid}/centro-custo")
+async def categoria_centro(cid: str, dados: dict, _u: dict = Depends(require_perm("artigos", "edit"))):
+    from app.repositories import categorias_repo
+    if not await categorias_repo.get(cid):
+        raise HTTPException(404, "Categoria não encontrada")
+    await categorias_repo.update(cid, {"centro_custo": (dados.get("centro_custo") or "").strip()})
+    return {"ok": True}

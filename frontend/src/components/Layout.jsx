@@ -51,6 +51,7 @@ import {
   CalendarRange,
   Wrench,
   Landmark,
+  Target,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -102,6 +103,7 @@ const NAV_GROUPS = [
     label: "Relatórios",
     items: [
       { to: "/relatorios", label: "Relatórios", icon: BarChart3, tid: "nav-relatorios", modulo: "relatorios" },
+      { to: "/objetivos", label: "Objetivos", icon: Target, tid: "nav-objetivos", modulo: "relatorios" },
       { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade", custos: true },
     ],
   },

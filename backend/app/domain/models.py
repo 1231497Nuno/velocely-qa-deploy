@@ -440,6 +440,7 @@ class ArtigoInput(BaseModel):
 
 class CategoriaInput(BaseModel):
     nome: str
+    centro_custo: Optional[str] = None  # Definições → Listas → Centros de custo
 
 
 class Categoria(CategoriaInput):
@@ -802,6 +803,7 @@ class OrdemCompraInput(BaseModel):
     responsavel: str = ""
     tipologia: str = ""
     transportadora: str = ""
+    centro_custo: str = ""
     notas: str = ""
     linhas: List[OrdemCompraLinha] = Field(default_factory=list)
     anexos: List[Anexo] = Field(default_factory=list)
