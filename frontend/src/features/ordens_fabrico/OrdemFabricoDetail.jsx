@@ -455,6 +455,9 @@ export default function OrdemFabricoDetail() {
                           <div className="text-sm font-medium text-gray-900 truncate">
                             {it.artigo_nome || <span className="text-gray-400 font-normal">Escolher artigo…</span>}
                           </div>
+                          {it.observacoes && (
+                            <div className="text-[11px] text-violet-700 truncate" title={it.observacoes} data-testid={`of-item-obs-${i}`}>{it.observacoes}</div>
+                          )}
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500 min-w-0">
                             {pers.length > 0 && (
                               <span className="truncate">{pers.map((p) => p.nome).join(", ")}</span>

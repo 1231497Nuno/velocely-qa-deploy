@@ -110,6 +110,7 @@ const METODO_PAG_PT = {
   transferencia: "Transferência",
   numerario: "Numerário",
   mbway: "MB WAY",
+  multibanco: "Multibanco",
   cheque: "Cheque",
   cartao: "Cartão",
   outro: "Outro",

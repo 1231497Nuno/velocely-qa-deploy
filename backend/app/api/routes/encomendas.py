@@ -43,7 +43,7 @@ def _artigos_congelados_do_orcamento(existing: dict, novo_artigos: list) -> list
     return out
 
 PAG_METODO_PT = {
-    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY",
+    "transferencia": "Transferência bancária", "numerario": "Numerário", "mbway": "MB WAY", "multibanco": "Multibanco",
     "cheque": "Cheque", "cartao": "Cartão", "outro": "Outro",
 }
 
@@ -179,14 +179,17 @@ async def list_encomendas(
     page_size: int = Query(25, ge=1, le=100),
     q: str = Query(""),
     estado_grupo: Optional[str] = Query(None, description="pendentes|concluidas"),
+    origem: Optional[str] = Query(None, description="loja = só encomendas da loja online"),
     _u: dict = Depends(require_perm("encomendas", "view")),
 ):
     query = {}
+    if origem == "loja":
+        query["origem_externa.canal"] = "woocommerce"
     if estado_grupo == "pendentes":
         query["estado"] = {"$nin": ["concluida", "cancelada"]}
     elif estado_grupo == "concluidas":
         query["estado"] = "concluida"
-    ts = text_search(["numero", "cliente", "orcamento_numero"], q)
+    ts = text_search(["numero", "cliente", "orcamento_numero", "referencia_cliente"], q)
     if ts:
         query.update(ts)
     if page is None:

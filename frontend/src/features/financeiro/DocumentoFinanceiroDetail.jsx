@@ -25,7 +25,7 @@ async function openPdf(docId) {
 }
 
 const METODO_PT = {
-  transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY",
+  transferencia: "Transferência", numerario: "Numerário", mbway: "MB WAY", multibanco: "Multibanco",
   cheque: "Cheque", cartao: "Cartão", outro: "Outro",
 };
 

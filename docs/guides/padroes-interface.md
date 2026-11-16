@@ -118,3 +118,8 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 
 - `/ordens-fabrico/acerto-tempos?of=<id>` (botão «Acertar tempos» na OF): corrigir o tempo real de mão de obra e de máquina de cada operação, também em OFs finalizadas.
 - Tempo de máquina vazio = usa o estimado. Exige motivo; cada acerto fica guardado na OF (`acertos_tempos`) e no histórico, com o custo real antes/depois.
+
+## Integração com o site (Definições → Integrações)
+
+- **Loja online (WooCommerce)**: webhook `POST /api/integracoes/woocommerce/webhook` (assinatura HMAC do WooCommerce) + importação manual pela API REST (chaves só de leitura). Cada pedido vira uma encomenda (referência `#nº da loja`, `origem_externa`), sem duplicar; o cliente é encontrado por NIF/email ou criado; os artigos ligam-se pelo SKU (código, código de produto ou de fabricante); personalizações da loja ficam em `observacoes` da linha e passam para a OF. Pedido pago → pagamento registado uma vez; cancelado na loja → encomenda cancelada (se ainda não tiver OF); concluído → marcado como entregue.
+- **Formulários do site**: `POST /api/integracoes/site/pedido?token=…` (JSON ou formulário; Elementor/CF7) → lead no CRM com origem «Site»; o mesmo contacto com lead em aberto acrescenta uma mensagem em vez de duplicar.
