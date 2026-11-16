@@ -1163,6 +1163,13 @@ class PdfTemplateInput(BaseModel):
     finalidade: str = "ambos"
     mostrar_branding: bool = True
     campos: dict = Field(default_factory=dict)
+    # Aparência (orçamentos): «proposta» (predefinido) ou «classico»; cor de destaque; textos das secções
+    estilo: str = "proposta"
+    cor: str = ""
+    textos: dict = Field(default_factory=dict)  # introducao, incluido, prazos, condicoes, agradecimento
+    imagens: bool = True     # fotos/artes dos artigos
+    aceitacao: bool = True   # caixa «Aceitação da proposta»
+    padrao: bool = False     # modelo usado por defeito no módulo
 
 
 class PdfTemplate(PdfTemplateInput):
@@ -1292,11 +1299,16 @@ PDF_SECOES = {
     "orcamento": [
         {"key": "dados_cliente", "label": "Dados do cliente", "campos": _CLIENTE_CAMPOS},
         {"key": "datas_estado", "label": "Datas e estado"},
+        {"key": "introducao", "label": "Texto de introdução (proposta)"},
         {"key": "linhas_artigos", "label": "Linhas de artigos"},
         {"key": "personalizacoes", "label": "Personalizações"},
         {"key": "materiais", "label": "Materiais / consumíveis"},
         {"key": "totais", "label": "Totais e preço final"},
+        {"key": "incluido", "label": "O que está incluído (proposta)"},
+        {"key": "prazos", "label": "Maquete, prazos e entrega (proposta)"},
+        {"key": "condicoes", "label": "Condições"},
         {"key": "notas", "label": "Notas"},
+        {"key": "aceitacao", "label": "Caixa de aceitação (proposta)"},
     ],
     "of": [
         {"key": "dados_cliente", "label": "Dados do cliente", "campos": _CLIENTE_CAMPOS},

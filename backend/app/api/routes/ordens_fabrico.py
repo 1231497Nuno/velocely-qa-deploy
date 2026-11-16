@@ -114,7 +114,7 @@ async def of_pdf(ofid: str, template_id: Optional[str] = None, _u: dict = Depend
     if not o:
         raise HTTPException(404, "OF não encontrada")
     o = recompute_of_status(o)
-    settings, fields, show_branding = await load_pdf_config(template_id)
+    settings, fields, show_branding = await load_pdf_config(template_id, "of")
     cliente = await fetch_cliente(o.get("cliente_id"))
     orcamento = await fetch_orcamento(o.get("orcamento_id"))
     pdf = build_of_pdf(o, settings, fields, show_branding, cliente, orcamento)

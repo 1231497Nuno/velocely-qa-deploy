@@ -172,5 +172,5 @@ async def pdf(token: str) -> tuple:
     if l["tipo"] != "orcamento":
         raise HTTPException(404, "Sem PDF")
     o = compute_orcamento_totais(await orcamentos_repo.get(l["entidade_id"]) or {})
-    settings, fields, branding = await load_pdf_config(None)
+    settings, fields, branding = await load_pdf_config(None, "orcamento")
     return build_orcamento_pdf(o, settings, fields, branding, await fetch_cliente(o.get("cliente_id"))), o.get("numero") or "orcamento"
