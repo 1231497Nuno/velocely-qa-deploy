@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { api, eur } from "@/lib/api";
@@ -12,6 +13,14 @@ import {
 
 export default function Dashboard() {
   const { user, isAdmin, can } = useAuth();
+  const navInicio = useNavigate();
+  // Página inicial do perfil (ex.: produção → Ordens de fabrico): só no primeiro acesso da sessão
+  useEffect(() => {
+    const p = user?.perfil?.pagina_inicial;
+    let feito = false;
+    try { feito = !!sessionStorage.getItem("velocely.inicio"); sessionStorage.setItem("velocely.inicio", "1"); } catch { /* sem armazenamento */ }
+    if (p && p !== "/" && !feito) navInicio(p, { replace: true });
+  }, [user, navInicio]);
   const [d, setD] = useState(null);
   const [alertas, setAlertas] = useState({});
 

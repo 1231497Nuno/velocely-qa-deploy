@@ -85,7 +85,7 @@ const NAV_GROUPS = [
     label: "Relatórios",
     items: [
       { to: "/relatorios", label: "Relatórios", icon: BarChart3, tid: "nav-relatorios", modulo: "relatorios" },
-      { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade" },
+      { to: "/rentabilidade-clientes", label: "Rentabilidade por Cliente", icon: PiggyBank, tid: "nav-rentabilidade", modulo: "rentabilidade", custos: true },
     ],
   },
   {
@@ -153,6 +153,10 @@ export default function Layout({ children }) {
   const [alertas, setAlertas] = useState({});
   const [expanded, setExpanded] = useState({});
   const { user, isAdmin, can, logout } = useAuth();
+  // Perfis sem acesso a custos: esconde custos, margens e lucros (elementos com a classe dado-custo)
+  useEffect(() => {
+    document.body.classList.toggle("sem-custos", user?.perfil?.ver_custos === false);
+  }, [user]);
   const { tema, logo: logoEmpresa } = useTema();
   const menuEscuro = corEscura(tema.cor_menu);
   const location = useLocation();
@@ -200,6 +204,7 @@ export default function Layout({ children }) {
       ...g,
       items: g.items.filter((n) => {
         if (n.adminOnly) return isAdmin;
+        if (n.custos && user?.perfil?.ver_custos === false) return false;
         if (n.modulo === "dashboard") return true;
         return can(n.modulo, "view");
       }),

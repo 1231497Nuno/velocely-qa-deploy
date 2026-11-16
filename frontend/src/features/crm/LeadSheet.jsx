@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useListas } from "@/lib/listas";
 import { toast } from "sonner";
 import {
   Phone, Mail, MessageCircle, Trash2, FileText, UserCheck, UserPlus, Unlink, Plus, Send, ExternalLink,
@@ -45,6 +46,7 @@ function formDoLead(lead) {
  * novoEstadoId: estado inicial quando se cria a partir de uma coluna.
  */
 export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, estados, meta, onChanged, onDeleted }) {
+  const listas = useListas();
   const { can } = useAuth();
   const confirm = useConfirm();
   const nav = useNavigate();
@@ -274,7 +276,8 @@ export default function LeadSheet({ open, onOpenChange, leadId, novoEstadoId, es
                 {estadoAtual?.tipo === "perdido" && (
                   <div className="sm:col-span-2">
                     <label className={labelCls}>Motivo da perda</label>
-                    <input className={inputCls} value={form.motivo_perda} onChange={set("motivo_perda")} disabled={!canEdit} placeholder="Preço, prazo, foi para a concorrência..." />
+                    <input className={inputCls} list="lista-motivos-perda" value={form.motivo_perda} onChange={set("motivo_perda")} disabled={!canEdit} placeholder="Preço, prazo, foi para a concorrência..." />
+                    <datalist id="lista-motivos-perda">{(listas.motivos_perda || []).map((m) => <option key={m} value={m} />)}</datalist>
                   </div>
                 )}
                 <div>

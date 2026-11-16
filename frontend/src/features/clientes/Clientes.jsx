@@ -5,6 +5,7 @@ import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useListas, opcoesLista } from "@/lib/listas";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
@@ -35,7 +36,6 @@ const FORM_BLOCOS = [
   { id: "financeiro", label: "Dados financeiros" },
 ];
 
-const CONDICOES = ["", "Pronto pagamento", "15 dias", "30 dias", "45 dias", "60 dias", "90 dias"];
 
 const inputCls = "w-full max-w-[16rem] border border-gray-300 rounded-sm px-2 py-1 text-sm text-right bg-white focus:outline-none focus:ring-1 focus:ring-black/20";
 
@@ -80,6 +80,7 @@ function SortTh({ label, field, sortBy, sortDir, onSort, testid, className = "" 
 }
 
 export default function Clientes() {
+  const listas = useListas();
   const { corLinha } = useCampos();
   const { can } = useAuth();
   const nav = useNavigate();
@@ -405,7 +406,7 @@ export default function Clientes() {
                   <FieldGrid>
                     <FieldRow label="Condições pagamento" testid="cliente-campo-condicoes">
                       <select data-testid="cliente-condicoes-input" value={form.condicoes_pagamento} onChange={(e) => set({ condicoes_pagamento: e.target.value })} className={inputCls}>
-                        {CONDICOES.map((opt) => (
+                        {opcoesLista(listas, "condicoes_pagamento", form.condicoes_pagamento).map((opt) => (
                           <option key={opt || "vazio"} value={opt}>{opt || "—"}</option>
                         ))}
                       </select>

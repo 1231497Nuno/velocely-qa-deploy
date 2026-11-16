@@ -203,6 +203,10 @@ async def list_encomendas(
     ts = text_search(["numero", "cliente", "orcamento_numero", "referencia_cliente"], q)
     if ts:
         query = {"$and": [query, ts]} if "$or" in query else {**query, **ts}
+    from app.core.security import filtro_proprios
+    fp = await filtro_proprios(_u, "encomendas")
+    if fp:
+        query = {"$and": [query, fp]} if query else fp
     if page is None:
         encs = await encomendas_repo.find(query, sort=("created_at", -1), limit=5000)
         return await compute_encomendas_many(encs)
@@ -218,6 +222,9 @@ async def list_encomendas(
 @router.get("/encomendas/{eid}")
 async def get_encomenda(eid: str, _u: dict = Depends(require_perm("encomendas", "view"))):
     e = await encomendas_repo.get(eid)
+    if e:
+        from app.core.security import assert_proprio
+        await assert_proprio(_u, "encomendas", e)
     if not e:
         raise HTTPException(404, "Encomenda não encontrada")
     e = await compute_encomenda(e)
@@ -238,7 +245,7 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_pe
         enc.cliente_id,
         float(preview.get("valor_total") or preview.get("total_com_iva") or 0),
     )
-    await encomendas_repo.insert(enc.model_dump())
+    await encomendas_repo.insert({**enc.model_dump(), "created_by": user.get("id")})
     await audit.registar("encomenda", enc.id, "criado", user, f"Encomenda {enc.numero} criada", enc.numero)
     from app.services import workflow
     await workflow.encomenda_criada(enc.model_dump())

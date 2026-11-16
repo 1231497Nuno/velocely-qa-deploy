@@ -52,6 +52,7 @@ export const EncKPIs = ({ enc }) => {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
       <KpiCard testid="enc-kpi-valor" label="Valor da Encomenda" value={eur(enc.valor_total)} />
       <KpiCard testid="enc-kpi-pago" label="Recebido" value={eur(enc.valor_pago)} valueClass="text-emerald-600" sub={`${pctLabel ? `${pctLabel} · ` : ""}A receber ${eur(enc.valor_pendente)}`} />
+      <div className="dado-custo contents">
       <KpiCard
         testid="enc-kpi-custo-real"
         label="Custo Produção (real)"
@@ -63,6 +64,7 @@ export const EncKPIs = ({ enc }) => {
         }
       />
       <KpiCard testid="enc-kpi-margem" label="Margem (valor − custo real)" value={eur(enc.margem_producao)} valueClass={enc.margem_producao >= 0 ? "text-emerald-600" : "text-red-600"} />
+      </div>
     </div>
   );
 };

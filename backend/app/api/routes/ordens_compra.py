@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.services import listas as listas_svc
 from app.services import campos as campos_svc
 from app.core.security import require_perm
 from app.core.pagination import parse_page, page_payload, text_search
@@ -91,7 +92,7 @@ async def ordens_compra_meta(_u: dict = Depends(require_perm("ordens_compra", "v
             for k, v in TIPO_DESPESA_PT.items()
         ],
         "estados": [{"key": k, "label": v} for k, v in OC_ESTADO_PT.items()],
-        "tipos_compra": ["Consumiveis", "Produtos", "Outros", "Manutenção", "Portes"],
+        "tipos_compra": (await listas_svc.todas()).get("tipos_compra") or ["Consumiveis", "Produtos", "Outros", "Manutenção", "Portes"],
     }
 
 

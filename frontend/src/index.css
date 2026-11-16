@@ -257,3 +257,6 @@ code {
         display: contents !important;
     }
 }
+
+/* Perfis sem acesso a custos (Definições → Utilizadores → Perfis) */
+body.sem-custos .dado-custo { display: none !important; }

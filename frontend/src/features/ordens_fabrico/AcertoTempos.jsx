@@ -186,7 +186,7 @@ export default function AcertoTempos() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-right">
+            <div className="grid grid-cols-3 gap-4 text-right dado-custo">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.08em] text-gray-500">Custo estimado</div>
                 <div className="font-semibold tabular-nums">{eur(totais.est)}</div>

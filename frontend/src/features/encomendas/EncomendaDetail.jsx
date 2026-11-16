@@ -30,6 +30,8 @@ import AbrirNaoConformidadeDialog from "@/features/nao_conformidades/AbrirNaoCon
 import { ymdHoje } from "@/lib/orcamento";
 import SelecionarVariantesDialog from "@/components/SelecionarVariantesDialog";
 import BotoesEdicao from "@/components/BotoesEdicao";
+import MotivoDialog from "@/components/MotivoDialog";
+import { useListas } from "@/lib/listas";
 import { useModoEdicao } from "@/hooks/useModoEdicao";
 
 const PAY_BADGE = { pendente: "pendente", parcial: "parcial", pago: "pago" };
@@ -50,6 +52,8 @@ export default function EncomendaDetail() {
   const confirmAction = useConfirm();
   const { can } = useAuth();
   const { id } = useParams();
+  const listas = useListas();
+  const [bloqueioOpen, setBloqueioOpen] = useState(false);
   const nav = useNavigate();
   const tabIds = [
     "encomenda",
@@ -452,11 +456,11 @@ export default function EncomendaDetail() {
 
   const podeProduzir = enc.pode_produzir;
 
-  const bloquear = async () => {
-    const motivo = window.prompt("Motivo do bloqueio (ex.: à espera da arte final, problema de pagamento):");
-    if (!motivo || !motivo.trim()) return;
+  const bloquear = () => setBloqueioOpen(true);
+  const confirmarBloqueio = async (motivo) => {
     try {
       setEnc(await api.post(`/encomendas/${id}/bloquear`, { motivo }));
+      setBloqueioOpen(false);
       toast.success("Encomenda bloqueada");
     } catch (e) {
       const d = e?.response?.data?.detail;
@@ -542,6 +546,9 @@ export default function EncomendaDetail() {
           </>
         }
       />
+      <MotivoDialog open={bloqueioOpen} titulo={`Bloquear ${enc.numero}`} testid="bloqueio-dialog"
+        descricao="Enquanto estiver bloqueada não se criam ou iniciam OF, não se fatura e não se marca a entrega."
+        sugestoes={listas.motivos_bloqueio || []} confirmar="Bloquear" onConfirm={confirmarBloqueio} onClose={() => setBloqueioOpen(false)} />
       {enc.bloqueio?.ativo && (
         <div className="flex items-start gap-2 rounded-sm border border-red-200 bg-red-50 px-4 py-2.5 mb-4 text-sm text-red-900" data-testid="encomenda-bloqueio-banner">
           <Lock size={16} className="shrink-0 mt-0.5" />

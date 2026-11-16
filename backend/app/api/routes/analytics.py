@@ -244,6 +244,10 @@ async def rentabilidade_clientes(
     q: str = Query(""),
     _u: dict = Depends(require_perm("rentabilidade", "view")),
 ):
+    from app.core.security import pode_ver_custos
+    if not await pode_ver_custos(_u):
+        from fastapi import HTTPException
+        raise HTTPException(403, "O seu perfil não tem acesso a custos e margens")
     encs = await encomendas_repo.find(limit=5000)
     grupos = {}
     for ec in await compute_encomendas_many(encs):

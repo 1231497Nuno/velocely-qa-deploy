@@ -182,6 +182,9 @@ async def user_public(u: dict) -> dict:
             "nome": perfil.get("nome"),
             "admin": bool(perfil.get("admin")),
             "permissoes": perfil.get("permissoes") or perms_all(False),
+            "ver_custos": bool(perfil.get("admin")) or perfil.get("ver_custos", True) is not False,
+            "so_proprios": [] if perfil.get("admin") else list(perfil.get("so_proprios") or []),
+            "pagina_inicial": perfil.get("pagina_inicial") or "",
         },
         "modulos_ativos": await get_modulos_ativos(),
         "must_set_password": bool(u.get("must_set_password")),
@@ -591,3 +594,46 @@ async def update_avatar(data: AvatarInput, user: dict = Depends(get_current_user
     await users_repo.update(user["id"], {"avatar": path})
     user = await users_repo.get(user["id"])
     return await user_public(user)
+
+
+# ---------------------------------------------------------------------------
+# Restrições de acesso por perfil
+# ---------------------------------------------------------------------------
+async def so_proprios(user: dict, modulo: str) -> bool:
+    perfil = await resolve_perfil(user)
+    return not perfil.get("admin") and modulo in (perfil.get("so_proprios") or [])
+
+
+async def filtro_proprios(user: dict, modulo: str) -> Optional[dict]:
+    """Filtro Mongo para perfis que só veem os seus registos (None = sem restrição)."""
+    if not await so_proprios(user, modulo):
+        return None
+    uid = user.get("id")
+    if modulo == "crm":
+        return {"$or": [{"responsavel_id": uid}, {"criado_por_id": uid}]}
+    return {"created_by": uid}
+
+
+async def assert_proprio(user: dict, modulo: str, doc: dict) -> None:
+    if not await so_proprios(user, modulo):
+        return
+    uid = user.get("id")
+    if modulo == "crm":
+        ok = uid in (doc.get("responsavel_id"), doc.get("criado_por_id"))
+    else:
+        ok = doc.get("created_by") == uid
+    if not ok:
+        raise HTTPException(status_code=403, detail="O seu perfil só tem acesso aos registos que criou ou de que é responsável")
+
+
+async def pode_ver_custos(user: dict) -> bool:
+    perfil = await resolve_perfil(user)
+    return bool(perfil.get("admin")) or perfil.get("ver_custos", True) is not False
+
+
+def require_custos() -> Callable:
+    async def _dep(user: dict = Depends(get_current_user)) -> dict:
+        if not await pode_ver_custos(user):
+            raise HTTPException(status_code=403, detail="O seu perfil não tem acesso a custos e margens")
+        return user
+    return _dep

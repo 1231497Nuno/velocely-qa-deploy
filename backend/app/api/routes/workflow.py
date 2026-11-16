@@ -98,3 +98,30 @@ class WorkflowBody(BaseModel):
 @router.put("/definicoes/workflow")
 async def put_workflow(body: WorkflowBody, _a: dict = Depends(require_admin)):
     return {"config": await wf.guardar(body.model_dump(exclude_unset=True)), **wf.catalogo()}
+
+
+# ---------------------------------------------------------------------------
+# Listas (Definições → Listas)
+# ---------------------------------------------------------------------------
+from typing import List as _List  # noqa: E402
+
+from app.services import listas as listas_svc  # noqa: E402
+
+
+@router.get("/listas")
+async def get_listas(_u: dict = Depends(get_current_user)):
+    return await listas_svc.todas()
+
+
+@router.get("/definicoes/listas")
+async def get_listas_meta(_u: dict = Depends(get_current_user)):
+    return await listas_svc.meta()
+
+
+class ListaBody(BaseModel):
+    valores: _List[str]
+
+
+@router.put("/definicoes/listas/{chave}")
+async def put_lista(chave: str, body: ListaBody, _a: dict = Depends(require_admin)):
+    return await listas_svc.guardar(chave, body.valores)

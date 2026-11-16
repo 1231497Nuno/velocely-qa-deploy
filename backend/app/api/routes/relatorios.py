@@ -1,6 +1,6 @@
 """Área Relatórios: catálogo, geração e exportação (Excel / PDF)."""
 from io import BytesIO
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.core.security import require_perm
@@ -11,7 +11,11 @@ router = APIRouter()
 
 @router.get("/relatorios/catalogo")
 async def catalogo(_u: dict = Depends(require_perm("relatorios", "view"))):
-    return svc.catalogo()
+    from app.core.security import pode_ver_custos
+    cat = svc.catalogo()
+    if not await pode_ver_custos(_u):
+        cat["relatorios"] = [r for r in cat["relatorios"] if not r.get("custos")]
+    return cat
 
 
 @router.get("/relatorios/gerar/{rid}")
@@ -27,6 +31,10 @@ async def gerar(
     _u: dict = Depends(require_perm("relatorios", "view")),
 ):
     p = svc.normalizar(de, ate, agrupar, comparar, cliente_id, limite)
+    if (svc.RELATORIOS.get(rid) or {}).get("custos"):
+        from app.core.security import pode_ver_custos
+        if not await pode_ver_custos(_u):
+            raise HTTPException(403, "O seu perfil não tem acesso a custos e margens")
     rel = await svc.gerar(rid, p)
     if formato not in ("xlsx", "pdf"):
         return rel
