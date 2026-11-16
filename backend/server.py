@@ -55,6 +55,7 @@ from app.api.routes.workflow import router as workflow_router
 from app.api.routes.precos import router as precos_router
 from app.api.routes.stock import router as stock_router
 from app.api.routes.portal import router as portal_router
+from app.api.routes.tesouraria import router as tesouraria_router
 from app.services.storage import init_storage
 
 API_DESCRIPTION = """
@@ -94,7 +95,7 @@ for r in (
     catalog_router, orcamentos_router, ordens_router, clientes_router, fornecedores_router,
     ordens_compra_router, pedidos_cotacao_router, encomendas_router, nao_conformidades_router, financeiro_router, contas_router, settings_router, analytics_router,
     admin_router, historico_router, uploads_router, referencias_router, io_excel_router, ficheiros_router,
-    crm_router, pagamentos_router, integracoes_router, relatorios_router, workflow_router, precos_router, stock_router, portal_router,
+    crm_router, pagamentos_router, integracoes_router, relatorios_router, workflow_router, precos_router, stock_router, portal_router, tesouraria_router,
 ):
     api_router.include_router(r)
 

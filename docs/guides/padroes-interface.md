@@ -266,3 +266,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   `op.planeado_data` (`POST /ordens-fabrico/{id}/operacao/planear`). Barra de ocupação = horas ÷ (horas_semana / 5).
 - Manutenção (`/manutencao`, `services/manutencao.py`): planos por horas de trabalho (tempo de máquina das OF) ou por dias;
   «Feita» regista data/custo/notas e reinicia a contagem; alerta «manutencao» no ciclo de 5 minutos.
+
+## Tesouraria e conta corrente (`services/tesouraria.py`)
+
+- Conta corrente (separador no cliente e no fornecedor; `GET /conta-corrente/{cliente|fornecedor}/{id}`): cliente =
+  encomendas (débito) e pagamentos (crédito); fornecedor = OC/fatura do fornecedor, pagamentos e contas a pagar. Extrato
+  PDF (`formato=pdf`) e envio ao cliente por email.
+- Tesouraria (`/tesouraria`): previsão semanal (saldo do banco indicado + pendentes das encomendas na data de entrega/
+  prazo + condições de pagamento do cliente + contas; saídas = OC por pagar no vencimento + contas a pagar).
+  Extrato bancário: importar CSV/Excel do banco (deteta data, descrição, montante ou débito/crédito; sem duplicados por
+  hash) → sugestões por valor/número/nome → conciliar regista o pagamento (encomenda) ou `valor_pago` (OC).
+  Contabilista: Excel com documentos de venda, recebimentos, compras e contas do período.
+- Lembrete de cobrança (alerta «cobranca»): entregue há mais de N dias (Tesouraria → configuração) e ainda por pagar.
