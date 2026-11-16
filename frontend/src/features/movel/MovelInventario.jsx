@@ -1,3 +1,4 @@
+import { enviarOuGuardar } from "@/lib/filaOffline";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, ClipboardList, CheckCircle2, ListChecks } from "lucide-react";
@@ -47,7 +48,15 @@ export default function MovelInventario() {
     if (qtd === "" || Number.isNaN(Number(qtd))) { toast.error("Indique a quantidade contada"); return; }
     setBusy(true);
     try {
-      const r = await api.post(`/movel/inventario/${inv.id}/contar`, { artigo_id: artigo.id, localizacao_id: loc, qtd_contada: Number(qtd), somar });
+      const r = await enviarOuGuardar(`/movel/inventario/${inv.id}/contar`, { artigo_id: artigo.id, localizacao_id: loc, qtd_contada: Number(qtd), somar },
+        `Contagem ${num(qtd)} · ${artigo.nome}`);
+      if (r?.offline) {
+        vibrar(40);
+        toast.info("Sem rede: contagem guardada no telemóvel, é enviada quando a rede voltar");
+        setRecentes((rs) => [{ chave: `off-${Date.now()}`, nome: `${artigo.nome} (por enviar)`, qtd: Number(qtd), un: artigo.unidade, local: "" }, ...rs].slice(0, 15));
+        setArtigo(null); setQtd("");
+        return;
+      }
       setLinhas((ls) => {
         const i = ls.findIndex((l) => l.chave === r.linha.chave);
         if (i < 0) return [...ls, r.linha];

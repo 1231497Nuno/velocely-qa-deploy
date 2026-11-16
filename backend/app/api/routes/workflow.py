@@ -125,3 +125,37 @@ class ListaBody(BaseModel):
 @router.put("/definicoes/listas/{chave}")
 async def put_lista(chave: str, body: ListaBody, _a: dict = Depends(require_admin)):
     return await listas_svc.guardar(chave, body.valores)
+
+
+
+# ---------------------------------------------------------------------------
+# Alertas no telemóvel (Web Push)
+# ---------------------------------------------------------------------------
+@router.get("/push/estado")
+async def push_estado(user: dict = Depends(get_current_user)):
+    from app.repositories import users_repo
+    from app.services import push
+    if not push.disponivel():
+        return {"disponivel": False}
+    u = await users_repo.get(user["id"]) or {}
+    return {"disponivel": True, "chave_publica": (await push.chaves())["publica"],
+            "aparelhos": [{"endpoint": s["endpoint"], "aparelho": s.get("aparelho") or "", "at": s.get("at")} for s in u.get("push_subs") or []]}
+
+
+@router.post("/push/subscrever")
+async def push_subscrever(dados: dict, user: dict = Depends(get_current_user)):
+    from app.services import push
+    return await push.subscrever(user, dados.get("subscricao") or {}, dados.get("aparelho") or "")
+
+
+@router.post("/push/cancelar")
+async def push_cancelar(dados: dict, user: dict = Depends(get_current_user)):
+    from app.services import push
+    return await push.cancelar(user, dados.get("endpoint") or "")
+
+
+@router.post("/push/teste")
+async def push_teste(user: dict = Depends(get_current_user)):
+    from app.services import push
+    n = await push.enviar([user["id"]], "Alertas ativos ✓", "Vai receber aqui os alertas do Velocely.", "/tarefas")
+    return {"enviados": n}

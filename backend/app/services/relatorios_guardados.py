@@ -213,6 +213,8 @@ async def ciclo(intervalo_seg: int = 300) -> None:
             await enviar_para_loja(so_pendentes=True)
             from app.services import avisos_cliente
             await avisos_cliente.verificar()
+            from app.services import stock as stock_svc
+            await stock_svc.compras_automaticas()
         except Exception:
             logger.exception("Verificação de prazos/orçamentos falhou")
         await asyncio.sleep(intervalo_seg)

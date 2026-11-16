@@ -457,7 +457,23 @@ async def previsao_fecho_of(ofid: str, _u: dict = Depends(require_perm("ordens_f
     of = await ordens_repo.get(ofid)
     if not of:
         raise HTTPException(404, "OF não encontrada")
-    return producao.previsao_fecho(of)
+    return {**producao.previsao_fecho(of), "qualidade": await producao.config_qualidade()}
+
+
+@router.get("/producao/qualidade")
+async def get_qualidade(_u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    from app.services import producao
+    return await producao.config_qualidade()
+
+
+@router.put("/producao/qualidade")
+async def put_qualidade(dados: dict, _u: dict = Depends(require_perm("definicoes", "edit"))):
+    from app.repositories import empresa_repo
+    from app.services import producao
+    itens = [str(x).strip() for x in dados.get("itens") or [] if str(x).strip()][:30]
+    await empresa_repo.update_where({"id": "empresa"}, {"qualidade_of": {"itens": itens, "obrigatorio": bool(dados.get("obrigatorio")),
+                                                                         "foto_obrigatoria": bool(dados.get("foto_obrigatoria"))}}, upsert=True)
+    return await producao.config_qualidade()
 
 
 @router.post("/ordens-fabrico/{ofid}/fechar")

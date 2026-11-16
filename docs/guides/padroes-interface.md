@@ -484,3 +484,59 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - `POST /producao/prazo-sugerido` (`producao.prazo_sugerido`): por máquina, horas em fila nas OF abertas + horas deste
   trabalho (roteiro × qtd) ÷ (horas/semana ÷ 5) → dias; + compras em falta (5 dias) + margem (2) em dias úteis.
   `components/PrazoSugerido.jsx` no orçamento (escreve nas notas) e na encomenda (prazo de entrega).
+
+## Compras: fatura do fornecedor por PDF, OC automáticas e envio ao fornecedor
+
+- `POST /ordens-compra/{id}/fatura-fornecedor/ler-pdf` (`oc_pdf.conferir_fatura` + `totais_documento`): lê a fatura em PDF,
+  preenche nº/total/portes e compara com a OC (qtd faturada vs recebida, preço vs encomendado, linhas recebidas e não
+  faturadas). A conferência fica em `fatura_fornecedor.conferencia`; com avisos o estado é `com_diferencas`.
+- Compras automáticas (Stock → Sugestões de compra → «Compras automáticas»; `empresa.compras_auto`): uma vez por dia o
+  ciclo de 5 min chama `stock.compras_automaticas()` e cria as OC das sugestões, por fornecedor, com `automatica: true,
+  aprovada: false`, e lança o alerta `compra_automatica`. Nada é enviado sem aprovação.
+- `GET /ordens-compra/{id}/nota-encomenda.pdf` (`pdf.build_oc_pdf`, com a ref. do fornecedor) e
+  `POST /ordens-compra/{id}/aprovar-enviar` (`enviar`, `mensagem`): aprova e envia por email ao fornecedor com o PDF.
+  Na OC: botões «Nota de encomenda» e «Enviar ao fornecedor»; aviso no topo das automáticas por aprovar.
+
+## Fecho do mês
+
+- `GET /fecho-mes?mes=AAAA-MM` (`services/fecho_mes.py`, reutiliza os relatórios): faturado, recebido, a receber
+  (+ >90 dias), compras e dívida, vendas vs objetivo, custo de produção/resultado/margem (só com `ver_custos`), maiores
+  devedores e compras, e pendentes (rascunhos por emitir, pagamentos sem fatura, OC recebidas sem fatura do fornecedor,
+  faturas com diferenças). Página `/fecho-mes` (Análise) com exportação para o contabilista (`/contabilidade/exportar`).
+
+## Oficina: ecrã TV, qualidade no fecho, etiquetas e picking
+
+- `/tv/oficina` (sem menu, atualiza a cada minuto; botão «Ecrã TV» na Oficina): em curso e fila de hoje por máquina,
+  OF atrasadas e próximas entregas (dados de `/producao/planeamento`).
+- Controlo de qualidade no fecho da OF: pontos em Definições → Listas (`/producao/qualidade`, `empresa.qualidade_of`:
+  `itens`, `obrigatorio`, `foto_obrigatoria`). O fecho envia `qualidade` (`producao.validar_qualidade`) e guarda-a em
+  `fecho.qualidade`; as fotos vão para os Ficheiros da OF.
+- `GET /stock/artigos/etiquetas.pdf?ids=…&copias=N`: etiquetas A4 3×8 com Code 128 do código do artigo (botão
+  «Etiquetas» no Stock e «Etiqueta» na ficha do artigo). A app móvel lê-as com o leitor existente.
+- Picking (op. `picking` da app móvel, `/m/picking`): `GET /movel/picking` lista as OF com material de stock por separar e
+  onde está; `POST /movel/picking/{of}` soma `qtd_separada` na linha de material (não mexe no stock — o consumo é
+  abatido no fecho da OF).
+
+## App móvel sem rede
+
+- `public/sw.js` (registado em produção): páginas e consultas de stock da app com rede primeiro e cópia guardada.
+- `lib/filaOffline.js`: `enviarOuGuardar(caminho, corpo, descricao)` — sem rede guarda no telemóvel (`localStorage`) e
+  devolve `{offline: true}`; `useFilaOffline` envia quando a rede volta (e a cada minuto) e mostra o contador no início
+  da app. Usado em movimentos, contagens de inventário e picking.
+
+## Segurança e alertas
+
+- Verificação em dois passos (TOTP, `core/totp.py`, só biblioteca padrão): «A minha conta» → ativar (QR + 1.º código,
+  `/auth/2fa/iniciar|ativar|desativar`). Com `totp_ativo`, o login devolve `precisa_2fa` e pede `codigo_2fa`. O admin
+  repõe em Utilizadores (`POST /users/{id}/2fa/repor`). Segredos nunca saem nas listagens.
+- Alertas no telemóvel (Web Push, `services/push.py`, chaves VAPID geradas e guardadas em `empresa_settings/push_vapid`):
+  cada utilizador ativa em «A minha conta» → «Alertas neste aparelho» (`/push/estado|subscrever|cancelar|teste`).
+  `workflow.evento` envia também push aos destinatários. Sem `pywebpush` instalado fica desligado sem erros.
+- Definições → Integrações → «Configuração do servidor» (`GET /admin/estado-configuracao`): SMTP, FRONTEND_URL,
+  JWT_SECRET, armazenamento e push, com instruções para o Render.
+
+## Cliente em separadores
+
+- Na ficha do cliente, Contactos (empresas), Encomendas, Orçamentos, Ordens de fabrico e Histórico de preços são
+  separadores próprios (como Conta corrente e Histórico); o separador «Cliente» fica com os dados (blocos
+  `cliente-detail-blocos-v2`).

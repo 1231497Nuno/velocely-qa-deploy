@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { PackageCheck, Receipt, CheckCircle2, AlertTriangle } from "lucide-react";
+import { PackageCheck, Receipt, CheckCircle2, AlertTriangle, FileUp, Loader2 } from "lucide-react";
+import ZonaArrastar from "@/components/ZonaArrastar";
 import { api, eur, fmtDate } from "@/lib/api";
 import EntitySelect from "@/components/EntitySelect";
 import { useLocalizacoes } from "@/features/stock/StockLocais";
@@ -45,10 +46,25 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
       onChanged?.();
     } catch (e) { erro(e, "Não foi possível registar a receção"); } finally { setBusy(false); }
   };
+  // Lê a fatura (PDF): preenche nº, total sem IVA e portes e mostra a conferência linha a linha
+  const lerPdf = async (file) => {
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api.post(`/ordens-compra/${oc.id}/fatura-fornecedor/ler-pdf`, fd);
+      setFf((x) => ({
+        ...x, numero: r.numero || x.numero, total: r.total_sem_iva ?? r.soma_linhas ?? x.total, portes: r.portes || x.portes,
+        conferencia: r.linhas, n_avisos: r.n_avisos, fornecedor_certo: r.fornecedor_certo,
+        notas: x.notas || (r.total ? `Total com IVA no PDF: ${eur(r.total)}` : ""),
+      }));
+      toast[r.n_avisos ? "warning" : "success"](r.n_avisos ? `${r.n_avisos} diferença(s) entre a fatura e o recebido` : "A fatura bate certo com o recebido");
+    } catch (e) { erro(e, "Não foi possível ler o PDF"); } finally { setBusy(false); }
+  };
   const gravarFatura = async () => {
     setBusy(true);
     try {
-      const r = await api.post(`/ordens-compra/${oc.id}/fatura-fornecedor`, { ...ff, total: Number(ff.total) || 0, portes: Number(ff.portes) || 0 });
+      const r = await api.post(`/ordens-compra/${oc.id}/fatura-fornecedor`, { ...ff, total: Number(ff.total) || 0, portes: Number(ff.portes) || 0, conferencia: ff.conferencia || undefined });
       const x = r.fatura_fornecedor;
       if (x.estado === "conferida") toast.success("Fatura conferida — bate certo com o recebido");
       else toast.warning(`Fatura com diferença de ${eur(x.desvio)} face ao recebido`);
@@ -155,12 +171,41 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
       </Dialog>
 
       <Dialog open={!!ff} onOpenChange={(o) => !o && setFf(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={ff?.conferencia ? "max-w-3xl" : "max-w-md"}>
           <DialogHeader>
             <DialogTitle>Fatura do fornecedor</DialogTitle>
-            <DialogDescription>O total é comparado com o valor do que foi recebido. Os portes são repartidos pelo custo dos artigos.</DialogDescription>
+            <DialogDescription>O total é comparado com o valor do que foi recebido. Os portes são repartidos pelo custo dos artigos. Pode largar aqui o PDF da fatura para a conferir linha a linha.</DialogDescription>
           </DialogHeader>
           {ff && (
+            <ZonaArrastar onFicheiros={(f) => lerPdf(f[0])} accept="application/pdf,.pdf" disabled={busy} texto="Largue o PDF da fatura aqui">
+            <div className="space-y-3 max-h-[65vh] overflow-y-auto">
+            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-sm py-3 text-sm text-gray-600 cursor-pointer hover:bg-gray-50">
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />} Ler o PDF da fatura (ou arraste-o para aqui)
+              <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) lerPdf(f); }} data-testid="ff-pdf" />
+            </label>
+            {ff.conferencia && (
+              <div className="border border-gray-200 rounded-sm">
+                <div className={`px-3 py-2 text-sm font-medium border-b ${ff.n_avisos ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>
+                  {ff.n_avisos ? `${ff.n_avisos} linha(s) com diferenças` : "Todas as linhas batem certo com o recebido"}
+                  {ff.fornecedor_certo === false && <span className="ml-2 text-red-700">· a fatura parece ser de outro fornecedor</span>}
+                </div>
+                <table className="w-full text-xs">
+                  <thead><tr className="text-left text-gray-500 border-b"><th className="px-2 py-1.5">Artigo</th><th className="px-2 py-1.5 text-right">Faturado</th><th className="px-2 py-1.5 text-right">Recebido</th><th className="px-2 py-1.5 text-right">Preço fat.</th><th className="px-2 py-1.5 text-right">Preço OC</th><th className="px-2 py-1.5">Diferenças</th></tr></thead>
+                  <tbody>
+                    {ff.conferencia.map((x, i) => (
+                      <tr key={i} className={`border-b last:border-0 ${x.avisos?.length ? "bg-amber-50/50" : ""}`}>
+                        <td className="px-2 py-1.5">{x.artigo_nome || x.descricao}{x.ref ? <span className="text-gray-400 font-mono"> {x.ref}</span> : null}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{x.qtd_faturada ?? "—"}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{x.qtd_recebida ?? "—"}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{x.preco_faturado != null ? eur(x.preco_faturado) : "—"}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{x.preco_encomendado != null ? eur(x.preco_encomendado) : "—"}</td>
+                        <td className="px-2 py-1.5 text-amber-800">{(x.avisos || []).join(" · ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="text-xs font-medium text-gray-600">Nº da fatura</label><input className={inputCls} value={ff.numero} onChange={(e) => setFf({ ...ff, numero: e.target.value })} data-testid="ff-numero" /></div>
               <div><label className="text-xs font-medium text-gray-600">Data</label><input type="date" className={inputCls} value={ff.data} onChange={(e) => setFf({ ...ff, data: e.target.value })} /></div>
@@ -168,6 +213,8 @@ export default function OcRececaoTab({ oc, podeEditar, onChanged }) {
               <div><label className="text-xs font-medium text-gray-600">Dos quais portes (€)</label><input type="number" step="0.01" className={inputCls} value={ff.portes} onChange={(e) => setFf({ ...ff, portes: e.target.value })} /></div>
               <textarea className={`${inputCls} col-span-2`} rows={2} placeholder="Notas" value={ff.notas} onChange={(e) => setFf({ ...ff, notas: e.target.value })} />
             </div>
+            </div>
+            </ZonaArrastar>
           )}
           <DialogFooter>
             <button type="button" className="btn btn-secundario" onClick={() => setFf(null)}>Cancelar</button>

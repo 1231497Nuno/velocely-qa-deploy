@@ -126,7 +126,7 @@ export default function ClienteDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const { can } = useAuth();
-  const [tab, setTab] = useDetailTab(["cliente", "conta", "artes", "rgpd", "historico"], "cliente");
+  const [tab, setTab] = useDetailTab(["cliente", "contactos", "encomendas", "orcamentos", "ofs", "precos", "conta", "artes", "rgpd", "historico"], "cliente");
   const [data, setData] = useState(null);
   const [precos, setPrecos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -246,69 +246,17 @@ export default function ClienteDetail() {
     nav(`/encomendas/${enc.id}`, { state: { edit: true } });
   };
 
-  const visibleIds = [
-    "identificacao",
-    "morada",
-    ...(empresa ? ["financeiro", "contactos"] : []),
-    "encomendas",
-    "orcamentos",
-    ...(can("ordens_fabrico", "view") ? ["ofs"] : []),
-    "precos",
+  const visibleIds = ["identificacao", "morada", ...(empresa ? ["financeiro"] : [])];
+  // Listas relacionadas em separadores próprios (como a conta corrente e o histórico)
+  const SEPARADORES_LISTA = [
+    ...(empresa ? [{ id: "contactos", label: `Contactos${contactos?.length ? ` (${contactos.length})` : ""}` }] : []),
+    { id: "encomendas", label: "Encomendas" },
+    { id: "orcamentos", label: "Orçamentos" },
+    ...(can("ordens_fabrico", "view") ? [{ id: "ofs", label: "Ordens de fabrico" }] : []),
+    { id: "precos", label: "Histórico de preços" },
   ];
 
-  return (
-    <div>
-      <StickyDetailHeader
-        back={<StickyBackButton onClick={() => nav("/clientes")} testid="cliente-back-btn" label="Voltar aos clientes" />}
-        title={<h1 className="text-lg sm:text-xl font-bold tracking-tight font-display" data-testid="cliente-nome">{c.nome}</h1>}
-        subtitle={empresa ? "Empresa" : "Particular"}
-        actions={
-          <>
-            <BotoesEdicao modo={modo} autoGuardado testid="cliente" />
-            {can("orcamentos", "create") && (
-              <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="btn btn-secundario">
-                <FileText size={15} /> Novo Orçamento
-              </button>
-            )}
-            {can("encomendas", "create") && (
-              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="btn btn-primario">
-                <Plus size={15} /> Nova Encomenda
-              </button>
-            )}
-          </>
-        }
-      />
-
-      <DetailTabs
-        testid="cliente-tabs"
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { id: "cliente", label: "Cliente", testid: "cliente-tab-cliente" },
-          { id: "conta", label: "Conta corrente", testid: "cliente-tab-conta" },
-          { id: "artes", label: "Artes", testid: "cliente-tab-artes" },
-          { id: "rgpd", label: "RGPD", testid: "cliente-tab-rgpd" },
-          { id: "historico", label: "Histórico", testid: "cliente-tab-historico" },
-        ]}
-      />
-
-      {tab === "cliente" && (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-            <KPI icon={FileText} label="Orçamentos" value={stats.num_orcamentos} sub={`${stats.orcamentos_aceites} ganhos`} testid="kpi-orcamentos" />
-            <KPI icon={ClipboardList} label="Encomendas" value={stats.num_encomendas} sub={can("ordens_fabrico", "view") ? `${stats.num_ofs} OFs` : undefined} testid="kpi-encomendas" />
-            <KPI icon={Coins} label="Faturado" value={eur(stats.valor_faturado)} testid="kpi-faturado" />
-            <KPI icon={Wallet} label="Pago" value={eur(stats.valor_pago)} sub={`Pendente: ${eur(stats.valor_pendente)}`} testid="kpi-pago" />
-            <KPI icon={Coins} label="Custo Real" value={eur(stats.custo_real)} testid="kpi-custo" />
-            <KPI icon={TrendingUp} label="Margem" value={eur(stats.margem)} testid="kpi-margem" />
-          </div>
-
-          <BlocosShell
-            testid="cliente-blocos"
-            storageKey="cliente-detail-blocos-v1"
-            blocks={CLI_BLOCOS}
-            visibleIds={visibleIds}
-            renderBlock={(blocoId) => {
+  const renderBloco = (blocoId) => {
               if (blocoId === "identificacao") {
                 return (
                   <FieldGrid>
@@ -658,7 +606,62 @@ export default function ClienteDetail() {
               }
 
               return null;
-            }}
+            };
+
+  return (
+    <div>
+      <StickyDetailHeader
+        back={<StickyBackButton onClick={() => nav("/clientes")} testid="cliente-back-btn" label="Voltar aos clientes" />}
+        title={<h1 className="text-lg sm:text-xl font-bold tracking-tight font-display" data-testid="cliente-nome">{c.nome}</h1>}
+        subtitle={empresa ? "Empresa" : "Particular"}
+        actions={
+          <>
+            <BotoesEdicao modo={modo} autoGuardado testid="cliente" />
+            {can("orcamentos", "create") && (
+              <button data-testid="cliente-novo-orcamento-btn" onClick={novoOrcamento} className="btn btn-secundario">
+                <FileText size={15} /> Novo Orçamento
+              </button>
+            )}
+            {can("encomendas", "create") && (
+              <button data-testid="cliente-nova-encomenda-btn" onClick={novaEncomenda} className="btn btn-primario">
+                <Plus size={15} /> Nova Encomenda
+              </button>
+            )}
+          </>
+        }
+      />
+
+      <DetailTabs
+        testid="cliente-tabs"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "cliente", label: "Cliente", testid: "cliente-tab-cliente" },
+          ...SEPARADORES_LISTA.map((t) => ({ ...t, testid: `cliente-tab-${t.id}` })),
+          { id: "conta", label: "Conta corrente", testid: "cliente-tab-conta" },
+          { id: "artes", label: "Artes", testid: "cliente-tab-artes" },
+          { id: "rgpd", label: "RGPD", testid: "cliente-tab-rgpd" },
+          { id: "historico", label: "Histórico", testid: "cliente-tab-historico" },
+        ]}
+      />
+
+      {tab === "cliente" && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+            <KPI icon={FileText} label="Orçamentos" value={stats.num_orcamentos} sub={`${stats.orcamentos_aceites} ganhos`} testid="kpi-orcamentos" />
+            <KPI icon={ClipboardList} label="Encomendas" value={stats.num_encomendas} sub={can("ordens_fabrico", "view") ? `${stats.num_ofs} OFs` : undefined} testid="kpi-encomendas" />
+            <KPI icon={Coins} label="Faturado" value={eur(stats.valor_faturado)} testid="kpi-faturado" />
+            <KPI icon={Wallet} label="Pago" value={eur(stats.valor_pago)} sub={`Pendente: ${eur(stats.valor_pendente)}`} testid="kpi-pago" />
+            <KPI icon={Coins} label="Custo Real" value={eur(stats.custo_real)} testid="kpi-custo" />
+            <KPI icon={TrendingUp} label="Margem" value={eur(stats.margem)} testid="kpi-margem" />
+          </div>
+
+          <BlocosShell
+            testid="cliente-blocos"
+            storageKey="cliente-detail-blocos-v2"
+            blocks={CLI_BLOCOS}
+            visibleIds={visibleIds}
+            renderBlock={renderBloco}
           />
           <CamposPersonalizados
             modulo="clientes"
@@ -671,6 +674,9 @@ export default function ClienteDetail() {
         </>
       )}
 
+      {SEPARADORES_LISTA.some((t) => t.id === tab) && (
+        <div className="bg-white border border-gray-200 rounded-sm" data-testid={`cliente-sep-${tab}`}>{renderBloco(tab)}</div>
+      )}
       {tab === "conta" && id && id !== "novo" && <ContaCorrente tipo="cliente" id={id} />}
       {tab === "artes" && c && <ArtesCliente clienteId={c.id} />}
       {tab === "rgpd" && c && <ClienteRgpd cliente={c} onChanged={load} />}

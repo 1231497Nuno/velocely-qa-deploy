@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Camera, Loader2, QrCode, X } from "lucide-react";
+import { Camera, Loader2, QrCode, Tv, X } from "lucide-react";
 import OficinaOF from "./OficinaOF";
 import { api, fmtDate } from "@/lib/api";
 
@@ -74,6 +74,7 @@ export default function Oficina() {
           <input className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-3.5 text-lg" placeholder="ou escreva o nº da OF" value={ref} onChange={(e) => setRef(e.target.value)} data-testid="oficina-ref" />
           <button type="submit" className="px-5 rounded-xl bg-white border-2 border-gray-300 text-lg font-semibold">{busy === "abrir" ? <Loader2 className="animate-spin" /> : <QrCode />}</button>
         </form>
+        <Link to="/tv/oficina" className="px-4 py-3.5 rounded-xl bg-white border-2 border-gray-300 text-base font-semibold flex items-center gap-2" data-testid="oficina-tv-link"><Tv size={20} /> Ecrã TV</Link>
       </div>
       {!of ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">

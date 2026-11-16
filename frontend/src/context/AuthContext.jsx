@@ -30,8 +30,9 @@ export function AuthProvider({ children }) {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(async (loginId, password) => {
-    const data = await api.post("/auth/login", { login: loginId, password });
+  const login = useCallback(async (loginId, password, codigo2fa) => {
+    const data = await api.post("/auth/login", { login: loginId, password, codigo_2fa: codigo2fa || null });
+    if (data.precisa_2fa) return { precisa_2fa: true };
     if (data.must_set_password && data.activation_token) {
       setToken(null);
       setActivationToken(data.activation_token);

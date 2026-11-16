@@ -4,8 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/index.css";
 import App from "@/App";
 import { installNonNegNumberInputs } from "@/lib/nonNegNumberInputs";
+import { registarServiceWorker } from "@/lib/filaOffline";
 
 installNonNegNumberInputs();
+registarServiceWorker();
 
 const queryClient = new QueryClient({
   defaultOptions: {

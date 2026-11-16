@@ -143,6 +143,14 @@ async def enviar_guardado(gid: str, user: dict = Depends(require_perm("relatorio
     return {"ok": True}
 
 
+@router.get("/fecho-mes")
+async def fecho_mes(mes: str = Query(...), user: dict = Depends(require_perm("relatorios", "view"))):
+    """Resumo do mês para o fecho: faturado, recebido, a receber, compras, margem vs objetivo e pendentes."""
+    from app.core.security import pode_ver_custos
+    from app.services import fecho_mes as fm
+    return await fm.resumo(mes, await pode_ver_custos(user))
+
+
 # ---------------------------------------------------------------------------
 # Objetivos anuais e centros de custo
 # ---------------------------------------------------------------------------

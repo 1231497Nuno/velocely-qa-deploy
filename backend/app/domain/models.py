@@ -33,6 +33,7 @@ class LoginInput(BaseModel):
     login: Optional[str] = None
     email: Optional[str] = None
     password: str = ""  # password normal OU código de convite (primeira ativação)
+    codigo_2fa: Optional[str] = None  # código da app autenticadora (se a verificação em dois passos estiver ativa)
 
 
 class SetPasswordInput(BaseModel):
@@ -117,6 +118,7 @@ APP_MOVEL_OPS = {
     "movimentos": "Movimentos",
     "consultar": "Consultar stock",
     "oficina": "Oficina",
+    "picking": "Separar material (OF)",
 }
 
 

@@ -46,6 +46,7 @@ EVENTOS = {
     "encomenda_bloqueada": {"label": "Encomenda bloqueada / desbloqueada", "grupo": "Vendas"},
     "nc_criada": {"label": "Não conformidade registada", "grupo": "Produção"},
     "lead_site": {"label": "Pedido novo do site (CRM)", "grupo": "Comercial"},
+    "compra_automatica": {"label": "Ordem de compra criada automaticamente (stock baixo) — por aprovar", "grupo": "Compras"},
     "aprovacao_decidida": {"label": "Pedido de aprovação aprovado/rejeitado (avisa quem pediu)", "grupo": "Aprovações", "fixo": True},
 }
 
@@ -53,7 +54,7 @@ DEFAULT = {
     "id": WORKFLOW_ID,
     "aprovacoes": {k: {"ativo": False, "limite": 0.0, "aprovadores": []} for k in REGRAS_APROVACAO},
     "alertas": {k: {"ativo": k in ("encomenda_paga", "aprovacao_decidida", "prazo_proximo", "portal_cliente",
-                                   "pagamento_online", "orcamento_follow_up", "manutencao", "cobranca"), "destinatarios": [],
+                                   "pagamento_online", "orcamento_follow_up", "manutencao", "cobranca", "compra_automatica"), "destinatarios": [],
                     "email": False, "dias": 3} for k in EVENTOS},
     "credito_modo": "bloqueio",
     "ultima_verificacao_prazos": 0,
@@ -167,6 +168,13 @@ async def evento(nome: str, titulo: str, texto: str = "", *, link: str = "", ent
         await tarefas_repo.insert(t)
         if regra.get("email"):
             await _enviar_emails(await _utilizadores(destinatarios), titulo, texto, _url_publica(link))
+        if regra.get("push", True):
+            try:
+                from app.services import push
+                await push.enviar(destinatarios, titulo, texto, link)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Falha no envio das notificações push")
         return t
     except Exception:  # alertas nunca podem partir a ação principal
         import logging

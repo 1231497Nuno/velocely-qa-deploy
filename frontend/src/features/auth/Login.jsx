@@ -13,6 +13,8 @@ export default function Login() {
   const destino = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/";
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [pede2fa, setPede2fa] = useState(false);
+  const [codigo2fa, setCodigo2fa] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [bg, setBg] = useState("");
@@ -49,8 +51,11 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const result = await login(loginId, password);
-      if (result.must_set_password) {
+      const result = await login(loginId, password, pede2fa ? codigo2fa : null);
+      if (result.precisa_2fa) {
+        setPede2fa(true);
+        setInfo("Introduza o código de 6 dígitos da sua app de autenticação.");
+      } else if (result.must_set_password) {
         nav("/definir-password");
       } else {
         nav(destino);
@@ -205,6 +210,22 @@ export default function Login() {
                 className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
               />
             </div>
+            {pede2fa && (
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Código de verificação</label>
+                <input
+                  data-testid="login-2fa"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={7}
+                  value={codigo2fa}
+                  onChange={(e) => setCodigo2fa(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="000000"
+                  className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-lg tracking-[0.4em] text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+                />
+              </div>
+            )}
             {info && <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-sm px-3 py-2">{info}</div>}
             {error && <div data-testid="login-error" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-sm px-3 py-2">{error}</div>}
             <button

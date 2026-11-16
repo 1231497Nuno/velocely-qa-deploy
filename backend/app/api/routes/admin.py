@@ -25,7 +25,7 @@ async def root():
 @router.get("/utilizadores-lista")
 async def utilizadores_lista(_u: dict = Depends(get_current_user)):
     """Lista simples de utilizadores (id/nome/login) para atribuições. Requer apenas autenticação."""
-    users = await users_repo.find(sort=("name", 1), projection={"password_hash": 0})
+    users = await users_repo.find(sort=("name", 1), projection={"password_hash": 0, "totp_segredo": 0, "totp_pendente": 0, "push_subs": 0})
     return [
         {
             "id": u.get("id"),
@@ -48,7 +48,7 @@ async def list_users(
     ts = text_search(["name", "email", "login", "cargo"], q)
     if ts:
         query.update(ts)
-    proj = {"password_hash": 0, "invite_code_hash": 0}
+    proj = {"password_hash": 0, "invite_code_hash": 0, "totp_segredo": 0, "totp_pendente": 0, "push_subs": 0}
     if page is None:
         users = await users_repo.find(query, sort=("created_at", 1), projection=proj, limit=5000)
         total = len(users)
@@ -162,6 +162,18 @@ async def reinvitar_user(uid: str, admin: dict = Depends(require_admin)):
         "Expira em 72h e só é mostrado uma vez."
     )
     return public
+
+
+@router.post("/users/{uid}/2fa/repor")
+async def repor_2fa(uid: str, admin: dict = Depends(require_admin)):
+    """Desliga a verificação em dois passos (ex.: o utilizador perdeu o telemóvel)."""
+    user = await users_repo.get(uid)
+    if not user:
+        raise HTTPException(404, "Utilizador não encontrado")
+    await users_repo.update(uid, {"totp_segredo": None, "totp_pendente": None, "totp_ativo": False})
+    from app.services import audit
+    await audit.registar("utilizador", uid, "editado", admin, "Verificação em dois passos reposta pelo administrador", user.get("name"))
+    return await user_public(await users_repo.get(uid))
 
 
 @router.put("/users/{uid}")
@@ -289,8 +301,8 @@ async def app_movel_ops(admin: dict = Depends(require_admin)):
 
 
 MODELOS_PERFIL["armazem"] = {"nome": "Armazém", "ver_custos": False, "pagina_inicial": "/m", "so_proprios": [],
-                             "app_movel": ["rececoes", "inventario", "localizacoes", "transferir", "movimento", "stock_baixo", "movimentos", "consultar"],
-                             "perms": (["dashboard", "fornecedores", "encomendas", "calendario"], ["artigos", "ordens_compra"])}
+                             "app_movel": ["rececoes", "inventario", "localizacoes", "transferir", "movimento", "stock_baixo", "movimentos", "consultar", "picking"],
+                             "perms": (["dashboard", "fornecedores", "encomendas", "calendario", "ordens_fabrico"], ["artigos", "ordens_compra"])}
 MODELOS_PERFIL["oficina"] = {"nome": "Oficina", "ver_custos": False, "pagina_inicial": "/oficina", "so_proprios": [],
                              "app_movel": ["oficina", "consultar", "localizacoes", "movimento"],
                              "perms": (["artigos", "encomendas", "calendario"], ["ordens_fabrico", "nao_conformidades"])}
@@ -409,3 +421,32 @@ async def simulacao_criar(admin: dict = Depends(require_admin)):
 async def simulacao_apagar(admin: dict = Depends(require_admin)):
     from app.services import simulacao
     return await simulacao.apagar(admin)
+
+
+
+@router.get("/admin/estado-configuracao")
+async def estado_configuracao(_a: dict = Depends(require_admin)):
+    """Lista do que está (e não está) configurado no servidor, com o que fazer em cada caso."""
+    import os
+    from app.core import config as cfg
+    from app.services import email as email_svc
+    from app.services import push, storage
+    fe = (os.environ.get("FRONTEND_URL") or os.environ.get("APP_URL") or "").strip()
+    itens = [
+        {"chave": "smtp", "titulo": "Envio de emails (SMTP)", "ok": email_svc.smtp_configured(),
+         "detalhe": f"{cfg.SMTP_HOST}:{cfg.SMTP_PORT} · remetente {email_svc.mask_email(cfg.SMTP_FROM)}" if email_svc.smtp_configured() else "",
+         "variaveis": ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"],
+         "porque": "Orçamentos, faturas, lembretes a clientes, notas de encomenda a fornecedores e alertas por email."},
+        {"chave": "frontend_url", "titulo": "Endereço público da app (FRONTEND_URL)", "ok": bool(fe), "detalhe": fe,
+         "variaveis": ["FRONTEND_URL"],
+         "porque": "Links nos emails (portal do cliente para aceitar orçamentos, alertas, recuperação de password)."},
+        {"chave": "jwt", "titulo": "Chave secreta das sessões (JWT_SECRET)", "ok": cfg.JWT_SECRET != getattr(cfg, "_JWT_DEFAULT", None),
+         "variaveis": ["JWT_SECRET"], "porque": "Segurança das sessões: tem de ser um valor longo e aleatório só vosso."},
+        {"chave": "storage", "titulo": "Armazenamento de ficheiros", "ok": storage.backend() == "gridfs" or not cfg.IS_RENDER,
+         "detalhe": "base de dados (GridFS)" if storage.backend() == "gridfs" else "disco local", "variaveis": ["STORAGE_BACKEND"],
+         "porque": "No Render o disco é apagado em cada deploy: os ficheiros (artes, fotos, PDFs) devem ir para a base de dados ou um bucket."},
+        {"chave": "push", "titulo": "Alertas no telemóvel (push)", "ok": push.disponivel(), "variaveis": [],
+         "porque": "Notificações dos alertas e aprovações no telemóvel. Fica ativo depois do deploy com as dependências novas."},
+    ]
+    return {"ambiente": cfg.APP_ENV, "render": cfg.IS_RENDER, "itens": itens,
+            "pendentes": sum(1 for i in itens if not i["ok"])}

@@ -17,6 +17,7 @@ import { Trash2, Save, Pencil, X, Lock } from "lucide-react";
 import FornecedorSelect, { opcoesFornecedores } from "@/components/FornecedorSelect";
 import Combobox from "@/components/Combobox";
 import OcRececaoTab from "./OcRececaoTab";
+import { OcEnviarAcoes, OcAutomaticaBanner } from "./OcEnviar";
 
 const TIPO_DESPESA_OPTS = [
   { value: "compra", label: "Compra — stock / matéria-prima para vender" },
@@ -324,14 +325,18 @@ export default function OrdemCompraDetail() {
                 </button>
               </>
             ) : (
-              <button type="button" data-testid="oc-edit-btn" onClick={startEdit} className="btn btn-primario">
-                <Pencil size={15} /> Editar
-              </button>
+              <>
+                {id && id !== "nova" && <OcEnviarAcoes oc={form} podeEditar={podeEditar} onFeito={(r) => setForm((f) => ({ ...f, aprovada: r.aprovada, enviada_fornecedor_at: r.enviada_fornecedor_at, enviada_para: r.enviada_para }))} />}
+                <button type="button" data-testid="oc-edit-btn" onClick={startEdit} className="btn btn-primario">
+                  <Pencil size={15} /> Editar
+                </button>
+              </>
             )
           ) : null
         }
       />
 
+      <OcAutomaticaBanner oc={form} />
       {id && id !== "nova" && <AprovacaoBanner entidade="ordem_compra" entidadeId={id} recarregarEm={form?.estado} />}
       <DetailTabs
         testid="oc-tabs"

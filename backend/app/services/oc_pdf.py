@@ -20,7 +20,7 @@ from typing import List, Optional
 
 from fastapi import HTTPException
 
-from app.core.database import new_id, now_iso
+from app.core.database import new_id, now_iso, round2
 from app.repositories import artigos_repo, fornecedores_repo, empresa_repo, referencias_fornecedor_repo
 
 _NUM = re.compile(r"(?<![\w/])-?\d{1,3}(?:[ .]\d{3})*(?:,\d+)?(?![\w/])|(?<![\w/])-?\d+(?:[.,]\d+)?(?![\w/])")
@@ -303,3 +303,70 @@ async def aprender(fornecedor_id: Optional[str], linhas: List[dict]) -> int:
             await referencias_fornecedor_repo.insert({"id": new_id(), **q, "ref": ref, "artigo_id": aid, "created_at": now_iso()})
             n += 1
     return n
+
+
+
+# ---------------------------------------------------------------------------
+# Conferência da fatura do fornecedor (PDF) com a OC
+# ---------------------------------------------------------------------------
+def _ultimo_numero(linha: str) -> Optional[float]:
+    nums = [v for v in (_num(m.group(0)) for m in _NUM.finditer(linha)) if v is not None]
+    return nums[-1] if nums else None
+
+
+def totais_documento(texto: str) -> dict:
+    """Total sem IVA, IVA, total e portes, lidos das linhas de totais da fatura."""
+    out = {"total_sem_iva": None, "iva": None, "total": None, "portes": 0.0}
+    for raw in texto.splitlines():
+        b = raw.lower()
+        v = _ultimo_numero(raw)
+        if v is None:
+            continue
+        if any(k in b for k in ("portes", "transporte", "envio")) and "total" not in b:
+            out["portes"] = round2(out["portes"] + v) if v < 10000 else out["portes"]
+        elif any(k in b for k in ("subtotal", "total ilíquido", "total iliquido", "total s/ iva", "total sem iva", "incidência", "incidencia", "base tributável", "base tributavel", "total líquido", "total liquido")):
+            out["total_sem_iva"] = v
+        elif ("iva" in b or "i.v.a" in b) and "total" not in b:
+            out["iva"] = v
+        elif "total" in b:
+            out["total"] = max(out["total"] or 0, v)
+    return out
+
+
+async def conferir_fatura(oc: dict, nome: str, dados: bytes) -> dict:
+    """Lê a fatura (PDF) e compara linha a linha com a OC: quantidade faturada vs recebida, preço faturado vs encomendado."""
+    from app.core.database import round2 as _r2
+    a = await analisar(nome, dados)
+    texto = await asyncio.to_thread(texto_pdf, dados)
+    tot = totais_documento(texto)
+    linhas_oc = [l for l in oc.get("linhas") or [] if l.get("artigo_id")]
+    usadas = set()
+    comp = []
+    for f in a["linhas"]:
+        l = next((x for x in linhas_oc if x.get("artigo_id") == f.get("artigo_id") and x.get("id") not in usadas), None) if f.get("artigo_id") else None
+        if l:
+            usadas.add(l.get("id"))
+        p_fat = _r2(float(f.get("preco_unit") or 0) * (1 - float(f.get("desconto") or 0) / 100))
+        p_oc = _r2(float((l or {}).get("preco_unit") or 0) * (1 - float((l or {}).get("desconto") or 0) / 100)) if l else None
+        q_rec = float((l or {}).get("qtd_recebida") or 0) if l else None
+        avisos = []
+        if not l:
+            avisos.append("Não está nesta ordem de compra")
+        else:
+            if abs(float(f.get("quantidade") or 0) - q_rec) > 1e-6:
+                avisos.append(f"Faturado {float(f.get('quantidade') or 0):g}, recebido {q_rec:g}")
+            if p_oc and abs(p_fat - p_oc) > 0.01:
+                avisos.append(f"Preço {p_fat:.2f} € ≠ encomendado {p_oc:.2f} €")
+        comp.append({"ref": f.get("ref"), "descricao": f.get("descricao"), "artigo_nome": (l or {}).get("artigo_nome") or f.get("artigo_nome") or "",
+                     "qtd_faturada": f.get("quantidade"), "qtd_recebida": q_rec, "preco_faturado": p_fat, "preco_encomendado": p_oc,
+                     "total_faturado": _r2(float(f.get("quantidade") or 0) * p_fat), "avisos": avisos})
+    for l in linhas_oc:
+        if l.get("id") not in usadas and float(l.get("qtd_recebida") or 0) > 0:
+            comp.append({"ref": "", "descricao": "", "artigo_nome": l.get("artigo_nome") or l.get("nome") or "", "qtd_faturada": 0,
+                         "qtd_recebida": float(l.get("qtd_recebida") or 0), "preco_faturado": None,
+                         "preco_encomendado": float(l.get("preco_unit") or 0), "total_faturado": 0, "avisos": ["Recebido mas não aparece na fatura"]})
+    return {"numero": a.get("numero_documento") or "", "fornecedor_id": a.get("fornecedor_id"),
+            "fornecedor_certo": (not a.get("fornecedor_id")) or a.get("fornecedor_id") == oc.get("fornecedor_id"),
+            "total_sem_iva": tot["total_sem_iva"], "iva": tot["iva"], "total": tot["total"], "portes": tot["portes"],
+            "soma_linhas": round2(sum(x["total_faturado"] or 0 for x in comp)),
+            "linhas": comp, "n_avisos": sum(1 for x in comp if x["avisos"])}
