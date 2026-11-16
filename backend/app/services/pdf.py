@@ -447,6 +447,27 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
     return buf.getvalue()
 
 
+def texto_qr_of(of: dict) -> str:
+    """Conteúdo do QR da OF: link do ecrã da oficina (se houver endereço público) ou um código que a oficina reconhece."""
+    import os
+    base = (os.environ.get("FRONTEND_URL") or os.environ.get("APP_URL") or "").rstrip("/")
+    return f"{base}/oficina?of={of.get('id')}" if base else f"VELOCELY-OF:{of.get('id')}"
+
+
+def _qr_of(of: dict, st: dict):
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    w = QrCodeWidget(texto_qr_of(of))
+    b = w.getBounds()
+    tam = 26 * mm
+    d = Drawing(tam, tam, transform=[tam / (b[2] - b[0]), 0, 0, tam / (b[3] - b[1]), 0, 0])
+    d.add(w)
+    t = Table([[d, Paragraph("Ler com o tablet da oficina para iniciar e parar as operações desta OF.", st["cell"])]],
+              colWidths=[30 * mm, 60 * mm], hAlign="RIGHT")
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    return t
+
+
 def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:
     st = _pdf_styles()
     buf = BytesIO()
@@ -461,6 +482,11 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
     if section_on(fields, "orcamento_origem"):
         meta_pairs += orcamento_origem_pairs(orcamento)
     _header(elems, st, "ORDEM DE FABRICO", of.get("numero", ""), meta_pairs, settings, show_branding)
+    try:
+        elems.append(_qr_of(of, st))
+        elems.append(Spacer(1, 4))
+    except Exception:  # o QR nunca impede o PDF
+        pass
 
     show_tempos = section_on(fields, "tempos")
     if section_on(fields, "roteiro_operacoes"):

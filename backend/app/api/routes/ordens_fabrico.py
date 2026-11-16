@@ -1,4 +1,5 @@
 from io import BytesIO
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -475,3 +476,99 @@ async def anular_fecho_of(ofid: str, user: dict = Depends(require_perm("ordens_f
 async def carga_maquinas(semanas: int = Query(6, ge=1, le=26), _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
     from app.services import producao
     return await producao.carga(semanas)
+
+
+# ---------------------------------------------------------------------------
+# Planeamento por máquina e oficina
+# ---------------------------------------------------------------------------
+@router.get("/producao/planeamento")
+async def planeamento(inicio: str = Query(""), dias: int = Query(6, ge=1, le=14), _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    from datetime import date as _date, timedelta as _td
+    from app.repositories import maquinas_repo
+    try:
+        d0 = _date.fromisoformat(inicio[:10]) if inicio else _date.today() - _td(days=_date.today().weekday())
+    except ValueError:
+        raise HTTPException(400, "Data inválida")
+    datas = [(d0 + _td(days=i)).isoformat() for i in range(dias)]
+    maqs = await maquinas_repo.find({}, sort=("nome", 1), limit=500)
+    ofs = await _enrich_ofs(await ordens_repo.find({"status": {"$nin": ["concluido", "cancelado"]}}, limit=3000))
+    ops = []
+    for of in ofs:
+        for it in of.get("itens") or []:
+            for op in it.get("operacoes") or []:
+                if op.get("concluida"):
+                    continue
+                ops.append({"of_id": of["id"], "of_numero": of.get("numero"), "cliente": of.get("cliente"),
+                            "prazo": of.get("prazo_entrega"), "prioritaria": bool(of.get("prioritaria")),
+                            "item_id": it.get("id"), "artigo_nome": it.get("artigo_nome"), "quantidade": it.get("quantidade"),
+                            "operacao_id": op.get("id"), "nome": op.get("nome"), "maquina_id": op.get("maquina_id"),
+                            "horas": round2(float(op.get("tempo_maquina") or op.get("tempo_mao_obra") or 0) / 60),
+                            "data": op.get("planeado_data"), "em_curso": bool(op.get("timer_inicio"))})
+    return {"datas": datas, "maquinas": [{"id": m["id"], "nome": m.get("nome"), "horas_dia": round2(float(m.get("horas_semana") or 40) / 5)}
+                                         for m in maqs], "operacoes": ops}
+
+
+class PlanearBody(BaseModel):
+    item_id: str
+    operacao_id: str
+    data: Optional[str] = None
+
+
+@router.post("/ordens-fabrico/{ofid}/operacao/planear")
+async def planear_operacao(ofid: str, body: PlanearBody, _u: dict = Depends(require_perm("ordens_fabrico", "edit"))):
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    op = _find_op(of, body.item_id, body.operacao_id)
+    if not op:
+        raise HTTPException(404, "Operação não encontrada")
+    op["planeado_data"] = (body.data or "")[:10] or None
+    await ordens_repo.update(ofid, {"itens": of["itens"]})
+    return {"ok": True}
+
+
+@router.get("/oficina/of/{ref}")
+async def oficina_of(ref: str, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    """OF pelo id (QR) ou pelo número escrito."""
+    ref = ref.strip()
+    if ref.upper().startswith("VELOCELY-OF:"):
+        ref = ref.split(":", 1)[1]
+    of = await ordens_repo.get(ref) or await ordens_repo.find_one({"numero": ref}) or \
+        await ordens_repo.find_one({"numero": {"$regex": f"{re.escape(ref)}$", "$options": "i"}})
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    return recompute_of_status(of)
+
+
+# ---------------------------------------------------------------------------
+# Manutenção das máquinas
+# ---------------------------------------------------------------------------
+@router.get("/manutencao")
+async def manutencao_listar(_u: dict = Depends(require_perm("maquinas", "view"))):
+    from app.services import manutencao
+    return await manutencao.listar()
+
+
+@router.post("/manutencao/planos")
+async def manutencao_criar(dados: dict, _u: dict = Depends(require_perm("maquinas", "edit"))):
+    from app.services import manutencao
+    return await manutencao.guardar(dados)
+
+
+@router.put("/manutencao/planos/{pid}")
+async def manutencao_editar(pid: str, dados: dict, _u: dict = Depends(require_perm("maquinas", "edit"))):
+    from app.services import manutencao
+    return await manutencao.guardar(dados, pid)
+
+
+@router.delete("/manutencao/planos/{pid}")
+async def manutencao_apagar(pid: str, _u: dict = Depends(require_perm("maquinas", "edit"))):
+    from app.repositories import manutencoes_repo
+    await manutencoes_repo.delete({"id": pid})
+    return {"ok": True}
+
+
+@router.post("/manutencao/planos/{pid}/feita")
+async def manutencao_feita(pid: str, dados: dict, user: dict = Depends(require_perm("maquinas", "edit"))):
+    from app.services import manutencao
+    return await manutencao.registar(pid, dados, user)
