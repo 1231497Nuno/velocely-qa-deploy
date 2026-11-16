@@ -233,3 +233,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   máquinas, clientes, leads, orçamentos, encomendas com pagamentos ao longo de 6 meses, OF fechadas/em curso, compras com
   receções e fatura, NC, relatório guardado) usando os serviços reais (custos, fecho da OF, stock). `DELETE /simulacao`
   apaga tudo isso, os movimentos de stock desses artigos e o histórico. Não emite documentos fiscais nem envia emails.
+
+## Link do cliente e pagamentos online (`services/portal.py`, `services/pagamentos_online.py`)
+
+- «Link do cliente» (orçamento e encomenda): `POST /portal/links` cria um token (120 dias) → página pública `/p/{token}`
+  (sem login). Orçamento: ver linhas, PDF, aprovar maquetas / pedir alteração, aceitar ou recusar (fica em
+  `resposta_cliente` e no histórico; alertas `orcamento_aceite` / `portal_cliente`). Encomenda: estado, prazo, pago/por
+  pagar e pagamento online. Enviar por WhatsApp (wa.me), email ou copiar.
+- Pagamentos online (Definições → Integrações): ifthenpay ou Eupago, Multibanco e MB WAY. Callback público
+  `/api/publico/pagamentos/{ifthenpay|eupago}` (ifthenpay com chave anti-phishing) → pagamento entra na encomenda
+  (método multibanco/mbway, recibo, `apos_pagamento`). Precisa de `BACKEND_PUBLIC_URL` para o URL do callback.
+- Lembretes de orçamentos (alerta «orcamento_follow_up», dias configuráveis): enviados sem resposta há X dias ou a
+  expirar em X dias. Verificado no ciclo de 5 minutos, com prazos.

@@ -48,6 +48,7 @@ import Tarefas from "@/features/tarefas/Tarefas";
 import TabelasPrecos from "@/features/precos/TabelasPrecos";
 import Stock from "@/features/stock/Stock";
 import CargaMaquinas from "@/features/producao/CargaMaquinas";
+import PortalCliente from "@/features/portal/PortalCliente";
 import Historico from "@/features/historico/Historico";
 import Crm from "@/features/crm/Crm";
 import Pagamentos from "@/features/pagamentos/Pagamentos";
@@ -81,6 +82,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/login", element: <Login /> },
       { path: "/definir-password", element: <DefinirPassword /> },
+      { path: "/p/:token", element: <PortalCliente /> },
       { path: "/", element: <Protected><Dashboard /></Protected> },
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
       { path: "/crm", element: <Protected modulo="crm"><Crm /></Protected> },

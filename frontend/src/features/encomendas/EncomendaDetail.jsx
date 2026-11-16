@@ -15,6 +15,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import PdfExportButton from "@/components/PdfExportButton";
+import PartilharLinkButton from "@/features/portal/PartilharLinkButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import {
@@ -540,6 +541,7 @@ export default function EncomendaDetail() {
         actions={
           <>
             <PdfExportButton modulo="encomenda" recordId={id} />
+            <PartilharLinkButton tipo="encomenda" doc={enc} telefone={cliente?.contacto || enc.contacto_telefone || ""} email={cliente?.email || enc.contacto_email || ""} />
             {can("encomendas", "edit") && (
               <EnviarEmailButton
                 variant="encomenda"

@@ -11,6 +11,7 @@ import ClienteSelector from "@/components/ClienteSelector";
 import ContactoSelector from "@/components/ContactoSelector";
 import StatusBadge from "@/components/StatusBadge";
 import PdfExportButton from "@/components/PdfExportButton";
+import PartilharLinkButton from "@/features/portal/PartilharLinkButton";
 import EnviarEmailButton from "@/components/EnviarEmailButton";
 import { isDiversosArtigo } from "@/components/LinhaTipoIcon";
 import { LinhaCodigoSelect, LinhaDescricaoInput } from "@/components/LinhaArtigoFields";
@@ -1138,6 +1139,7 @@ export default function OrcamentoDetail() {
               </button>
             )}
             {temNumero && <PdfExportButton modulo="orcamento" recordId={id} />}
+            {temNumero && <PartilharLinkButton tipo="orcamento" doc={orc} telefone={clienteDoc?.contacto || orc?.contacto_telefone || ""} email={clienteEmail || clienteDoc?.email || ""} />}
             {temNumero && can("orcamentos", "edit") && (
               <EnviarEmailButton
                 variant="orcamento"

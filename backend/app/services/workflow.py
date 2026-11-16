@@ -37,6 +37,9 @@ EVENTOS = {
     "encomenda_paga": {"label": "Encomenda totalmente paga (pode entrar em produção)", "grupo": "Vendas"},
     "pagamento_registado": {"label": "Pagamento registado", "grupo": "Pagamentos"},
     "orcamento_aceite": {"label": "Orçamento aceite pelo cliente", "grupo": "Vendas"},
+    "portal_cliente": {"label": "Resposta do cliente no link (rejeição, comentário, maqueta)", "grupo": "Vendas"},
+    "pagamento_online": {"label": "Pagamento Multibanco / MB WAY recebido", "grupo": "Pagamentos"},
+    "orcamento_follow_up": {"label": "Orçamento enviado sem resposta / a expirar", "grupo": "Comercial", "dias": True},
     "prazo_proximo": {"label": "Prazo de entrega a chegar (encomenda não concluída)", "grupo": "Produção", "dias": True},
     "encomenda_bloqueada": {"label": "Encomenda bloqueada / desbloqueada", "grupo": "Vendas"},
     "nc_criada": {"label": "Não conformidade registada", "grupo": "Produção"},
@@ -47,7 +50,8 @@ EVENTOS = {
 DEFAULT = {
     "id": WORKFLOW_ID,
     "aprovacoes": {k: {"ativo": False, "limite": 0.0, "aprovadores": []} for k in REGRAS_APROVACAO},
-    "alertas": {k: {"ativo": k in ("encomenda_paga", "aprovacao_decidida", "prazo_proximo"), "destinatarios": [],
+    "alertas": {k: {"ativo": k in ("encomenda_paga", "aprovacao_decidida", "prazo_proximo", "portal_cliente",
+                                   "pagamento_online", "orcamento_follow_up"), "destinatarios": [],
                     "email": False, "dias": 3} for k in EVENTOS},
     "credito_modo": "bloqueio",
     "ultima_verificacao_prazos": 0,
@@ -193,6 +197,33 @@ async def verificar_prazos(forcar: bool = False) -> int:
             chave=f"prazo:{e['id']}:{prazo}:{'atraso' if atrasada else 'aviso'}",
         )
         n += 1 if r else 0
+    return n
+
+
+async def verificar_orcamentos() -> int:
+    """Orçamentos enviados sem resposta há X dias ou a expirar em X dias → alerta (uma vez por orçamento)."""
+    cfg = await get_config()
+    regra = cfg["alertas"].get("orcamento_follow_up") or {}
+    if not regra.get("ativo"):
+        return 0
+    from app.repositories import orcamentos_repo
+    dias = int(regra.get("dias") or 3)
+    hoje = datetime.now(timezone.utc).date()
+    n = 0
+    for o in await orcamentos_repo.find({"status": "enviado", "encomenda_id": None}, limit=5000):
+        data = (o.get("data") or o.get("created_at") or "")[:10]
+        val = (o.get("validade") or "")[:10]
+        cli = o.get("cliente") or ""
+        if val and hoje.isoformat() <= val <= (hoje + timedelta(days=dias)).isoformat():
+            r = await evento("orcamento_follow_up", f"Orçamento a expirar: {o.get('numero')} ({cli})",
+                             f"Válido até {date.fromisoformat(val).strftime('%d/%m/%Y')} e ainda sem resposta do cliente.",
+                             link=f"/orcamentos/{o['id']}", entidade="orcamento", entidade_id=o["id"], chave=f"orc_expira:{o['id']}")
+            n += 1 if r else 0
+        elif data and data <= (hoje - timedelta(days=dias)).isoformat():
+            r = await evento("orcamento_follow_up", f"Sem resposta: {o.get('numero')} ({cli})",
+                             f"Enviado há mais de {dias} dias. Vale a pena contactar o cliente.",
+                             link=f"/orcamentos/{o['id']}", entidade="orcamento", entidade_id=o["id"], chave=f"orc_followup:{o['id']}")
+            n += 1 if r else 0
     return n
 
 
