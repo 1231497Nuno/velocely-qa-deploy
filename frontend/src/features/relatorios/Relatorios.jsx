@@ -4,10 +4,13 @@ import { toast } from "sonner";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { BarChart3, ChevronRight, FileDown, FileSpreadsheet, Info, Loader2, X } from "lucide-react";
+import { BarChart3, ChevronRight, Columns3, FileDown, FileSpreadsheet, Info, Loader2, Mail, Save, Send, Star, Trash2, Users, X } from "lucide-react";
 import { API, api, eur, fmtDate, getToken } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import ClienteSelector from "@/components/ClienteSelector";
+import { useConfirm } from "@/hooks/useConfirm";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import GuardarRelatorioDialog from "./GuardarRelatorioDialog";
 
 // Paleta categórica (ordem fixa, validada para daltonismo; sem rosa)
 const CORES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#6250d6", "#008300", "#e34948"];
@@ -21,6 +24,9 @@ const PERIODOS = [
   { id: "12m", label: "Últimos 12 meses" },
   { id: "custom", label: "Personalizado" },
 ];
+// Período do ecrã → período relativo guardado no servidor
+const PERIODO_SERVIDOR = { este_mes: "mes_atual", mes_passado: "mes_anterior", trimestre: "trimestre_atual", ano: "ano_atual", ano_passado: "ano_anterior", "12m": "ultimos_12m", custom: "personalizado" };
+const PERIODO_ECRA = Object.fromEntries(Object.entries(PERIODO_SERVIDOR).map(([a, b]) => [b, a]));
 const AGRUPAR = [["dia", "Dia"], ["semana", "Semana"], ["mes", "Mês"], ["trimestre", "Trimestre"], ["ano", "Ano"]];
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -252,6 +258,13 @@ export default function Relatorios() {
   const [comparar, setComparar] = useState("");
   const [cliente, setCliente] = useState({ id: "", nome: "" });
   const [limite, setLimite] = useState(0);
+  const [colunas, setColunas] = useState([]); // [] = todas
+  const [guardados, setGuardados] = useState([]);
+  const [ativo, setAtivo] = useState(null); // relatório guardado aberto
+  const [dlgGuardar, setDlgGuardar] = useState(false);
+  const confirm = useConfirm();
+  const carregarGuardados = () => api.get("/relatorios/guardados").then((r) => setGuardados(r.guardados || [])).catch(() => {});
+  useEffect(() => { carregarGuardados(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { api.get("/relatorios/catalogo").then(setCat).catch(() => toast.error("Não foi possível carregar os relatórios")); }, []);
   const rid = sp.get("r") || "vendas_periodo";
@@ -263,6 +276,42 @@ export default function Relatorios() {
     if (limite) q.set("limite", String(limite));
     return q.toString();
   }, [de, ate, agrupar, comparar, cliente.id, limite]);
+  const visiveis = useMemo(() => {
+    if (!rel || !colunas.length) return rel;
+    const pk = Object.fromEntries(rel.colunas.map((c) => [c.key, c]));
+    const cols = colunas.filter((k) => pk[k]);
+    if (!cols.length) return rel;
+    if (!cols.includes(rel.colunas[0].key)) cols.unshift(rel.colunas[0].key);
+    return { ...rel, colunas: cols.map((k) => pk[k]) };
+  }, [rel, colunas]);
+  const queryColunas = colunas.length ? `&colunas=${encodeURIComponent(colunas.join(","))}` : "";
+
+  const abrirGuardado = (g) => {
+    setAtivo(g);
+    setSp({ r: g.relatorio_id }, { replace: true });
+    const pe = PERIODO_ECRA[g.periodo] || "ano";
+    setPeriodo(pe);
+    setIntervalo(pe === "custom" ? [g.de, g.ate] : intervalo(pe));
+    setAgrupar(g.agrupar || "mes");
+    setComparar(g.comparar || "");
+    setCliente({ id: g.cliente_id || "", nome: g.cliente_nome || "" });
+    setLimite(g.limite || 0);
+    setColunas(g.colunas || []);
+  };
+  const escolherRelatorio = (id) => {
+    setAtivo(null);
+    setColunas([]);
+    setSp({ r: id }, { replace: true });
+  };
+  const apagarGuardado = async (g) => {
+    if (!(await confirm({ title: "Apagar relatório guardado?", description: `«${g.nome}»${g.envio?.ativo ? " — o envio automático também pára" : ""}.`, confirmLabel: "Apagar", tone: "danger" }))) return;
+    try { await api.del(`/relatorios/guardados/${g.id}`); if (ativo?.id === g.id) setAtivo(null); carregarGuardados(); } catch { toast.error("Não foi possível apagar"); }
+  };
+  const enviarAgora = async (g) => {
+    try { await api.post(`/relatorios/guardados/${g.id}/enviar`, {}); toast.success(`Enviado para ${g.envio.destinatarios.join(", ")}`); carregarGuardados(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Não foi possível enviar"); }
+  };
+  const paramsAtuais = { relatorio_id: rid, periodo: PERIODO_SERVIDOR[periodo] || "ano_atual", de, ate, agrupar, comparar, cliente_id: cliente.id, cliente_nome: cliente.nome, limite, colunas };
 
   useEffect(() => {
     if (!meta) return;
@@ -282,7 +331,7 @@ export default function Relatorios() {
   const exportarFicheiro = async (formato) => {
     setExportar(formato);
     try {
-      await descarregar(`/relatorios/gerar/${rid}?${query}&formato=${formato}`, `${meta.titulo} ${de} a ${ate}.${formato}`);
+      await descarregar(`/relatorios/gerar/${rid}?${query}&formato=${formato}${queryColunas}`, `${ativo?.nome || meta.titulo} ${de} a ${ate}.${formato}`);
     } catch (e) {
       toast.error(e.message || "Não foi possível exportar");
     } finally {
@@ -298,12 +347,27 @@ export default function Relatorios() {
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-5">
         <nav className="bg-white border border-gray-200 rounded-sm p-2 h-fit lg:sticky lg:top-20 space-y-3" data-testid="rel-nav">
           {!cat && <div className="text-sm text-gray-500 p-2">A carregar...</div>}
+          {guardados.length > 0 && (
+            <div data-testid="rel-guardados">
+              <div className="px-2 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">Guardados</div>
+              {guardados.map((g) => (
+                <div key={g.id} className={`group flex items-center rounded-sm ${ativo?.id === g.id ? "bg-brand text-brand-fg" : "text-gray-700 hover:bg-gray-100"}`}>
+                  <button type="button" onClick={() => abrirGuardado(g)} className="flex-1 min-w-0 text-left px-2.5 py-1.5 text-sm flex items-center gap-1.5" title={`${g.relatorio_titulo} · ${g.periodo_label}`} data-testid={`rel-guardado-${g.id}`}>
+                    <Star size={12} className="shrink-0" /><span className="truncate">{g.nome}</span>
+                    {g.envio?.ativo && <Mail size={12} className="shrink-0 opacity-70" title="Envio automático" />}
+                    {!g.meu && <Users size={12} className="shrink-0 opacity-70" title={`De ${g.dono?.nome}`} />}
+                  </button>
+                  {g.pode_editar && <button type="button" onClick={() => apagarGuardado(g)} className="p-1 mr-1 opacity-0 group-hover:opacity-70 hover:!opacity-100" title="Apagar"><Trash2 size={13} /></button>}
+                </div>
+              ))}
+            </div>
+          )}
           {cat?.areas.map((a) => (
             <div key={a.id}>
               <div className="px-2 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">{a.label}</div>
               {cat.relatorios.filter((r) => r.area === a.id).map((r) => (
-                <button key={r.id} type="button" onClick={() => setSp({ r: r.id }, { replace: true })} data-testid={`rel-${r.id}`}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm ${r.id === rid ? "bg-brand text-brand-fg" : "text-gray-700 hover:bg-gray-100"}`}>
+                <button key={r.id} type="button" onClick={() => escolherRelatorio(r.id)} data-testid={`rel-${r.id}`}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm ${r.id === rid && !ativo ? "bg-brand text-brand-fg" : "text-gray-700 hover:bg-gray-100"}`}>
                   {r.titulo}
                 </button>
               ))}
@@ -315,10 +379,38 @@ export default function Relatorios() {
           {meta && (
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><BarChart3 size={18} /> {meta.titulo}</h2>
-                <p className="text-sm text-gray-500">{meta.descricao}</p>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><BarChart3 size={18} /> {ativo ? ativo.nome : meta.titulo}</h2>
+                <p className="text-sm text-gray-500">{ativo ? `${meta.titulo} · ${ativo.periodo_label}${ativo.envio?.ativo ? ` · enviado por email (${ativo.envio.destinatarios.join(", ")})` : ""}` : meta.descricao}</p>
+                {ativo?.ultimo_envio && <p className={`text-xs ${ativo.ultimo_envio.ok ? "text-gray-400" : "text-red-600"}`}>Último envio {fmtDate(ativo.ultimo_envio.at)}{ativo.ultimo_envio.ok ? "" : ` — falhou: ${ativo.ultimo_envio.erro}`}</p>}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {rel && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="btn btn-secundario" data-testid="rel-colunas"><Columns3 size={15} /> Colunas{colunas.length ? ` (${visiveis.colunas.length}/${rel.colunas.length})` : ""}</button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-64 p-2">
+                      <div className="text-xs text-gray-500 px-1 pb-1">Colunas a mostrar e a exportar</div>
+                      {rel.colunas.map((c, i) => {
+                        const on = !colunas.length || colunas.includes(c.key);
+                        return (
+                          <label key={c.key} className={`flex items-center gap-2 px-1 py-1 text-sm ${i === 0 ? "text-gray-400" : ""}`}>
+                            <input type="checkbox" disabled={i === 0} checked={on || i === 0} onChange={() => {
+                              const base = colunas.length ? colunas : rel.colunas.map((x) => x.key);
+                              setColunas(on ? base.filter((k) => k !== c.key) : rel.colunas.map((x) => x.key).filter((k) => base.includes(k) || k === c.key));
+                            }} />
+                            {c.label}
+                          </label>
+                        );
+                      })}
+                      {colunas.length > 0 && <button type="button" className="text-xs text-brand px-1 pt-1 hover:underline" onClick={() => setColunas([])}>Mostrar todas</button>}
+                    </PopoverContent>
+                  </Popover>
+                )}
+                <button type="button" disabled={!meta} onClick={() => setDlgGuardar(true)} className="btn btn-secundario" data-testid="rel-guardar"><Save size={15} /> Guardar</button>
+                {ativo?.pode_editar && ativo.envio?.ativo && (
+                  <button type="button" onClick={() => enviarAgora(ativo)} className="btn btn-secundario" data-testid="rel-enviar-agora" title="Enviar já para os destinatários"><Send size={15} /> Enviar agora</button>
+                )}
                 <button type="button" disabled={!rel || !!exportar} onClick={() => exportarFicheiro("xlsx")} className="btn btn-secundario" data-testid="rel-excel">
                   {exportar === "xlsx" ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />} Excel
                 </button>
@@ -391,7 +483,7 @@ export default function Relatorios() {
             <>
               <Kpis rel={rel} />
               <Grafico rel={rel} />
-              <Tabela rel={rel} />
+              <Tabela rel={visiveis} />
               {rel.notas?.length > 0 && (
                 <div className="text-xs text-gray-500 space-y-0.5">
                   {rel.notas.map((n) => <p key={n} className="flex items-start gap-1.5"><Info size={12} className="mt-0.5 shrink-0" /> {n}</p>)}
@@ -401,6 +493,11 @@ export default function Relatorios() {
           )}
         </div>
       </div>
+      {dlgGuardar && (
+        <GuardarRelatorioDialog open onClose={() => setDlgGuardar(false)} params={paramsAtuais} existente={ativo}
+          periodoLabel={PERIODOS.find((p) => p.id === periodo)?.label || ""}
+          onSaved={(g) => { setDlgGuardar(false); carregarGuardados().then(() => setAtivo((a) => ({ ...a, ...g, pode_editar: true, meu: true, relatorio_titulo: meta?.titulo, periodo_label: PERIODOS.find((p) => p.id === periodo)?.label }))); }} />
+      )}
     </div>
   );
 }

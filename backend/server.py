@@ -8,6 +8,7 @@ A lógica está organizada em camadas (Clean Architecture):
   app/api/routes   — endpoints HTTP (finos)
 """
 import logging
+import os
 
 from fastapi import FastAPI, APIRouter
 from fastapi.openapi.utils import get_openapi
@@ -218,6 +219,11 @@ async def _startup_seed_admin() -> None:
         await ensure_consumidor_final()
     except Exception as e:
         logger.error(f"Ensure Consumidor Final falhou: {e}")
+    # Envio automático dos relatórios guardados (verifica a cada 5 minutos)
+    if os.environ.get("DESATIVAR_AGENDADOR", "").lower() not in ("1", "true", "yes"):
+        import asyncio
+        from app.services.relatorios_guardados import ciclo as ciclo_relatorios
+        app.state.agendador_relatorios = asyncio.create_task(ciclo_relatorios())
 
 
 @app.on_event("shutdown")
