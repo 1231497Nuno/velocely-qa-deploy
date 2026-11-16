@@ -234,6 +234,71 @@ def _normalize_perms(permissoes: dict, admin_flag: bool) -> dict:
     return base
 
 
+def _restricoes(data: PerfilInput) -> dict:
+    from app.domain.models import MODULOS_SO_PROPRIOS
+    pagina = (data.pagina_inicial or "").strip()
+    if pagina and not pagina.startswith("/"):
+        pagina = "/" + pagina
+    return {
+        "ver_custos": True if data.admin else bool(data.ver_custos),
+        "so_proprios": [] if data.admin else [m for m in data.so_proprios if m in MODULOS_SO_PROPRIOS],
+        "pagina_inicial": pagina[:120],
+    }
+
+
+# Modelos de perfil (os "perfis de cargo" do Sage): criar num clique e ajustar depois
+def _perms_de(view: list, edit: list) -> dict:
+    p = perms_all(False)
+    for m in view + edit:
+        if m in p:
+            p[m]["view"] = True
+    for m in edit:
+        if m in p:
+            p[m]["create"] = p[m]["edit"] = True
+    return p
+
+
+MODELOS_PERFIL = {
+    "comercial": {"nome": "Comercial", "ver_custos": True, "pagina_inicial": "/crm", "so_proprios": [],
+                  "perms": (["dashboard", "artigos", "categorias", "personalizacao", "ordens_fabrico", "calendario", "relatorios"],
+                            ["crm", "clientes", "orcamentos", "encomendas", "financeiro"])},
+    "producao": {"nome": "Produção", "ver_custos": False, "pagina_inicial": "/ordens-fabrico", "so_proprios": [],
+                 "perms": (["encomendas", "artigos", "categorias", "materiais", "maquinas", "calendario"],
+                           ["ordens_fabrico", "nao_conformidades"])},
+    "financeiro": {"nome": "Financeiro", "ver_custos": True, "pagina_inicial": "/pagamentos", "so_proprios": [],
+                   "perms": (["dashboard", "clientes", "orcamentos", "fornecedores", "rentabilidade", "relatorios"],
+                             ["encomendas", "financeiro", "contas", "ordens_compra"])},
+    "compras": {"nome": "Compras", "ver_custos": True, "pagina_inicial": "/ordens-compra", "so_proprios": [],
+                "perms": (["dashboard", "encomendas", "ordens_fabrico", "artigos", "relatorios"],
+                          ["fornecedores", "pedidos_cotacao", "ordens_compra", "materiais", "categorias"])},
+    "loja": {"nome": "Atendimento / loja", "ver_custos": False, "pagina_inicial": "/encomendas", "so_proprios": ["orcamentos", "crm"],
+             "perms": (["artigos", "categorias", "personalizacao", "calendario"], ["clientes", "orcamentos", "encomendas", "crm"])},
+}
+
+
+@router.get("/perfis/modelos")
+async def modelos_perfil(admin: dict = Depends(require_admin)):
+    return [{"id": k, "nome": v["nome"], "pagina_inicial": v["pagina_inicial"], "ver_custos": v["ver_custos"],
+             "so_proprios": v["so_proprios"]} for k, v in MODELOS_PERFIL.items()]
+
+
+@router.post("/perfis/modelos/{mid}")
+async def criar_de_modelo(mid: str, admin: dict = Depends(require_admin)):
+    m = MODELOS_PERFIL.get(mid)
+    if not m:
+        raise HTTPException(404, "Modelo desconhecido")
+    nome = m["nome"]
+    i = 2
+    while await perfis_repo.find_one({"nome": nome}):
+        nome = f"{m['nome']} {i}"
+        i += 1
+    doc = {"id": new_id(), "nome": nome, "sistema": False, "admin": False,
+           "permissoes": _perms_de(*m["perms"]), "ver_custos": m["ver_custos"], "so_proprios": list(m["so_proprios"]),
+           "pagina_inicial": m["pagina_inicial"], "created_at": now_iso()}
+    await perfis_repo.insert(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
 @router.post("/perfis")
 async def create_perfil(data: PerfilInput, admin: dict = Depends(require_admin)):
     nome = (data.nome or "").strip()
@@ -247,6 +312,7 @@ async def create_perfil(data: PerfilInput, admin: dict = Depends(require_admin))
         "sistema": False,
         "admin": bool(data.admin),
         "permissoes": _normalize_perms(data.permissoes, data.admin),
+        **_restricoes(data),
         "created_at": now_iso(),
     }
     await perfis_repo.insert(doc)
@@ -264,6 +330,7 @@ async def update_perfil(pid: str, data: PerfilInput, admin: dict = Depends(requi
         "nome": (data.nome or perfil["nome"]).strip(),
         "admin": bool(data.admin),
         "permissoes": _normalize_perms(data.permissoes, data.admin),
+        **_restricoes(data),
     }
     await perfis_repo.update(pid, patch)
     perfil.update(patch)

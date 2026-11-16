@@ -149,8 +149,11 @@ async def crm_meta(_u: dict = Depends(require_perm("crm", "view"))):
         {"status": {"$ne": "disabled"}}, sort=("name", 1), limit=500,
         projection={"id": 1, "name": 1, "login": 1, "email": 1},
     )
+    from app.services import listas as listas_svc
+    listas = await listas_svc.todas()
     return {
-        "origens": ORIGENS_SUGERIDAS,
+        "origens": listas.get("origens_lead") or ORIGENS_SUGERIDAS,
+        "motivos_perda": listas.get("motivos_perda") or [],
         "cores": CORES_ESTADO,
         "responsaveis": [{"id": u["id"], "nome": _nome_user(u)} for u in users if u.get("id")],
     }
@@ -261,6 +264,10 @@ async def list_leads(
         query["responsavel_id"] = responsavel_id
     if estado_id:
         query["estado_id"] = estado_id
+    from app.core.security import filtro_proprios
+    fp = await filtro_proprios(_u, "crm")
+    if fp:
+        query = {"$and": [query, fp]} if query else fp
     estados = {e["id"]: e for e in await _estados()}
     leads = await leads_repo.find(query, sort=("ordem", 1), limit=5000)
     out = []
@@ -276,6 +283,8 @@ async def list_leads(
 @router.get("/crm/leads/{lid}")
 async def get_lead(lid: str, _u: dict = Depends(require_perm("crm", "view"))):
     lead = await _get_lead(lid)
+    from app.core.security import assert_proprio
+    await assert_proprio(_u, "crm", lead)
     estados = {e["id"]: e for e in await _estados()}
     out = _lead_publico(lead, estados)
     orcs = []

@@ -163,3 +163,14 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   (`detail`) e o objeto fica em `response.data.detalhe` (interceptor do cliente HTTP).
 - Bloqueio manual da encomenda (`POST /encomendas/{id}/bloquear|desbloquear`): impede criar/iniciar OF, faturar e
   marcar entrega. Desbloqueia quem bloqueou ou um administrador. Limite de crédito: bloquear ou só avisar.
+
+## Perfis, restrições e listas
+
+- Perfis (Gestão de Utilizadores → Perfis): além das permissões por módulo, `ver_custos` (esconde custos, margens e
+  lucros — classe CSS `dado-custo` + relatórios de custos bloqueados no backend), `so_proprios` (CRM, orçamentos e
+  encomendas: só os registos que criou/é responsável — `filtro_proprios` / `assert_proprio`) e `pagina_inicial`.
+  Modelos prontos: Comercial, Produção, Financeiro, Compras, Atendimento/loja (`POST /perfis/modelos/{id}`).
+- Orçamentos e encomendas guardam `created_by` (a encomenda herda o dono do orçamento).
+- Listas (Definições → Listas, `services/listas.py`): condições de pagamento, origens dos leads, motivos de perda,
+  motivos de bloqueio, tipos de compra e transportadoras. Frontend: `useListas()` / `opcoesLista()` em `lib/listas.js`.
+- Numeração anual: em Definições → Referências, «incluir ano» recomeça a contagem em cada ano (ORC-2027-0001).

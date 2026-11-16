@@ -126,11 +126,24 @@ export default function GestaoUtilizadores() {
     meta.modulos.forEach((m) => { p[m.key] = {}; meta.acoes.forEach((a) => { p[m.key][a] = false; }); });
     return p;
   };
-  const openNewPerfil = () => { setPForm({ nome: "", admin: false, permissoes: blankPerms() }); setPEditId(null); setPOpen(true); };
+  const openNewPerfil = () => { setPForm({ nome: "", admin: false, permissoes: blankPerms(), ver_custos: true, so_proprios: [], pagina_inicial: "" }); setPEditId(null); setPOpen(true); };
+  const [modelos, setModelos] = useState([]);
+  useEffect(() => { api.get("/perfis/modelos").then(setModelos).catch(() => {}); }, []);
+  const criarDeModelo = async (m) => {
+    try {
+      const p = await api.post(`/perfis/modelos/${m.id}`);
+      toast.success(`Perfil «${p.nome}» criado — ajuste as permissões se precisar`);
+      await loadMeta();
+      openEditPerfil(p);
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Não foi possível criar");
+    }
+  };
   const openEditPerfil = (p) => {
     const perms = blankPerms();
     meta.modulos.forEach((m) => meta.acoes.forEach((a) => { perms[m.key][a] = !!(p.permissoes?.[m.key]?.[a]); }));
-    setPForm({ nome: p.nome, admin: !!p.admin, permissoes: perms });
+    setPForm({ nome: p.nome, admin: !!p.admin, permissoes: perms, ver_custos: p.ver_custos !== false, so_proprios: p.so_proprios || [], pagina_inicial: p.pagina_inicial || "" });
     setPEditId(p.id);
     setPOpen(true);
   };
@@ -142,7 +155,7 @@ export default function GestaoUtilizadores() {
       return false;
     }
     try {
-      const body = { nome: pForm.nome, admin: pForm.admin, permissoes: pForm.permissoes };
+      const body = { nome: pForm.nome, admin: pForm.admin, permissoes: pForm.permissoes, ver_custos: pForm.ver_custos !== false, so_proprios: pForm.so_proprios || [], pagina_inicial: pForm.pagina_inicial || "" };
       if (pEditId) await api.put(`/perfis/${pEditId}`, body);
       else await api.post("/perfis", body);
       toast.success("Perfil guardado");
@@ -185,7 +198,15 @@ export default function GestaoUtilizadores() {
             tab === "users" ? (
               <button data-testid="new-user-btn" onClick={openNewUser} className="btn btn-primario"><Plus size={16} /> Novo Utilizador</button>
             ) : (
-              <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="btn btn-primario"><Plus size={16} /> Novo Perfil</button>
+              <div className="flex flex-wrap items-center gap-2">
+                {modelos.length > 0 && (
+                  <select className="text-sm border border-gray-300 rounded-sm px-2 py-2 bg-white" value="" onChange={(e) => { const m = modelos.find((x) => x.id === e.target.value); if (m) criarDeModelo(m); }} data-testid="perfil-modelo">
+                    <option value="">Criar a partir de um modelo…</option>
+                    {modelos.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                  </select>
+                )}
+                <button data-testid="new-perfil-btn" onClick={openNewPerfil} className="btn btn-primario"><Plus size={16} /> Novo Perfil</button>
+              </div>
             )
           }
         />
@@ -384,6 +405,31 @@ export default function GestaoUtilizadores() {
                 </label>
               </div>
 
+              {!pForm.admin && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 rounded-sm border border-gray-200 bg-gray-50/60 p-3" data-testid="perfil-restricoes">
+                  <label className="flex items-start gap-2 text-sm text-gray-800">
+                    <input type="checkbox" className="mt-0.5" checked={pForm.ver_custos !== false} onChange={(e) => setPForm({ ...pForm, ver_custos: e.target.checked })} data-testid="perfil-ver-custos" />
+                    <span>Vê custos, margens e lucros<span className="block text-xs text-gray-500">Desligado: esconde-os nas fichas e nos relatórios.</span></span>
+                  </label>
+                  <div className="text-sm text-gray-800">
+                    Só vê o que criou / de que é responsável em:
+                    <div className="flex flex-wrap gap-3 mt-1">
+                      {[["crm", "CRM"], ["orcamentos", "Orçamentos"], ["encomendas", "Encomendas"]].map(([k, l]) => (
+                        <label key={k} className="inline-flex items-center gap-1 text-xs">
+                          <input type="checkbox" checked={(pForm.so_proprios || []).includes(k)}
+                            onChange={(e) => setPForm({ ...pForm, so_proprios: e.target.checked ? [...(pForm.so_proprios || []), k] : (pForm.so_proprios || []).filter((x) => x !== k) })} /> {l}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <label className="text-sm text-gray-800">
+                    Página inicial
+                    <select className="mt-1 w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white" value={pForm.pagina_inicial || ""} onChange={(e) => setPForm({ ...pForm, pagina_inicial: e.target.value })} data-testid="perfil-pagina-inicial">
+                      {[["", "Dashboard"], ["/tarefas", "Tarefas"], ["/crm", "CRM"], ["/orcamentos", "Orçamentos"], ["/encomendas", "Encomendas"], ["/ordens-fabrico", "Ordens de fabrico"], ["/calendario", "Calendário"], ["/pagamentos", "Pagamentos"], ["/ordens-compra", "Ordens de compra"], ["/relatorios", "Relatórios"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
               {!pForm.admin && (
                 <div className="border border-gray-200 rounded-sm overflow-x-auto max-h-[50vh]">
                   <table className="w-full text-sm min-w-[480px]">

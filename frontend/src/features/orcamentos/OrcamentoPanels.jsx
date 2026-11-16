@@ -224,11 +224,11 @@ export function OrcamentoTotais({
             )}
           </div>
         )}
-        <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3">
+        <div className="flex items-center justify-between text-sm border-t border-gray-200 pt-3 dado-custo">
           <span className="text-gray-400">Custo de produção</span>
           <span className="tabular-nums text-gray-400" data-testid="orc-subtotal">{eur(custoProducao)}</span>
         </div>
-        <div className={`rounded-sm border px-2.5 py-2 ${semaforo.bg}`} data-testid="orc-semaforo-margem">
+        <div className={`rounded-sm border px-2.5 py-2 dado-custo ${semaforo.bg}`} data-testid="orc-semaforo-margem">
           <div className="flex items-center justify-between text-sm">
             <span className={semaforo.className}>Lucro estimado</span>
             <span className={`tabular-nums font-semibold ${semaforo.className}`} data-testid="orc-lucro">{eur(lucro)}</span>

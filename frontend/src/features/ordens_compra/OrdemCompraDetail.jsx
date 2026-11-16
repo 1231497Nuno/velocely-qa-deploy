@@ -11,6 +11,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import AprovacaoBanner from "@/components/AprovacaoBanner";
+import { useListas, opcoesLista } from "@/lib/listas";
 import { toast } from "sonner";
 import { Trash2, Save, Pencil, X, Lock } from "lucide-react";
 import FornecedorSelect, { opcoesFornecedores } from "@/components/FornecedorSelect";
@@ -24,7 +25,6 @@ const TIPO_DESPESA_OPTS = [
 
 const TIPO_DESPESA_LABEL = Object.fromEntries(TIPO_DESPESA_OPTS.map((o) => [o.value, o.label]));
 const ESTADO_LABEL = { criada: "Criada", recebida: "Recebida", cancelada: "Cancelada" };
-const TIPO_COMPRA_OPTS = ["", "Consumiveis", "Produtos", "Outros", "Manutenção", "Portes"];
 
 const emptyLinha = () => ({
   id: crypto.randomUUID?.() || String(Date.now()),
@@ -66,6 +66,7 @@ function formFromOc(data) {
 }
 
 export default function OrdemCompraDetail() {
+  const listas = useListas();
   const { id } = useParams();
   const nav = useNavigate();
   const [tab, setTab] = useDetailTab(["oc", "ficheiros", "historico"], "oc");
@@ -291,7 +292,10 @@ export default function OrdemCompraDetail() {
     return ops;
   })();
   const opcoesTransportadora = (() => {
-    const ops = opcoesFornecedores(fornecedores).map((o) => ({ ...o, value: o.label }));
+    const ops = [
+      ...(listas.transportadoras || []).map((t) => ({ value: t, label: t, hint: "Lista" })),
+      ...opcoesFornecedores(fornecedores).map((o) => ({ ...o, value: o.label })).filter((o) => !(listas.transportadoras || []).includes(o.value)),
+    ];
     if (form.transportadora && !ops.some((o) => o.value === form.transportadora)) ops.unshift({ value: form.transportadora, label: form.transportadora });
     return ops;
   })();
@@ -372,7 +376,7 @@ export default function OrdemCompraDetail() {
           <Field label="Tipo compra (CRM)">
             {editing ? (
               <select className={inputCls} value={form.tipo_compra || ""} onChange={(e) => set("tipo_compra", e.target.value)}>
-                {TIPO_COMPRA_OPTS.map((t) => <option key={t || "vazio"} value={t}>{t || "—"}</option>)}
+                {opcoesLista(listas, "tipos_compra", form.tipo_compra).map((t) => <option key={t || "vazio"} value={t}>{t || "—"}</option>)}
               </select>
             ) : (
               <ViewValue>{form.tipo_compra}</ViewValue>

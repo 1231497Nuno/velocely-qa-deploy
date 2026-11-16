@@ -263,6 +263,10 @@ async def list_orcamentos(
     ts = text_search(["numero", "cliente", "numero_encomenda"], q)
     if ts:
         query.update(ts)
+    from app.core.security import filtro_proprios
+    fp = await filtro_proprios(_u, "orcamentos")
+    if fp:
+        query = {"$and": [query, fp]} if query else fp
     if page is None:
         orcs = await orcamentos_repo.find(query, sort=("created_at", -1), limit=5000)
         return [compute_orcamento_totais(o) for o in orcs]
@@ -277,6 +281,8 @@ async def get_orcamento(oid: str, _u: dict = Depends(require_perm("orcamentos", 
     o = await orcamentos_repo.get(oid)
     if not o:
         raise HTTPException(404, "Orçamento não encontrado")
+    from app.core.security import assert_proprio
+    await assert_proprio(_u, "orcamentos", o)
     tot = compute_orcamento_totais(o)
     tot["expirado"] = orc_expirado(o)
     return tot
@@ -401,6 +407,8 @@ async def create_orcamento(data: OrcamentoInput, user: dict = Depends(require_pe
     doc["materiais"] = fill_materiais(doc.get("materiais", []))
     doc["linhas"] = await fill_linha_custos(doc.get("linhas", []), doc.get("materiais", []))
     doc["updated_at"] = now_iso()
+    doc["created_by"] = user.get("id")
+    doc["created_by_nome"] = user.get("name") or user.get("nome") or ""
     await orcamentos_repo.insert(doc)
     doc.pop("_id", None)
     await audit.registar("orcamento", o.id, "criado", user, "Orçamento rascunho criado", "")
@@ -708,8 +716,9 @@ async def converter_orcamento(oid: str, user: dict = Depends(require_perm("orcam
     )
     enc.numero = await next_sequence("ENC")
     enc.orcamento_id = orc["id"]
+    enc_owner = orc.get("created_by") or user.get("id")
     enc.orcamento_numero = orc.get("numero")
-    await encomendas_repo.insert(enc.model_dump())
+    await encomendas_repo.insert({**enc.model_dump(), "created_by": enc_owner})
     await orcamentos_repo.update(oid, {"encomenda_id": enc.id, "encomenda_numero": enc.numero})
     await audit.registar("orcamento", oid, "convertido", user,
                          f"Orçamento {orc.get('numero')} convertido → Encomenda {enc.numero}", orc.get("numero"))

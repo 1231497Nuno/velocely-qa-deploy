@@ -86,10 +86,17 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
 
 
+MODULOS_SO_PROPRIOS = ("crm", "orcamentos", "encomendas")
+
+
 class PerfilInput(BaseModel):
     nome: str
     admin: bool = False
     permissoes: dict = Field(default_factory=lambda: perms_all(False))
+    # Restrições (Definições → Utilizadores → Perfis), como no Sage X3:
+    ver_custos: bool = True              # custos, margens e lucros (fichas e relatórios)
+    so_proprios: List[str] = Field(default_factory=list)  # módulos onde só vê o que criou / é responsável
+    pagina_inicial: str = ""             # ex.: /ordens-fabrico para a produção
 
 
 # ----------------------- Domain models -----------------------
