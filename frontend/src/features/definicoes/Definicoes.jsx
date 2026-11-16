@@ -6,6 +6,7 @@ import CamposTab from "./CamposTab";
 import IntegracoesTab from "./IntegracoesTab";
 import WorkflowTab from "./WorkflowTab";
 import ListasTab from "./ListasTab";
+import SimulacaoCard from "./SimulacaoCard";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import { toast } from "sonner";
@@ -721,7 +722,7 @@ export default function Definicoes() {
       {tab === "campos" && <CamposTab />}
       {tab === "modulos" && <ModulosTab />}
       {tab === "referencias" && <ReferenciasTab />}
-      {tab === "dados" && <DadosTab />}
+      {tab === "dados" && <><SimulacaoCard /><DadosTab /></>}
       {tab === "modelos" && <ModelosTab />}
       {tab === "emails" && <EmailsTab />}
       {tab === "listas" && <ListasTab />}

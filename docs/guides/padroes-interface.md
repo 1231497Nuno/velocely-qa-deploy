@@ -226,3 +226,10 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Envio automático: diário/semanal/mensal, hora (Lisboa), PDF ou Excel, vários emails. O servidor verifica a cada 5 min
   (`ciclo()` arrancado no startup; `DESATIVAR_AGENDADOR=1` desliga) e reclama cada envio com `proximo_envio` para não
   duplicar. Precisa do SMTP configurado; o resultado fica em `ultimo_envio` (visível no relatório). «Enviar agora» testa.
+
+## Dados de simulação (Definições → Dados, só administradores)
+
+- `POST /simulacao` cria um conjunto completo marcado `simulacao: true` e «[SIM]» no nome (catálogo com/sem stock,
+  máquinas, clientes, leads, orçamentos, encomendas com pagamentos ao longo de 6 meses, OF fechadas/em curso, compras com
+  receções e fatura, NC, relatório guardado) usando os serviços reais (custos, fecho da OF, stock). `DELETE /simulacao`
+  apaga tudo isso, os movimentos de stock desses artigos e o histórico. Não emite documentos fiscais nem envia emails.

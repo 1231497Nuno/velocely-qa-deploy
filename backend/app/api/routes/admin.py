@@ -370,3 +370,22 @@ async def seed(_admin: dict = Depends(require_admin)):
         "catalogo": cat,
         "negocio": demo,
     }
+
+
+# ----------------------- Dados de simulação (testes) -----------------------
+@router.get("/simulacao")
+async def simulacao_estado(_admin: dict = Depends(require_admin)):
+    from app.services import simulacao
+    return await simulacao.estado()
+
+
+@router.post("/simulacao")
+async def simulacao_criar(admin: dict = Depends(require_admin)):
+    from app.services import simulacao
+    return await simulacao.criar(admin)
+
+
+@router.delete("/simulacao")
+async def simulacao_apagar(admin: dict = Depends(require_admin)):
+    from app.services import simulacao
+    return await simulacao.apagar(admin)
