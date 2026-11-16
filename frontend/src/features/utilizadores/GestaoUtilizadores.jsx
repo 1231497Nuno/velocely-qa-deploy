@@ -1,3 +1,7 @@
+import { MOVEL_OPS } from "@/lib/movelOps";
+import MenuEditor from "@/components/MenuEditor";
+import { NAV_GROUPS } from "@/components/Layout";
+import { BLOCOS } from "@/features/dashboard/Dashboard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
@@ -126,7 +130,8 @@ export default function GestaoUtilizadores() {
     meta.modulos.forEach((m) => { p[m.key] = {}; meta.acoes.forEach((a) => { p[m.key][a] = false; }); });
     return p;
   };
-  const openNewPerfil = () => { setPForm({ nome: "", admin: false, permissoes: blankPerms(), ver_custos: true, so_proprios: [], pagina_inicial: "" }); setPEditId(null); setPOpen(true); };
+  const [menuPerfilOpen, setMenuPerfilOpen] = useState(false);
+  const openNewPerfil = () => { setPForm({ nome: "", admin: false, permissoes: blankPerms(), ver_custos: true, so_proprios: [], pagina_inicial: "", app_movel: null, menu: null, painel_ocultos: null, painel_ordem: null }); setPEditId(null); setPOpen(true); };
   const [modelos, setModelos] = useState([]);
   useEffect(() => { api.get("/perfis/modelos").then(setModelos).catch(() => {}); }, []);
   const criarDeModelo = async (m) => {
@@ -143,7 +148,7 @@ export default function GestaoUtilizadores() {
   const openEditPerfil = (p) => {
     const perms = blankPerms();
     meta.modulos.forEach((m) => meta.acoes.forEach((a) => { perms[m.key][a] = !!(p.permissoes?.[m.key]?.[a]); }));
-    setPForm({ nome: p.nome, admin: !!p.admin, permissoes: perms, ver_custos: p.ver_custos !== false, so_proprios: p.so_proprios || [], pagina_inicial: p.pagina_inicial || "" });
+    setPForm({ nome: p.nome, admin: !!p.admin, permissoes: perms, ver_custos: p.ver_custos !== false, so_proprios: p.so_proprios || [], pagina_inicial: p.pagina_inicial || "", app_movel: Array.isArray(p.app_movel) ? p.app_movel : null, menu: p.menu || null, painel_ocultos: p.painel_ocultos ?? null, painel_ordem: p.painel_ordem ?? null });
     setPEditId(p.id);
     setPOpen(true);
   };
@@ -155,7 +160,7 @@ export default function GestaoUtilizadores() {
       return false;
     }
     try {
-      const body = { nome: pForm.nome, admin: pForm.admin, permissoes: pForm.permissoes, ver_custos: pForm.ver_custos !== false, so_proprios: pForm.so_proprios || [], pagina_inicial: pForm.pagina_inicial || "" };
+      const body = { nome: pForm.nome, admin: pForm.admin, permissoes: pForm.permissoes, ver_custos: pForm.ver_custos !== false, so_proprios: pForm.so_proprios || [], pagina_inicial: pForm.pagina_inicial || "", app_movel: Array.isArray(pForm.app_movel) ? pForm.app_movel : null, menu: pForm.menu || null, painel_ocultos: pForm.painel_ocultos ?? null, painel_ordem: pForm.painel_ordem ?? null };
       if (pEditId) await api.put(`/perfis/${pEditId}`, body);
       else await api.post("/perfis", body);
       toast.success("Perfil guardado");
@@ -425,9 +430,46 @@ export default function GestaoUtilizadores() {
                   <label className="text-sm text-gray-800">
                     Página inicial
                     <select className="mt-1 w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white" value={pForm.pagina_inicial || ""} onChange={(e) => setPForm({ ...pForm, pagina_inicial: e.target.value })} data-testid="perfil-pagina-inicial">
-                      {[["", "Dashboard"], ["/tarefas", "Tarefas"], ["/crm", "CRM"], ["/orcamentos", "Orçamentos"], ["/encomendas", "Encomendas"], ["/ordens-fabrico", "Ordens de fabrico"], ["/calendario", "Calendário"], ["/pagamentos", "Pagamentos"], ["/ordens-compra", "Ordens de compra"], ["/relatorios", "Relatórios"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      {[["", "Dashboard"], ["/m", "App móvel (armazém)"], ["/oficina", "Oficina (tablet)"], ["/tarefas", "Tarefas"], ["/crm", "CRM"], ["/orcamentos", "Orçamentos"], ["/encomendas", "Encomendas"], ["/ordens-fabrico", "Ordens de fabrico"], ["/calendario", "Calendário"], ["/pagamentos", "Pagamentos"], ["/ordens-compra", "Ordens de compra"], ["/relatorios", "Relatórios"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
                   </label>
+                </div>
+              )}
+              {!pForm.admin && (
+                <div className="rounded-sm border border-gray-200 p-3 space-y-2" data-testid="perfil-app-movel">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <span className="font-medium text-gray-800">App móvel</span>
+                    <label className="inline-flex items-center gap-1.5"><input type="radio" checked={!Array.isArray(pForm.app_movel)} onChange={() => setPForm({ ...pForm, app_movel: null })} /> Segue as permissões dos módulos</label>
+                    <label className="inline-flex items-center gap-1.5"><input type="radio" checked={Array.isArray(pForm.app_movel)} onChange={() => setPForm({ ...pForm, app_movel: MOVEL_OPS.map((o) => o.op) })} data-testid="perfil-app-movel-escolher" /> Escolher as operações</label>
+                  </div>
+                  {Array.isArray(pForm.app_movel) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {MOVEL_OPS.map((o) => (
+                        <label key={o.op} className="inline-flex items-center gap-1.5 text-sm" title={`Precisa também de ${o.acao === "edit" ? "editar" : "ver"} em «${o.modulo}»`}>
+                          <input type="checkbox" checked={pForm.app_movel.includes(o.op)} data-testid={`perfil-movel-${o.op}`}
+                            onChange={(e) => setPForm({ ...pForm, app_movel: e.target.checked ? [...pForm.app_movel, o.op] : pForm.app_movel.filter((x) => x !== o.op) })} /> {o.label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <div className="border-t border-gray-100 pt-2 mt-1 flex flex-wrap items-center gap-3 text-sm">
+                    <span className="font-medium text-gray-800">Menu e painel predefinidos</span>
+                    <button type="button" className="btn btn-secundario btn-sm" onClick={() => setMenuPerfilOpen(true)} data-testid="perfil-menu-btn">{pForm.menu ? "Editar menu do perfil" : "Definir menu do perfil"}</button>
+                    {pForm.menu && <button type="button" className="text-xs underline text-gray-600" onClick={() => setPForm({ ...pForm, menu: null })}>Menu normal</button>}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                    <span className="text-gray-600">Blocos do painel:</span>
+                    {BLOCOS.map(([k, l]) => (
+                      <label key={k} className="inline-flex items-center gap-1.5">
+                        <input type="checkbox" checked={!(pForm.painel_ocultos || []).includes(k)}
+                          onChange={(e) => { const oc = pForm.painel_ocultos || []; setPForm({ ...pForm, painel_ocultos: e.target.checked ? oc.filter((x) => x !== k) : [...oc, k] }); }} /> {l}
+                      </label>
+                    ))}
+                  </div>
+                  <MenuEditor open={menuPerfilOpen} onOpenChange={setMenuPerfilOpen} titulo={`Menu predefinido — ${pForm.nome || "perfil"}`}
+                    base={NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.adminOnly) }))} menu={pForm.menu}
+                    guardarEm={async (v) => v} onGuardado={(v) => setPForm((f) => ({ ...f, menu: v }))} />
+                  <p className="text-xs text-gray-500">Cada operação precisa também da permissão do módulo (ex.: Receções → editar Ordens de compra). Para operadores que só usam o telemóvel, escolha a página inicial «App móvel».</p>
                 </div>
               )}
               {!pForm.admin && (

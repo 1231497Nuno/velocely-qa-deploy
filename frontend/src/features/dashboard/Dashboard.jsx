@@ -12,7 +12,7 @@ import {
   FluxoMensalChart,
 } from "@/features/dashboard/widgets";
 
-const BLOCOS = [
+export const BLOCOS = [
   ["acoes", "Ações rápidas"], ["atencao", "Precisa de atenção"], ["prazos", "Prazos"], ["por_produzir", "Por produzir"],
   ["objetivo", "Objetivo do mês"], ["kpis", "Indicadores do ano"], ["contadores", "Contadores"], ["atividade", "Atividade recente"],
   ["analise", "Análise do ano"],
@@ -56,7 +56,14 @@ export default function Dashboard() {
   const [alertas, setAlertas] = useState({});
   const [ocultos, setOcultos] = useState([]);
   const [ordemPref, setOrdemPref] = useState([]);
-  useEffect(() => { api.get("/me/preferencias").then((p) => { setOcultos(p.painel_ocultos || []); setOrdemPref(p.painel_ordem || []); }).catch(() => {}); }, []);
+  useEffect(() => {
+    // Preferências do utilizador; sem elas, as predefinidas do perfil
+    api.get("/me/preferencias").then((p) => {
+      const temProprias = (p.painel_ocultos || []).length || (p.painel_ordem || []).length;
+      setOcultos(temProprias ? p.painel_ocultos || [] : user?.perfil?.painel_ocultos || []);
+      setOrdemPref(temProprias ? p.painel_ordem || [] : user?.perfil?.painel_ordem || []);
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Ordem dos blocos: a do utilizador + blocos novos no fim
   const ordem = useMemo(() => {
     const todos = BLOCOS.map(([k]) => k);

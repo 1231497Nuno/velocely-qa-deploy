@@ -460,3 +460,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - `GET /encomendas/{id}/custo-real` (`services/custo_real.py`, perfis com `ver_custos`): por linha, custo previsto
   (orçamento) vs real = operações (tempos reais × custos) + materiais (fecho da OF, senão previsto) + compra; mais NC.
   Receita sem IVA, margem real e prevista, desvio, tempos reais vs previstos. Separador «Custo real» na encomenda.
+
+## Perfis: app móvel, menu e painel predefinidos
+
+- Perfil (`PerfilInput`): `app_movel` — `null` segue as permissões dos módulos; lista = só essas operações
+  (`APP_MOVEL_OPS`: rececoes, inventario, localizacoes, transferir, movimento, acertar, stock_baixo, movimentos,
+  consultar, oficina). Cada operação precisa também da permissão do módulo (`lib/movelOps.js` → `podeMovel`).
+  Backend: `security.exigir_movel` nos endpoints só da app (`/movel/movimento`, `/movel/inventario/{id}/contar`).
+  Modelos de perfil novos: «Armazém» (página inicial `/m`) e «Oficina» (`/oficina`).
+- `menu`, `painel_ocultos`, `painel_ordem` do perfil: predefinidos para quem não personalizou (o do utilizador ganha).
+  Editados no perfil com o mesmo `MenuEditor` (`guardarEm`).

@@ -17,6 +17,7 @@ import { MovelLocalizacoes, MovelLocalizacao, MovelMovimento, MovelStockBaixo, M
 import ErrorBoundary from "@/components/ErrorBoundary";
 import VisualizadorFicheiro from "@/components/VisualizadorFicheiro";
 import { BloquearLargarFora } from "@/components/ZonaArrastar";
+import { podeMovel } from "@/lib/movelOps";
 import Login from "@/features/auth/Login";
 import DefinirPassword from "@/features/auth/DefinirPassword";
 import Dashboard from "@/features/dashboard/Dashboard";
@@ -82,12 +83,13 @@ function Protected({ children, adminOnly, modulo }) {
 }
 
 /** App móvel (/m): sem o menu lateral; sem sessão vai ao login e volta. */
-function MovelProtected({ children, modulo }) {
+function MovelProtected({ children, modulo, op }) {
   const { user, ready, can } = useAuth();
   const location = useLocation();
   if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">A carregar...</div>;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
   if (modulo && !can(modulo, "view")) return <Navigate to="/m" replace />;
+  if (op && !podeMovel(user, can, op)) return <Navigate to="/m" replace />;
   return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
 }
 
@@ -110,18 +112,18 @@ const router = createBrowserRouter([
       { path: "/definir-password", element: <DefinirPassword /> },
       { path: "/p/:token", element: <PortalCliente /> },
       { path: "/m", element: <MovelProtected><MovelHome /></MovelProtected> },
-      { path: "/m/inventario", element: <MovelProtected modulo="artigos"><MovelInventario /></MovelProtected> },
-      { path: "/m/rececoes", element: <MovelProtected modulo="ordens_compra"><MovelRececoes /></MovelProtected> },
-      { path: "/m/rececoes/f/:fid", element: <MovelProtected modulo="ordens_compra"><MovelRececao /></MovelProtected> },
-      { path: "/m/rececoes/:id", element: <MovelProtected modulo="ordens_compra"><MovelRececao /></MovelProtected> },
-      { path: "/m/localizacoes", element: <MovelProtected modulo="artigos"><MovelLocalizacoes /></MovelProtected> },
-      { path: "/m/localizacoes/:id", element: <MovelProtected modulo="artigos"><MovelLocalizacao /></MovelProtected> },
-      { path: "/m/movimento", element: <MovelProtected modulo="artigos"><MovelMovimento /></MovelProtected> },
-      { path: "/m/stock-baixo", element: <MovelProtected modulo="artigos"><MovelStockBaixo /></MovelProtected> },
-      { path: "/m/movimentos", element: <MovelProtected modulo="artigos"><MovelMovimentos /></MovelProtected> },
-      { path: "/m/transferir", element: <MovelProtected modulo="artigos"><MovelTransferir /></MovelProtected> },
-      { path: "/m/consultar", element: <MovelProtected modulo="artigos"><MovelConsultar /></MovelProtected> },
-      { path: "/m/acertar", element: <MovelProtected modulo="artigos"><MovelAcertar /></MovelProtected> },
+      { path: "/m/inventario", element: <MovelProtected modulo="artigos" op="inventario"><MovelInventario /></MovelProtected> },
+      { path: "/m/rececoes", element: <MovelProtected modulo="ordens_compra" op="rececoes"><MovelRececoes /></MovelProtected> },
+      { path: "/m/rececoes/f/:fid", element: <MovelProtected modulo="ordens_compra" op="rececoes"><MovelRececao /></MovelProtected> },
+      { path: "/m/rececoes/:id", element: <MovelProtected modulo="ordens_compra" op="rececoes"><MovelRececao /></MovelProtected> },
+      { path: "/m/localizacoes", element: <MovelProtected modulo="artigos" op="localizacoes"><MovelLocalizacoes /></MovelProtected> },
+      { path: "/m/localizacoes/:id", element: <MovelProtected modulo="artigos" op="localizacoes"><MovelLocalizacao /></MovelProtected> },
+      { path: "/m/movimento", element: <MovelProtected modulo="artigos" op="movimento"><MovelMovimento /></MovelProtected> },
+      { path: "/m/stock-baixo", element: <MovelProtected modulo="artigos" op="stock_baixo"><MovelStockBaixo /></MovelProtected> },
+      { path: "/m/movimentos", element: <MovelProtected modulo="artigos" op="movimentos"><MovelMovimentos /></MovelProtected> },
+      { path: "/m/transferir", element: <MovelProtected modulo="artigos" op="transferir"><MovelTransferir /></MovelProtected> },
+      { path: "/m/consultar", element: <MovelProtected modulo="artigos" op="consultar"><MovelConsultar /></MovelProtected> },
+      { path: "/m/acertar", element: <MovelProtected modulo="artigos" op="acertar"><MovelAcertar /></MovelProtected> },
       { path: "/m/*", element: <Navigate to="/m" replace /> },
       { path: "/", element: <Protected><Dashboard /></Protected> },
       { path: "/calendario", element: <Protected modulo="calendario"><Calendario /></Protected> },
