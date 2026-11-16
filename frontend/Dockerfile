@@ -13,6 +13,9 @@ COPY . .
 ARG REACT_APP_BACKEND_URL=
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 
+# Sem source maps: o build gasta muito menos memória (no Docker Desktop o build chegava a cair por falta de RAM)
+ENV GENERATE_SOURCEMAP=false
+ENV NODE_OPTIONS=--max-old-space-size=3072
 RUN npm run build
 
 # Servir com nginx + proxy /api → backend
