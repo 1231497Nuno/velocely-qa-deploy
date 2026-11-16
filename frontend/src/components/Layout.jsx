@@ -47,6 +47,9 @@ import {
   Gauge,
   Calculator,
   RefreshCcw,
+  QrCode,
+  CalendarRange,
+  Wrench,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -62,7 +65,10 @@ const NAV_GROUPS = [
       { to: "/stock", label: "Stock e inventário", icon: Warehouse, tid: "nav-stock", modulo: "artigos" },
       { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
       { to: "/ordens-fabrico/acerto-tempos", label: "Acerto de tempos", icon: Timer, tid: "nav-acerto-tempos", modulo: "ordens_fabrico" },
+      { to: "/oficina", label: "Oficina (tablet)", icon: QrCode, tid: "nav-oficina", modulo: "ordens_fabrico" },
+      { to: "/planeamento", label: "Planeamento", icon: CalendarRange, tid: "nav-planeamento", modulo: "ordens_fabrico" },
       { to: "/carga-maquinas", label: "Carga das máquinas", icon: Gauge, tid: "nav-carga-maquinas", modulo: "ordens_fabrico" },
+      { to: "/manutencao", label: "Manutenção", icon: Wrench, tid: "nav-manutencao", modulo: "maquinas" },
       { to: "/nao-conformidades", label: "Não conformidades", icon: AlertTriangle, tid: "nav-nc", modulo: "nao_conformidades" },
       { to: "/calendario", label: "Calendário", icon: CalendarClock, tid: "nav-calendario", modulo: "calendario" },
       { to: "/analise-producao", label: "Análise da Produção", icon: LineChart, tid: "nav-analise-producao", modulo: "analise_producao" },

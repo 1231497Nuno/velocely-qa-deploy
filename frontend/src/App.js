@@ -48,6 +48,9 @@ import Tarefas from "@/features/tarefas/Tarefas";
 import TabelasPrecos from "@/features/precos/TabelasPrecos";
 import Stock from "@/features/stock/Stock";
 import CargaMaquinas from "@/features/producao/CargaMaquinas";
+import Oficina from "@/features/producao/Oficina";
+import Planeamento from "@/features/producao/Planeamento";
+import Manutencao from "@/features/producao/Manutencao";
 import PortalCliente from "@/features/portal/PortalCliente";
 import CalculadoraPreco from "@/features/calculadora/CalculadoraPreco";
 import PrecosFornecedor from "@/features/precos/PrecosFornecedor";
@@ -125,6 +128,9 @@ const router = createBrowserRouter([
       { path: "/stock", element: <Protected modulo="artigos"><Stock /></Protected> },
       { path: "/precos-fornecedor", element: <Protected modulo="artigos"><PrecosFornecedor /></Protected> },
       { path: "/calculadora", element: <Protected modulo="orcamentos"><CalculadoraPreco /></Protected> },
+      { path: "/oficina", element: <Protected modulo="ordens_fabrico"><Oficina /></Protected> },
+      { path: "/planeamento", element: <Protected modulo="ordens_fabrico"><Planeamento /></Protected> },
+      { path: "/manutencao", element: <Protected modulo="maquinas"><Manutencao /></Protected> },
       { path: "/carga-maquinas", element: <Protected modulo="ordens_fabrico"><CargaMaquinas /></Protected> },
       { path: "/tarefas", element: <Protected><Tarefas /></Protected> },
       { path: "/relatorios", element: <Protected modulo="relatorios"><Relatorios /></Protected> },

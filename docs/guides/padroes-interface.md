@@ -256,3 +256,13 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - WooCommerce do ERP para a loja: `enviar_stock`, `enviar_preco` (produto pelo SKU = código do artigo; guarda
   `woo_id`), `concluir_no_site` (encomenda entregue → pedido «completed»). Artigos alterados ficam `woo_pendente` e são
   enviados no ciclo de 5 minutos; «Enviar tudo agora» em Integrações. Chaves com permissão de escrita.
+
+## Oficina, planeamento e manutenção
+
+- Oficina (`/oficina`, tablet): ler o QR da OF (câmara, `BarcodeDetector`) ou escrever o número → botões grandes Iniciar /
+  Parar / Concluir (mesmos endpoints da OF). O PDF da OF traz o QR (`pdf.texto_qr_of`: `FRONTEND_URL/oficina?of=id` ou
+  `VELOCELY-OF:id`); `GET /oficina/of/{ref}` aceita id, número ou o código.
+- Planeamento (`/planeamento`): grelha máquina × dia com as operações por fazer das OF abertas; arrastar grava
+  `op.planeado_data` (`POST /ordens-fabrico/{id}/operacao/planear`). Barra de ocupação = horas ÷ (horas_semana / 5).
+- Manutenção (`/manutencao`, `services/manutencao.py`): planos por horas de trabalho (tempo de máquina das OF) ou por dias;
+  «Feita» regista data/custo/notas e reinicia a contagem; alerta «manutencao» no ciclo de 5 minutos.
