@@ -418,3 +418,11 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   editável) com `cod_fornecedor` = ref. do PDF, fornecedor e custo = preço líquido do PDF, e associa-os às linhas.
 - Pesquisa de artigos (`ArtigoCombobox`, `LinhaArtigoFields`, revisão do PDF) encontra também pela referência do
   fornecedor (`cod_fornecedor`) e pelo código de barras (`codigo_produto`, incluído em `artigo_lite`).
+
+## Receção de várias OC (mesmo fornecedor)
+
+- `POST /ordens-compra/rececoes-lote` (`stock.receber_lote`): `{ocs:[{oc_id, linhas:[{linha_id, quantidade}]}], data,
+  guia_fornecedor, notas, localizacao_id, aceitar_excesso}`. Recusa OC de fornecedores diferentes, valida todas as
+  quantidades antes de mexer no stock e regista uma receção por OC com a mesma guia.
+- Computador: Ordens de Compra → «Receção» (escolher fornecedor, marcar as OC, quantidades) e, na OC, «Com outras do
+  fornecedor» (`RececaoVariasOC.jsx`). A app móvel usa o mesmo endpoint.

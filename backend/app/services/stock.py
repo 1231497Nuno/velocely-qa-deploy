@@ -246,6 +246,42 @@ async def receber(oid: str, dados: dict, user: dict) -> dict:
     return {**oc2, **patch, "resumo": resumo_oc({**oc2, **patch})}
 
 
+async def receber_lote(dados: dict, user: dict) -> dict:
+    """Várias receções de uma vez (mesma guia/entrega), só de OC do mesmo fornecedor.
+    Valida tudo antes de mexer no stock; depois regista uma receção por OC."""
+    pedidos = [p for p in dados.get("ocs") or [] if any(float(l.get("quantidade") or 0) > 0 for l in p.get("linhas") or [])]
+    if not pedidos:
+        raise HTTPException(400, "Indique as quantidades recebidas")
+    ocs = []
+    for p in pedidos:
+        oc = await ordens_compra_repo.get(p.get("oc_id") or "")
+        if not oc:
+            raise HTTPException(404, "Ordem de compra não encontrada")
+        if oc.get("estado") == "cancelada":
+            raise HTTPException(400, f"A OC {oc.get('codigo')} está cancelada")
+        ocs.append((oc, p))
+    fornecedores = {o.get("fornecedor_id") or f"nome:{o.get('fornecedor_nome') or ''}" for o, _p in ocs}
+    if len(fornecedores) > 1:
+        raise HTTPException(400, "Só pode receber em conjunto ordens de compra do mesmo fornecedor")
+    if not dados.get("aceitar_excesso"):
+        for oc, p in ocs:
+            por_id = {l.get("id"): l for l in oc.get("linhas") or []}
+            for r in p.get("linhas") or []:
+                l = por_id.get(r.get("linha_id"))
+                if not l:
+                    raise HTTPException(400, f"Linha inválida na OC {oc.get('codigo')}")
+                falta = float(l.get("quantidade") or 0) - float(l.get("qtd_recebida") or 0)
+                if float(r.get("quantidade") or 0) > falta + 1e-9:
+                    raise HTTPException(400, f"{oc.get('codigo')} · «{l.get('artigo_nome') or l.get('nome')}»: faltam receber {max(falta, 0):g}. "
+                                             "Marque «aceitar a mais» se o fornecedor mandou mais.")
+    comum = {k: dados.get(k) for k in ("data", "guia_fornecedor", "notas", "localizacao_id", "aceitar_excesso")}
+    feitas = []
+    for oc, p in ocs:
+        r = await receber(oc["id"], {**comum, "linhas": p.get("linhas") or []}, user)
+        feitas.append({"id": oc["id"], "codigo": oc.get("codigo"), "estado": r.get("estado"), "completa": (r.get("resumo") or {}).get("completa")})
+    return {"rececoes": feitas}
+
+
 async def fatura_fornecedor(oid: str, dados: dict, user: dict) -> dict:
     """Conferência da fatura do fornecedor com o que foi recebido; portes repartidos pelo custo dos artigos."""
     oc = await ordens_compra_repo.get(oid)

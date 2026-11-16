@@ -17,7 +17,8 @@ import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import EntitySelect from "@/components/EntitySelect";
 import ImportarPdfOC from "./ImportarPdfOC";
-import { FileUp } from "lucide-react";
+import RececaoVariasOC from "./RececaoVariasOC";
+import { FileUp, PackageCheck } from "lucide-react";
 
 const TIPO_DESPESA_LABEL = {
   compra: "Compra",
@@ -31,6 +32,7 @@ export default function OrdensCompra() {
   const nav = useNavigate();
   const [tipoFilter, setTipoFilter] = useState("");
   const [importarPdf, setImportarPdf] = useState(false);
+  const [receberVarias, setReceberVarias] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState("");
   const [fornecedorFilter, setFornecedorFilter] = useState("");
   const [fornecedores, setFornecedores] = useState([]);
@@ -78,6 +80,7 @@ export default function OrdensCompra() {
   return (
     <>
     <ImportarPdfOC open={importarPdf} onOpenChange={setImportarPdf} />
+    <RececaoVariasOC open={receberVarias} onOpenChange={setReceberVarias} onFeito={reload} />
     <ListPage
       header={
         <PageHeader
@@ -86,6 +89,11 @@ export default function OrdensCompra() {
           actions={
             <>
               <ExportExcelButton entity="ordens_compra" ids={items.map((x) => x.id)} />
+              {can("ordens_compra", "edit") && (
+                <button type="button" data-testid="oc-receber-varias-btn" onClick={() => setReceberVarias(true)} className="btn btn-secundario">
+                  <PackageCheck size={16} /> Receção
+                </button>
+              )}
               {can("ordens_compra", "create") && (
                 <button type="button" data-testid="oc-importar-pdf-btn" onClick={() => setImportarPdf(true)} className="btn btn-secundario">
                   <FileUp size={16} /> Criar a partir de PDF
