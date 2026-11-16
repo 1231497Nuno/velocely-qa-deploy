@@ -540,3 +540,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Na ficha do cliente, Contactos (empresas), Encomendas, Orçamentos, Ordens de fabrico e Histórico de preços são
   separadores próprios (como Conta corrente e Histórico); o separador «Cliente» fica com os dados (blocos
   `cliente-detail-blocos-v2`).
+
+## OF: artigos a produzir e artigos a preparar
+
+- Cada item da OF tem `tipo_item` (`costing.tipo_item_of`): «produzir» se tem operações, materiais ou personalização (ou
+  o artigo é produzido / tem roteiro ou receita); senão «preparar» — artigo comprado ou de stock que só se vai buscar e
+  junta à encomenda. Itens antigos sem `tipo_item`: sem operações nem materiais contam como a preparar (`lib/ofItens.js`).
+- `POST /ordens-fabrico/{id}/itens/{item}/preparado` (`producao.marcar_preparado`): marca/desmarca (`preparado`,
+  `preparado_por`, `preparado_at`). Botão «Marcar preparado» na OF e «Preparado» na Oficina; no PDF da OF aparece
+  «A preparar — ir buscar». O picking da app móvel também lista estes artigos (linha `__artigo__`) e ao separar tudo
+  fica preparado. O fecho da OF marca-os como preparados.
+- `recompute_of_status`: cada artigo a preparar conta como uma tarefa no progresso; a OF só fica concluída com as
+  operações feitas e os artigos preparados (`n_preparar`, `n_preparados`).

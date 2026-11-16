@@ -81,7 +81,9 @@ export default function OfResumoDialog({ open, onOpenChange, previsao, criando, 
                       <Origem valor={it.origem_operacoes} orcamento={previsao?.orcamento_numero} />
                     </div>
                     {(it.operacoes || []).length === 0 ? (
-                      <p className="text-sm text-gray-400">Sem operações.</p>
+                      it.tipo_item === "preparar"
+                        ? <p className="text-sm text-amber-800 bg-amber-50 rounded-sm px-2 py-1">Não se produz: fica na OF para <b>preparar</b> — ir buscar e juntar à encomenda.</p>
+                        : <p className="text-sm text-gray-400">Sem operações.</p>
                     ) : (
                       <table className="w-full text-sm">
                         <tbody>

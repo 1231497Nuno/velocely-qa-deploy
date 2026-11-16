@@ -81,7 +81,7 @@ export default function MovelPicking() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-semibold">{l.nome}</div>
-                  <div className="text-xs text-gray-500">{l.codigo} · para {l.para}</div>
+                  <div className="text-xs text-gray-500">{l.codigo} · {l.preparar ? "artigo da encomenda (não se produz)" : `para ${l.para}`}</div>
                 </div>
                 {lidos[k] && <Check className="w-6 h-6 text-emerald-600 shrink-0" />}
               </div>

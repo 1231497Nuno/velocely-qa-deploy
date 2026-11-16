@@ -982,6 +982,12 @@ class OFItem(BaseModel):
     arte_path: str = ""
     arte_nome: str = ""
     arte_content_type: str = ""
+    # produzir = tem operações/materiais; preparar = artigo comprado/de stock que só se vai buscar e junta à encomenda
+    tipo_item: str = ""
+    preparado: bool = False
+    preparado_por: str = ""
+    preparado_at: Optional[str] = None
+    qtd_separada: float = 0.0
 
 
 class OrdemFabricoInput(BaseModel):

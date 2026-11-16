@@ -9,6 +9,7 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useConfirm } from "@/hooks/useConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
+import { aPreparar } from "@/lib/ofItens";
 import PdfExportButton from "@/components/PdfExportButton";
 import { OFRoteiroPanel } from "@/features/ordens_fabrico/OFRoteiroPanel";
 import { OFItemOperacoes } from "@/features/ordens_fabrico/OFItemOperacoes";
@@ -21,7 +22,7 @@ import ImagemUpload from "@/components/ImagemUpload";
 import { fileApiUrl } from "@/lib/authFileUrl";
 import { openAuthenticated } from "@/lib/openAuthenticated";
 import FicheirosTab from "@/components/FicheirosTab";
-import { ArrowLeft, Trash2, Timer, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Trash2, Timer, Clock, Cog, FileText, Flag, Star, User, ChevronDown, Paperclip, ClipboardCheck, PackageCheck, Package } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import Combobox from "@/components/Combobox";
@@ -196,6 +197,13 @@ export default function OrdemFabricoDetail() {
     }
   };
   saveForLeaveRef.current = save;
+
+  const marcarPreparado = async (it, preparado) => {
+    try {
+      setOf(await api.post(`/ordens-fabrico/${id}/itens/${it.id}/preparado`, { preparado }));
+      toast.success(preparado ? `${it.artigo_nome}: preparado` : `${it.artigo_nome}: por preparar`);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Não foi possível marcar"); }
+  };
 
   const toggleOp = async (itemId, opId, concluida) => {
     if (finalizada && !concluida && !await confirmAction({
@@ -486,6 +494,11 @@ export default function OrdemFabricoDetail() {
                             {nOps > 0 && (
                               <span className="tabular-nums shrink-0 text-gray-400">{nDone}/{nOps} ops</span>
                             )}
+                            {nOps === 0 && aPreparar(it) && (
+                              <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-px font-medium ${it.preparado ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`} data-testid={`of-item-preparar-${i}`}>
+                                <Package size={11} /> {it.preparado ? "Preparado" : "A preparar · ir buscar"}
+                              </span>
+                            )}
                             {it.arte_path && (
                               <span
                                 role="link"
@@ -522,6 +535,13 @@ export default function OrdemFabricoDetail() {
                         </div>
                         <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${aberto ? "rotate-180" : ""}`} />
                       </button>
+                      {!edicao && it.id && nOps === 0 && aPreparar(it) && (
+                        <button type="button" onClick={() => marcarPreparado(it, !it.preparado)} data-testid={`of-item-preparado-btn-${i}`}
+                          title={it.preparado ? "Voltar a «por preparar»" : "Já fui buscar e está junto à encomenda"}
+                          className={`shrink-0 mr-2 inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-xs font-medium ${it.preparado ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
+                          <PackageCheck size={13} /> {it.preparado ? "Preparado" : "Marcar preparado"}
+                        </button>
+                      )}
                       </div>
 
                       {aberto && (
@@ -538,6 +558,7 @@ export default function OrdemFabricoDetail() {
                                 imagem: it.imagem || a.imagem || "",
                                 unidade: a.unidade || it.unidade || "un",
                                 operacoes: [],
+                                tipo_item: "",
                               })}
                               onChangeMulti={(picked) => {
                                 if (!picked?.length) return;
@@ -550,6 +571,7 @@ export default function OrdemFabricoDetail() {
                                   unidade: p.unidade || "un",
                                   personalizacoes: [],
                                   operacoes: [],
+                                  tipo_item: "",
                                 }));
                                 const itens = [...of.itens];
                                 itens[i] = {
@@ -560,6 +582,7 @@ export default function OrdemFabricoDetail() {
                                   quantidade: Number(first.quantidade) || 1,
                                   unidade: first.unidade || "un",
                                   operacoes: [],
+                                  tipo_item: "",
                                 };
                                 upd({ itens: [...itens.slice(0, i + 1), ...rest, ...itens.slice(i + 1)] });
                                 toast.success(picked.length === 1 ? "Variante selecionada" : `${picked.length} variantes adicionadas`);

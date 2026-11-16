@@ -701,20 +701,28 @@ def op_custo_real(op: dict) -> float:
 
 def recompute_of_status(of: dict) -> dict:
     all_ops = [op for it in of.get("itens", []) for op in it.get("operacoes", [])]
+    # Artigos a preparar (sem operações): contam como uma tarefa cada, feita quando marcados como preparados
+    prep = [it for it in of.get("itens", []) if not (it.get("operacoes") or []) and it.get("tipo_item") == "preparar"]
     of = {**of}
     running = any(op.get("timer_inicio") for op in all_ops)
-    has_progress = any((op.get("tempo_real_seg") or 0) > 0 or op.get("concluida") for op in all_ops)
-    if all_ops:
-        done = sum(1 for op in all_ops if op.get("concluida"))
-        if done == len(all_ops):
+    has_progress = any((op.get("tempo_real_seg") or 0) > 0 or op.get("concluida") for op in all_ops) or any(it.get("preparado") for it in prep)
+    tarefas = len(all_ops) + len(prep)
+    if tarefas:
+        done = sum(1 for op in all_ops if op.get("concluida")) + sum(1 for it in prep if it.get("preparado"))
+        if done == tarefas:
             of["status"] = "concluido"
         elif done > 0 or running or has_progress:
             of["status"] = "em_producao"
         else:
             of["status"] = "pendente"
-        of["progresso"] = round2(done / len(all_ops) * 100)
+        of["progresso"] = round2(done / tarefas * 100)
     else:
         of["progresso"] = 0
+    if (of.get("fecho") or {}).get("fechada"):
+        of["status"] = "concluido"
+        of["progresso"] = 100.0
+    of["n_preparar"] = len(prep)
+    of["n_preparados"] = sum(1 for it in prep if it.get("preparado"))
     if of.get("status") == "concluido":
         of["timer_estado"] = "concluido"
     elif running:
@@ -826,7 +834,27 @@ async def build_of_itens(itens: List[dict]) -> List[dict]:
                 m["custo"] = round2(m["quantidade"] * float(m.get("custo_unitario") or 0))
         out.append(it)
     await _apply_pers_tempo(out)
+    for it in out:
+        a = await artigos_repo.get(it.get("artigo_id")) if not it.get("tipo_item") else None
+        it["tipo_item"] = it.get("tipo_item") or tipo_item_of(it, a)
     return out
+
+
+def tipo_item_of(it: dict, artigo: Optional[dict] = None) -> str:
+    """«produzir» se tem operações, materiais ou personalização (ou o artigo é produzido); senão «preparar»
+    (artigo comprado / de stock que só se vai buscar e junta à encomenda)."""
+    if it.get("tipo_item") in ("produzir", "preparar"):
+        return it["tipo_item"]
+    a = artigo or {}
+    if (it.get("operacoes") or []) or (it.get("materiais") or []) or (it.get("personalizacoes") or []):
+        return "produzir"
+    if a.get("produzido") or (a.get("roteiro") or []) or (a.get("materiais") or []):
+        return "produzir"
+    return "preparar"
+
+
+def item_a_preparar(it: dict) -> bool:
+    return it.get("tipo_item") == "preparar" or (not it.get("tipo_item") and not (it.get("operacoes") or []))
 
 
 async def _apply_pers_tempo(itens: List[dict]) -> None:
