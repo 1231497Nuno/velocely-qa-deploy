@@ -367,6 +367,8 @@ function TabLocalizacoes({ podeEditar, verCustos }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm text-gray-600 flex-1">Armazéns, estantes, prateleiras ou zonas onde guarda o material. Cada artigo tem stock por localização; as entradas vão para a localização por defeito do artigo (ou a da empresa, marcada com estrela).</p>
+        <button type="button" className="btn btn-secundario" data-testid="loc-etiquetas" title="Etiquetas com QR para colar nas prateleiras e ler na app móvel"
+          onClick={() => openAuthenticated(`${API}/stock/localizacoes/etiquetas.pdf`).catch((e) => toast.error(e.message))}><FileDown size={15} /> Etiquetas QR</button>
         {podeEditar && <button type="button" className="btn btn-primario" onClick={() => setEdit({ nome: "", codigo: "", descricao: "" })} data-testid="loc-nova"><Plus size={15} /> Localização</button>}
       </div>
       <div className="bg-white border border-gray-200 rounded-sm divide-y divide-gray-100">

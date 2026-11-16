@@ -399,3 +399,16 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   código, nome (≥ 75% das palavras). Avisos: preço ≠ custo registado (> 5%), artigo de outro fornecedor, sem quantidade.
 - Revisão em `features/ordens_compra/ImportarPdfOC.jsx`; `POST /ordens-compra/importar-pdf/criar` cria a OC (tipo compra)
   e aprende as associações confirmadas.
+
+## App móvel — mais operações
+
+- Início: pesquisa/leitura de artigo no topo, contadores (`GET /movel/resumo`: OC/fornecedores por receber, stock baixo,
+  inventário aberto) e atalhos: Receções, Inventário, Localizações, Transferir, Entrada/saída, Acertar, Stock baixo,
+  Movimentos, Consultar, Oficina.
+- Receções por fornecedor: lista de fornecedores com o que têm por receber (pesquisa por fornecedor, OC ou artigo) →
+  `/m/rececoes/f/:fid` com as linhas de todas as OC desse fornecedor; «Ler volumes» procura o artigo em todas; confirma
+  uma receção por OC.
+- Localizações: `LocalPicker` com chips (até 6), ou pesquisa + recentes; «Ler etiqueta» (QR com o código) e «Nova»
+  (código único). `/m/localizacoes/:id` mostra o que está no sítio com Mover / Saída / Acertar e «Contar esta localização».
+  Etiquetas A4 com QR: `GET /stock/localizacoes/etiquetas.pdf` (Stock → Localizações → «Etiquetas QR»).
+- Entrada/saída avulsa: `POST /movel/movimento` (tipo entrada|saida, motivo obrigatório; a saída não deixa negativo).
