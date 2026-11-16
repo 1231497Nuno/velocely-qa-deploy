@@ -50,6 +50,7 @@ import {
   QrCode,
   CalendarRange,
   Wrench,
+  Landmark,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -118,6 +119,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/contas?tipo=receber", label: "A receber", icon: ArrowDownLeft, tid: "nav-contas-receber", modulo: "contas", matchTipo: "receber" },
       { to: "/contas?tipo=pagar", label: "A pagar", icon: ArrowUpRight, tid: "nav-contas-pagar", modulo: "contas", matchTipo: "pagar" },
+      { to: "/tesouraria", label: "Tesouraria", icon: Landmark, tid: "nav-tesouraria", modulo: "contas" },
     ],
   },
   {

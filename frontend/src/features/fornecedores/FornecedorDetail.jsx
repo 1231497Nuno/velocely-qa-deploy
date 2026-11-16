@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
+import ContaCorrente from "@/features/tesouraria/ContaCorrente";
 import SeccaoPesquisavel from "@/components/SeccaoPesquisavel";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
 import { toast } from "sonner";
@@ -55,7 +56,7 @@ function CampoFicha({ label, value, onSave, disabled, multiline = false, testid 
 export default function FornecedorDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [tab, setTab] = useDetailTab(["fornecedor", "historico"], "fornecedor");
+  const [tab, setTab] = useDetailTab(["fornecedor", "conta", "historico"], "fornecedor");
   const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -168,6 +169,7 @@ export default function FornecedorDetail() {
         onChange={setTab}
         tabs={[
           { id: "fornecedor", label: "Fornecedor", testid: "fornecedor-tab-fornecedor" },
+          { id: "conta", label: "Conta corrente", testid: "fornecedor-tab-conta" },
           { id: "historico", label: "Histórico", testid: "fornecedor-tab-historico" },
         ]}
       />
@@ -275,6 +277,7 @@ export default function FornecedorDetail() {
         </>
       )}
 
+      {tab === "conta" && id && id !== "novo" && <ContaCorrente tipo="fornecedor" id={id} />}
       {tab === "historico" && (
         <HistoricoTimeline tipo="fornecedor" id={id} hideTitle />
       )}
