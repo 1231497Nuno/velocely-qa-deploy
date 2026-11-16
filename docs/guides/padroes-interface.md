@@ -412,3 +412,9 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   (código único). `/m/localizacoes/:id` mostra o que está no sítio com Mover / Saída / Acertar e «Contar esta localização».
   Etiquetas A4 com QR: `GET /stock/localizacoes/etiquetas.pdf` (Stock → Localizações → «Etiquetas QR»).
 - Entrada/saída avulsa: `POST /movel/movimento` (tipo entrada|saida, motivo obrigatório; a saída não deixa negativo).
+
+- OC por PDF — artigos em falta: cada linha sem artigo mostra sugestões («É «…»?», por nome parecido) e «Criar artigo»;
+  «Criar N artigos novos» cria-os de uma vez (categoria/subcategoria, tipo, unidade, margem, gere stock comuns; nome
+  editável) com `cod_fornecedor` = ref. do PDF, fornecedor e custo = preço líquido do PDF, e associa-os às linhas.
+- Pesquisa de artigos (`ArtigoCombobox`, `LinhaArtigoFields`, revisão do PDF) encontra também pela referência do
+  fornecedor (`cod_fornecedor`) e pelo código de barras (`codigo_produto`, incluído em `artigo_lite`).

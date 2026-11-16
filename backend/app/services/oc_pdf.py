@@ -198,6 +198,23 @@ async def _detetar_fornecedor(texto: str, nome_ia: str = "", nif_ia: str = "") -
     return melhor[1] if melhor else None
 
 
+def _parecidos(desc: str, artigos: List[dict], n: int = 3) -> List[dict]:
+    """Artigos com nome parecido (para sugerir quando não há associação certa)."""
+    d = set(re.findall(r"[a-zà-ú0-9]{3,}", (desc or "").lower()))
+    if not d:
+        return []
+    cands = []
+    for a in artigos:
+        w = set(re.findall(r"[a-zà-ú0-9]{3,}", (a.get("nome") or "").lower()))
+        if w:
+            sc = len(d & w) / len(d | w)
+            if sc >= 0.2:
+                cands.append((sc, a))
+    cands.sort(key=lambda x: -x[0])
+    return [{"id": a["id"], "nome": a.get("nome") or "", "codigo": a.get("codigo") or "", "cod_fornecedor": a.get("cod_fornecedor") or ""}
+            for _sc, a in cands[:n]]
+
+
 def _por_nome(desc: str, artigos: List[dict]) -> Optional[dict]:
     d = set(w for w in re.findall(r"[a-zà-ú0-9]{3,}", (desc or "").lower()))
     if len(d) < 2:
@@ -253,14 +270,20 @@ async def analisar(nome: str, dados: bytes) -> dict:
                 avisos.append(f"Artigo associado a outro fornecedor ({a.get('fornecedor_nome') or '—'})")
         if l["quantidade"] <= 0:
             avisos.append("Quantidade não encontrada")
-        out.append({**l, "id": new_id(), "artigo_id": a["id"] if a else None, "artigo_nome": a.get("nome") if a else "",
+        sugestoes = []
+        if not a:
+            if artigos is None:
+                artigos = await artigos_repo.find({}, limit=20000)
+            sugestoes = _parecidos(l["descricao"], artigos)
+        out.append({**l, "id": new_id(), "artigo_id": a["id"] if a else None, "sugestoes": sugestoes, "artigo_nome": a.get("nome") if a else "",
                     "artigo_codigo": a.get("codigo") if a else "", "custo_registado": float(a.get("custo_artigo") or 0) if a else None,
                     "associacao": origem, "avisos": avisos, "incluir": True})
     num = re.search(r"(?:proforma|encomenda|fatura|factura|or[cç]amento|documento|n\.?º|nº)\s*[:\-]?\s*([A-Z0-9][\w/\-. ]{2,25})", texto, re.I)
     numero = ((ia or {}).get("numero_documento") or (num.group(1).strip() if num else ""))[:40]
     return {"metodo": metodo, "fornecedor_id": forn["id"] if forn else None, "fornecedor_nome": forn.get("nome") if forn else (ia or {}).get("fornecedor_nome") or "",
             "numero_documento": numero, "linhas": out,
-            "resumo": {"linhas": len(out), "associadas": sum(1 for x in out if x["artigo_id"]), "com_avisos": sum(1 for x in out if x["avisos"])}}
+            "resumo": {"linhas": len(out), "associadas": sum(1 for x in out if x["artigo_id"]), "com_avisos": sum(1 for x in out if x["avisos"]),
+                       "novos": sum(1 for x in out if not x["artigo_id"])}}
 
 
 async def aprender(fornecedor_id: Optional[str], linhas: List[dict]) -> int:

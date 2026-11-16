@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, FileUp, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileUp, Loader2, PackagePlus, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, eur } from "@/lib/api";
 import EntitySelect from "@/components/EntitySelect";
@@ -9,6 +9,95 @@ import FornecedorSelect from "@/components/FornecedorSelect";
 import { useFornecedores } from "@/lib/useFornecedores";
 
 const erro = (e, d) => toast.error(typeof e?.response?.data?.detail === "string" ? e.response.data.detail : d);
+const TIPOS_ARTIGO = [["ativo", "Produto / mercadoria"], ["materia_prima", "Matéria-prima"], ["consumivel", "Consumível"]];
+
+/** Criar no catálogo os artigos que vêm no PDF e ainda não existem (ficam com a ref. do fornecedor e o custo). */
+function CriarArtigos({ linhas, fornecedorId, onCriados, onFechar }) {
+  const [cats, setCats] = useState([]);
+  const [subs, setSubs] = useState([]);
+  const [f, setF] = useState({ categoria_id: "", subcategoria_id: "", tipo_artigo: "ativo", unidade: "un", margem: 100, gere_stock: true });
+  const [nomes, setNomes] = useState(() => Object.fromEntries(linhas.map((l) => [l.id, l.descricao || l.ref || ""])));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.get("/categorias").then((x) => setCats(Array.isArray(x) ? x : x.items || [])).catch(() => {});
+    api.get("/subcategorias").then((x) => setSubs(Array.isArray(x) ? x : x.items || [])).catch(() => {});
+  }, []);
+  const subsCat = subs.filter((x) => x.categoria_id === f.categoria_id);
+  const criar = async () => {
+    if (!f.categoria_id || !f.subcategoria_id) { toast.error("Escolha a categoria e a subcategoria"); return; }
+    setBusy(true);
+    const criados = {};
+    try {
+      for (const l of linhas) {
+        const nome = (nomes[l.id] || "").trim();
+        if (!nome) continue;
+        const desc = Number(l.desconto) || 0;
+        const a = await api.post("/artigos", {
+          nome, categoria_id: f.categoria_id, subcategoria_id: f.subcategoria_id, tipo_artigo: f.tipo_artigo, unidade: f.unidade,
+          margem: Number(f.margem) || 0, gere_stock: !!f.gere_stock, fornecedor_id: fornecedorId || null, cod_fornecedor: l.ref || "",
+          custo_artigo: Math.round((Number(l.preco_unit) || 0) * (1 - desc / 100) * 10000) / 10000,
+        });
+        criados[l.id] = a;
+      }
+      toast.success(`${Object.keys(criados).length} artigo(s) criado(s)`);
+      onCriados(criados);
+    } catch (e) {
+      erro(e, "Não foi possível criar o artigo");
+      if (Object.keys(criados).length) onCriados(criados);
+    } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onOpenChange={(o) => !o && onFechar()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-display">Criar {linhas.length === 1 ? "artigo novo" : `${linhas.length} artigos novos`}</DialogTitle>
+          <DialogDescription>Ficam no catálogo com a referência do fornecedor, o fornecedor e o custo do PDF. Pode completar a ficha depois.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="text-xs font-medium text-gray-600 block">Categoria
+              <EntitySelect items={cats} value={f.categoria_id} onChange={(id) => setF({ ...f, categoria_id: id, subcategoria_id: "" })} placeholder="Categoria…" hint={() => ""} />
+            </label>
+            <label className="text-xs font-medium text-gray-600 block">Subcategoria
+              <EntitySelect items={subsCat} value={f.subcategoria_id} onChange={(id) => setF({ ...f, subcategoria_id: id })} placeholder={f.categoria_id ? "Subcategoria…" : "Escolha a categoria"} disabled={!f.categoria_id} hint={() => ""} />
+            </label>
+            <label className="text-xs font-medium text-gray-600 block">Tipo
+              <select value={f.tipo_artigo} onChange={(e) => setF({ ...f, tipo_artigo: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm bg-white">
+                {TIPOS_ARTIGO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs font-medium text-gray-600 block">Unidade
+                <input value={f.unidade} onChange={(e) => setF({ ...f, unidade: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm" />
+              </label>
+              <label className="text-xs font-medium text-gray-600 block">Margem %
+                <input type="number" value={f.margem} onChange={(e) => setF({ ...f, margem: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right" />
+              </label>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.gere_stock} onChange={(e) => setF({ ...f, gere_stock: e.target.checked })} /> Gere stock</label>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-xs uppercase tracking-wide text-gray-500 border-b"><th className="py-1.5 pr-2">Ref. fornecedor</th><th className="py-1.5 pr-2">Nome do artigo</th><th className="py-1.5 text-right">Custo</th></tr></thead>
+            <tbody>
+              {linhas.map((l) => (
+                <tr key={l.id} className="border-b">
+                  <td className="py-1.5 pr-2 font-mono text-xs">{l.ref || "—"}</td>
+                  <td className="py-1.5 pr-2"><input value={nomes[l.id]} onChange={(e) => setNomes({ ...nomes, [l.id]: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-1 text-sm" /></td>
+                  <td className="py-1.5 text-right tabular-nums whitespace-nowrap">{eur((Number(l.preco_unit) || 0) * (1 - (Number(l.desconto) || 0) / 100))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <DialogFooter>
+          <button type="button" className="btn btn-secundario" onClick={onFechar}>Cancelar</button>
+          <button type="button" className="btn btn-primario" disabled={busy} onClick={criar} data-testid="oc-pdf-criar-artigos">{busy && <Loader2 size={15} className="animate-spin" />} Criar e associar</button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const cel = "border border-gray-300 rounded-sm px-2 py-1 text-sm text-right tabular-nums w-20 bg-white";
 
 /**
@@ -21,7 +110,17 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
   const [artigos, setArtigos] = useState([]);
   const [r, setR] = useState(null);
   const [busy, setBusy] = useState("");
+  const [criarPara, setCriarPara] = useState(null); // linhas para criar artigo
   const inp = useRef(null);
+  // Artigos do fornecedor primeiro; a pesquisa encontra também pela referência do fornecedor
+  const artigosOrd = [...artigos].sort((a, b) => (b.fornecedor_id === r?.fornecedor_id) - (a.fornecedor_id === r?.fornecedor_id));
+  const hintArtigo = (a) => [a.codigo, a.cod_fornecedor && `ref. ${a.cod_fornecedor}`, a.fornecedor_nome].filter(Boolean).join(" · ");
+  const associar = (lid, a) => setLinha(lid, { artigo_id: a.id, artigo_nome: a.nome || "", associacao: "manual", avisos: [], sugestoes: [] });
+  const criados = (map) => {
+    setArtigos((xs) => [...Object.values(map).map((a) => ({ ...a, cod_fornecedor: a.cod_fornecedor || "" })), ...xs]);
+    Object.entries(map).forEach(([lid, a]) => associar(lid, a));
+    setCriarPara(null);
+  };
 
   useEffect(() => {
     if (!open) { setR(null); return; }
@@ -43,6 +142,7 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
   const incluidas = (r?.linhas || []).filter((l) => l.incluir);
   const total = incluidas.reduce((s, l) => s + (Number(l.quantidade) || 0) * (Number(l.preco_unit) || 0) * (1 - (Number(l.desconto) || 0) / 100), 0);
   const semArtigo = incluidas.filter((l) => !l.artigo_id).length;
+  const porCriar = incluidas.filter((l) => !l.artigo_id);
 
   const criar = async () => {
     setBusy("criar");
@@ -76,6 +176,11 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
                 {r.resumo.associadas} de {r.resumo.linhas} artigos reconhecidos
               </span>
               {r.resumo.com_avisos > 0 && <span className="px-2 py-1 rounded-sm bg-amber-50 text-amber-800">{r.resumo.com_avisos} com avisos</span>}
+              {porCriar.length > 0 && (
+                <button type="button" className="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-gray-900 text-white" onClick={() => setCriarPara(porCriar)} data-testid="oc-pdf-sugerir-criar">
+                  <PackagePlus size={14} /> Criar {porCriar.length} artigo(s) novo(s)
+                </button>
+              )}
               {r.metodo === "ia" && <span className="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-violet-50 text-violet-800"><Sparkles size={14} /> Lido com IA</span>}
               <button type="button" className="ml-auto text-sm underline" onClick={() => inp.current?.click()}>Outro PDF</button>
             </div>
@@ -112,8 +217,16 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
                         <div className="text-xs text-gray-500 max-w-[14rem]">{l.descricao}</div>
                       </td>
                       <td className="py-2 pr-2">
-                        <EntitySelect items={artigos} value={l.artigo_id} size="sm" placeholder="Associar artigo…"
-                          onChange={(id, a) => setLinha(l.id, { artigo_id: id, artigo_nome: a?.nome || "", associacao: "manual", avisos: [] })} />
+                        <EntitySelect items={artigosOrd} value={l.artigo_id} size="sm" placeholder="Associar artigo (nome, código ou ref. fornecedor)…" hint={hintArtigo}
+                          onChange={(id, a) => (a ? associar(l.id, a) : setLinha(l.id, { artigo_id: null, artigo_nome: "" }))} />
+                        {!l.artigo_id && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {(l.sugestoes || []).map((sg) => (
+                              <button key={sg.id} type="button" className="text-[11px] px-1.5 py-0.5 rounded-sm bg-gray-100 hover:bg-gray-200" title="Associar a este artigo" onClick={() => associar(l.id, sg)}>É «{sg.nome}»?</button>
+                            ))}
+                            <button type="button" className="text-[11px] px-1.5 py-0.5 rounded-sm bg-gray-900 text-white inline-flex items-center gap-1" onClick={() => setCriarPara([l])}><PackagePlus size={11} /> Criar artigo</button>
+                          </div>
+                        )}
                         {l.associacao === "nome" && <div className="text-[11px] text-amber-700 mt-0.5">Associado pelo nome — confirme</div>}
                         {(l.avisos || []).map((a) => <div key={a} className="text-[11px] text-amber-700 mt-0.5 flex items-center gap-1"><AlertTriangle size={11} /> {a}</div>)}
                       </td>
@@ -130,6 +243,7 @@ export default function ImportarPdfOC({ open, onOpenChange }) {
             <div className="text-right text-sm">Total sem IVA: <b className="tabular-nums">{eur(total)}</b></div>
           </div>
         )}
+        {criarPara && <CriarArtigos linhas={criarPara} fornecedorId={r?.fornecedor_id} onCriados={criados} onFechar={() => setCriarPara(null)} />}
         <DialogFooter>
           <button type="button" className="btn btn-secundario" onClick={() => onOpenChange(false)}>Cancelar</button>
           {r && (
