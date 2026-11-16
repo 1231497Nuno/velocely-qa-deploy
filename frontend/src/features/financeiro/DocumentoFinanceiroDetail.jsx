@@ -75,7 +75,7 @@ export default function DocumentoFinanceiroDetail() {
       setDoc(updated);
       toast.success(isRecibo ? "Recibo anulado" : "Fatura anulada");
     } catch (e) {
-      const d = e?.response?.data?.detail;
+      const d = e?.response?.data?.detalhe || e?.response?.data?.detail;
       if (d?.codigo === "anular_no_programa") {
         if (!await confirmAction({
           title: `Anular no ${d.fornecedor}`,

@@ -100,6 +100,8 @@ async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(requ
         tipo=tipo,
     )
     pag.recibo_numero = await next_sequence("DEV" if tipo == "devolucao" else "REC")
+    from app.services import workflow
+    status_antes = (await compute_encomenda(dict(enc))).get("status_pagamento")
     pagamentos = (enc.get("pagamentos") or []) + [pag.model_dump()]
     total = soma_valor_pago(pagamentos)
     await encomendas_repo.update(eid, {"pagamentos": pagamentos, "valor_pago": total})
@@ -117,6 +119,8 @@ async def add_pagamento(eid: str, body: PagamentoBody, user: dict = Depends(requ
             f"Pagamento de {pag.valor:.2f}€ ({PAG_METODO_PT.get(pag.metodo, pag.metodo)}) na encomenda {enc.get('numero')} · recibo {pag.recibo_numero}",
             enc.get("numero"),
         )
+        await workflow.apos_pagamento(eid, status_antes, pag.valor,
+                                      origem=f"{PAG_METODO_PT.get(pag.metodo, pag.metodo)} · {pag.recibo_numero}")
     return await _attach_ofs(await compute_encomenda(enc))
 
 
@@ -230,13 +234,18 @@ async def create_encomenda(data: EncomendaInput, user: dict = Depends(require_pe
         enc.data = now_iso()[:10]
     preview = await compute_encomenda(enc.model_dump())
     from app.services.financeiro import assert_limite_credito
-    await assert_limite_credito(
+    aviso_credito = await assert_limite_credito(
         enc.cliente_id,
         float(preview.get("valor_total") or preview.get("total_com_iva") or 0),
     )
     await encomendas_repo.insert(enc.model_dump())
     await audit.registar("encomenda", enc.id, "criado", user, f"Encomenda {enc.numero} criada", enc.numero)
-    return await _attach_ofs(await compute_encomenda(enc.model_dump()))
+    from app.services import workflow
+    await workflow.encomenda_criada(enc.model_dump())
+    out = await _attach_ofs(await compute_encomenda(enc.model_dump()))
+    if aviso_credito:
+        out["aviso_credito"] = aviso_credito
+    return out
 
 
 async def _assert_qtd_nao_abaixo_ofs(eid: str, artigos: list) -> None:
@@ -280,6 +289,9 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     if not existing:
         raise HTTPException(404, "Encomenda não encontrada")
     novo = await campos_svc.aplicar("encomendas", data.model_dump(), "guardar", existing)
+    if novo.get("entregue") and not existing.get("entregue"):
+        from app.services import workflow
+        workflow.assert_nao_bloqueada(existing, "marcar a entrega")
     novo.pop("anexos", None)
     if "entregue" not in data.model_fields_set:
         novo["entregue"] = bool(existing.get("entregue"))
@@ -355,6 +367,50 @@ async def update_encomenda(eid: str, data: EncomendaInput, user: dict = Depends(
     return await _attach_ofs(await compute_encomenda(merged))
 
 
+class BloqueioBody(BaseModel):
+    motivo: str = ""
+
+
+@router.post("/encomendas/{eid}/bloquear")
+async def bloquear_encomenda(eid: str, body: BloqueioBody, user: dict = Depends(require_perm("encomendas", "edit"))):
+    """Põe a encomenda em espera: não produz, não fatura nem se entrega até ser desbloqueada."""
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    motivo = (body.motivo or "").strip()
+    if not motivo:
+        raise HTTPException(400, "Indique o motivo do bloqueio")
+    b = {"ativo": True, "motivo": motivo, "por": {"id": user.get("id"), "nome": user.get("name") or user.get("nome") or ""},
+         "at": now_iso()}
+    await encomendas_repo.update(eid, {"bloqueio": b})
+    await audit.registar("encomenda", eid, "estado_alterado", user, f"Encomenda {enc.get('numero')} bloqueada: {motivo}", enc.get("numero"))
+    from app.services import workflow
+    await workflow.evento("encomenda_bloqueada", f"Encomenda bloqueada: {enc.get('numero')} ({enc.get('cliente') or ''})",
+                          f"Motivo: {motivo}", link=f"/encomendas/{eid}", entidade="encomenda", entidade_id=eid)
+    return await _attach_ofs(await compute_encomenda({**enc, "bloqueio": b}))
+
+
+@router.post("/encomendas/{eid}/desbloquear")
+async def desbloquear_encomenda(eid: str, user: dict = Depends(require_perm("encomendas", "edit"))):
+    enc = await encomendas_repo.get(eid)
+    if not enc:
+        raise HTTPException(404, "Encomenda não encontrada")
+    b = enc.get("bloqueio") or {}
+    if not b.get("ativo"):
+        return await _attach_ofs(await compute_encomenda(enc))
+    # Como no Sage: quem bloqueou pode sempre desbloquear; os restantes só administradores
+    perfil = await resolve_perfil(user)
+    if not perfil.get("admin") and (b.get("por") or {}).get("id") != user.get("id"):
+        raise HTTPException(403, f"Só {(b.get('por') or {}).get('nome') or 'quem bloqueou'} ou um administrador pode desbloquear")
+    novo = {**b, "ativo": False, "desbloqueado_por": {"id": user.get("id"), "nome": user.get("name") or ""}, "desbloqueado_at": now_iso()}
+    await encomendas_repo.update(eid, {"bloqueio": novo})
+    await audit.registar("encomenda", eid, "estado_alterado", user, f"Encomenda {enc.get('numero')} desbloqueada", enc.get("numero"))
+    from app.services import workflow
+    await workflow.evento("encomenda_bloqueada", f"Encomenda desbloqueada: {enc.get('numero')}", "",
+                          link=f"/encomendas/{eid}", entidade="encomenda", entidade_id=eid)
+    return await _attach_ofs(await compute_encomenda({**enc, "bloqueio": novo}))
+
+
 class EntregaBody(BaseModel):
     entregue: bool
     data_entrega: Optional[str] = None
@@ -368,6 +424,9 @@ async def marcar_entrega(eid: str, body: EntregaBody, user: dict = Depends(requi
         raise HTTPException(404, "Encomenda não encontrada")
     if enc.get("estado") == "cancelada":
         raise HTTPException(409, "Encomenda cancelada")
+    if body.entregue:
+        from app.services import workflow
+        workflow.assert_nao_bloqueada(enc, "marcar a entrega")
     if bool(enc.get("entregue")) == body.entregue:
         return await _attach_ofs(await compute_encomenda(enc))
     data = ((body.data_entrega or enc.get("data_entrega") or now_iso())[:10]) if body.entregue else None
@@ -427,6 +486,8 @@ async def create_of_for_encomenda(eid: str, data: OrdemFabricoInput, user: dict 
     enc = await encomendas_repo.get(eid)
     if not enc:
         raise HTTPException(404, "Encomenda não encontrada")
+    from app.services import workflow
+    workflow.assert_nao_bloqueada(enc, "criar ordens de fabrico")
     payload = data.model_dump()
     payload["encomenda_id"] = eid
     payload["cliente"] = enc.get("cliente") or payload.get("cliente") or ""

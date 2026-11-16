@@ -10,6 +10,7 @@ import HistoricoTimeline from "@/components/HistoricoTimeline";
 import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
+import AprovacaoBanner from "@/components/AprovacaoBanner";
 import { toast } from "sonner";
 import { Trash2, Save, Pencil, X, Lock } from "lucide-react";
 import FornecedorSelect, { opcoesFornecedores } from "@/components/FornecedorSelect";
@@ -326,6 +327,7 @@ export default function OrdemCompraDetail() {
         }
       />
 
+      {id && id !== "nova" && <AprovacaoBanner entidade="ordem_compra" entidadeId={id} recarregarEm={form?.estado} />}
       <DetailTabs
         testid="oc-tabs"
         value={tab}

@@ -44,6 +44,7 @@ import Definicoes from "@/features/definicoes/Definicoes";
 import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
 import Relatorios from "@/features/relatorios/Relatorios";
+import Tarefas from "@/features/tarefas/Tarefas";
 import Historico from "@/features/historico/Historico";
 import Crm from "@/features/crm/Crm";
 import Pagamentos from "@/features/pagamentos/Pagamentos";
@@ -113,6 +114,7 @@ const router = createBrowserRouter([
       { path: "/ordens-fabrico/acerto-tempos", element: <Protected modulo="ordens_fabrico"><AcertoTempos /></Protected> },
       { path: "/ordens-fabrico/:id", element: <Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected> },
       { path: "/analise-producao", element: <Protected modulo="analise_producao"><AnaliseProducao /></Protected> },
+      { path: "/tarefas", element: <Protected><Tarefas /></Protected> },
       { path: "/relatorios", element: <Protected modulo="relatorios"><Relatorios /></Protected> },
       { path: "/rentabilidade-clientes", element: <Protected modulo="rentabilidade"><RentabilidadeClientes /></Protected> },
       { path: "/utilizadores", element: <Protected adminOnly><GestaoUtilizadores /></Protected> },

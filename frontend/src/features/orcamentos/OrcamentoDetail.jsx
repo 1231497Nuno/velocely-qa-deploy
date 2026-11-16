@@ -42,6 +42,7 @@ import DetailTabs, { useDetailTab } from "@/components/DetailTabs";
 import ImagemUpload from "@/components/ImagemUpload";
 import FicheirosTab from "@/components/FicheirosTab";
 import { StickyDetailHeader, StickyBackButton } from "@/components/StickyDetailHeader";
+import AprovacaoBanner from "@/components/AprovacaoBanner";
 import { Trash2, FileText, Cog, Layers, X, ChevronDown, ChevronUp, ChevronRight, RotateCcw, AlertTriangle, ClipboardList, CheckCircle2, Send, Trophy, Ban, GitBranch, Copy, Info, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -1062,6 +1063,7 @@ export default function OrcamentoDetail() {
     try {
       const enc = await api.post(`/orcamentos/${id}/converter`);
       toast.success(`Encomenda ${enc.numero} criada com os valores do orçamento`);
+      if (enc.aviso_credito) toast.warning(enc.aviso_credito, { duration: 10000 });
       nav(`/encomendas/${enc.id}`);
     } catch (e) {
       const detail = e?.response?.data?.detail;
@@ -1152,6 +1154,7 @@ export default function OrcamentoDetail() {
           </>
         }
       />
+      <AprovacaoBanner entidade="orcamento" entidadeId={orc.id} recarregarEm={orc.updated_at} />
 
       <DetailTabs
         testid="orcamento-tabs"

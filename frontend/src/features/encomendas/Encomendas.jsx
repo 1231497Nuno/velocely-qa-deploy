@@ -14,7 +14,7 @@ import MobileFiltersButton from "@/components/MobileFiltersButton";
 import ClienteSelector from "@/components/ClienteSelector";
 import StatusBadge from "@/components/StatusBadge";
 import { useSort, SortTh } from "@/components/table";
-import { Plus, Trash2, Copy, AlertTriangle, ShoppingBag, List, Columns3 } from "lucide-react";
+import { Plus, Trash2, Copy, AlertTriangle, ShoppingBag, List, Columns3, Lock } from "lucide-react";
 import EncomendasQuadro from "@/features/encomendas/EncomendasQuadro";
 import { toast } from "sonner";
 import {
@@ -56,6 +56,7 @@ export default function Encomendas() {
     if (!form.cliente_id) return toast.error("Selecione um cliente");
     const enc = await api.post("/encomendas", form);
     toast.success("Encomenda criada");
+    if (enc.aviso_credito) toast.warning(enc.aviso_credito, { duration: 10000 });
     setOpen(false);
     nav(`/encomendas/${enc.id}`, { state: { edit: true } });
   };
@@ -228,6 +229,7 @@ export default function Encomendas() {
                 <td className="px-4 py-3 mono tabular-nums font-medium text-gray-900">
                   <span className="inline-flex items-center gap-1.5">
                     {e.numero}
+                    {e.bloqueio?.ativo && <Lock size={13} className="text-red-600" title={`Bloqueada: ${e.bloqueio.motivo}`} />}
                     {e.tem_artigos_sem_of && <AlertTriangle size={14} className="text-red-500" data-testid={`enc-warn-semof-${e.id}`} title="Tem artigos sem ordem de fabrico" />}
                     {e.sobreproducao && <AlertTriangle size={14} className="text-amber-500" data-testid={`enc-warn-sobre-${e.id}`} title="Sobreprodução" />}
                     {e.origem_externa?.canal === "woocommerce" && (

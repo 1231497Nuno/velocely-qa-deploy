@@ -210,6 +210,8 @@ async def iniciar_operacao(ofid: str, body: TimerBody, _u: dict = Depends(requir
     if of.get("encomenda_id"):
         enc = await encomendas_repo.get(of["encomenda_id"])
         if enc:
+            from app.services import workflow
+            workflow.assert_nao_bloqueada(enc, "iniciar a produção")
             enc_c = await compute_encomenda(enc)
             if not enc_c["pode_produzir"]:
                 raise HTTPException(
