@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { ExtrasResumo } from "@/components/CamposPersonalizados";
 import { useCampos, estiloCor } from "@/context/CamposContext";
 import { FiltroChip, FiltroGrupo } from "@/components/Filtros";
@@ -41,6 +43,8 @@ export default function PedidosCotacao() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel, loading,
   } = useServerPagedList("/pedidos-cotacao", { extraParams });
+  const { sort, toggle, apply } = useSort();
+  const sortedItems = apply(items);
 
   const create = async () => {
     try {
@@ -75,15 +79,18 @@ export default function PedidosCotacao() {
           title="Pedidos de Cotação"
           subtitle="Pedidos de cotação a fornecedores"
           actions={
-            can("pedidos_cotacao", "create") && (
-              <button
-                data-testid="new-pedido-cotacao-btn"
-                onClick={create}
-                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
-              >
-                <Plus size={16} /> Novo pedido
-              </button>
-            )
+            <>
+              <ExportExcelButton entity="pedidos_cotacao" ids={items.map((x) => x.id)} />
+              {can("pedidos_cotacao", "create") && (
+                <button
+                  data-testid="new-pedido-cotacao-btn"
+                  onClick={create}
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Plus size={16} /> Novo pedido
+                </button>
+              )}
+            </>
           }
         />
       }
@@ -126,18 +133,18 @@ export default function PedidosCotacao() {
         <table className="w-full text-sm min-w-[780px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Fornecedor</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Assunto</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Prazo</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor cotado</th>
+              <SortTh label="Código" sortKey="codigo" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Fornecedor" sortKey="fornecedor_nome" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Assunto" sortKey="assunto" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Prazo" sortKey="prazo_resposta" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="center" />
+              <SortTh label="Valor cotado" sortKey="valor_cotado" sort={sort} onSort={toggle} align="right" />
               <th className="px-4 py-3 w-20"></th>
             </tr>
           </thead>
           <tbody data-testid="pedidos-cotacao-table">
-            {items.map((o) => (
+            {sortedItems.map((o) => (
               <tr style={estiloCor(corLinha("pedidos_cotacao", o))}
                 key={o.id}
                 data-testid={`pedido-cotacao-row-${o.id}`}
@@ -181,7 +188,7 @@ export default function PedidosCotacao() {
       </ScrollableTable>
 
       <MobileCards testid="pedidos-cotacao-cards">
-        {items.map((o) => (
+        {sortedItems.map((o) => (
           <MobileCard style={estiloCor(corLinha("pedidos_cotacao", o))} key={o.id} testid={`pedido-cotacao-card-${o.id}`} onClick={() => nav(`/pedidos-cotacao/${o.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

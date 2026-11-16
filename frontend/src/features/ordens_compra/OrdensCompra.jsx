@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { ExtrasResumo } from "@/components/CamposPersonalizados";
 import { useCampos, estiloCor } from "@/context/CamposContext";
 import { FiltroChip, FiltroSelect, FiltroGrupo } from "@/components/Filtros";
@@ -38,6 +40,8 @@ export default function OrdensCompra() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel, loading,
   } = useServerPagedList("/ordens-compra", { extraParams });
+  const { sort, toggle, apply } = useSort();
+  const sortedItems = apply(items);
 
   const create = async () => {
     try {
@@ -68,15 +72,18 @@ export default function OrdensCompra() {
           title="Ordens de Compra"
           subtitle="Compras (stock/matéria-prima), despesas operacionais e despesas diversas"
           actions={
-            can("ordens_compra", "create") && (
-              <button
-                data-testid="new-ordem-compra-btn"
-                onClick={create}
-                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
-              >
-                <Plus size={16} /> Nova Ordem
-              </button>
-            )
+            <>
+              <ExportExcelButton entity="ordens_compra" ids={items.map((x) => x.id)} />
+              {can("ordens_compra", "create") && (
+                <button
+                  data-testid="new-ordem-compra-btn"
+                  onClick={create}
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Plus size={16} /> Nova Ordem
+                </button>
+              )}
+            </>
           }
         />
       }
@@ -127,18 +134,18 @@ export default function OrdensCompra() {
         <table className="w-full text-sm min-w-[800px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Fornecedor</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Assunto</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Total</th>
+              <SortTh label="Código" sortKey="codigo" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Fornecedor" sortKey="fornecedor_nome" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Assunto" sortKey="assunto" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Tipo" sortKey="tipo_despesa" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="center" />
+              <SortTh label="Total" sortKey="total" sort={sort} onSort={toggle} align="right" />
               <th className="px-4 py-3 w-20"></th>
             </tr>
           </thead>
           <tbody data-testid="ordens-compra-table">
-            {items.map((o) => (
+            {sortedItems.map((o) => (
               <tr style={estiloCor(corLinha("ordens_compra", o))}
                 key={o.id}
                 data-testid={`ordem-compra-row-${o.id}`}
@@ -186,7 +193,7 @@ export default function OrdensCompra() {
       </ScrollableTable>
 
       <MobileCards testid="ordens-compra-cards">
-        {items.map((o) => (
+        {sortedItems.map((o) => (
           <MobileCard style={estiloCor(corLinha("ordens_compra", o))} key={o.id} testid={`ordem-compra-card-${o.id}`} onClick={() => nav(`/ordens-compra/${o.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

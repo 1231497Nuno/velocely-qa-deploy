@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/Layout";
 import SearchBar from "@/components/SearchBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ListPagination, { useServerPagedList } from "@/components/ListPagination";
-import { ListPage, ScrollableTable, TABLE_HEAD_STICKY } from "@/components/ListPage";
+import { ListPage, ScrollableTable, TABLE_HEAD_STICKY, MobileCards, MobileCard } from "@/components/ListPage";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -117,7 +117,7 @@ export default function Maquinas() {
         />
       }
     >
-      <ScrollableTable>
+      <ScrollableTable className="hidden md:flex md:flex-col">
         <table className="w-full text-sm min-w-[560px]">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
@@ -152,6 +152,20 @@ export default function Maquinas() {
           </tbody>
         </table>
       </ScrollableTable>
+      <MobileCards testid="maquina-cards">
+        {items.map((m) => (
+          <MobileCard key={m.id} testid={`maquina-card-${m.id}`} onClick={can("maquinas", "edit") ? () => openEdit(m) : undefined}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 truncate">{m.nome}</div>
+                <div className="text-xs text-gray-500 mono">{m.codigo || "—"}</div>
+              </div>
+              <div className="text-sm font-semibold tabular-nums text-gray-900 shrink-0">{eur((m.custo_amortizacao_hora || 0) + (m.custo_energia_hora || 0))} / h</div>
+            </div>
+          </MobileCard>
+        ))}
+        {items.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Sem máquinas.</p>}
+      </MobileCards>
     </ListPage>
 
       <Dialog open={open} onOpenChange={setOpen}>

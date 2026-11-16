@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
 import { ExtrasResumo } from "@/components/CamposPersonalizados";
 import { useCampos, estiloCor } from "@/context/CamposContext";
 import { FiltroChip } from "@/components/Filtros";
@@ -119,7 +120,8 @@ export default function OrdensFabrico() {
     reload();
   };
 
-  const rows = items;
+  const { sort, toggle, apply } = useSort();
+  const rows = apply(items);
   const hoje = new Date().toISOString().slice(0, 10);
 
   const Tab = ({ id, label }) => (
@@ -264,14 +266,14 @@ export default function OrdensFabrico() {
                 <tr>
                   <th className="px-2 py-2.5 w-10 bg-gray-50"></th>
                   {tab === "ativas" && <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cronómetro</th>}
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Código</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Cliente</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº Enc.</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Data</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Prazo</th>
+                  <SortTh label="Código" sortKey="numero" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Cliente" sortKey="cliente" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Nº Enc." sortKey="numero_encomenda" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Data" sortKey="data" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
+                  <SortTh label="Prazo" sortKey="prazo_entrega" sort={sort} onSort={toggle} align="left" className="!px-3 !py-2.5" />
                   <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Origem</th>
-                  <th className="text-right px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Progresso</th>
-                  <th className="text-center px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
+                  <SortTh label="Progresso" sortKey="progresso" sort={sort} onSort={toggle} align="right" className="!px-3 !py-2.5" />
+                  <SortTh label="Estado" sortKey="status" sort={sort} onSort={toggle} align="center" className="!px-3 !py-2.5" />
                   <th className="px-3 py-2.5 w-12 bg-gray-50"></th>
                 </tr>
               </thead>
@@ -330,6 +332,7 @@ export default function OrdensFabrico() {
               <div
                 key={o.id}
                 data-testid={`of-card-${o.id}`}
+                style={estiloCor(corLinha("ordens_fabrico", o))}
                 onClick={() => nav(`/ordens-fabrico/${o.id}`)}
                 className={`bg-white border border-gray-200 rounded-sm p-3 cursor-pointer active:bg-gray-50 ${o.prioritaria ? "border-amber-300 bg-amber-50/40" : ""}`}
               >

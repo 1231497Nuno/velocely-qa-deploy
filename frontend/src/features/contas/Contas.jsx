@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSort, SortTh } from "@/components/table";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { ExtrasResumo } from "@/components/CamposPersonalizados";
 import { useCampos, estiloCor } from "@/context/CamposContext";
 import { FiltroChip, FiltroSelect, FiltroGrupo } from "@/components/Filtros";
@@ -73,6 +75,8 @@ export default function Contas() {
     items, total, pages, page, setPage, pageSize, setPageSize,
     q, setQ, reload, rangeLabel,
   } = useServerPagedList("/contas", { extraParams });
+  const { sort, toggle, apply } = useSort();
+  const sortedItems = apply(items);
 
   useEffect(() => {
     if (!FILTROS.some((t) => t.id === filtro)) {
@@ -151,18 +155,21 @@ export default function Contas() {
           title={title}
           subtitle="Controlo de valores a receber e a pagar, com documentos associados. Independente do módulo de faturas."
           actions={
-            can("contas", "create") && (
-              <button
-                data-testid="new-conta-btn"
-                onClick={() => {
-                  setForm({ ...emptyForm(), tipo: filtro === "pagar" ? "pagar" : "receber" });
-                  setOpen(true);
-                }}
-                className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
-              >
-                <Plus size={16} /> Nova conta
-              </button>
-            )
+            <>
+              <ExportExcelButton entity="contas" ids={items.map((x) => x.id)} />
+              {can("contas", "create") && (
+                <button
+                  data-testid="new-conta-btn"
+                  onClick={() => {
+                    setForm({ ...emptyForm(), tipo: filtro === "pagar" ? "pagar" : "receber" });
+                    setOpen(true);
+                  }}
+                  className="bg-brand text-brand-fg hover:bg-brand-hover rounded-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
+                >
+                  <Plus size={16} /> Nova conta
+                </button>
+              )}
+            </>
           }
         />
       }
@@ -212,14 +219,14 @@ export default function Contas() {
         <table className="w-full text-sm min-w-[920px]" data-testid="contas-table">
           <thead className={TABLE_HEAD_STICKY}>
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Nº</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Tipo</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Entidade</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Vencimento</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Valor</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Pendente</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Estado</th>
+              <SortTh label="Nº" sortKey="numero" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Tipo" sortKey="tipo" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Entidade" sortKey="entidade" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Descrição" sortKey="descricao" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Vencimento" sortKey="vencimento" sort={sort} onSort={toggle} align="left" />
+              <SortTh label="Valor" sortKey="valor" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Pendente" sortKey="valor_pendente" sort={sort} onSort={toggle} align="right" />
+              <SortTh label="Estado" sortKey="estado" sort={sort} onSort={toggle} align="left" />
               <th className="w-16"></th>
             </tr>
           </thead>
@@ -230,7 +237,7 @@ export default function Contas() {
                   Sem contas neste filtro.
                 </td>
               </tr>
-            ) : items.map((c) => (
+            ) : sortedItems.map((c) => (
               <tr style={estiloCor(corLinha("contas", c))}
                 key={c.id}
                 data-testid={`conta-row-${c.id}`}
@@ -260,7 +267,7 @@ export default function Contas() {
       </ScrollableTable>
 
       <MobileCards testid="contas-cards">
-        {items.map((c) => (
+        {sortedItems.map((c) => (
           <MobileCard style={estiloCor(corLinha("contas", c))} key={c.id} testid={`conta-card-${c.id}`} onClick={() => nav(`/contas/${c.id}`)}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

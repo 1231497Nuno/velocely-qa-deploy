@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { FiltroChip, FiltroGrupo } from "@/components/Filtros";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, fmtDate, eur } from "@/lib/api";
@@ -112,6 +113,7 @@ export default function Financeiro() {
         <PageHeader
           title="Faturas e recibos"
           subtitle="Documentos fiscais. Este módulo é opcional e pode ser diferente em cada cliente."
+          actions={<ExportExcelButton entity="documentos_financeiros" ids={items.map((x) => x.id)} />}
         />
       }
       toolbar={
