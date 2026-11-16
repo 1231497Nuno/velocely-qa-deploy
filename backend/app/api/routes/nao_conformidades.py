@@ -92,10 +92,11 @@ async def _abater_stock(artigo_id: Optional[str], delta: float) -> None:
     if not art:
         return
     # Serviços não têm stock físico
-    if (art.get("tipo") or "") == "servico":
+    if (art.get("tipo_artigo") or art.get("tipo") or "") == "servico":
         return
-    atual = float(art.get("qtd_stock") or 0)
-    await artigos_repo.update(artigo_id, {"qtd_stock": round2(atual - delta)})
+    from app.services import stock as stock_svc
+    await stock_svc.movimentar(artigo_id, -delta, "nao_conformidade" if delta > 0 else "ajuste",
+                               nota="Não conformidade" if delta > 0 else "Reposição (não conformidade)")
 
 
 @router.get("/nao-conformidades")

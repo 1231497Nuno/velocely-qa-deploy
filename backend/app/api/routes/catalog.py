@@ -443,13 +443,22 @@ async def update_artigo(aid: str, data: ArtigoInput, user: dict = Depends(requir
     update["updated_at"] = now_iso()
     update["updated_by"] = user.get("id")
     update["updated_by_nome"] = nome_user
+    delta_stock = round(float(update.get("qtd_stock") or 0) - float(existing.get("qtd_stock") or 0), 4)
     alteracoes = audit.diff_campos(existing, update, [
         "nome", "descricao", "unidade", "custo_artigo", "preco_compra", "margem", "comissao_pct",
         "categoria_id", "subcategoria_id", "tipo_artigo", "produzido",
         "fabricante", "fornecedor_nome", "cod_fornecedor", "qtd_stock", "responsavel",
         "comprimento_mm", "largura_mm", "plano_contas", "conta_proveitos", "iva_taxa",
     ])
-    await artigos_repo.update(aid, update)
+    if abs(delta_stock) > 1e-9:
+        # Acerto manual do stock na ficha → fica registado como movimento
+        from app.services import stock as stock_svc
+        update.pop("qtd_stock", None)
+        await artigos_repo.update(aid, update)
+        await stock_svc.movimentar(aid, delta_stock, "ajuste", user=user, nota="Acerto na ficha do artigo")
+        update["qtd_stock"] = round(float(existing.get("qtd_stock") or 0) + delta_stock, 2)
+    else:
+        await artigos_repo.update(aid, update)
     existing.update(update)
     await audit.registar("artigo", aid, "editado", user, f"Artigo «{update.get('nome')}» editado", update.get("nome"), alteracoes)
     return enrich_artigo(existing, await artigo_breakdown(existing))

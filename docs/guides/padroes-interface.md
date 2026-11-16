@@ -187,3 +187,18 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Notas de crédito (`criar_nota_credito`): por linhas ou valor, motivo obrigatório, devolução opcional do dinheiro
   (pagamento tipo devolução na encomenda). Reduzem o pendente da fatura e devolvem quantidade faturável. Programa
   certificado: FIZ e Moloni pela API; TOConline emite-se lá.
+
+## Compras e stock (`/stock`, `services/stock.py`)
+
+- Toda a alteração de stock passa por `stock.movimentar()` (coleção `movimentos_stock`: entrada, ajuste, inventário,
+  não conformidade). Entradas com custo atualizam `artigo.custo_medio` (média ponderada). Mudar `qtd_stock` na ficha do
+  artigo gera um movimento «ajuste».
+- Unidade de compra: `artigo.unidade_compra` + `fator_compra` (1 rolo = 50 m). As OC são em unidade de compra; o stock
+  entra convertido. Configura-se em Stock → ⚙ (`PUT /stock/artigos/{id}/config`).
+- OC → separador «Receção e fatura»: receções parciais (`POST /ordens-compra/{id}/rececoes`, `linha.qtd_recebida`; passa
+  a «Recebida» quando tudo chegou, com a mesma aprovação de valor) e fatura do fornecedor
+  (`POST …/fatura-fornecedor`): compara com o valor recebido (tolerância 0,50 €) e reparte os portes pelo custo médio.
+- Sugestões de compra (`GET /stock/sugestoes`): projetado = stock + em OC abertas − reservado nas encomendas abertas;
+  abaixo do nível → sugere (arredondado à unidade de compra). «Criar ordens de compra» faz uma OC por fornecedor.
+- Inventários (`/inventarios`): fotografia do stock → contagens → fechar (acertos como movimentos, valor ao custo médio).
+  `GET /inventarios/{id}/at.csv`: ficheiro de inventário para a AT (separador «;», categorias M/P/A).

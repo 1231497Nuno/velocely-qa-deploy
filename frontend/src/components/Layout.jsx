@@ -43,6 +43,7 @@ import {
   Banknote,
   BarChart3,
   Tags,
+  Warehouse,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -54,6 +55,7 @@ const NAV_GROUPS = [
       { to: "/encomendas", label: "Encomendas", icon: ClipboardList, tid: "nav-encomendas", modulo: "encomendas" },
       { to: "/pedidos-cotacao", label: "Pedidos de Cotação", icon: FileQuestion, tid: "nav-pedidos-cotacao", modulo: "pedidos_cotacao" },
       { to: "/ordens-compra", label: "Ordens de Compra", icon: ShoppingCart, tid: "nav-ordens-compra", modulo: "ordens_compra" },
+      { to: "/stock", label: "Stock e inventário", icon: Warehouse, tid: "nav-stock", modulo: "artigos" },
       { to: "/ordens-fabrico", label: "Ordens de Fabrico", icon: Factory, tid: "nav-ofs", modulo: "ordens_fabrico" },
       { to: "/ordens-fabrico/acerto-tempos", label: "Acerto de tempos", icon: Timer, tid: "nav-acerto-tempos", modulo: "ordens_fabrico" },
       { to: "/nao-conformidades", label: "Não conformidades", icon: AlertTriangle, tid: "nav-nc", modulo: "nao_conformidades" },
