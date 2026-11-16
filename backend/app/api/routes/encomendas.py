@@ -133,6 +133,15 @@ async def delete_pagamento(eid: str, pid: str, user: dict = Depends(require_perm
             400,
             "Este pagamento veio de um documento fiscal. Anula ou elimina o recibo no módulo Faturas e recibos.",
         )
+    if existente.get("documento_id"):
+        from app.repositories import documentos_financeiros_repo
+        doc = await documentos_financeiros_repo.get(existente["documento_id"])
+        if doc and doc.get("estado") != "anulada":
+            raise HTTPException(
+                400,
+                f"Este pagamento tem a {'fatura em rascunho' if doc.get('estado') == 'rascunho' else 'fatura ' + (doc.get('numero') or '')}. "
+                "Elimine o rascunho ou anule a fatura primeiro.",
+            )
     pagamentos = [p for p in (enc.get("pagamentos") or []) if p.get("id") != pid]
     total = soma_valor_pago(pagamentos)
     await encomendas_repo.update(eid, {"pagamentos": pagamentos, "valor_pago": total})

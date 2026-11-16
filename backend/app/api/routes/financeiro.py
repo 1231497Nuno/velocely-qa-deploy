@@ -13,6 +13,7 @@ from app.repositories import documentos_financeiros_repo, encomendas_repo
 from app.services.financeiro import (
     emitir_from_encomenda, emitir_recibo_from_fatura, enrich_documento, enrich_documentos_many,
     resumo_faturacao_encomenda, LinhaParcialInput, reverter_efeitos_documento,
+    editar_rascunho, assinar_documento, desligar_pagamento_do_documento,
 )
 from app.services.pdf import load_pdf_config, fetch_cliente, build_documento_financeiro_pdf
 from app.services import audit
@@ -102,6 +103,8 @@ async def documento_pdf(
     doc = await documentos_financeiros_repo.get(did)
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
+    if doc.get("estado") == "rascunho":
+        doc = {**doc, "numero": "RASCUNHO", "notas": ("Documento sem valor fiscal (rascunho). " + (doc.get("notas") or "")).strip()}
     settings, _, show_branding = await load_pdf_config(None)
     cliente = await fetch_cliente(doc.get("cliente_id"))
     pdf = build_documento_financeiro_pdf(doc, settings=settings, cliente=cliente, show_branding=show_branding)
@@ -113,6 +116,40 @@ async def documento_pdf(
     )
 
 
+class LinhaRascunhoBody(BaseModel):
+    descricao: str = ""
+    quantidade: float = 1
+    preco_unit: float = 0
+    indice: Optional[int] = None  # posição da linha original (mantém a ligação ao artigo)
+
+
+class EditarRascunhoBody(BaseModel):
+    data: Optional[str] = None
+    notas: Optional[str] = None
+    referencia_cliente: Optional[str] = None
+    metodo_pagamento: Optional[str] = None
+    linhas: Optional[List[LinhaRascunhoBody]] = None
+
+
+@router.put("/financeiro/documentos/{did}")
+async def editar_documento_rascunho(
+    did: str, body: EditarRascunhoBody, user: dict = Depends(require_perm("financeiro", "edit")),
+):
+    """Só documentos em rascunho. Depois de assinado, o documento fica fixo."""
+    dados = body.model_dump(exclude_unset=True)
+    if body.linhas is not None:
+        dados["linhas"] = [
+            {"descricao": l.descricao, "quantidade": l.quantidade, "preco_unit": l.preco_unit, "_indice": l.indice}
+            for l in body.linhas
+        ]
+    return await editar_rascunho(did, dados, user)
+
+
+@router.post("/financeiro/documentos/{did}/assinar")
+async def assinar_documento_route(did: str, user: dict = Depends(require_perm("financeiro", "create"))):
+    return await assinar_documento(did, user)
+
+
 @router.post("/financeiro/documentos/{did}/anular")
 async def anular_documento(did: str, user: dict = Depends(require_perm("financeiro", "edit"))):
     doc = await documentos_financeiros_repo.get(did)
@@ -120,8 +157,11 @@ async def anular_documento(did: str, user: dict = Depends(require_perm("financei
         raise HTTPException(404, "Documento não encontrado")
     if doc.get("estado") == "anulada":
         return await enrich_documento(doc)
+    if doc.get("estado") == "rascunho":
+        raise HTTPException(400, "Um rascunho não se anula — elimine-o")
     efeitos = await reverter_efeitos_documento(doc)
     await documentos_financeiros_repo.update(did, {"estado": "anulada"})
+    await desligar_pagamento_do_documento(doc)
     doc["estado"] = "anulada"
     label = DOC_TIPO_PT.get(doc.get("tipo"), doc.get("tipo"))
     extra = ""
@@ -146,6 +186,7 @@ async def delete_documento(did: str, user: dict = Depends(require_perm("financei
         for r in await documentos_financeiros_repo.find({"fatura_id": did}, limit=500):
             await documentos_financeiros_repo.delete({"id": r["id"]})
     await documentos_financeiros_repo.delete({"id": did})
+    await desligar_pagamento_do_documento(doc)
     label = DOC_TIPO_PT.get(doc.get("tipo"), doc.get("tipo"))
     extra = ""
     if efeitos.get("pagamentos_revertidos"):

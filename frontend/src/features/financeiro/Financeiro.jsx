@@ -209,11 +209,11 @@ export default function Financeiro() {
             <MobileCard key={d.id} testid={`fin-card-${d.id}`} onClick={() => nav(`/financeiro/${d.id}`)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="mono font-semibold text-gray-900">{d.numero}</div>
+                  <div className="mono font-semibold text-gray-900">{d.numero || <span className="text-amber-700 font-sans">Rascunho</span>}</div>
                   <div className="text-sm text-gray-700 truncate mt-0.5">{d.cliente || "—"}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{DOC_TIPO_PT[d.tipo] || d.tipo} · {fmtDate(d.data)}</div>
                 </div>
-                {!isProforma && <StatusBadge status={d.status_pagamento || "pendente"} />}
+                {d.estado === "rascunho" ? <StatusBadge status="rascunho" /> : !isProforma && <StatusBadge status={d.status_pagamento || "pendente"} />}
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 gap-2">
                 <div className="text-xs text-gray-500">
@@ -267,14 +267,14 @@ function FaturaGroup({ d, idx, hasKids, open, isProforma, recibos, canDelete, on
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
             {!isProforma && <PayDot status={d.status_pagamento} />}
-            <span className="font-medium mono text-teal-700 hover:underline">{d.numero}</span>
+            <span className="font-medium mono text-teal-700 hover:underline">{d.numero || <span className="text-amber-700 font-sans">Rascunho</span>}</span>
           </div>
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{DOC_TIPO_PT[d.tipo] || d.tipo}</td>
         <td className="px-4 py-3 text-gray-700">{d.cliente || "—"}</td>
         <td className="px-4 py-3 text-gray-500 tabular-nums">{fmtDate(d.data)}</td>
         <td className="px-4 py-3">
-          {isProforma ? <span className="text-xs text-gray-400">—</span> : <StatusBadge status={d.status_pagamento || "pendente"} />}
+          {d.estado === "rascunho" ? <StatusBadge status="rascunho" /> : isProforma ? <span className="text-xs text-gray-400">—</span> : <StatusBadge status={d.status_pagamento || "pendente"} />}
         </td>
         <td className="px-4 py-3 text-right tabular-nums text-gray-600">
           {isProforma ? "—" : eur(d.valor_pendente || 0)}

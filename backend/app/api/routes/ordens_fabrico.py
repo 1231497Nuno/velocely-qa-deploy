@@ -14,7 +14,9 @@ from app.domain.models import OrdemFabricoInput, OrdemFabrico, STATUS_PT
 from app.repositories import ordens_repo, encomendas_repo, artigos_repo
 from app.services.costing import (
     recompute_of_status, build_of_itens, artigo_breakdown, compute_encomenda,
+    op_custo_real, op_labor_rate, op_machine_cost_est, op_machine_cost_real,
 )
+from app.core.database import round2
 from app.services.pdf import load_pdf_config, fetch_cliente, fetch_orcamento, build_of_pdf
 from app.services import audit
 
@@ -304,3 +306,140 @@ async def delete_of(ofid: str, user: dict = Depends(require_perm("ordens_fabrico
         await audit.registar("ordem_fabrico", ofid, "eliminado", user,
                              f"OF {existing.get('numero')} eliminada", existing.get("numero"))
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Acerto de tempos (ecrã próprio): corrigir os tempos reais para acertar custos.
+# Funciona também em OFs finalizadas — fica tudo registado no histórico.
+# ---------------------------------------------------------------------------
+def _linhas_tempos(of: dict) -> list:
+    out = []
+    for it in of.get("itens") or []:
+        for op in it.get("operacoes") or []:
+            t_maq_est = float(op.get("tempo_maquina") or 0)
+            t_mo_est = float(op.get("tempo_mao_obra") or 0)
+            maq_est = op_machine_cost_est(op)
+            taxa_maq = float(op.get("maquina_custo_hora") or 0) or ((maq_est / (t_maq_est / 60.0)) if t_maq_est > 0 else 0.0)
+            out.append({
+                "item_id": it.get("id"),
+                "artigo_nome": it.get("artigo_nome") or "",
+                "quantidade": it.get("quantidade") or 0,
+                "unidade": it.get("unidade") or "un",
+                "operacao_id": op.get("id"),
+                "operacao": op.get("nome") or "",
+                "maquina_nome": op.get("maquina_nome") or "",
+                "mao_obra_nome": op.get("mao_obra_nome") or "",
+                "concluida": bool(op.get("concluida")),
+                "em_curso": bool(op.get("timer_inicio")),
+                "tempo_maquina_est": round2(t_maq_est),
+                "tempo_mao_obra_est": round2(t_mo_est),
+                "tempo_maquina_real": None if op.get("tempo_maquina_real") is None else round2(op["tempo_maquina_real"]),
+                "tempo_mao_obra_real": round2((op.get("tempo_real_seg") or 0) / 60.0),
+                "taxa_maquina_hora": round2(taxa_maq),
+                "taxa_mao_obra_hora": round2(op_labor_rate(op)),
+                "custo_estimado": round2(op.get("custo_estimado") or 0),
+                "custo_maquina_est": round2(maq_est),
+                "custo_maquina_real": op_machine_cost_real(op),
+                "custo_real": op_custo_real(op),
+            })
+    return out
+
+
+def _resumo_tempos(of: dict) -> dict:
+    linhas = _linhas_tempos(of)
+    return {
+        "of": {
+            "id": of.get("id"), "numero": of.get("numero"), "cliente": of.get("cliente"),
+            "status": of.get("status"), "encomenda_id": of.get("encomenda_id"),
+            "encomenda_numero": of.get("encomenda_numero") or of.get("numero_encomenda"),
+        },
+        "linhas": linhas,
+        "totais": {
+            "tempo_estimado": round2(sum(l["tempo_maquina_est"] + l["tempo_mao_obra_est"] for l in linhas)),
+            "tempo_real": round2(sum((l["tempo_maquina_real"] if l["tempo_maquina_real"] is not None else l["tempo_maquina_est"])
+                                     + l["tempo_mao_obra_real"] for l in linhas)),
+            "custo_estimado": round2(sum(l["custo_estimado"] for l in linhas)),
+            "custo_real": round2(sum(l["custo_real"] for l in linhas)),
+        },
+        "acertos": list(reversed(of.get("acertos_tempos") or []))[:50],
+    }
+
+
+@router.get("/ordens-fabrico/{ofid}/tempos")
+async def get_tempos_of(ofid: str, _u: dict = Depends(require_perm("ordens_fabrico", "view"))):
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    return _resumo_tempos(recompute_of_status(of))
+
+
+class AcertoOperacao(BaseModel):
+    item_id: str
+    operacao_id: str
+    tempo_mao_obra_real: Optional[float] = None   # minutos
+    tempo_maquina_real: Optional[float] = None     # minutos (vazio = usar estimado)
+    limpar_maquina: bool = False
+
+
+class AcertoTemposBody(BaseModel):
+    motivo: str = ""
+    operacoes: list[AcertoOperacao]
+
+
+@router.put("/ordens-fabrico/{ofid}/tempos")
+async def acertar_tempos_of(ofid: str, body: AcertoTemposBody, user: dict = Depends(require_perm("ordens_fabrico", "edit"))):
+    of = await ordens_repo.get(ofid)
+    if not of:
+        raise HTTPException(404, "OF não encontrada")
+    motivo = (body.motivo or "").strip()
+    if not motivo:
+        raise HTTPException(400, "Indique o motivo do acerto (fica no histórico)")
+    custo_antes = round2(sum(op_custo_real(op) for it in of.get("itens") or [] for op in it.get("operacoes") or []))
+    registos = []
+    for a in body.operacoes:
+        op = _find_op(of, a.item_id, a.operacao_id)
+        if not op:
+            raise HTTPException(404, "Operação não encontrada")
+        nome = op.get("nome") or "operação"
+        if op.get("timer_inicio"):
+            raise HTTPException(400, f"Pare o cronómetro de «{nome}» antes de acertar o tempo")
+        if a.tempo_mao_obra_real is not None:
+            if a.tempo_mao_obra_real < 0:
+                raise HTTPException(400, f"«{nome}»: o tempo não pode ser negativo")
+            antes = round2((op.get("tempo_real_seg") or 0) / 60.0)
+            depois = round2(a.tempo_mao_obra_real)
+            if abs(antes - depois) > 0.004:
+                op["tempo_real_seg"] = round(depois * 60.0, 1)
+                registos.append({"operacao": nome, "campo": "Mão de obra (min)", "de": antes, "para": depois})
+        if a.limpar_maquina or a.tempo_maquina_real is not None:
+            if a.tempo_maquina_real is not None and a.tempo_maquina_real < 0:
+                raise HTTPException(400, f"«{nome}»: o tempo não pode ser negativo")
+            antes = op.get("tempo_maquina_real")
+            depois = None if a.limpar_maquina else round2(a.tempo_maquina_real)
+            if antes != depois:
+                op["tempo_maquina_real"] = depois
+                registos.append({"operacao": nome, "campo": "Máquina (min)",
+                                 "de": "estimado" if antes is None else antes,
+                                 "para": "estimado" if depois is None else depois})
+    if not registos:
+        return _resumo_tempos(recompute_of_status(of))
+    custo_depois = round2(sum(op_custo_real(op) for it in of.get("itens") or [] for op in it.get("operacoes") or []))
+    acerto = {
+        "at": now_iso(),
+        "por": (user or {}).get("nome") or (user or {}).get("email") or "",
+        "motivo": motivo,
+        "alteracoes": registos,
+        "custo_antes": custo_antes,
+        "custo_depois": custo_depois,
+    }
+    of["acertos_tempos"] = (of.get("acertos_tempos") or []) + [acerto]
+    status_antes = of.get("status")
+    saved = await _save_of(ofid, {**of, "status": status_antes} if status_antes == "concluido" else of)
+    await audit.registar(
+        "ordem_fabrico", ofid, "editado", user,
+        f"Tempos da OF {of.get('numero')} acertados ({len(registos)} alteração(ões)) · custo real "
+        f"{custo_antes:.2f}€ → {custo_depois:.2f}€ · {motivo}",
+        of.get("numero"),
+        [{"campo": "tempos", "label": f"{r['operacao']} · {r['campo']}", "de": str(r["de"]), "para": str(r["para"])} for r in registos],
+    )
+    return _resumo_tempos(saved)

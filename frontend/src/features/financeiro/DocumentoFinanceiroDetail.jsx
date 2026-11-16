@@ -12,7 +12,8 @@ import { DOC_TIPO_PT } from "@/features/financeiro/Financeiro";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Ban, FileDown, Trash2, Receipt, Plus, ExternalLink } from "lucide-react";
+import { Ban, FileDown, Trash2, Receipt, Plus, ExternalLink, FileSignature, Lock, Pencil, Save, X } from "lucide-react";
+import BotaoAdicionar from "@/components/BotaoAdicionar";
 import { toast } from "sonner";
 
 async function openPdf(docId) {
@@ -40,6 +41,7 @@ export default function DocumentoFinanceiroDetail() {
   const [pagMetodo, setPagMetodo] = useState("transferencia");
   const [pagNota, setPagNota] = useState("");
   const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState(null);
 
   const load = useCallback(async () => {
     setDoc(await api.get(`/financeiro/documentos/${id}`));
@@ -48,7 +50,8 @@ export default function DocumentoFinanceiroDetail() {
 
   if (!doc) return <div className="text-sm text-gray-500">A carregar...</div>;
 
-  const isFatura = doc.tipo === "fatura" || doc.tipo === "fatura_recibo";
+  const rascunho = doc.estado === "rascunho";
+  const isFatura = (doc.tipo === "fatura" || doc.tipo === "fatura_recibo") && !rascunho;
   const isRecibo = doc.tipo === "recibo";
   const recibos = doc.recibos || [];
   const pendente = Number(doc.valor_pendente) || 0;
@@ -66,7 +69,61 @@ export default function DocumentoFinanceiroDetail() {
     toast.success(isRecibo ? "Recibo anulado" : "Fatura anulada");
   };
 
+  const iniciarEdicao = () => setEdit({
+    data: doc.data || "",
+    notas: doc.notas || "",
+    referencia_cliente: doc.referencia_cliente || "",
+    metodo_pagamento: doc.metodo_pagamento || "transferencia",
+    linhas: (doc.linhas || []).map((l, i) => ({ descricao: l.descricao || "", quantidade: l.quantidade, preco_unit: l.preco_unit, indice: i })),
+  });
+  const updLinha = (i, patch) => setEdit((e) => ({ ...e, linhas: e.linhas.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
+  const guardarRascunho = async () => {
+    setBusy(true);
+    try {
+      const out = await api.put(`/financeiro/documentos/${id}`, {
+        ...edit,
+        linhas: edit.linhas.map((l) => ({ ...l, quantidade: Number(l.quantidade) || 0, preco_unit: Number(l.preco_unit) || 0 })),
+      });
+      setDoc(out);
+      setEdit(null);
+      toast.success("Rascunho guardado");
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Não foi possível guardar");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const assinar = async () => {
+    if (edit) return toast.error("Guarde ou cancele as alterações antes de assinar");
+    if (!await confirmAction({
+      title: `Assinar ${DOC_TIPO_PT[doc.tipo] || "documento"}`,
+      description: `Fica com número definitivo e o total de ${eur(doc.total)}. Depois de assinado já não pode ser editado — só anulado.`,
+      confirmLabel: "Assinar",
+    })) return;
+    setBusy(true);
+    try {
+      const out = await api.post(`/financeiro/documentos/${id}/assinar`);
+      setDoc(out);
+      toast.success(`${out.numero} assinada`);
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Não foi possível assinar");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const subtotalEdit = edit ? edit.linhas.reduce((s, l) => s + (Number(l.quantidade) || 0) * (Number(l.preco_unit) || 0), 0) : 0;
+  const totalEdit = subtotalEdit * (1 + (Number(doc.iva_taxa) || 0) / 100);
+
   const remove = async () => {
+    if (rascunho) {
+      if (!await confirmAction({ title: "Eliminar rascunho", description: "O rascunho é apagado e o pagamento volta a ficar por faturar.", confirmLabel: "Eliminar", tone: "danger" })) return;
+      await api.del(`/financeiro/documentos/${id}`);
+      toast.success("Rascunho eliminado");
+      nav("/pagamentos");
+      return;
+    }
     const msg = isFatura
       ? "Eliminar esta fatura e os recibos associados?"
       : "Eliminar este recibo definitivamente?";
@@ -121,10 +178,10 @@ export default function DocumentoFinanceiroDetail() {
             label={isRecibo && doc.fatura_numero ? `Voltar à fatura ${doc.fatura_numero}` : "Voltar às faturas"}
           />
         }
-        title={doc.numero}
+        title={doc.numero || `${DOC_TIPO_PT[doc.tipo] || "Documento"} (rascunho)`}
         badges={
           <>
-            <StatusBadge status={doc.estado === "anulada" ? "anulada" : "emitida"} testid="doc-estado-badge" />
+            <StatusBadge status={rascunho ? "rascunho" : doc.estado === "anulada" ? "anulada" : "emitida"} testid="doc-estado-badge" />
             {isFatura && <StatusBadge status={doc.status_pagamento || "pendente"} testid="doc-pagamento-badge" />}
           </>
         }
@@ -149,6 +206,25 @@ export default function DocumentoFinanceiroDetail() {
         }
         actions={
           <>
+            {rascunho && can("financeiro", "edit") && (edit ? (
+              <>
+                <button type="button" onClick={() => setEdit(null)} disabled={busy} className="btn btn-secundario" data-testid="doc-cancelar-edicao">
+                  <X size={15} /> Cancelar
+                </button>
+                <button type="button" onClick={guardarRascunho} disabled={busy} className="btn btn-primario" data-testid="doc-guardar-rascunho">
+                  <Save size={15} /> Guardar
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={iniciarEdicao} className="btn btn-secundario" data-testid="doc-editar-rascunho">
+                <Pencil size={15} /> Editar
+              </button>
+            ))}
+            {rascunho && can("financeiro", "create") && !edit && (
+              <button type="button" onClick={assinar} disabled={busy} className="btn btn-primario" data-testid="doc-assinar-btn">
+                <FileSignature size={15} /> Assinar
+              </button>
+            )}
             <button
               type="button"
               data-testid="doc-pdf-btn"
@@ -166,14 +242,14 @@ export default function DocumentoFinanceiroDetail() {
                 <Receipt size={15} /> Registar pagamento
               </button>
             )}
-            {can("financeiro", "edit") && doc.estado !== "anulada" && (
+            {can("financeiro", "edit") && doc.estado !== "anulada" && !rascunho && (
               <button data-testid="doc-anular-btn" onClick={anular} className="btn btn-secundario">
                 <Ban size={15} /> Anular
               </button>
             )}
-            {can("financeiro", "delete") && (
+            {(rascunho ? can("financeiro", "create") : can("financeiro", "delete")) && !edit && (
               <button data-testid="doc-del-btn" onClick={remove} className="btn btn-secundario">
-                <Trash2 size={15} /> Eliminar
+                <Trash2 size={15} /> {rascunho ? "Eliminar rascunho" : "Eliminar"}
               </button>
             )}
           </>
@@ -192,6 +268,83 @@ export default function DocumentoFinanceiroDetail() {
 
       {tab === "documento" && (
         <>
+      {rascunho ? (
+        <div className="flex items-start gap-2 rounded-sm border border-amber-200 bg-amber-50 px-4 py-2.5 mb-4 text-sm text-amber-950" data-testid="doc-rascunho-banner">
+          <FileSignature size={16} className="shrink-0 mt-0.5 text-amber-600" />
+          <p>Rascunho sem número nem valor fiscal. Reveja os dados e carregue em <strong>Assinar</strong> — depois de assinado já não pode ser editado.</p>
+        </div>
+      ) : doc.assinado_at ? (
+        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3" data-testid="doc-assinatura">
+          <Lock size={12} /> Assinado em {fmtDate(doc.assinado_at)}{doc.assinado_por ? ` por ${doc.assinado_por}` : ""} · {String(doc.hash || "").slice(0, 4)}…{String(doc.hash || "").slice(-4)} · não editável
+        </div>
+      ) : null}
+
+      {edit && (
+        <div className="bg-white border border-brand/40 rounded-sm p-5 mb-4 space-y-4" data-testid="doc-edicao">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Data</label>
+              <input type="date" value={edit.data} onChange={(e) => setEdit({ ...edit, data: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Ref. cliente (PO)</label>
+              <input value={edit.referencia_cliente} onChange={(e) => setEdit({ ...edit, referencia_cliente: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm" />
+            </div>
+            {doc.tipo === "fatura_recibo" && (
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Método</label>
+                <select value={edit.metodo_pagamento} onChange={(e) => setEdit({ ...edit, metodo_pagamento: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white">
+                  {Object.entries(METODO_PT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5 block">Notas</label>
+            <textarea rows={2} value={edit.notas} onChange={(e) => setEdit({ ...edit, notas: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm resize-y" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Descrição</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-24">Qtd</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-32">Preço s/ IVA</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-500 w-28">Subtotal</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {edit.linhas.map((l, i) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="px-3 py-1.5"><input value={l.descricao} onChange={(e) => updLinha(i, { descricao: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm" data-testid={`doc-linha-desc-${i}`} /></td>
+                    <td className="px-3 py-1.5"><input type="number" min="0" step="0.01" value={l.quantidade} onChange={(e) => updLinha(i, { quantidade: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums" /></td>
+                    <td className="px-3 py-1.5"><input type="number" min="0" step="0.01" value={l.preco_unit} onChange={(e) => updLinha(i, { preco_unit: e.target.value })} className="w-full border border-gray-300 rounded-sm px-2 py-1.5 text-sm text-right tabular-nums" data-testid={`doc-linha-preco-${i}`} /></td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{eur((Number(l.quantidade) || 0) * (Number(l.preco_unit) || 0))}</td>
+                    <td className="px-1 py-1.5">
+                      {edit.linhas.length > 1 && (
+                        <button type="button" onClick={() => setEdit({ ...edit, linhas: edit.linhas.filter((_, j) => j !== i) })} className="p-1.5 rounded-sm text-red-600 hover:bg-red-50" title="Remover linha"><Trash2 size={14} /></button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <BotaoAdicionar tamanho="sm" onClick={() => setEdit({ ...edit, linhas: [...edit.linhas, { descricao: "", quantidade: 1, preco_unit: 0, indice: null }] })} testid="doc-add-linha">
+              Adicionar linha
+            </BotaoAdicionar>
+            <div className="text-sm text-gray-600">
+              Total c/ IVA: <span className="font-semibold tabular-nums text-gray-900">{eur(totalEdit)}</span>
+              {doc.pagamento_id && Math.abs(totalEdit - (Number(doc.total) || 0)) > 0.01 && (
+                <span className="ml-2 text-amber-700">· tem de ser igual ao pagamento ({eur(doc.total)}) para assinar</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <div className="bg-white border border-gray-200 rounded-sm p-5 space-y-3 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-700">Dados</h3>

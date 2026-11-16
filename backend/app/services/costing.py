@@ -681,9 +681,21 @@ def op_labor_rate(op: dict) -> float:
     return round2(cmo_est / (t_mo / 60.0))
 
 
+def op_machine_cost_real(op: dict) -> float:
+    """Máquina: tempo real acertado × custo/hora; sem acerto, o custo estimado."""
+    t = op.get("tempo_maquina_real")
+    if t is None:
+        return op_machine_cost_est(op)
+    taxa = op.get("maquina_custo_hora")
+    if not taxa:
+        t_est = op.get("tempo_maquina") or 0
+        taxa = (op_machine_cost_est(op) / (t_est / 60.0)) if t_est > 0 else 0.0
+    return round2(float(t) / 60.0 * float(taxa or 0))
+
+
 def op_custo_real(op: dict) -> float:
     horas_real = (op.get("tempo_real_seg") or 0) / 3600.0
-    return round2(op_machine_cost_est(op) + horas_real * op_labor_rate(op))
+    return round2(op_machine_cost_real(op) + horas_real * op_labor_rate(op))
 
 
 def recompute_of_status(of: dict) -> dict:

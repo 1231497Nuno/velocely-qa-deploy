@@ -813,7 +813,7 @@ export default function EncomendaDetail() {
                           className="flex items-center justify-between gap-2 border border-gray-200 rounded-sm px-2.5 py-1.5 hover:bg-gray-50 text-sm"
                         >
                           <span className="min-w-0 truncate">
-                            <span className="font-medium mono text-gray-900">{d.numero}</span>
+                            <span className="font-medium mono text-gray-900">{d.numero || <span className="text-amber-700 font-sans">Rascunho</span>}</span>
                             <span className="text-xs text-gray-400 ml-2">{d.tipo}</span>
                           </span>
                           <span className="text-xs tabular-nums text-gray-500 shrink-0">{eur(d.total)}</span>

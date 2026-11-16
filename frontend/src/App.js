@@ -45,6 +45,8 @@ import Calendario from "@/features/producao/Calendario";
 import RentabilidadeClientes from "@/features/relatorios/RentabilidadeClientes";
 import Historico from "@/features/historico/Historico";
 import Crm from "@/features/crm/Crm";
+import Pagamentos from "@/features/pagamentos/Pagamentos";
+import AcertoTempos from "@/features/ordens_fabrico/AcertoTempos";
 
 function Protected({ children, adminOnly, modulo }) {
   const { user, ready, isAdmin, can } = useAuth();
@@ -87,6 +89,7 @@ const router = createBrowserRouter([
       { path: "/encomendas/:id", element: <Protected modulo="encomendas"><EncomendaDetail /></Protected> },
       { path: "/nao-conformidades", element: <Protected modulo="nao_conformidades"><NaoConformidades /></Protected> },
       { path: "/nao-conformidades/:id", element: <Protected modulo="nao_conformidades"><NaoConformidadeDetail /></Protected> },
+      { path: "/pagamentos", element: <Protected modulo="encomendas"><Pagamentos /></Protected> },
       { path: "/financeiro", element: <Protected modulo="financeiro"><Financeiro /></Protected> },
       { path: "/financeiro/:id", element: <Protected modulo="financeiro"><DocumentoFinanceiroDetail /></Protected> },
       { path: "/contas", element: <Protected modulo="contas"><Contas /></Protected> },
@@ -103,6 +106,7 @@ const router = createBrowserRouter([
       { path: "/orcamentos", element: <Protected modulo="orcamentos"><Orcamentos /></Protected> },
       { path: "/orcamentos/:id", element: <Protected modulo="orcamentos"><OrcamentoDetail /></Protected> },
       { path: "/ordens-fabrico", element: <Protected modulo="ordens_fabrico"><OrdensFabrico /></Protected> },
+      { path: "/ordens-fabrico/acerto-tempos", element: <Protected modulo="ordens_fabrico"><AcertoTempos /></Protected> },
       { path: "/ordens-fabrico/:id", element: <Protected modulo="ordens_fabrico"><OrdemFabricoDetail /></Protected> },
       { path: "/analise-producao", element: <Protected modulo="analise_producao"><AnaliseProducao /></Protected> },
       { path: "/rentabilidade-clientes", element: <Protected modulo="rentabilidade"><RentabilidadeClientes /></Protected> },

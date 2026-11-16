@@ -106,3 +106,15 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
 - Campos personalizados entram como colunas `campo_<chave>` (cabeçalho azul); célula vazia não altera o valor.
 - Clientes trazem a folha `Cliente_contactos` (ligada por `cliente_codigo`); encomendas trazem `Encomenda_linhas` com a coluna `cor`.
 - Leads do CRM: folha `Leads_CRM`, estado pelo nome da coluna do funil; duplicados pelo email/telefone.
+
+## Pagamentos e faturas
+
+- **Pagamentos** (`/pagamentos`): todos os pagamentos/devoluções das encomendas, com totais (recebido, devolvido, líquido, por faturar) e filtros.
+- Um pagamento edita-se (data, valor, método, nota) enquanto não tiver documento fiscal assinado. Pagamentos criados por recibos fiscais ou já faturados ficam bloqueados — para corrigir anula-se o documento.
+- A partir de um pagamento emite-se **fatura-recibo** ou **fatura (+ recibo)**: em rascunho (editável: data, notas, linhas) ou já assinada.
+- **Assinar** atribui o número definitivo e um hash encadeado (assinatura interna, não certificada pela AT). Documento assinado não se edita — só se anula; ao anular/eliminar, o pagamento volta a ficar por faturar.
+
+## Acerto de tempos das OF
+
+- `/ordens-fabrico/acerto-tempos?of=<id>` (botão «Acertar tempos» na OF): corrigir o tempo real de mão de obra e de máquina de cada operação, também em OFs finalizadas.
+- Tempo de máquina vazio = usa o estimado. Exige motivo; cada acerto fica guardado na OF (`acertos_tempos`) e no histórico, com o custo real antes/depois.
