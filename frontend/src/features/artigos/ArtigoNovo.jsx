@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BotaoAdicionar from "@/components/BotaoAdicionar";
+import EntitySelect from "@/components/EntitySelect";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
 import { useNavigate } from "react-router-dom";
 import { api, eur } from "@/lib/api";
@@ -281,13 +282,8 @@ export default function ArtigoNovo() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="grid grid-cols-[1fr_64px_56px] gap-1.5">
-                        <select value={op.maquina_id || ""} onChange={(e) => {
-                          const mq = maquinas.find((x) => x.id === e.target.value);
-                          updOp(i, { maquina_id: e.target.value, maquina_nome: mq?.nome || "" });
-                        }} className={fieldCls}>
-                          <option value="">Máquina…</option>
-                          {maquinas.map((mq) => <option key={mq.id} value={mq.id}>{mq.nome}</option>)}
-                        </select>
+                        <EntitySelect items={maquinas} value={op.maquina_id} clearLabel="— Sem máquina —" placeholder="Máquina…"
+                          onChange={(id, mq) => updOp(i, { maquina_id: id, maquina_nome: mq?.nome || "" })} />
                         <input type="number" value={op.tempo_maquina} onChange={(e) => updOp(i, { tempo_maquina: e.target.value })} className={`${fieldCls} text-right`} />
                         <select value={op.tempo_maquina_unidade || "min"} onChange={(e) => updOp(i, { tempo_maquina_unidade: e.target.value })} className={fieldCls}>
                           <option value="min">min</option>
@@ -295,13 +291,8 @@ export default function ArtigoNovo() {
                         </select>
                       </div>
                       <div className="grid grid-cols-[1fr_64px_56px] gap-1.5">
-                        <select value={op.mao_obra_id || ""} onChange={(e) => {
-                          const mo = maoObra.find((x) => x.id === e.target.value);
-                          updOp(i, { mao_obra_id: e.target.value, mao_obra_nome: mo?.nome || "" });
-                        }} className={fieldCls}>
-                          <option value="">Mão de obra…</option>
-                          {maoObra.map((mo) => <option key={mo.id} value={mo.id}>{mo.nome}</option>)}
-                        </select>
+                        <EntitySelect items={maoObra} value={op.mao_obra_id} clearLabel="— Sem mão de obra —" placeholder="Mão de obra…"
+                          onChange={(id, mo) => updOp(i, { mao_obra_id: id, mao_obra_nome: mo?.nome || "" })} />
                         <input type="number" value={op.tempo_mao_obra} onChange={(e) => updOp(i, { tempo_mao_obra: e.target.value })} className={`${fieldCls} text-right`} />
                         <select value={op.tempo_mao_obra_unidade || "min"} onChange={(e) => updOp(i, { tempo_mao_obra_unidade: e.target.value })} className={fieldCls}>
                           <option value="min">min</option>

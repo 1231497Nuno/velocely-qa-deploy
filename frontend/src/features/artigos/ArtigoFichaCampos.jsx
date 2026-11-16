@@ -1,4 +1,8 @@
+import { useState } from "react";
 import dayjs from "dayjs";
+import EntitySelect from "@/components/EntitySelect";
+import FornecedorSelect from "@/components/FornecedorSelect";
+import { useFornecedores } from "@/lib/useFornecedores";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/pt";
 import { eur } from "@/lib/api";
@@ -14,6 +18,7 @@ import {
   isMateriaPrima,
 } from "@/features/artigos/artigoTipos";
 import { areaPlacaM2, custoM2FromPlaca, applyCustoPlaca, unidadeMedida } from "@/features/artigos/artigoCustoPlaca";
+import UtilizadorSelect from "@/components/UtilizadorSelect";
 
 dayjs.extend(relativeTime);
 dayjs.locale("pt");
@@ -188,10 +193,8 @@ export default function ArtigoFichaCampos({
           {show("categoria") && (
             <FieldRow label="Categoria de produto *" testid="ficha-categoria">
               {editing ? (
-                <select value={draft?.categoria_id || ""} onChange={(e) => onSetCategoria?.(e.target.value)} className={fieldCls} data-testid="artigo-categoria-select" required>
-                  <option value="">— Escolher categoria —</option>
-                  {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                <EntitySelect items={categorias} value={draft?.categoria_id} onChange={(id) => onSetCategoria?.(id)}
+                  placeholder="— Escolher categoria —" testid="artigo-categoria-select" />
               ) : (
                 <InlineSelect
                   value={artigo?.categoria_id}
@@ -208,27 +211,23 @@ export default function ArtigoFichaCampos({
           )}
           {show("fornecedor") && (
             <FieldRow label="Fornecedor" testid="ficha-fornecedor">
-              {editing ? (
-                <input value={draft?.fornecedor_nome || ""} onChange={(e) => onChange?.({ fornecedor_nome: e.target.value })} className={fieldCls} />
-              ) : (
-                <InlineField value={artigo?.fornecedor_nome || ""} canEdit={canEdit} onSave={patchStr("fornecedor_nome")} testid="artigo-fornecedor" />
-              )}
+              <ArtigoFornecedor
+                editing={editing}
+                canEdit={canEdit}
+                value={editing ? draft?.fornecedor_id : artigo?.fornecedor_id}
+                nome={editing ? draft?.fornecedor_nome : artigo?.fornecedor_nome}
+                onPick={(id, f) => {
+                  const patch = { fornecedor_id: id || "", fornecedor_nome: f?.nome || "" };
+                  if (editing) onChange?.(patch); else onPatch?.(patch);
+                }}
+              />
             </FieldRow>
           )}
           {show("subcategoria") && (
             <FieldRow label="Sub categoria *" testid="ficha-subcategoria">
               {editing ? (
-                <select
-                  value={draft?.subcategoria_id || ""}
-                  disabled={!draft?.categoria_id}
-                  onChange={(e) => onSetSubcategoria?.(e.target.value)}
-                  className={`${fieldCls} disabled:bg-gray-50`}
-                  data-testid="artigo-subcategoria-select"
-                  required
-                >
-                  <option value="">— Escolher subcategoria —</option>
-                  {subsDaCat.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                </select>
+                <EntitySelect items={subsDaCat} value={draft?.subcategoria_id} disabled={!draft?.categoria_id}
+                  onChange={(id) => onSetSubcategoria?.(id)} placeholder="— Escolher subcategoria —" testid="artigo-subcategoria-select" />
               ) : (
                 <InlineSelect
                   value={artigo?.subcategoria_id}
@@ -648,7 +647,7 @@ export default function ArtigoFichaCampos({
         {show("responsavel") && (
           <FieldRow label="Responsável" testid="ficha-responsavel">
             {editing ? (
-              <input value={draft?.responsavel || ""} onChange={(e) => onChange?.({ responsavel: e.target.value })} className={fieldCls} />
+              <UtilizadorSelect value={draft?.responsavel || ""} onChange={(v) => onChange?.({ responsavel: v })} />
             ) : (
               <InlineField
                 value={artigo?.responsavel || ""}
@@ -675,4 +674,23 @@ export default function ArtigoFichaCampos({
   }
 
   return null;
+}
+
+
+/** Fornecedor do artigo: escolhido da base de dados de fornecedores (com pesquisa), não texto livre. */
+function ArtigoFornecedor({ editing, canEdit, value, nome, onPick }) {
+  const fornecedores = useFornecedores();
+  const [aEditar, setAEditar] = useState(false);
+  if (!editing && !aEditar) {
+    return (
+      <button type="button" disabled={!canEdit} onClick={() => setAEditar(true)} data-testid="artigo-fornecedor"
+        className="text-right font-medium text-gray-900 rounded-sm px-1 -mx-1 py-0.5 hover:bg-gray-100 hover:ring-1 hover:ring-gray-200 w-full disabled:hover:bg-transparent disabled:hover:ring-0">
+        {nome || <span className="text-gray-400">—</span>}
+      </button>
+    );
+  }
+  return (
+    <FornecedorSelect fornecedores={fornecedores} value={value || ""} nomeAtual={nome || ""} testid="artigo-fornecedor-select"
+      onChange={(id, f) => { onPick(id, f); setAEditar(false); }} />
+  );
 }

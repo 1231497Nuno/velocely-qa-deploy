@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import UtilizadorSelect from "@/components/UtilizadorSelect";
 
 const empty = {
   nome: "", tipo: "empresa", morada: "", codigo_postal: "", cidade: "", pais: "Portugal",
@@ -357,7 +358,7 @@ export default function Fornecedores() {
             </div>
             <div>
               <FieldLabel>Responsável</FieldLabel>
-              <input data-testid="fornecedor-responsavel-input" value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })} className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black" />
+              <UtilizadorSelect testid="fornecedor-responsavel-input" value={form.responsavel} onChange={(v) => setForm({ ...form, responsavel: v })} />
             </div>
             <div>
               <FieldLabel>Notas</FieldLabel>

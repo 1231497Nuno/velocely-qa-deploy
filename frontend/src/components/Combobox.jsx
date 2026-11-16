@@ -24,14 +24,20 @@ export default function Combobox({
   disabled = false,
   /** Prefixo no label (igual a clientes/fornecedores). Default: true. */
   matchPrefix = true,
+  /** Se definido, primeira opção que limpa a escolha (valor ""). */
+  clearLabel,
+  /** "sm" = compacto (tabelas e linhas). */
+  size = "md",
 }) {
   const [open, setOpen] = useState(false);
-  const ordered = [...options].sort((a, b) => Number(!!b.pin) - Number(!!a.pin));
-  const selected = ordered.find((o) => o.value === value);
+  const base = clearLabel ? [{ value: "", label: clearLabel, _limpar: true }, ...options] : options;
+  const ordered = [...base].sort((a, b) => Number(!!b.pin || !!b._limpar) - Number(!!a.pin || !!a._limpar));
+  const selected = ordered.find((o) => o.value === value && !o._limpar);
 
   const filter = (itemValue, search) => {
     const s = fold(search).trim();
     if (!s) return 1;
+    if (itemValue === " ") return 0;
     const label = fold(itemValue);
     return (matchPrefix ? label.startsWith(s) : label.includes(s)) ? 1 : 0;
   };
@@ -43,9 +49,9 @@ export default function Combobox({
           type="button"
           data-testid={testid}
           disabled={disabled}
-          className={`w-full flex items-center justify-between gap-2 border border-gray-300 rounded-sm px-3 py-2 text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black transition-colors disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed ${className}`}
+          className={`w-full flex items-center justify-between gap-2 border border-gray-300 rounded-sm ${size === "sm" ? "px-1.5 py-1 text-xs" : "px-3 py-2 text-sm"} bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black transition-colors disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed ${className}`}
         >
-          <span className={selected ? "text-gray-900 truncate" : "text-gray-400 truncate"}>
+          <span className={selected ? "text-gray-900 truncate text-left" : "text-gray-400 truncate text-left"}>
             {selected ? selected.label : placeholder}
           </span>
           <ChevronsUpDown size={15} className="text-gray-400 shrink-0" />
@@ -59,8 +65,8 @@ export default function Combobox({
             <CommandGroup>
               {ordered.map((o) => (
                 <CommandItem
-                  key={o.value}
-                  value={matchPrefix ? (o.label || "") : `${o.label} ${o.hint || ""}`}
+                  key={o.value || "__limpar"}
+                  value={o._limpar ? " " : matchPrefix ? (o.label || "") : `${o.label} ${o.hint || ""} ${o.keywords || ""}`}
                   data-testid={`${optionTestidPrefix}-${o.value}`}
                   onSelect={() => { onChange(o.value, o); setOpen(false); }}
                   className="flex items-center justify-between gap-2"

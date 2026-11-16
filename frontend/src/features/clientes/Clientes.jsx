@@ -19,6 +19,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import ClienteDefaultConfig from "@/components/ClienteDefaultConfig";
+import UtilizadorSelect from "@/components/UtilizadorSelect";
 
 const empty = {
   nome: "", tipo: "empresa", morada: "", codigo_postal: "", cidade: "", pais: "Portugal",
@@ -363,7 +364,7 @@ export default function Clientes() {
                       <input data-testid="cliente-nif-input" value={form.nif} onChange={(e) => set({ nif: e.target.value })} placeholder={emp ? "" : "Opcional"} className={inputCls + " tabular-nums"} />
                     </FieldRow>
                     <FieldRow label="Responsável" testid="cliente-campo-responsavel">
-                      <input data-testid="cliente-responsavel-input" value={form.responsavel} onChange={(e) => set({ responsavel: e.target.value })} className={inputCls} />
+                      <UtilizadorSelect testid="cliente-responsavel-input" value={form.responsavel} onChange={(v) => set({ responsavel: v })} />
                     </FieldRow>
                     <FieldRow label="Notas" testid="cliente-campo-notas" full>
                       <textarea data-testid="cliente-notas-input" value={form.notas} onChange={(e) => set({ notas: e.target.value })} rows={2} className="w-full max-w-sm border border-gray-300 rounded-sm px-2 py-1 text-sm text-left bg-white focus:outline-none focus:ring-1 focus:ring-black/20" />

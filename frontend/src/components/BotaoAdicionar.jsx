@@ -1,4 +1,6 @@
-import { forwardRef } from "react";
+import { Children, Fragment, forwardRef, isValidElement, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Plus, ChevronDown } from "lucide-react";
 
 /**
@@ -52,25 +54,63 @@ const BotaoAdicionar = forwardRef(function BotaoAdicionar(
 
 export default BotaoAdicionar;
 
-/** Lista suspensa com o mesmo aspeto do botão (escolher o que adicionar). Volta sempre a «label». */
+function textoDe(node) {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textoDe).join("");
+  if (isValidElement(node)) return textoDe(node.props.children);
+  return "";
+}
+
+function opcoesDe(children) {
+  const out = [];
+  Children.forEach(children, (c) => {
+    if (!isValidElement(c)) return;
+    if (c.type === Fragment) { out.push(...opcoesDe(c.props.children)); return; }
+    if (c.type === "option" && c.props.value !== "" && c.props.value != null) {
+      out.push({ value: String(c.props.value), label: textoDe(c.props.children), disabled: !!c.props.disabled });
+    }
+  });
+  return out;
+}
+
+const fold = (x) => String(x || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/**
+ * Botão «adicionar» com lista e pesquisa (escrever para filtrar por nome ou código).
+ * Recebe as opções como <option> (mesma API de antes).
+ */
 export function SelectAdicionar({ label, onChange, children, tamanho = "md", largo = false, testid, disabled, className = "" }) {
   const t = TAMANHOS[tamanho] || TAMANHOS.md;
+  const [open, setOpen] = useState(false);
+  const opcoes = opcoesDe(children);
   return (
-    <label className={`${BASE} ${t.btn} relative cursor-pointer ${largo ? "w-full" : ""} ${className}`}>
-      <CirculoMais tamanho={tamanho} />
-      <span className="truncate">{label}</span>
-      <ChevronDown size={tamanho === "sm" ? 12 : 14} className="shrink-0 opacity-70" />
-      <select
-        data-testid={testid}
-        value=""
-        disabled={disabled}
-        aria-label={label}
-        onChange={(e) => { const v = e.target.value; e.target.value = ""; if (v) onChange(v); }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-      >
-        <option value="">{label}…</option>
-        {children}
-      </select>
-    </label>
+    <Popover open={disabled ? false : open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" data-testid={testid} disabled={disabled} aria-label={label}
+          className={`${BASE} ${t.btn} ${largo ? "w-full" : ""} ${className}`}>
+          <CirculoMais tamanho={tamanho} />
+          <span className="truncate">{label}</span>
+          <ChevronDown size={tamanho === "sm" ? 12 : 14} className="shrink-0 opacity-70" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[min(28rem,90vw)]" align="start">
+        <Command filter={(v, q) => (fold(v).includes(fold(q).trim()) ? 1 : 0)}>
+          <CommandInput placeholder="Pesquisar…" data-testid={testid ? `${testid}-search` : undefined} />
+          <CommandList>
+            <CommandEmpty>Sem resultados.</CommandEmpty>
+            <CommandGroup>
+              {opcoes.map((o) => (
+                <CommandItem key={o.value} value={`${o.label} ${o.value}`} disabled={o.disabled}
+                  data-testid={testid ? `${testid}-opt-${o.value}` : undefined}
+                  onSelect={() => { setOpen(false); onChange(o.value); }}>
+                  <span className="truncate">{o.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import BotaoAdicionar, { SelectAdicionar } from "@/components/BotaoAdicionar";
+import EntitySelect from "@/components/EntitySelect";
 import ArtigoCombobox from "@/components/ArtigoCombobox";
 import CorLinhaPicker, { estiloLinhaCor } from "@/components/CorLinhaPicker";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
@@ -1850,12 +1851,8 @@ export default function OrcamentoDetail() {
                                     <div className="grid grid-cols-[minmax(0,1.2fr)_52px_44px] gap-1 items-end">
                                       <div>
                                         <label className="text-[10px] text-gray-500 block mb-0.5">Máquina · preço base €/h</label>
-                                        <select value={op.maquina_id || ""} onChange={(e) => { const mq = maquinas.find((x) => x.id === e.target.value); updOp(i, oi, { maquina_id: e.target.value, maquina_nome: mq ? mq.nome : "" }); }} className="w-full border border-gray-200 rounded-sm px-1 py-1 text-[11px] bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                                          <option value="">—</option>
-                                          {maquinas.map((mq) => (
-                                            <option key={mq.id} value={mq.id}>{mq.nome} · {eur(maqHora(mq))}/h</option>
-                                          ))}
-                                        </select>
+                                        <EntitySelect items={maquinas} value={op.maquina_id} clearLabel="— Sem máquina —" placeholder="Máquina…" size="sm" hint={(mq) => `${eur(maqHora(mq))}/h`}
+                                          onChange={(id, mq) => updOp(i, oi, { maquina_id: id, maquina_nome: mq ? mq.nome : "" })} />
                                       </div>
                                       <div>
                                         <label className="text-[10px] text-gray-500 block mb-0.5">Tempo</label>
@@ -1869,12 +1866,8 @@ export default function OrcamentoDetail() {
                                     <div className="grid grid-cols-[minmax(0,1.2fr)_52px_44px_24px] gap-1 items-end">
                                       <div>
                                         <label className="text-[10px] text-gray-500 block mb-0.5">Mão de obra · preço base €/h</label>
-                                        <select value={op.mao_obra_id || ""} onChange={(e) => { const mo = maoObra.find((x) => x.id === e.target.value); updOp(i, oi, { mao_obra_id: e.target.value, mao_obra_nome: mo ? mo.nome : "" }); }} className="w-full border border-gray-200 rounded-sm px-1 py-1 text-[11px] bg-white focus:outline-none focus:ring-1 focus:ring-black/20">
-                                          <option value="">—</option>
-                                          {maoObra.map((mo) => (
-                                            <option key={mo.id} value={mo.id}>{mo.nome} · {eur(Number(mo.custo_hora) || 0)}/h</option>
-                                          ))}
-                                        </select>
+                                        <EntitySelect items={maoObra} value={op.mao_obra_id} clearLabel="— Sem mão de obra —" placeholder="Mão de obra…" size="sm" hint={(mo) => `${eur(Number(mo.custo_hora) || 0)}/h`}
+                                          onChange={(id, mo) => updOp(i, oi, { mao_obra_id: id, mao_obra_nome: mo ? mo.nome : "" })} />
                                       </div>
                                       <div>
                                         <label className="text-[10px] text-gray-500 block mb-0.5">Tempo</label>

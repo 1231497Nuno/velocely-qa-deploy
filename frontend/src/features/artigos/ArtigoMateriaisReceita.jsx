@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import BotaoAdicionar from "@/components/BotaoAdicionar";
+import Combobox from "@/components/Combobox";
 import { eur } from "@/lib/api";
 import {
   emptyMaterialLinha,
@@ -122,25 +123,23 @@ export default function ArtigoMateriaisReceita({
                   <div className="flex-1 min-w-0">
                     <label className="text-xs text-gray-500 mb-1 block">Matéria-prima / componente</label>
                     {editing ? (
-                      <select
+                      <Combobox
                         value={m.material_id || ""}
-                        onChange={(e) => selectComponente(i, e.target.value)}
-                        className={fieldCls}
-                        data-testid={`artigo-material-select-${i}`}
-                      >
-                        <option value="">Selecionar…</option>
-                        {componentes.map((c) => {
+                        onChange={(v) => selectComponente(i, v)}
+                        matchPrefix={false}
+                        placeholder="Pesquisar matéria-prima ou componente…"
+                        searchPlaceholder="Nome, código…"
+                        testid={`artigo-material-select-${i}`}
+                        options={componentes.map((c) => {
                           const u = c.unidade || "un";
-                          const custo = custoUnitarioArtigo(c);
                           const usedElsewhere = idsEmUso.has(c.id) && c.id !== m.material_id;
-                          return (
-                            <option key={c.id} value={c.id}>
-                              {c.nome}{c.codigo ? ` (${c.codigo})` : ""} · {u} · {eur(custo)}/{u}
-                              {usedElsewhere ? " (já na receita — junta medidas)" : ""}
-                            </option>
-                          );
+                          return {
+                            value: c.id,
+                            label: `${c.nome}${usedElsewhere ? " (já na receita)" : ""}`,
+                            hint: `${c.codigo || ""} · ${eur(custoUnitarioArtigo(c))}/${u}`,
+                          };
                         })}
-                      </select>
+                      />
                     ) : (
                       <div className="text-sm font-medium text-gray-900">{m.material_nome || "—"}</div>
                     )}

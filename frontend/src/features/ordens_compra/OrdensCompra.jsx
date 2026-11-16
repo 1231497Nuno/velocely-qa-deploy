@@ -15,6 +15,7 @@ import MobileFiltersButton from "@/components/MobileFiltersButton";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import EntitySelect from "@/components/EntitySelect";
 
 const TIPO_DESPESA_LABEL = {
   compra: "Compra",
@@ -112,10 +113,7 @@ export default function OrdensCompra() {
                     </FiltroChip>
                   ))}
                 </FiltroGrupo>
-                <FiltroSelect mobile={mobile} value={fornecedorFilter} onChange={setFornecedorFilter} testid="oc-filtro-fornecedor" className={mobile ? "" : "ml-auto max-w-[14rem]"}>
-                  <option value="">Todos os fornecedores</option>
-                  {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                </FiltroSelect>
+                <div className={mobile ? "" : "ml-auto w-[14rem]"}><EntitySelect items={fornecedores} value={fornecedorFilter} onChange={(id) => setFornecedorFilter(id || "")} clearLabel="Todos os fornecedores" placeholder="Todos os fornecedores" testid="oc-filtro-fornecedor" /></div>
                 <FiltroSelect mobile={mobile} value={tipoFilter} onChange={setTipoFilter} testid="oc-filtro-tipo">
                   <option value="">Todos os tipos</option>
                   <option value="compra">Compra</option>

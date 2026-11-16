@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/Layout";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import EntitySelect from "@/components/EntitySelect";
 
 const inputCls = "w-full border border-gray-300 rounded-sm px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand";
 const COR = { atrasada: "bg-red-50 text-red-800 border-red-200", proxima: "bg-amber-50 text-amber-800 border-amber-200", ok: "bg-emerald-50 text-emerald-800 border-emerald-200" };
@@ -71,7 +72,7 @@ export default function Manutencao() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{edit?.id ? "Editar plano" : "Novo plano de manutenção"}</DialogTitle><DialogDescription>Por horas conta o trabalho registado nas OF dessa máquina.</DialogDescription></DialogHeader>
           {edit && <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 text-xs text-gray-600">Máquina<select className={inputCls} value={edit.maquina_id} onChange={(e) => setEdit({ ...edit, maquina_id: e.target.value })}>{d.maquinas.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></label>
+            <label className="col-span-2 text-xs text-gray-600">Máquina<EntitySelect items={d.maquinas} value={edit.maquina_id} placeholder="Escolher máquina…" hint={() => ""} onChange={(id) => setEdit({ ...edit, maquina_id: id })} /></label>
             <label className="col-span-2 text-xs text-gray-600">O quê<input className={inputCls} value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} placeholder="Ex.: Limpar lentes e espelhos" data-testid="manut-nome" /></label>
             <label className="text-xs text-gray-600">Contar por<select className={inputCls} value={edit.tipo} onChange={(e) => setEdit({ ...edit, tipo: e.target.value })}><option value="horas">Horas de trabalho</option><option value="dias">Dias</option></select></label>
             <label className="text-xs text-gray-600">A cada<input type="number" min="1" className={inputCls} value={edit.intervalo} onChange={(e) => setEdit({ ...edit, intervalo: e.target.value })} /></label>
