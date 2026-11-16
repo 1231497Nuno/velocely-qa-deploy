@@ -42,9 +42,29 @@ def fmt_eur(v) -> str:
     return f"{s} {PDF_CURRENCY}"
 
 
+_FOOTER_TXT = "Velocely · Gestão de Produção"
+
+
 def _set_currency(settings):
-    global PDF_CURRENCY
-    PDF_CURRENCY = (settings or {}).get("moeda_simbolo") or "€"
+    """Prepara o documento: moeda e texto do rodapé de página (empresa · NIF · contactos)."""
+    global PDF_CURRENCY, _FOOTER_TXT
+    s = settings or {}
+    PDF_CURRENCY = s.get("moeda_simbolo") or "€"
+    partes = [s.get("nome"), f"NIF {s['nif']}" if s.get("nif") else "", s.get("telefone"), s.get("email"), s.get("website")]
+    _FOOTER_TXT = " · ".join(x for x in partes if x) or "Velocely · Gestão de Produção"
+
+
+_RE_DATA = __import__("re").compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$")
+
+
+def fmt_data(v) -> str:
+    """2026-11-16 → 16/11/2026 (deixa outros valores como estão)."""
+    m = _RE_DATA.match(str(v or ""))
+    return f"{m.group(3)}/{m.group(2)}/{m.group(1)}" if m else str(v or "")
+
+
+def _esc(v) -> str:
+    return str(v if v is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _pdf_styles():
@@ -204,8 +224,9 @@ def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_brandi
         left_flowables.append(Paragraph("Gestão de Produção", st["small"]))
 
     # Bloco do título do documento (direita)
+    h1 = st["h1"] if len(doc_title) <= 12 else ParagraphStyle("h1s", parent=st["h1"], fontSize=15, leading=19)
     title_block = [
-        Paragraph(doc_title, st["h1"]),
+        Paragraph(doc_title, h1),
         Spacer(1, 3),
         Paragraph(str(numero or "—"), st["docnum"]),
     ]
@@ -241,21 +262,72 @@ def _header(elems, st, doc_title, numero, meta_pairs, settings=None, show_brandi
     elems.append(Spacer(1, 12))
 
     if meta_pairs:
-        rows = []
-        for label, value in meta_pairs:
-            rows.append([
-                Paragraph(str(label).upper(), st["label"]),
-                Paragraph(str(value or "—"), st["val"]),
-            ])
-        meta = Table(rows, colWidths=[40 * mm, 130 * mm])
-        meta.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("TOPPADDING", (0, 0), (-1, -1), 1),
-            ("BACKGROUND", (0, 0), (0, -1), colors.Color(0, 0, 0, alpha=0)),
-        ]))
-        elems.append(meta)
+        elems.append(_meta_blocos(st, meta_pairs))
         elems.append(Spacer(1, 14))
+
+
+_LABELS_CLIENTE = {"Cliente", "Fornecedor", "NIF", "Morada", "Cód. Postal", "Cidade", "País", "Telefone", "Email",
+                   "À atenção de", "Departamento"}
+
+
+def _meta_blocos(st, meta_pairs):
+    """Duas caixas lado a lado: destinatário (cliente/fornecedor) e dados do documento."""
+    d = {}
+    outros = []
+    for label, value in meta_pairs:
+        if value in (None, ""):
+            continue
+        if label in _LABELS_CLIENTE and label not in d:
+            d[label] = value
+        else:
+            outros.append((label, value))
+    esquerda = []
+    titulo = "FORNECEDOR" if "Fornecedor" in d else "CLIENTE"
+    nome = d.get("Cliente") or d.get("Fornecedor")
+    if d:
+        esquerda.append(Paragraph(titulo, st["label"]))
+        esquerda.append(Spacer(1, 3))
+        if nome:
+            esquerda.append(Paragraph(f"<b>{_esc(nome)}</b>", st["val"]))
+        if d.get("À atenção de"):
+            dep = f" — {_esc(d['Departamento'])}" if d.get("Departamento") else ""
+            esquerda.append(Paragraph(f"A/C {_esc(d['À atenção de'])}{dep}", st["cell"]))
+        if d.get("Morada"):
+            esquerda.append(Paragraph(_esc(d["Morada"]), st["cell"]))
+        loc = " ".join(_esc(x) for x in (d.get("Cód. Postal"), d.get("Cidade")) if x)
+        if d.get("País") and str(d["País"]).strip().lower() != "portugal":
+            loc = f"{loc}, {_esc(d['País'])}" if loc else _esc(d["País"])
+        if loc:
+            esquerda.append(Paragraph(loc, st["cell"]))
+        if d.get("NIF"):
+            esquerda.append(Paragraph(f"NIF {_esc(d['NIF'])}", st["cell"]))
+        cont = " · ".join(_esc(x) for x in (d.get("Telefone"), d.get("Email")) if x)
+        if cont:
+            esquerda.append(Paragraph(cont, st["small"]))
+    direita_rows = [[Paragraph(_esc(str(l)).upper(), st["label"]), Paragraph(_esc(fmt_data(v)), st["cell"])] for l, v in outros]
+    if not esquerda and not direita_rows:
+        return Spacer(1, 0)
+    caixa = lambda conteudo: [conteudo]  # noqa: E731
+    if direita_rows:
+        dt = Table(direita_rows, colWidths=[35 * mm, 43 * mm])
+        dt.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5)]))
+    else:
+        dt = Spacer(1, 0)
+    if not esquerda:
+        esquerda = [Spacer(1, 0)]
+    t = Table([[caixa(esquerda)[0], dt]], colWidths=[88 * mm, 82 * mm])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BACKGROUND", (0, 0), (0, 0), LIGHT),
+        ("LINEBEFORE", (0, 0), (0, 0), 2, ACCENT),
+        ("LEFTPADDING", (0, 0), (0, 0), 10), ("RIGHTPADDING", (0, 0), (0, 0), 10),
+        ("TOPPADDING", (0, 0), (0, 0), 8), ("BOTTOMPADDING", (0, 0), (0, 0), 8),
+        ("LEFTPADDING", (1, 0), (1, 0), 14), ("RIGHTPADDING", (1, 0), (1, 0), 0),
+        ("TOPPADDING", (1, 0), (1, 0), 6),
+    ]))
+    return t
 
 
 def _pdf_footer(elems, st, settings):
@@ -281,7 +353,7 @@ def _page_footer(canvas: pdfcanvas.Canvas, doc):
     canvas.line(20 * mm, y + 6, page_w - 20 * mm, y + 6)
     canvas.setFillColor(MUTED)
     canvas.setFont("Helvetica", 7.5)
-    canvas.drawString(20 * mm, y, "Velocely · Gestão de Produção")
+    canvas.drawString(20 * mm, y, _FOOTER_TXT[:120])
     canvas.drawRightString(page_w - 20 * mm, y, f"Página {doc.page}")
     # pequeno acento
     canvas.setFillColor(ACCENT)
@@ -313,26 +385,40 @@ def _data_table(data, col_widths, align=None, hAlign=None):
     return tbl
 
 
-def _totais_table(rows, has_total_line):
-    last = len(rows) - 1
-    tot = Table(rows, colWidths=[50 * mm, 35 * mm], hAlign="RIGHT")
+def _totais_table(rows, has_total_line, nota: str = ""):
+    """Quadro de totais. Destaca a linha de total (a última com rótulo em MAIÚSCULAS); `nota` vai por baixo (ex.: isenção de IVA)."""
+    idx = None
+    if has_total_line:
+        for i, r in enumerate(rows):
+            lab = str(r[0] or "")
+            if lab and lab == lab.upper() and any(ch.isalpha() for ch in lab):
+                idx = i
+        if idx is None:
+            idx = len(rows) - 1
+    tot = Table(rows + ([[nota, ""]] if nota else []), colWidths=[50 * mm, 35 * mm], hAlign="RIGHT")
     styles = [
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("TEXTCOLOR", (0, 0), (-1, -1), GREY),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]
-    if has_total_line:
+    if idx is not None:
         styles += [
-            ("LINEABOVE", (0, last), (-1, last), 1.5, ACCENT),
-            ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
-            ("FONTSIZE", (0, last), (-1, last), 12),
-            ("TEXTCOLOR", (0, last), (-1, last), DARK),
-            ("TOPPADDING", (0, last), (-1, last), 8),
+            ("LINEABOVE", (0, idx), (-1, idx), 1.5, ACCENT),
+            ("BACKGROUND", (0, idx), (-1, idx), LIGHT),
+            ("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"),
+            ("FONTSIZE", (0, idx), (-1, idx), 12),
+            ("TEXTCOLOR", (0, idx), (-1, idx), DARK),
+            ("TOPPADDING", (0, idx), (-1, idx), 7),
+            ("BOTTOMPADDING", (0, idx), (-1, idx), 7),
         ]
+    if nota:
+        n = len(rows)
+        styles += [("SPAN", (0, n), (1, n)), ("ALIGN", (0, n), (0, n), "RIGHT"), ("FONTSIZE", (0, n), (-1, n), 7.5),
+                   ("TEXTCOLOR", (0, n), (-1, n), MUTED)]
     tot.setStyle(TableStyle(styles))
     return tot
 
@@ -362,7 +448,7 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
             sub = (preco + pers) * qtd
             row = [Paragraph(l.get("artigo_nome") or "—", st["cell"])]
             if show_pers:
-                row += [Paragraph(pers_nomes(l) or "—", st["cell"]), Paragraph(fmt_eur(pers), st["cell"])]
+                row += [Paragraph(pers_nomes(l) or "—", st["cell"]), Paragraph(fmt_eur(pers) if pers else "—", st["cell"])]
             row += [Paragraph(f"{qtd:g}", st["cell"]), Paragraph(fmt_eur(preco), st["cell"]), Paragraph(fmt_eur(sub), st["cellb"])]
             data.append(row)
         col_widths = [55 * mm] + ([35 * mm, 22 * mm] if show_pers else []) + ([20 * mm, 30 * mm, 23 * mm] if not show_pers else [15 * mm, 25 * mm, 18 * mm])
@@ -415,29 +501,15 @@ def build_orcamento_pdf(orc: dict, settings: dict = None, fields: dict = None, s
         tot_rows.append(["PREÇO FINAL", fmt_eur(orc.get("total"))])
         s = settings or {}
         iva_taxa = 0.0 if s.get("iva_isento") else float(s.get("iva_taxa") or 0)
+        nota_iva = ""
         if iva_taxa > 0:
             net = orc.get("total") or 0
             iva_val = round2(net * iva_taxa / 100.0)
             tot_rows.append([f"IVA ({iva_taxa:g}%)", fmt_eur(iva_val)])
             tot_rows.append(["TOTAL C/ IVA", fmt_eur(net + iva_val)])
         elif s.get("iva_isento"):
-            tot_rows.append(["Isento de IVA", ""])
-        last = len(tot_rows) - 1
-        tot = Table(tot_rows, colWidths=[45 * mm, 35 * mm], hAlign="RIGHT")
-        tot.setStyle(TableStyle([
-            ("ALIGN", (0, 0), (0, -1), "LEFT"),
-            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-            ("FONTNAME", (0, 0), (-1, last - 1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, last - 1), 9),
-            ("TEXTCOLOR", (0, 0), (-1, last - 1), GREY),
-            ("LINEABOVE", (0, last), (-1, last), 1, DARK),
-            ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
-            ("FONTSIZE", (0, last), (-1, last), 13),
-            ("TEXTCOLOR", (0, last), (-1, last), DARK),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]))
-        elems.append(tot)
+            nota_iva = s.get("iva_motivo_isencao") or "Isento de IVA"
+        elems.append(_totais_table(tot_rows, True, nota_iva))
 
     if section_on(fields, "notas") and orc.get("notas"):
         elems.append(Spacer(1, 10))
@@ -469,6 +541,7 @@ def _qr_of(of: dict, st: dict):
 
 
 def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:
+    _set_currency(settings)
     st = _pdf_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=22 * mm)
@@ -478,7 +551,10 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
         meta_pairs += cliente_meta_pairs(of, cliente, fields)
         meta_pairs += [("Descrição", of.get("descricao")), ("Nº Encomenda", of.get("numero_encomenda"))]
     if section_on(fields, "datas_estado"):
-        meta_pairs += [("Data", of.get("data")), ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))), ("Progresso", f"{round(of.get('progresso') or 0)}%")]
+        meta_pairs += [("Data", of.get("data")), ("Prazo de entrega", of.get("prazo_entrega")),
+                       ("Encomenda", of.get("encomenda_numero")), ("Prioridade", "PRIORITÁRIA" if of.get("prioritaria") else None),
+                       ("Responsável", of.get("responsavel_nome")),
+                       ("Estado", STATUS_PT.get(of.get("status"), of.get("status"))), ("Progresso", f"{round(of.get('progresso') or 0)}%")]
     if section_on(fields, "orcamento_origem"):
         meta_pairs += orcamento_origem_pairs(orcamento)
     _header(elems, st, "ORDEM DE FABRICO", of.get("numero", ""), meta_pairs, settings, show_branding)
@@ -487,6 +563,10 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
         elems.append(Spacer(1, 4))
     except Exception:  # o QR nunca impede o PDF
         pass
+    instr = [x.strip() for x in (of.get("descricao") if not section_on(fields, "dados_cliente") else "", of.get("notas") if section_on(fields, "notas") else "") if (x or "").strip()]
+    if instr:
+        elems.append(_caixa_destaque(st, "Instruções", "<br/>".join(_esc(x).replace("\n", "<br/>") for x in instr)))
+        elems.append(Spacer(1, 10))
 
     show_tempos = section_on(fields, "tempos")
     if section_on(fields, "roteiro_operacoes"):
@@ -495,13 +575,20 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
             _pn = pers_nomes(it)
             if _pn:
                 title += f"   ·   {_pn}"
-            elems.append(Paragraph(title, st["cellb"]))
-            elems.append(Spacer(1, 4))
+            elems.append(Paragraph(_esc(title), st["section"]))
+            if (it.get("observacoes") or "").strip():
+                elems.append(_caixa_destaque(st, "Observações", _esc(it["observacoes"]).replace("\n", "<br/>"), cor=colors.HexColor("#0369A1")))
+                elems.append(Spacer(1, 4))
+            mats = [m for m in it.get("materiais") or [] if m.get("nome")]
+            if mats:
+                txt = " · ".join(f"{_esc(m['nome'])}: <b>{float(m.get('quantidade') or 0):g} {_esc(m.get('unidade') or '')}</b>" for m in mats)
+                elems.append(Paragraph(f"<font color='#6B7280'>Materiais:</font> {txt}", st["cell"]))
+                elems.append(Spacer(1, 4))
             if show_tempos:
-                cols = ["Operação", "Máquina", "T. Máq", "Mão de Obra", "T. M.O", "T. Real", "Concl."]
+                cols = ["Operação", "Máquina", "T. Máq", "Mão de Obra", "T. M.O", "T. Real", "Feito"]
                 col_widths = [33 * mm, 31 * mm, 17 * mm, 31 * mm, 17 * mm, 18 * mm, 13 * mm]
             else:
-                cols = ["Operação", "Máquina", "Mão de Obra", "Concl."]
+                cols = ["Operação", "Máquina", "Mão de Obra", "Feito"]
                 col_widths = [55 * mm, 45 * mm, 45 * mm, 15 * mm]
             data = [_th_row(st, cols)]
             for op in it.get("operacoes", []):
@@ -535,12 +622,26 @@ def build_of_pdf(of: dict, settings: dict = None, fields: dict = None, show_bran
         if not of.get("itens"):
             elems.append(Paragraph("Sem artigos nesta ordem de fabrico.", st["cell"]))
 
-    if section_on(fields, "notas") and of.get("notas"):
-        elems.append(Spacer(1, 6))
-        elems.append(Paragraph(f"<b>Notas:</b> {of.get('notas')}", st["small"]))
+    notas_of = of.get("notas_oficina") or []
+    if notas_of and section_on(fields, "notas"):
+        elems.append(Paragraph("Notas da oficina", st["section"]))
+        for n in notas_of[-15:]:
+            ref = f" · {_esc(n.get('referencia'))}" if n.get("referencia") else ""
+            elems.append(Paragraph(f"<font color='#6B7280'>{_esc(n.get('por'))} · {fmt_data(n.get('data'))}{ref}:</font> {_esc(n.get('texto'))}", st["cell"]))
+            elems.append(Spacer(1, 2))
     _pdf_footer(elems, st, settings)
     doc.build(elems, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
+
+
+def _caixa_destaque(st, titulo: str, html: str, cor=None):
+    cor = cor or colors.HexColor("#B45309")
+    t = Table([[[Paragraph(titulo.upper(), ParagraphStyle("cx", parent=st["label"], textColor=cor)), Spacer(1, 2), Paragraph(html, st["val"])]]],
+              colWidths=[170 * mm])
+    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFFBEB") if cor != colors.HexColor("#0369A1") else colors.HexColor("#F0F9FF")),
+                           ("LINEBEFORE", (0, 0), (0, 0), 3, cor), ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                           ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+    return t
 
 
 def build_encomenda_pdf(enc: dict, settings: dict = None, fields: dict = None, show_branding: bool = True, cliente: dict = None, orcamento: dict = None) -> bytes:

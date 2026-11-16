@@ -466,7 +466,7 @@ export default function Artigos() {
                         </button>
                       )}
                       {can("artigos", "edit") && (
-                        <button data-testid={`edit-artigo-${a.id}`} onClick={() => nav(`/artigos/${a.id}`)} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600" title="Abrir">
+                        <button data-testid={`edit-artigo-${a.id}`} onClick={(e) => { e.stopPropagation(); nav(`/artigos/${a.id}`, { state: { edit: true } }); }} className="p-1.5 rounded-sm hover:bg-gray-200 text-gray-600" title="Editar">
                           <Pencil size={15} />
                         </button>
                       )}

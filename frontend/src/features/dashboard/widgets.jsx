@@ -408,7 +408,7 @@ export const QuickActions = () => {
   const actions = [
     can("orcamentos", "create") && { label: "Novo Orçamento", icon: FileText, onClick: novoOrcamento, tid: "qa-novo-orcamento" },
     can("encomendas", "create") && { label: "Nova Encomenda", icon: ClipboardList, onClick: novaEncomenda, tid: "qa-nova-encomenda" },
-    can("clientes", "create") && { label: "Novo Cliente", icon: Contact, onClick: () => nav("/clientes?novo=1"), tid: "qa-novo-cliente" },
+    can("clientes", "create") && { label: "Novo Cliente", icon: Contact, onClick: () => nav("/clientes/novo"), tid: "qa-novo-cliente" },
     can("ordens_fabrico", "view") && { label: "Ordens de Fabrico", icon: Factory, onClick: () => nav("/ordens-fabrico"), tid: "qa-ver-ofs" },
   ].filter(Boolean);
   if (!actions.length) return null;

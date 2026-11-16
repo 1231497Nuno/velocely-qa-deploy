@@ -342,3 +342,33 @@ O backend recusa (409) edições a OF finalizadas e NC fechadas; os orçamentos 
   computador (Stock → Inventários).
 - Transferir (`/stock/transferir`), Consultar (`/stock/artigos/{id}`) e Acertar (`/stock/ajuste` com `nova_quantidade`,
   localização e motivo obrigatório).
+
+## Criação de registos (padrão único)
+
+- Clientes, fornecedores e artigos criam-se numa página própria (`/clientes/novo`, `/fornecedores/novo`, `/artigos/novo`)
+  com `components/NovoRegisto.jsx` (barra fixa: Voltar · «Novo …» · Cancelar · Guardar) e o formulário em blocos
+  (`BlocosShell`): `features/clientes/ClienteForm.jsx`, `features/fornecedores/FornecedorForm.jsx`. Ao guardar abre a ficha.
+- O lápis das listas abre a ficha já em edição (`navigate(..., { state: { edit: true } })`); `?novo=1` redireciona para `/x/novo`.
+- Sem diálogos de criação/edição para estes registos. A criação rápida dentro de outros documentos (`BotaoAdicionar`) mantém-se.
+
+## PDFs
+
+- `openAuthenticated` (lib) busca o ficheiro com o token e mostra PDFs/imagens no visualizador global
+  `components/VisualizadorFicheiro.jsx` (Descarregar, Imprimir, Abrir noutro separador). Não usa `window.open` depois de
+  um pedido assíncrono (o browser bloqueava o pop-up e o PDF não abria). Outros tipos são descarregados.
+- `services/pdf.py`: cabeçalho com caixa do destinatário + caixa de dados do documento (datas dd/mm/aaaa), totais com a
+  linha de total destacada (a última com rótulo em maiúsculas) e nota de isenção de IVA por baixo, rodapé de página com os
+  dados da empresa. OF: prazo, encomenda, prioridade, caixa de instruções, observações e materiais por artigo, notas da oficina.
+
+## Oficina (tablet)
+
+- `features/producao/OficinaOF.jsx`: separadores «O que fazer» (artigos com foto, personalizações, observações, arte,
+  materiais, operações com indicações e iniciar/parar/concluir), «Documentos» (`GET /oficina/of/{id}/documentos`: artes,
+  ficheiros da OF, da encomenda e dos artigos; fotos em ecrã inteiro) e «Notas» (`POST/DELETE /oficina/of/{id}/notas`,
+  ligadas à OF, a um artigo ou a uma operação; notas rápidas). «Foto» anexa fotos tiradas no tablet à OF.
+  As notas aparecem também na ficha da OF e no PDF.
+
+## Menu lateral
+
+- Grupos pelo fluxo do negócio: Vendas, Compras, Stock, Produção, Financeiro, Análise, Dados base, Sistema; Dashboard e
+  Calendário no topo. Grupos abertos/fechados ficam guardados no browser (`velocely_menu_grupos`).

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import BotaoAdicionar from "@/components/BotaoAdicionar";
 import EntitySelect from "@/components/EntitySelect";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -282,6 +282,13 @@ export default function ArtigoDetail() {
     setEditing(true);
     await loadLookups();
   };
+
+  // Lápis da lista de artigos → abre a ficha já em edição (o mesmo que clientes e fornecedores)
+  const location = useLocation();
+  const autoEdicao = useRef(false);
+  useEffect(() => {
+    if (location.state?.edit && data?.artigo && !autoEdicao.current) { autoEdicao.current = true; startFullEdit(); }
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cancelEdit = () => {
     setEditing(false);

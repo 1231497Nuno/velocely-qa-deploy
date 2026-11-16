@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import CamposPersonalizados from "@/components/CamposPersonalizados";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { api, eur, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
@@ -60,7 +60,8 @@ export default function FornecedorDetail() {
   const { can } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editando, setEditando] = useState(false);
+  const location = useLocation();
+  const [editando, setEditando] = useState(!!location.state?.edit); // vem do lápis da lista → abre em edição
 
   const load = useCallback(async () => {
     setLoading(true);
